@@ -105,9 +105,10 @@ export const AssignmentManagement: React.FC = () => {
         fetchAssignments(),
         fetchStudents(),
       ]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching data:', err);
-      setError('Failed to load assignment data');
+      // Show the actual error message to help debugging
+      setError(err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || 'Failed to load assignment data');
     } finally {
       setLoading(false);
     }
@@ -455,14 +456,13 @@ export const AssignmentManagement: React.FC = () => {
                                 <span>{formatDate(assignment.due_date)}</span>
                               </div>
                               {daysUntilDue !== null && !assignment.completed && (
-                                <div className={`text-xs mt-1 ${
-                                  daysUntilDue < 0 ? 'text-red-600' : daysUntilDue <= 3 ? 'text-orange-600' : 'text-slate-500'
-                                }`}>
+                                <div className={`text-xs mt-1 ${daysUntilDue < 0 ? 'text-red-600' : daysUntilDue <= 3 ? 'text-orange-600' : 'text-slate-500'
+                                  }`}>
                                   {daysUntilDue < 0
                                     ? `${Math.abs(daysUntilDue)} days overdue`
                                     : daysUntilDue === 0
-                                    ? 'Due today'
-                                    : `Due in ${daysUntilDue} days`}
+                                      ? 'Due today'
+                                      : `Due in ${daysUntilDue} days`}
                                 </div>
                               )}
                             </div>

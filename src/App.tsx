@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
@@ -25,13 +25,14 @@ import AdminPanel from './components/AdminPanel/AdminPanel';
 import ContentDatabase from './components/ContentDatabase/ContentDatabase';
 import StudentProgress from './components/StudentProgress/StudentProgress';
 import UserAnalytics from './components/UserAnalytics/UserAnalytics';
-import AssignedMemorizations from './components/AssignedMemorizations/AssignedMemorizations';
 import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
-import LearningHub from './components/LearningHub/LearningHub';
 import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
 import { Login } from './components/Auth/Login';
+import { MemoryRouter } from 'react-router-dom';
+import { MemoryPalacePage } from './pages/MemoryPalacePage';
+
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
 
@@ -66,7 +67,8 @@ type AppState =
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const { fetchPublicContent, proofreadingPractices, addProofreadingPractice, deleteProofreadingPractice } = useAppContext();
+  const [isNavOpen, setIsNavOpen] = useState(true);
+  const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
   const { user, loading } = useAuth();
 
   // Close login modal when user signs in
@@ -135,7 +137,15 @@ function AppContent() {
   }
 
   // Check if user is trying to access restricted pages
-  const isRestrictedPage = appState.page === 'saved' || appState.page === 'admin' || appState.page === 'database';
+  const isRestrictedPage =
+    appState.page === 'saved' ||
+    appState.page === 'admin' ||
+    appState.page === 'database' ||
+    appState.page === 'learningHub' ||
+    appState.page === 'progress' ||
+    appState.page === 'assignments' ||
+    appState.page === 'assignmentManagement' ||
+    appState.page === 'spacedRepetition';
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -327,9 +337,6 @@ function AppContent() {
     }
   };
 
-  const handleSaveProofreadingPractice = () => {
-    setAppState({ page: 'proofreading', step: 'saved' });
-  };
 
   const handleViewSavedProofreading = () => {
     setAppState({ page: 'proofreading', step: 'saved' });
@@ -444,7 +451,7 @@ function AppContent() {
             selectedIndices={appState.memorizationState.selectedWordIndices}
             originalText={appState.memorizationState.originalText}
             onBack={handleBackFromPractice}
-            onSave={() => {}}
+            onSave={() => { }}
             onViewSaved={handleViewSavedMemorization}
           />
         );
@@ -458,8 +465,8 @@ function AppContent() {
               window.location.hash = '';
               setAppState({ page: 'new', step: 'input' });
             }}
-            onSave={() => {}}
-            onViewSaved={() => {}}
+            onSave={() => { }}
+            onViewSaved={() => { }}
             isPublicView={true}
           />
         );
@@ -617,7 +624,11 @@ function AppContent() {
       case 'proofreadingAssignments':
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
       case 'learningHub':
-        return <LearningHub />;
+        return (
+          <MemoryRouter>
+            <MemoryPalacePage onExit={() => setAppState({ page: 'new', step: 'input' })} />
+          </MemoryRouter>
+        );
       case 'spacedRepetition':
         return <SpacedRepetitionPage />;
       case 'assignedPractice':
@@ -627,8 +638,8 @@ function AppContent() {
             selectedIndices={appState.memorizationState.selectedWordIndices}
             originalText={appState.memorizationState.originalText}
             onBack={handleBackFromAssignedPractice}
-            onSave={() => {}}
-            onViewSaved={() => {}}
+            onSave={() => { }}
+            onViewSaved={() => { }}
             assignmentId={appState.assignmentId}
           />
         );
@@ -693,6 +704,8 @@ function AppContent() {
     return appState.page;
   };
 
+  // State for navigation visibility moved to top to follow Rules of Hooks
+
   return (
     <>
       <Navigation
@@ -700,8 +713,10 @@ function AppContent() {
         onPageChange={handlePageChange}
         userRole={user?.role || null}
         onLogin={handleLogin}
+        isNavOpen={isNavOpen}
+        onToggle={() => setIsNavOpen(!isNavOpen)}
       />
-      <div className="ml-64">
+      <div className={`transition-all duration-300 ${isNavOpen ? "ml-64" : "ml-20"}`}>
         {renderCurrentView()}
       </div>
       {showLoginModal && (

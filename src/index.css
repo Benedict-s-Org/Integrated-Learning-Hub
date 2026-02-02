@@ -1,3 +1,131 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 220 70% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 90%;
+    --secondary-foreground: 220 20% 20%;
+    --muted: 220 15% 92%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 260 60% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 85%;
+    --input: 220 15% 85%;
+    --ring: 220 70% 50%;
+    --radius: 0.5rem;
+    
+    --panel-bg: 220 20% 94%;
+    --panel-border: 220 15% 80%;
+    
+    /* Cartoon City Colors */
+    --city-sky-top: 20 100% 92%;
+    --city-sky-middle: 35 100% 91%;
+    --city-sky-bottom: 205 45% 88%;
+    --city-grass: 140 45% 65%;
+    --city-grass-dark: 140 40% 55%;
+    --city-shadow: 280 20% 50%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 220 10% 95%;
+    --card: 220 20% 12%;
+    --card-foreground: 220 10% 95%;
+    --popover: 220 20% 12%;
+    --popover-foreground: 220 10% 95%;
+    --primary: 220 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 220 10% 90%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 260 60% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 220 70% 55%;
+    
+    --panel-bg: 220 20% 10%;
+    --panel-border: 220 15% 18%;
+    
+    /* Cartoon City Colors (dark mode) */
+    --city-sky-top: 240 30% 20%;
+    --city-sky-middle: 240 25% 15%;
+    --city-sky-bottom: 220 30% 12%;
+    --city-grass: 140 35% 35%;
+    --city-grass-dark: 140 30% 25%;
+    --city-shadow: 280 15% 30%;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
+
+/* Cartoon City Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-4px) translateX(8px); }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes sway-gentle {
+  0%, 100% { transform: rotate(-1deg) scale(1); }
+  50% { transform: rotate(1deg) scale(1.02); }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes water-ripple {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+.animate-sway {
+  animation: sway 3s ease-in-out infinite;
+}
+
+.animate-sway-gentle {
+  animation: sway-gentle 4s ease-in-out infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.animate-water-ripple {
+  animation: water-ripple 2s ease-out infinite;
+}

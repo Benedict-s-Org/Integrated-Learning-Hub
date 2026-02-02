@@ -1,0 +1,48 @@
+import { useAuth as useMainAuth } from '../context/AuthContext';
+import { User, Session } from '@supabase/supabase-js';
+
+// Define the interface expected by Memory Palace components
+interface MemoryPalaceUserProfile {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+}
+
+interface MemoryPalaceAuthContextType {
+    user: User | null;
+    session: Session | null;
+    profile: MemoryPalaceUserProfile | null;
+    isAdmin: boolean;
+    isLoading: boolean;
+    signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+    signOut: () => Promise<void>;
+    refreshProfile: () => Promise<void>;
+}
+
+export function useAuth(): MemoryPalaceAuthContextType {
+    const { user, session, loading, signIn, signOut, isAdmin } = useMainAuth();
+
+    // Map main app user profile to Memory Palace profile structure
+    const profile: MemoryPalaceUserProfile | null = user ? {
+        id: user.id,
+        display_name: user.display_name || user.username,
+        avatar_url: user.avatar_url || null,
+    } : null;
+
+    // Stub refreshProfile since main app likely updates optimistically or relies on session refresh
+    const refreshProfile = async () => {
+        // Optional: Implement real refresh if needed, for now no-op to satisfy interface
+        console.log('refreshProfile called from Memory Palace bridge');
+    };
+
+    return {
+        user: session?.user || null, // Memory Palace expects Supabase User here
+        session: session || null,
+        profile, // Memory Palace expects App Profile here
+        isAdmin,
+        isLoading: loading,
+        signIn,
+        signOut,
+        refreshProfile,
+    };
+}

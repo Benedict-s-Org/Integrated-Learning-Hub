@@ -5,7 +5,7 @@ import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
 export const Login: React.FC = () => {
   const { signIn, loading } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -18,7 +18,7 @@ export const Login: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const result = await signIn(username, password);
+      const result = await signIn(email, password);
 
       if (result.error) {
         setError(result.error.message);
@@ -52,17 +52,17 @@ export const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-2">
-              Username
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+              Email Address
             </label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              placeholder="Enter your username"
+              placeholder="Enter your email"
             />
           </div>
 

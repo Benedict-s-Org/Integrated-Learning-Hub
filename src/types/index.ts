@@ -69,10 +69,19 @@ export interface ProofreadingAnswer {
   correction: string;
 }
 
+import { Session } from '@supabase/supabase-js';
+
+// ... (keep existing imports)
+
+// ...
+
 export interface UserProfile {
   id: string;
   username: string;
   role: 'admin' | 'user';
+  email?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
   force_password_change: boolean;
   created_at: string;
   updated_at: string;
@@ -80,12 +89,16 @@ export interface UserProfile {
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;
+  can_access_spaced_repetition?: boolean;
 }
 
 export interface AuthContextType {
   user: UserProfile | null;
+  profile: UserProfile | null; // Alias for user for compatibility
+  session: Session | null;
   loading: boolean;
-  signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
+  isLoading: boolean; // Alias for loading for compatibility
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string | undefined, newPassword: string, verificationCode?: string) => Promise<{ error: Error | null }>;
   isAdmin: boolean;
@@ -367,6 +380,12 @@ export interface SpacedRepetitionStats {
   cards_due_today: number;
   average_ease: number;
   today_accuracy: number;
-  current_streak: number;
-  longest_streak: number;
 }
+
+// Memory Palace Types
+export * from "./furniture";
+export * from "./room";
+export * from "./game";
+export * from "./city";
+export * from "./region";
+export * from "./ui-builder";
