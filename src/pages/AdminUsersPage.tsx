@@ -127,9 +127,10 @@ export function AdminUsersPage() {
           'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
-          username: result.data.email.split('@')[0], // Use part before @ as username
+          email: result.data.email,
+          username: result.data.email.split('@')[0],
           password: result.data.password,
-          role: 'user', // Default role for created users
+          role: 'user',
           adminUserId: (await supabase.auth.getUser()).data.user?.id,
           display_name: result.data.displayName,
           gender: result.data.gender,
