@@ -32,6 +32,7 @@ import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepeti
 import { Login } from './components/Auth/Login';
 import { MemoryRouter } from 'react-router-dom';
 import { MemoryPalacePage } from './pages/MemoryPalacePage';
+import { ComponentInspector } from './components/debug/ComponentInspector';
 
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
@@ -70,6 +71,15 @@ function AppContent() {
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
   const { user, loading } = useAuth();
+  const [showComponentInspector, setShowComponentInspector] = useState(() => {
+    return localStorage.getItem('showComponentInspector') === 'true';
+  });
+
+  useEffect(() => {
+    const handleToggle = (e: any) => setShowComponentInspector(e.detail);
+    window.addEventListener('toggle-component-inspector', handleToggle);
+    return () => window.removeEventListener('toggle-component-inspector', handleToggle);
+  }, []);
 
   // Close login modal when user signs in
   useEffect(() => {
@@ -716,9 +726,9 @@ function AppContent() {
         isNavOpen={isNavOpen}
         onToggle={() => setIsNavOpen(!isNavOpen)}
       />
-      <div className={`transition-all duration-300 ${isNavOpen ? "ml-64" : "ml-20"}`}>
+      <main className={`h-screen overflow-y-auto transition-all duration-300 ${isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20"}`}>
         {renderCurrentView()}
-      </div>
+      </main>
       {showLoginModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="relative">
@@ -727,6 +737,7 @@ function AppContent() {
         </div>
       )}
       <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
+      <ComponentInspector enabled={showComponentInspector} />
     </>
   );
 }

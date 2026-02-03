@@ -152,16 +152,18 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/create-user")) {
-      const { username, password, role, adminUserId, display_name }: CreateUserRequest = await req.json();
+      const { email, password, role, adminUserId, display_name, gender }: CreateUserRequest & { email: string, gender?: string } = await req.json();
 
-      const { data: admin } = await supabase
+      // Check Authorization
+      const { data: adminUser } = await supabase.auth.admin.getUserById(adminUserId);
+      const { data: publicAdmin } = await supabase
         .from("users")
         .select("role")
         .eq("id", adminUserId)
         .eq("role", "admin")
         .maybeSingle();
 
-      if (!admin) {
+      if (!adminUser || !publicAdmin) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -171,19 +173,21 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { data: newUser, error } = await supabase.rpc("create_user_with_password", {
-        username_input: username,
-        password_input: password,
-        role_input: role,
-        display_name_input: display_name || null,
-        can_access_proofreading_input: false,
-        can_access_spelling_input: false,
-        can_access_learning_hub_input: false,
+      // Create User in Auth System
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email: email,
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          role: role || 'user',
+          display_name: display_name,
+          gender: gender,
+        }
       });
 
-      if (error) {
+      if (createError) {
         return new Response(
-          JSON.stringify({ error: error.message || "Failed to create user" }),
+          JSON.stringify({ error: createError.message }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -191,13 +195,21 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      if (newUser.user) {
+        // Optionally update public.users if the trigger missed any fields (like gender)
+        await supabase.from('users').update({
+          display_name: display_name,
+          // gender: gender // Uncomment if gender column exists in public.users
+        }).eq('id', newUser.user.id);
+      }
+
       return new Response(
-        JSON.stringify({ success: true, user: newUser }),
+        JSON.stringify({ success: true, user: newUser.user }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        }
+      );
     }
 
     if (path.endsWith("/bulk-create-users")) {

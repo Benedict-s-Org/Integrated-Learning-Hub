@@ -54,7 +54,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen flex bg-[hsl(var(--background))]">
+    <div className="min-h-full flex bg-[hsl(var(--background))]">
       {/* Left Sidebar */}
       <aside className="w-56 border-r border-[hsl(var(--border))] bg-[hsl(var(--card))] flex flex-col">
         {/* Sidebar Header */}
@@ -76,11 +76,10 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
                     ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
                     : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-                }`}
+                  }`}
               >
                 {item.icon}
                 {item.label}

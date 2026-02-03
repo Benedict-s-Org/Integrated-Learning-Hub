@@ -229,7 +229,7 @@ export const ContentDatabase: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-gray-600">Loading...</div>
       </div>
     );
@@ -237,7 +237,7 @@ export const ContentDatabase: React.FC = () => {
 
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
           <p className="text-slate-600">You do not have permission to access this page.</p>
@@ -247,7 +247,7 @@ export const ContentDatabase: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -299,11 +299,10 @@ export const ContentDatabase: React.FC = () => {
               <button
                 key={level}
                 onClick={() => toggleGradeLevel(level)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                  selectedGradeLevels.includes(level)
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition ${selectedGradeLevels.includes(level)
                     ? 'bg-green-600 text-white'
                     : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                }`}
+                  }`}
               >
                 {level}
               </button>
@@ -340,13 +339,12 @@ export const ContentDatabase: React.FC = () => {
                     {content.title}
                   </h3>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ml-2 ${
-                      content.grade_level === 'P.1' || content.grade_level === 'P.2'
+                    className={`px-3 py-1 rounded-full text-xs font-medium ml-2 ${content.grade_level === 'P.1' || content.grade_level === 'P.2'
                         ? 'bg-blue-100 text-blue-700'
                         : content.grade_level === 'P.3' || content.grade_level === 'P.4'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-orange-100 text-orange-700'
-                    }`}
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}
                   >
                     {content.grade_level}
                   </span>
@@ -543,13 +541,12 @@ export const ContentDatabase: React.FC = () => {
 
             <div className="mb-6 flex items-center gap-4">
               <span
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  selectedContent.grade_level === 'P.1' || selectedContent.grade_level === 'P.2'
+                className={`px-4 py-2 rounded-full text-sm font-medium ${selectedContent.grade_level === 'P.1' || selectedContent.grade_level === 'P.2'
                     ? 'bg-blue-100 text-blue-700'
                     : selectedContent.grade_level === 'P.3' || selectedContent.grade_level === 'P.4'
-                    ? 'bg-purple-100 text-purple-700'
-                    : 'bg-orange-100 text-orange-700'
-                }`}
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-orange-100 text-orange-700'
+                  }`}
               >
                 {selectedContent.grade_level}
               </span>

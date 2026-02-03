@@ -22,7 +22,7 @@ export const SidebarHistory: React.FC<SidebarHistoryProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="flex-1 p-4 overflow-y-auto">
+    <div className="flex-1 p-4 overflow-y-auto" data-component-name="SidebarHistory" data-source-file="src/components/sidebar/SidebarHistory.tsx">
       {globalHistory.length === 0 ? (
         <div className="text-center text-gray-400 text-xs py-4">暫無佈置紀錄</div>
       ) : (

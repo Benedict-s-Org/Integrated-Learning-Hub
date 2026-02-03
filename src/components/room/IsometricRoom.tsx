@@ -1144,6 +1144,8 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onContextMenu={handleContextMenu}
+      data-component-name="IsometricRoom"
+      data-source-file="src/components/room/IsometricRoom.tsx"
     >
       <svg
         ref={svgRef}

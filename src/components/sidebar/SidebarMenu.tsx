@@ -22,7 +22,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   currentPhase,
 }) => {
   return (
-    <div className="p-4 flex flex-col h-full animate-fade-in">
+    <div className="p-4 flex-1 flex flex-col overflow-y-auto animate-fade-in" data-component-name="SidebarMenu" data-source-file="src/components/sidebar/SidebarMenu.tsx">
       <div className="flex-1 space-y-4">
         {/* Currency Display */}
         <div className="bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 p-4 rounded-2xl text-white shadow-lg">

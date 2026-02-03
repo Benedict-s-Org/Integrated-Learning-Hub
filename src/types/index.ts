@@ -102,6 +102,8 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string | undefined, newPassword: string, verificationCode?: string) => Promise<{ error: Error | null }>;
   isAdmin: boolean;
+  isUserView: boolean;
+  toggleViewMode: () => void;
   accentPreference: string;
   updateAccentPreference: (accent: string) => Promise<void>;
 }

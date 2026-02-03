@@ -210,194 +210,190 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     <>
       {onViewSaved && !isPreview && (
         <ProofreadingTopNav
-          onCreateNew={() => {}}
+          onCreateNew={() => { }}
           onViewSaved={onViewSaved}
           currentView="saved"
         />
       )}
       <div
-        className="pt-20 min-h-screen bg-gray-50 pr-8"
+        className="pt-20 min-h-full bg-gray-50 pr-8"
         style={{ fontFamily: 'Times New Roman, serif' }}
         data-source-tsx="ProofreadingPractice|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
       >
-      <div className="max-w-[95%] mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h1
-            className="text-3xl font-bold text-gray-800 mb-6 text-center"
-            data-source-tsx="ProofreadingPractice Title|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-          >
-            Find and Correct Mistakes
-          </h1>
-
-          <div className="mb-6 text-center text-gray-600">
-            <p>Click on the word that contains a mistake in each sentence, then enter the correction.</p>
-          </div>
-
-          <div className="overflow-x-auto mb-8">
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-24">
-                    Question No.
-                  </th>
-                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
-                    Question
-                  </th>
-                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-64">
-                    Answer
-                  </th>
-                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-48">
-                    Correct Answer
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {parsedSentences.map((sentence) => {
-                  const selectedWordIndex = selectedWords.get(sentence.lineNumber);
-                  const correction = corrections.get(sentence.lineNumber) || '';
-                  const correctAnswer = correctAnswers.get(sentence.lineNumber);
-                  const isCorrect = isAnswerCorrect(sentence.lineNumber);
-
-                  return (
-                    <tr
-                      key={sentence.lineNumber}
-                      className={`hover:bg-gray-50 ${
-                        showResults && isCorrect === true
-                          ? 'bg-green-50'
-                          : showResults && isCorrect === false
-                          ? 'bg-red-50'
-                          : ''
-                      }`}
-                      data-source-tsx="ProofreadingPractice Table Row|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-                    >
-                      <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700">
-                        {sentence.lineNumber + 1}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3">
-                        <div className="text-lg leading-relaxed">
-                          {sentence.words.map((word, idx) => {
-                            if (word.index === -1) {
-                              return (
-                                <span key={`space-${idx}`} className="text-gray-800">
-                                  {word.text}
-                                </span>
-                              );
-                            }
-
-                            const isSelected = selectedWordIndex === word.index;
-                            const isClickable = !word.isPunctuation && !showResults && !isPreview;
-
-                            return (
-                              <button
-                                key={`word-${idx}`}
-                                onClick={() => !word.isPunctuation && handleWordClick(sentence.lineNumber, word.index)}
-                                disabled={!isClickable}
-                                className={`inline-block px-1 py-1 rounded transition-colors ${
-                                  isSelected
-                                    ? 'bg-red-200 text-gray-800'
-                                    : isClickable
-                                    ? 'hover:bg-blue-100 cursor-pointer text-gray-800'
-                                    : 'text-gray-800 cursor-default'
-                                }`}
-                                data-source-tsx="ProofreadingPractice Word Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-                              >
-                                {word.text}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            value={correction}
-                            onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
-                            disabled={showResults || isPreview}
-                            placeholder="Type correction"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                            data-source-tsx="ProofreadingPractice Answer Input|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-                          />
-                          {showResults && correctAnswer && (
-                            <div className="flex-shrink-0">
-                              {isCorrect === true ? (
-                                <Check className="text-green-600" size={24} />
-                              ) : (
-                                <X className="text-red-600" size={24} />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center">
-                        {showResults && correctAnswer ? (
-                          <span className="text-blue-700 font-medium">
-                            {correctAnswer.correction}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">Hidden</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <button
-              onClick={onBack}
-              className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-              data-source-tsx="ProofreadingPractice Back Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+        <div className="max-w-[95%] mx-auto px-4 py-8">
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h1
+              className="text-3xl font-bold text-gray-800 mb-6 text-center"
+              data-source-tsx="ProofreadingPractice Title|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
             >
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
+              Find and Correct Mistakes
+            </h1>
 
-            <div className="flex space-x-4">
-              {showResults && !isPreview && (
-                <button
-                  onClick={handleReset}
-                  className="flex items-center space-x-2 px-8 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-                  data-source-tsx="ProofreadingPractice Reset Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-                >
-                  <span>Try Again</span>
-                </button>
-              )}
-
-              {!showResults && !isPreview && (
-                <button
-                  onClick={handleCheckAnswers}
-                  disabled={!hasAllAnswers()}
-                  className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  data-source-tsx="ProofreadingPractice Check Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
-                >
-                  <Check size={20} />
-                  <span>Check Answers</span>
-                </button>
-              )}
+            <div className="mb-6 text-center text-gray-600">
+              <p>Click on the word that contains a mistake in each sentence, then enter the correction.</p>
             </div>
-          </div>
 
-          {showResults && (() => {
-            const { correctCount, totalQuestions, percentage } = calculateScore();
+            <div className="overflow-x-auto mb-8">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-24">
+                      Question No.
+                    </th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
+                      Question
+                    </th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-64">
+                      Answer
+                    </th>
+                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700 w-48">
+                      Correct Answer
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedSentences.map((sentence) => {
+                    const selectedWordIndex = selectedWords.get(sentence.lineNumber);
+                    const correction = corrections.get(sentence.lineNumber) || '';
+                    const correctAnswer = correctAnswers.get(sentence.lineNumber);
+                    const isCorrect = isAnswerCorrect(sentence.lineNumber);
 
-            return (
-              <div className={`mt-6 p-4 border rounded-lg ${
-                percentage >= 70 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-              }`}>
-                <p className={`text-center font-medium text-lg ${
-                  percentage >= 70 ? 'text-green-800' : 'text-yellow-800'
-                }`}>
-                  Score: {correctCount} / {totalQuestions} ({percentage}%)
-                </p>
+                    return (
+                      <tr
+                        key={sentence.lineNumber}
+                        className={`hover:bg-gray-50 ${showResults && isCorrect === true
+                            ? 'bg-green-50'
+                            : showResults && isCorrect === false
+                              ? 'bg-red-50'
+                              : ''
+                          }`}
+                        data-source-tsx="ProofreadingPractice Table Row|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                      >
+                        <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700">
+                          {sentence.lineNumber + 1}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3">
+                          <div className="text-lg leading-relaxed">
+                            {sentence.words.map((word, idx) => {
+                              if (word.index === -1) {
+                                return (
+                                  <span key={`space-${idx}`} className="text-gray-800">
+                                    {word.text}
+                                  </span>
+                                );
+                              }
+
+                              const isSelected = selectedWordIndex === word.index;
+                              const isClickable = !word.isPunctuation && !showResults && !isPreview;
+
+                              return (
+                                <button
+                                  key={`word-${idx}`}
+                                  onClick={() => !word.isPunctuation && handleWordClick(sentence.lineNumber, word.index)}
+                                  disabled={!isClickable}
+                                  className={`inline-block px-1 py-1 rounded transition-colors ${isSelected
+                                      ? 'bg-red-200 text-gray-800'
+                                      : isClickable
+                                        ? 'hover:bg-blue-100 cursor-pointer text-gray-800'
+                                        : 'text-gray-800 cursor-default'
+                                    }`}
+                                  data-source-tsx="ProofreadingPractice Word Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                                >
+                                  {word.text}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="text"
+                              value={correction}
+                              onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
+                              disabled={showResults || isPreview}
+                              placeholder="Type correction"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              data-source-tsx="ProofreadingPractice Answer Input|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                            />
+                            {showResults && correctAnswer && (
+                              <div className="flex-shrink-0">
+                                {isCorrect === true ? (
+                                  <Check className="text-green-600" size={24} />
+                                ) : (
+                                  <X className="text-red-600" size={24} />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-center">
+                          {showResults && correctAnswer ? (
+                            <span className="text-blue-700 font-medium">
+                              {correctAnswer.correction}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic">Hidden</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                data-source-tsx="ProofreadingPractice Back Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+              >
+                <ArrowLeft size={20} />
+                <span>Back</span>
+              </button>
+
+              <div className="flex space-x-4">
+                {showResults && !isPreview && (
+                  <button
+                    onClick={handleReset}
+                    className="flex items-center space-x-2 px-8 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors"
+                    data-source-tsx="ProofreadingPractice Reset Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                  >
+                    <span>Try Again</span>
+                  </button>
+                )}
+
+                {!showResults && !isPreview && (
+                  <button
+                    onClick={handleCheckAnswers}
+                    disabled={!hasAllAnswers()}
+                    className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    data-source-tsx="ProofreadingPractice Check Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                  >
+                    <Check size={20} />
+                    <span>Check Answers</span>
+                  </button>
+                )}
               </div>
-            );
-          })()}
+            </div>
+
+            {showResults && (() => {
+              const { correctCount, totalQuestions, percentage } = calculateScore();
+
+              return (
+                <div className={`mt-6 p-4 border rounded-lg ${percentage >= 70 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                  }`}>
+                  <p className={`text-center font-medium text-lg ${percentage >= 70 ? 'text-green-800' : 'text-yellow-800'
+                    }`}>
+                    Score: {correctCount} / {totalQuestions} ({percentage}%)
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
-    </div>
     </>
   );
 };

@@ -49,7 +49,7 @@ export function SpacedRepetitionPage() {
 
   if (!user.can_access_spaced_repetition) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="min-h-full flex items-center justify-center bg-gray-50 p-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600">You don't have access to Spaced Repetition Learning yet.</p>
@@ -102,7 +102,7 @@ export function SpacedRepetitionPage() {
             loadCardsDueToday();
           }}
           onViewAnalytics={() => setPageState({ type: 'analytics' })}
-          onViewSettings={() => {}}
+          onViewSettings={() => { }}
         />
       );
 
@@ -172,7 +172,7 @@ export function SpacedRepetitionPage() {
 
       if (cardsDueToday.length === 0) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+          <div className="min-h-full flex items-center justify-center bg-gray-50 p-6">
             <div className="text-center">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">No Cards Due Today</h1>
               <p className="text-gray-600 mb-6">Great job! You're all caught up. Come back later for more review.</p>

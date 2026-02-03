@@ -24,10 +24,10 @@
     --input: 220 15% 85%;
     --ring: 220 70% 50%;
     --radius: 0.5rem;
-    
+
     --panel-bg: 220 20% 94%;
     --panel-border: 220 15% 80%;
-    
+
     /* Cartoon City Colors */
     --city-sky-top: 20 100% 92%;
     --city-sky-middle: 35 100% 91%;
@@ -57,10 +57,10 @@
     --border: 220 15% 20%;
     --input: 220 15% 20%;
     --ring: 220 70% 55%;
-    
+
     --panel-bg: 220 20% 10%;
     --panel-border: 220 15% 18%;
-    
+
     /* Cartoon City Colors (dark mode) */
     --city-sky-top: 240 30% 20%;
     --city-sky-middle: 240 25% 15%;
@@ -73,37 +73,106 @@
   * {
     @apply border-border;
   }
+
+  html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* Cartoon City Animations */
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  50% { transform: translateY(-4px) translateX(8px); }
+
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+
+  50% {
+    transform: translateY(-4px) translateX(8px);
+  }
 }
 
 @keyframes sway {
-  0%, 100% { transform: rotate(-2deg); }
-  50% { transform: rotate(2deg); }
+
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+
+  50% {
+    transform: rotate(2deg);
+  }
 }
 
 @keyframes sway-gentle {
-  0%, 100% { transform: rotate(-1deg) scale(1); }
-  50% { transform: rotate(1deg) scale(1.02); }
+
+  0%,
+  100% {
+    transform: rotate(-1deg) scale(1);
+  }
+
+  50% {
+    transform: rotate(1deg) scale(1.02);
+  }
 }
 
 @keyframes sparkle {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 @keyframes water-ripple {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(1.5); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
 }
 
 .animate-float {

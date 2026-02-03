@@ -128,7 +128,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden relative">
-      <div className="w-64 bg-white border-r">
+      <div className="w-20 md:w-64 h-full bg-white border-r relative shrink-0">
         <Sidebar
           isOpen={sidebarOpen}
           toggle={() => setSidebarOpen(!sidebarOpen)}

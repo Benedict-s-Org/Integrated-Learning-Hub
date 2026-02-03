@@ -117,7 +117,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const isAdmin = user?.role === 'admin';
+  const [isUserView, setIsUserView] = useState(false);
+
+  const toggleViewMode = () => {
+    setIsUserView(prev => !prev);
+  };
+
+  const isAdmin = user?.role === 'admin' && !isUserView;
   const accentPreference = user?.accent_preference || 'en-US';
 
   return (
@@ -132,6 +138,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         changePassword,
         isAdmin,
+        isUserView,
+        toggleViewMode,
         accentPreference,
         updateAccentPreference,
       }}

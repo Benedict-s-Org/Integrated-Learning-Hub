@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, GitBranch, Activity, FileText, Sliders, Grid, Eye, EyeOff, ChevronDown, Bot } from 'lucide-react';
 import { AIDebugPanel } from '@/components/ai-debug';
 import { useAIDebug } from '@/hooks/useAIDebug';
@@ -70,12 +70,36 @@ const getModeDescription = (mode: GridMode): string => {
 
 import { RouteOverlay } from '@/components/debug/RouteOverlay';
 
+import { useAuth } from '@/context/AuthContext';
+
 export function DevPanel({ tileSize, onTileSizeChange, showGrid, onShowGridChange, gridMode, onGridModeChange }: DevPanelProps) {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'connections' | 'logs'>('settings');
   const [showDropdown, setShowDropdown] = useState(false);
   const [showRouteOverlay, setShowRouteOverlay] = useState(false);
+  const [showComponentInspector, setShowComponentInspector] = useState(() => {
+    return localStorage.getItem('showComponentInspector') === 'true';
+  });
+
+  const handleToggleInspector = (e: CustomEvent) => {
+    setShowComponentInspector(e.detail);
+    localStorage.setItem('showComponentInspector', String(e.detail));
+  };
+
+  useEffect(() => {
+    window.addEventListener('toggle-component-inspector', handleToggleInspector as EventListener);
+    return () => window.removeEventListener('toggle-component-inspector', handleToggleInspector as EventListener);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('showComponentInspector', String(showComponentInspector));
+  }, [showComponentInspector]);
   const aiDebug = useAIDebug();
+
+  if (user?.role !== 'admin') {
+    return null;
+  }
 
   return (
     <>
@@ -171,6 +195,31 @@ export function DevPanel({ tileSize, onTileSizeChange, showGrid, onShowGridChang
                     <span className="text-sm text-slate-700 flex items-center gap-2">
                       <Bot size={14} className="text-purple-500" />
                       顯示連結路徑 (Show Routes)
+                    </span>
+                  </label>
+
+                  {/* Component Inspector Toggle */}
+                  <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition-colors border border-slate-100 mb-4">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={showComponentInspector}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setShowComponentInspector(val);
+                          window.dispatchEvent(new CustomEvent('toggle-component-inspector', { detail: val }));
+                        }}
+                        className="sr-only"
+                      />
+                      <div className={`w-10 h-5 rounded-full transition-colors ${showComponentInspector ? "bg-fuchsia-500" : "bg-slate-300"}`}>
+                        <div
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${showComponentInspector ? "translate-x-5" : "translate-x-0"}`}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-sm text-slate-700 flex items-center gap-2">
+                      <Eye size={14} className="text-fuchsia-500" />
+                      組件檢查器 (Inspector)
                     </span>
                   </label>
 

@@ -22,7 +22,7 @@ const Navigation: React.FC<NavigationProps> = ({
   isNavOpen,
   onToggle
 }) => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, toggleViewMode, isUserView } = useAuth();
 
   const NavItem = ({
     page,
@@ -42,6 +42,8 @@ const Navigation: React.FC<NavigationProps> = ({
         : 'text-gray-700 hover:bg-gray-100'
         }`}
       title={!isNavOpen ? label : undefined}
+      data-component-name="NavItem"
+      data-source-file="src/components/Navigation/Navigation.tsx"
     >
       <Icon size={22} />
       {isNavOpen && <span>{label}</span>}
@@ -52,6 +54,8 @@ const Navigation: React.FC<NavigationProps> = ({
     <nav
       className={`fixed top-0 left-0 h-full bg-white border-r-2 border-gray-200 z-50 shadow-lg transition-all duration-300 ${isNavOpen ? 'w-64' : 'w-20'}`}
       style={{ fontFamily: 'Times New Roman, serif' }}
+      data-component-name="Navigation"
+      data-source-file="src/components/Navigation/Navigation.tsx"
     >
       {/* Toggle Button */}
       <button
@@ -70,51 +74,53 @@ const Navigation: React.FC<NavigationProps> = ({
           )}
         </div>
 
-        <div className="flex flex-col space-y-2">
-          <NavItem page="new" icon={Home} label="Home" />
+        <div className="flex-1 overflow-y-auto -mr-2 pr-2 mb-4 scrollbar-thin scrollbar-thumb-gray-200">
+          <div className="flex flex-col space-y-2">
+            <NavItem page="new" icon={Home} label="Home" />
 
-          {user && (
-            <NavItem page="saved" icon={BookMarked} label="Saved Content" />
-          )}
+            {user && (
+              <NavItem page="saved" icon={BookMarked} label="Saved Content" />
+            )}
 
-          {(user?.can_access_proofreading || user?.role === 'admin') && (
-            <NavItem page="proofreading" icon={FileEdit} label="Proofreading Exercise" />
-          )}
+            {(user?.can_access_proofreading || user?.role === 'admin') && (
+              <NavItem page="proofreading" icon={FileEdit} label="Proofreading Exercise" />
+            )}
 
-          {user && (user.can_access_spelling || user.role === 'admin') && (
-            <NavItem page="spelling" icon={Mic} label="Spelling Practice" />
-          )}
+            {user && (user.can_access_spelling || user.role === 'admin') && (
+              <NavItem page="spelling" icon={Mic} label="Spelling Practice" />
+            )}
 
-          {user && (user.can_access_learning_hub || user.role === 'admin') && (
-            <NavItem page="learningHub" icon={Lightbulb} label="Integrated Learning Hub" />
-          )}
+            {user && (user.can_access_learning_hub || user.role === 'admin') && (
+              <NavItem page="learningHub" icon={Lightbulb} label="Integrated Learning Hub" />
+            )}
 
-          {user && (user.can_access_spaced_repetition || user.role === 'admin') && (
-            <NavItem page="spacedRepetition" icon={Zap} label="Spaced Repetition" />
-          )}
+            {user && (user.can_access_spaced_repetition || user.role === 'admin') && (
+              <NavItem page="spacedRepetition" icon={Zap} label="Spaced Repetition" />
+            )}
 
-          {user && (
-            <NavItem
-              page="progress"
-              icon={TrendingUp}
-              label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
-            />
-          )}
+            {user && (
+              <NavItem
+                page="progress"
+                icon={TrendingUp}
+                label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
+              />
+            )}
 
-          {user && user.role !== 'admin' && (
-            <NavItem page="assignments" icon={ClipboardList} label="Assignments" />
-          )}
+            {user && user.role !== 'admin' && (
+              <NavItem page="assignments" icon={ClipboardList} label="Assignments" />
+            )}
 
-          {userRole === 'admin' && (
-            <>
-              <NavItem page="assignmentManagement" icon={FolderKanban} label="Assignment Management" />
-              <NavItem page="admin" icon={Shield} label="Admin Panel" />
-              <NavItem page="database" icon={Database} label="Database" />
-            </>
-          )}
+            {userRole === 'admin' && (
+              <>
+                <NavItem page="assignmentManagement" icon={FolderKanban} label="Assignment Management" />
+                <NavItem page="admin" icon={Shield} label="Admin Panel" />
+                <NavItem page="database" icon={Database} label="Database" />
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="mt-auto pt-4 border-t border-gray-200">
+        <div className="mt-auto pt-4 border-t border-gray-200 shrink-0">
           {user ? (
             <>
               {isNavOpen && (
@@ -123,6 +129,21 @@ const Navigation: React.FC<NavigationProps> = ({
                   <p className="text-xs text-gray-500 capitalize">{user.role}</p>
                 </div>
               )}
+
+              {user?.role === 'admin' && (
+                <button
+                  onClick={toggleViewMode}
+                  className={`w-full flex items-center mb-2 ${isNavOpen ? 'px-4 space-x-3' : 'justify-center'} py-2 rounded-lg font-medium transition-colors ${isUserView
+                    ? 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent'
+                    }`}
+                  title={!isNavOpen ? (isUserView ? 'Switch to Admin' : 'Switch to User') : undefined}
+                >
+                  <TrendingUp size={22} className={isUserView ? 'text-purple-600' : ''} />
+                  {isNavOpen && <span>{isUserView ? 'Switch to Admin' : 'Switch to User'}</span>}
+                </button>
+              )}
+
               <NavItem
                 icon={LogOut}
                 label="Sign Out"

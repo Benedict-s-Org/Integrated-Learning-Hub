@@ -8,8 +8,6 @@ import {
   Map,
   Layout,
   BarChart3,
-  History,
-  ArrowLeft,
   FolderUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -22,8 +20,6 @@ interface SidebarAdminProps {
   onOpenSpaceDesign: () => void;
   onOpenCityEditor: () => void;
   onOpenAssetUpload: () => void;
-  onNavigateToHistory: () => void;
-  onNavigateToMenu: () => void;
 }
 
 export const SidebarAdmin: React.FC<SidebarAdminProps> = ({
@@ -34,13 +30,11 @@ export const SidebarAdmin: React.FC<SidebarAdminProps> = ({
   onOpenSpaceDesign,
   onOpenCityEditor,
   onOpenAssetUpload,
-  onNavigateToHistory,
-  onNavigateToMenu,
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="p-4 flex flex-col h-full animate-fade-in">
+    <div className="p-4 flex-1 flex flex-col overflow-y-auto animate-fade-in" data-component-name="SidebarAdmin" data-source-file="src/components/sidebar/SidebarAdmin.tsx">
       <div className="flex-1 space-y-4">
         <div className="flex items-center gap-2 text-xl font-bold text-slate-800">
           <ShieldCheck className="text-emerald-500" /> 管理員
@@ -85,14 +79,6 @@ export const SidebarAdmin: React.FC<SidebarAdminProps> = ({
             <br />• 空間設計藍圖
           </div>
         </div>
-      </div>
-      <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
-        <Button variant="secondary" className="w-full" onClick={onNavigateToHistory}>
-          <History size={16} /> 歷史紀錄
-        </Button>
-        <Button variant="ghost" className="w-full text-slate-500" onClick={onNavigateToMenu}>
-          <ArrowLeft size={16} /> 返回主選單
-        </Button>
       </div>
     </div>
   );

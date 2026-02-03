@@ -366,7 +366,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         />
       )}
       <div
-        className={`min-h-screen bg-gray-50 pr-8 ${!isPublicView && user ? 'pt-24' : 'pt-20'}`}
+        className={`min-h-full bg-gray-50 pr-8 ${!isPublicView && user ? 'pt-24' : 'pt-20'}`}
         style={{ fontFamily: 'Times New Roman, serif' }}
         data-source-tsx="MemorizationView|src/components/MemorizationView/MemorizationView.tsx"
       >
@@ -379,250 +379,247 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               Practice Memorization
             </h1>
 
-          <div className="mb-6 space-y-4">
-            <div className="flex justify-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Difficulty:</span>
+            <div className="mb-6 space-y-4">
+              <div className="flex justify-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-700">Difficulty:</span>
+                  <button
+                    onClick={() => setDifficultyLevel(1)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 1
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                  >
+                    Level 1 (Easy)
+                  </button>
+                  <button
+                    onClick={() => setDifficultyLevel(2)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 2
+                        ? 'bg-yellow-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                  >
+                    Level 2 (Medium)
+                  </button>
+                  <button
+                    onClick={() => setDifficultyLevel(3)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 3
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                  >
+                    Level 3 (Hard)
+                  </button>
+                </div>
+              </div>
+
+              {speechSupported && (
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-center space-x-6">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={handlePlay}
+                        disabled={isPlaying}
+                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        title="Play"
+                      >
+                        <Play size={20} fill="white" />
+                      </button>
+                      <button
+                        onClick={handlePause}
+                        disabled={!isPlaying || isPaused}
+                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        title="Pause"
+                      >
+                        <Pause size={20} fill="white" />
+                      </button>
+                      <button
+                        onClick={handleReplay}
+                        disabled={!isPlaying && !isPaused}
+                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        title="Replay"
+                      >
+                        <RotateCcw size={20} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-gray-700">Speed:</span>
+                      <select
+                        value={playbackSpeed}
+                        onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                        className="px-3 py-2 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <option value="0.5">0.5x (Slow)</option>
+                        <option value="0.75">0.75x (Moderate)</option>
+                        <option value="1">1x (Normal)</option>
+                        <option value="1.25">1.25x (Fast)</option>
+                        <option value="1.5">1.5x (Very Fast)</option>
+                      </select>
+                    </div>
+
+                    <div className="text-sm font-medium text-gray-700">
+                      {isPlaying ? 'Playing...' : isPaused ? 'Paused' : 'Ready'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-4">
                 <button
-                  onClick={() => setDifficultyLevel(1)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    difficultyLevel === 1
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  onClick={revealAllWords}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                 >
-                  Level 1 (Easy)
+                  Reveal all Words
                 </button>
                 <button
-                  onClick={() => setDifficultyLevel(2)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    difficultyLevel === 2
-                      ? 'bg-yellow-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  onClick={coverAllWords}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
-                  Level 2 (Medium)
-                </button>
-                <button
-                  onClick={() => setDifficultyLevel(3)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    difficultyLevel === 3
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Level 3 (Hard)
+                  Cover all Words
                 </button>
               </div>
             </div>
 
-            {speechSupported && (
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-center space-x-6">
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={handlePlay}
-                      disabled={isPlaying}
-                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                      title="Play"
-                    >
-                      <Play size={20} fill="white" />
-                    </button>
-                    <button
-                      onClick={handlePause}
-                      disabled={!isPlaying || isPaused}
-                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                      title="Pause"
-                    >
-                      <Pause size={20} fill="white" />
-                    </button>
-                    <button
-                      onClick={handleReplay}
-                      disabled={!isPlaying && !isPaused}
-                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                      title="Replay"
-                    >
-                      <RotateCcw size={20} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-700">Speed:</span>
-                    <select
-                      value={playbackSpeed}
-                      onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                      className="px-3 py-2 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <option value="0.5">0.5x (Slow)</option>
-                      <option value="0.75">0.75x (Moderate)</option>
-                      <option value="1">1x (Normal)</option>
-                      <option value="1.25">1.25x (Fast)</option>
-                      <option value="1.5">1.5x (Very Fast)</option>
-                    </select>
-                  </div>
-
-                  <div className="text-sm font-medium text-gray-700">
-                    {isPlaying ? 'Playing...' : isPaused ? 'Paused' : 'Ready'}
-                  </div>
+            {saveSuccess && (
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle size={24} className="text-green-600" />
+                  <p className="text-green-700 font-medium">
+                    Content saved successfully! Redirecting to saved content...
+                  </p>
                 </div>
               </div>
             )}
 
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={revealAllWords}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-              >
-                Reveal all Words
-              </button>
-              <button
-                onClick={coverAllWords}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Cover all Words
-              </button>
-            </div>
-          </div>
-
-          {saveSuccess && (
-            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center space-x-3">
-                <CheckCircle size={24} className="text-green-600" />
-                <p className="text-green-700 font-medium">
-                  Content saved successfully! Redirecting to saved content...
-                </p>
-              </div>
-            </div>
-          )}
-
-          {saveError && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center space-x-3">
-                <XCircle size={24} className="text-red-600" />
-                <p className="text-red-700 font-medium">{saveError}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="bg-gray-50 p-6 rounded-lg mb-6 min-h-64">
-            <div 
-              className="text-xl leading-relaxed"
-              data-source-tsx="MemorizationView Text Display|src/components/MemorizationView/MemorizationView.tsx"
-            >
-              {words.map((word, idx) => {
-                const isMemorized = selectedIndices.includes(word.index);
-                const isHidden = hiddenWords.has(word.index);
-                const isHighlighted = word.highlightGroup !== undefined;
-                const isCurrentlySpeaking = currentWordIndex === word.index;
-
-                if (word.isParagraphBreak) {
-                  return <div key={`para-break-${word.index}`} className="mb-4" />;
-                }
-
-                if (word.text === '\n' || word.text === '\r\n') {
-                  return <br key={word.index} />;
-                }
-
-                // Add speaking highlight style
-                const speakingClass = isCurrentlySpeaking ? 'ring-4 ring-blue-400 ring-offset-2 animate-pulse' : '';
-
-                // Non-selected but highlighted words
-                if (isHighlighted && !isMemorized) {
-                  return (
-                    <span
-                      key={idx}
-                      className={`inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded ${speakingClass}`}
-                      data-source-tsx="MemorizationView Highlighted Word|src/components/MemorizationView/MemorizationView.tsx"
-                    >
-                      {word.text}
-                    </span>
-                  );
-                }
-
-                if (isMemorized) {
-                  const bgColor = isHighlighted ? 'bg-purple-100' : 'bg-green-100';
-                  const hoverBgColor = isHighlighted ? 'hover:bg-purple-200' : 'hover:bg-green-200';
-
-                  const displayText = isHidden ? maskWord(word.text, difficultyLevel) : word.text;
-
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => toggleWordVisibility(word.index)}
-                      className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${speakingClass}`}
-                      data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
-                    >
-                      {displayText}
-                    </button>
-                  );
-                } else {
-                  return (
-                    <span
-                      key={idx}
-                      className={`inline-block px-1 py-1 text-gray-800 rounded ${speakingClass}`}
-                      data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
-                    >
-                      {word.text}
-                    </span>
-                  );
-                }
-              })}
-            </div>
-          </div>
-          
-          <div className="flex justify-between">
-            <button
-              onClick={onBack}
-              className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-              data-source-tsx="MemorizationView Back Button|src/components/MemorizationView/MemorizationView.tsx"
-            >
-              <ArrowLeft size={20} />
-              <span>{isPublicView ? 'Home' : 'Back'}</span>
-            </button>
-            
-            {!isPublicView && user && (
-              <div className="flex flex-col items-end space-y-2">
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving || saveSuccess || (!isAdmin && saveLimit !== null && currentSaveCount >= saveLimit)}
-                  className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  data-source-tsx="MemorizationView Save Button|src/components/MemorizationView/MemorizationView.tsx"
-                >
-                  <Save size={20} />
-                  <span>{isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}</span>
-                </button>
-                {!isAdmin && saveLimit !== null && (
-                  <span className="text-sm text-gray-600">
-                    {currentSaveCount >= saveLimit ? (
-                      <span className="text-red-600 font-medium">Limit reached ({currentSaveCount}/{saveLimit})</span>
-                    ) : (
-                      <span>Saved: {currentSaveCount}/{saveLimit}</span>
-                    )}
-                  </span>
-                )}
+            {saveError && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center space-x-3">
+                  <XCircle size={24} className="text-red-600" />
+                  <p className="text-red-700 font-medium">{saveError}</p>
+                </div>
               </div>
             )}
-          </div>
-          
-          <div
-            className="mt-4 text-sm text-gray-600 text-center space-y-2"
-            data-source-tsx="MemorizationView Instructions Container|src/components/MemorizationView/MemorizationView.tsx"
-          >
-            <p data-source-tsx="MemorizationView Instructions Text|src/components/MemorizationView/MemorizationView.tsx">
-              Click masked words to reveal them • Click revealed words to hide them again • Use audio controls to hear the text read aloud
-            </p>
-            <p className="text-xs text-gray-500">
-              Level 1: Show first & last letters (e.g., l****r) • Level 2: Show first letter only (e.g., l*****) • Level 3: Hide all letters (e.g., ******)
-            </p>
-            {speechSupported && (
-              <p className="text-xs text-gray-500">
-                Audio playback uses your selected accent preference • Words are highlighted as they are spoken
+
+            <div className="bg-gray-50 p-6 rounded-lg mb-6 min-h-64">
+              <div
+                className="text-xl leading-relaxed"
+                data-source-tsx="MemorizationView Text Display|src/components/MemorizationView/MemorizationView.tsx"
+              >
+                {words.map((word, idx) => {
+                  const isMemorized = selectedIndices.includes(word.index);
+                  const isHidden = hiddenWords.has(word.index);
+                  const isHighlighted = word.highlightGroup !== undefined;
+                  const isCurrentlySpeaking = currentWordIndex === word.index;
+
+                  if (word.isParagraphBreak) {
+                    return <div key={`para-break-${word.index}`} className="mb-4" />;
+                  }
+
+                  if (word.text === '\n' || word.text === '\r\n') {
+                    return <br key={word.index} />;
+                  }
+
+                  // Add speaking highlight style
+                  const speakingClass = isCurrentlySpeaking ? 'ring-4 ring-blue-400 ring-offset-2 animate-pulse' : '';
+
+                  // Non-selected but highlighted words
+                  if (isHighlighted && !isMemorized) {
+                    return (
+                      <span
+                        key={idx}
+                        className={`inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded ${speakingClass}`}
+                        data-source-tsx="MemorizationView Highlighted Word|src/components/MemorizationView/MemorizationView.tsx"
+                      >
+                        {word.text}
+                      </span>
+                    );
+                  }
+
+                  if (isMemorized) {
+                    const bgColor = isHighlighted ? 'bg-purple-100' : 'bg-green-100';
+                    const hoverBgColor = isHighlighted ? 'hover:bg-purple-200' : 'hover:bg-green-200';
+
+                    const displayText = isHidden ? maskWord(word.text, difficultyLevel) : word.text;
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => toggleWordVisibility(word.index)}
+                        className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${speakingClass}`}
+                        data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
+                      >
+                        {displayText}
+                      </button>
+                    );
+                  } else {
+                    return (
+                      <span
+                        key={idx}
+                        className={`inline-block px-1 py-1 text-gray-800 rounded ${speakingClass}`}
+                        data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
+                      >
+                        {word.text}
+                      </span>
+                    );
+                  }
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                data-source-tsx="MemorizationView Back Button|src/components/MemorizationView/MemorizationView.tsx"
+              >
+                <ArrowLeft size={20} />
+                <span>{isPublicView ? 'Home' : 'Back'}</span>
+              </button>
+
+              {!isPublicView && user && (
+                <div className="flex flex-col items-end space-y-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || saveSuccess || (!isAdmin && saveLimit !== null && currentSaveCount >= saveLimit)}
+                    className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    data-source-tsx="MemorizationView Save Button|src/components/MemorizationView/MemorizationView.tsx"
+                  >
+                    <Save size={20} />
+                    <span>{isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}</span>
+                  </button>
+                  {!isAdmin && saveLimit !== null && (
+                    <span className="text-sm text-gray-600">
+                      {currentSaveCount >= saveLimit ? (
+                        <span className="text-red-600 font-medium">Limit reached ({currentSaveCount}/{saveLimit})</span>
+                      ) : (
+                        <span>Saved: {currentSaveCount}/{saveLimit}</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div
+              className="mt-4 text-sm text-gray-600 text-center space-y-2"
+              data-source-tsx="MemorizationView Instructions Container|src/components/MemorizationView/MemorizationView.tsx"
+            >
+              <p data-source-tsx="MemorizationView Instructions Text|src/components/MemorizationView/MemorizationView.tsx">
+                Click masked words to reveal them • Click revealed words to hide them again • Use audio controls to hear the text read aloud
               </p>
-            )}
+              <p className="text-xs text-gray-500">
+                Level 1: Show first & last letters (e.g., l****r) • Level 2: Show first letter only (e.g., l*****) • Level 3: Hide all letters (e.g., ******)
+              </p>
+              {speechSupported && (
+                <p className="text-xs text-gray-500">
+                  Audio playback uses your selected accent preference • Words are highlighted as they are spoken
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };

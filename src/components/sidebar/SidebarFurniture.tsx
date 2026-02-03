@@ -101,7 +101,7 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
   // Show furniture sub-tab
   if (subTab === null) {
     return (
-      <>
+      <div className="flex-1 flex flex-col min-h-0" data-component-name="SidebarFurniture" data-source-file="src/components/sidebar/SidebarFurniture.tsx">
         {/* Sub-tab selector */}
         <div className="p-2 border-b border-gray-100 flex gap-1">
           <button
@@ -173,14 +173,14 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
             <Trash2 size={16} /> {isRemoveMode ? "退出拆除模式" : "移除傢俱"}
           </Button>
         </div>
-      </>
+      </div>
     );
   }
 
   // Wall sub-tab
   if (subTab === "wall") {
     return (
-      <>
+      <div className="flex-1 flex flex-col min-h-0" data-component-name="SidebarFurniture-Wall" data-source-file="src/components/sidebar/SidebarFurniture.tsx">
         <div className="p-3 border-b border-gray-100 flex items-center gap-2">
           <button
             onClick={() => {
@@ -204,13 +204,12 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
               <div
                 key={wall.id}
                 onClick={() => setPreviewWallId(wall.id)}
-                className={`bg-white border-2 rounded-xl p-3 cursor-pointer transition-all ${
-                  isPreviewing
-                    ? "border-indigo-500 bg-indigo-50"
-                    : isActive
-                      ? "border-green-500 bg-green-50"
-                      : "border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
-                }`}
+                className={`bg-white border-2 rounded-xl p-3 cursor-pointer transition-all ${isPreviewing
+                  ? "border-indigo-500 bg-indigo-50"
+                  : isActive
+                    ? "border-green-500 bg-green-50"
+                    : "border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
+                  }`}
               >
                 <div className="flex gap-2 mb-2">
                   <div className="flex-1 aspect-square rounded-lg overflow-hidden bg-gray-100">
@@ -261,14 +260,14 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
             </div>
           </div>
         )}
-      </>
+      </div>
     );
   }
 
   // Floor sub-tab
   if (subTab === "floor") {
     return (
-      <>
+      <div className="flex-1 flex flex-col min-h-0" data-component-name="SidebarFurniture-Floor" data-source-file="src/components/sidebar/SidebarFurniture.tsx">
         <div className="p-3 border-b border-gray-100 flex items-center gap-2">
           <button
             onClick={() => {
@@ -292,13 +291,12 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
               <div
                 key={floor.id}
                 onClick={() => setPreviewFloorId(floor.id)}
-                className={`bg-white border-2 rounded-xl p-3 cursor-pointer transition-all ${
-                  isPreviewing
-                    ? "border-indigo-500 bg-indigo-50"
-                    : isActive
-                      ? "border-green-500 bg-green-50"
-                      : "border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
-                }`}
+                className={`bg-white border-2 rounded-xl p-3 cursor-pointer transition-all ${isPreviewing
+                  ? "border-indigo-500 bg-indigo-50"
+                  : isActive
+                    ? "border-green-500 bg-green-50"
+                    : "border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
+                  }`}
               >
                 <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 mb-2">
                   <img src={floor.image} alt={floor.name} className="w-full h-full object-cover" />
@@ -333,13 +331,13 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
             </div>
           </div>
         )}
-      </>
+      </div>
     );
   }
 
   // Furniture sub-tab (same as default)
   return (
-    <>
+    <div className="flex-1 flex flex-col min-h-0" data-component-name="SidebarFurniture-MyFurniture" data-source-file="src/components/sidebar/SidebarFurniture.tsx">
       <div className="p-3 border-b border-gray-100 flex items-center gap-2">
         <button
           onClick={() => setSubTab(null)}
@@ -394,6 +392,6 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
           <Trash2 size={16} /> {isRemoveMode ? "退出拆除模式" : "移除傢俱"}
         </Button>
       </div>
-    </>
+    </div>
   );
 };

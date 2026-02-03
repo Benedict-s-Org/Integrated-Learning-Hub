@@ -183,7 +183,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   if (!speechSupported) {
     return (
       <div
-        className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
+        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
         style={{ fontFamily: 'Times New Roman, serif' }}
       >
         <div className="max-w-2xl mx-auto">
@@ -208,7 +208,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   if (isCompleted) {
     return (
       <div
-        className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
+        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
         style={{ fontFamily: 'Times New Roman, serif' }}
       >
         <div className="max-w-3xl mx-auto">
@@ -246,9 +246,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                 {results.map((result, index) => (
                   <div
                     key={index}
-                    className={`p-3 rounded-lg flex items-center justify-between ${
-                      result.isCorrect ? 'bg-green-50' : 'bg-red-50'
-                    }`}
+                    className={`p-3 rounded-lg flex items-center justify-between ${result.isCorrect ? 'bg-green-50' : 'bg-red-50'
+                      }`}
                   >
                     <div className="flex items-center space-x-3">
                       {result.isCorrect ? (
@@ -300,22 +299,20 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               <button
                 onClick={() => setLevel(1)}
                 disabled={showFeedback}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  level === 1
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${level === 1
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 Level 1: Letter Click
               </button>
               <button
                 onClick={() => setLevel(2)}
                 disabled={showFeedback}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  level === 2
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${level === 2
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 Level 2: Typing
               </button>
@@ -418,9 +415,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
           {showFeedback && (
             <div
-              className={`mb-6 p-6 rounded-xl ${
-                isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'
-              }`}
+              className={`mb-6 p-6 rounded-xl ${isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'
+                }`}
             >
               <div className="flex items-center space-x-3 mb-2">
                 {isCorrect ? (

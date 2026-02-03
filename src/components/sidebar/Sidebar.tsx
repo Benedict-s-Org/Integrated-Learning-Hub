@@ -138,13 +138,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   getTargetName,
   onExit,
 }) => {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, user, toggleViewMode, isUserView } = useAuth();
   const [tab, setTab] = useState<"menu" | "furniture" | "memory" | "history" | "admin">("menu");
 
   return (
     <div
-      className={`absolute left-0 top-0 h-full bg-white border-r border-gray-200 shadow-xl z-30 transition-all duration-300 flex flex-col ${isOpen ? "w-72" : "w-20"
+      className={`relative h-full bg-white border-r border-gray-200 shadow-xl z-30 transition-all duration-300 flex flex-col ${isOpen ? "w-64" : "w-20"
         }`}
+      data-component-name="Sidebar"
+      data-source-file="src/components/sidebar/Sidebar.tsx"
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-100 flex items-center justify-between">
@@ -185,6 +187,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? "bg-indigo-100 text-indigo-600"
                 : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               }`}
+            data-component-name={`SidebarTab-${t.id}`}
+            data-source-file="src/components/sidebar/Sidebar.tsx"
           >
             <t.icon size={18} />
             {isOpen && <span className="text-xs font-bold">{t.label}</span>}
@@ -193,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {tab === "menu" && isOpen && (
           <SidebarMenu
             coins={coins}
@@ -258,15 +262,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onOpenSpaceDesign={onOpenSpaceDesign}
             onOpenCityEditor={onOpenCityEditor}
             onOpenAssetUpload={onOpenAssetUpload}
-            onNavigateToHistory={() => setTab("history")}
-            onNavigateToMenu={() => setTab("menu")}
           />
         )}
       </div>
 
       {/* Footer - User Info */}
       {isOpen && (
-        <div className="border-t border-gray-100 p-4">
+        <div className="border-t border-gray-100 p-4 flex-shrink-0 bg-white">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
               <User size={18} className="text-indigo-600" />
@@ -288,6 +290,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <LogOut size={16} className="rotate-180" />
               返回中心
+            </button>
+          )}
+
+          {user?.role === 'admin' && (
+            <button
+              onClick={toggleViewMode}
+              className={`w-full flex items-center justify-center gap-2 py-2 mb-2 text-sm rounded-lg transition-all ${isUserView
+                ? "text-purple-600 bg-purple-50 hover:bg-purple-100"
+                : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                }`}
+            >
+              {isUserView ? <ShieldCheck size={16} /> : <User size={16} />}
+              {isUserView ? "Switch to Admin" : "Switch to User"}
             </button>
           )}
 

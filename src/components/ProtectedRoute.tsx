@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
+      <div className="min-h-full flex items-center justify-center bg-[hsl(var(--background))]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-[hsl(var(--primary))]" />
           <p className="text-[hsl(var(--muted-foreground))]">載入中...</p>

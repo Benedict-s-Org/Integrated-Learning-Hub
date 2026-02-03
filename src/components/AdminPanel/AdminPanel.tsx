@@ -177,6 +177,7 @@ export const AdminPanel: React.FC = () => {
     }
 
     setIsProcessing(true);
+    console.log('Creating users with admin ID:', currentUser?.id);
 
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/bulk-create-users`;
@@ -193,7 +194,16 @@ export const AdminPanel: React.FC = () => {
         }),
       });
 
+
+      if (response.status === 403) {
+        setError('Unauthorized: You do not have permission to perform this action. Please ensure your account has the "admin" role.');
+        setIsProcessing(false);
+        return;
+      }
+
       const data = await response.json();
+      console.log('Bulk create response status:', response.status);
+      console.log('Bulk create response data:', data);
 
       if (data.success) {
         setSuccess(data.message);
@@ -207,7 +217,9 @@ export const AdminPanel: React.FC = () => {
         const errorMessages = data.errors?.map((err: any) =>
           `Line ${err.line} (${err.username}): ${err.error}`
         ).join('; ');
-        setError(data.message + (errorMessages ? `. Errors: ${errorMessages}` : ''));
+        // Use data.error if data.message is not present (standard error response)
+        const mainError = data.message || data.error || 'Unknown error occurred';
+        setError(mainError + (errorMessages ? `. Errors: ${errorMessages}` : ''));
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -496,7 +508,7 @@ export const AdminPanel: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-gray-600">Loading...</div>
       </div>
     );
@@ -504,7 +516,7 @@ export const AdminPanel: React.FC = () => {
 
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
           <p className="text-slate-600">You do not have permission to access this page.</p>
@@ -514,7 +526,7 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-8" data-component-name="AdminPanel" data-source-file="src/components/AdminPanel/AdminPanel.tsx">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -548,7 +560,7 @@ export const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
