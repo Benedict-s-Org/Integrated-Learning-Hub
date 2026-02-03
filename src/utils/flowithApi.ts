@@ -69,3 +69,53 @@ export async function call_flowith_api(
         throw error; // Re-throw to let the caller handle it
     }
 }
+
+/**
+ * Fetches the list of available models from Flowith API.
+ * @returns Array of model ID strings.
+ */
+export async function get_flowith_models(): Promise<string[]> {
+    const apiKey = import.meta.env.VITE_FLOWITH_API_KEY || process.env.FLOWITH_API_KEY;
+
+    if (!apiKey) {
+        throw new Error('VITE_FLOWITH_API_KEY is not defined in .env file.');
+    }
+
+    const endpoint = 'https://edge.flowith.net/external/use/seek-knowledge/models';
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch models: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        // Handle different possible response formats
+        if (Array.isArray(data)) {
+            // Assume array of strings or objects
+            if (typeof data[0] === 'string') return data;
+            if (data[0] && typeof data[0] === 'object' && 'id' in data[0]) return data.map((m: any) => m.id);
+            return []; // Unknown format
+        } else if (data && Array.isArray(data.data)) {
+            // Standard format { data: [...] }
+            if (typeof data.data[0] === 'string') return data.data;
+            if (data.data[0] && typeof data.data[0] === 'object' && 'id' in data.data[0]) return data.data.map((m: any) => m.id);
+            return [];
+        }
+
+        console.warn('Unknown model list format:', data);
+        return ['google nano banana pro', 'gpt-4o-mini']; // Fallback
+
+    } catch (error) {
+        console.error('Error fetching Flowith models:', error);
+        return ['google nano banana pro', 'gpt-4o-mini']; // Fallback on error
+    }
+}

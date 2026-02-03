@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Send, Image as ImageIcon } from 'lucide-react';
-import { call_flowith_api } from '../utils/flowithApi';
+import { call_flowith_api, get_flowith_models } from '../utils/flowithApi';
 
 export const FlowithTestPage: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -9,6 +9,19 @@ export const FlowithTestPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
+
+    useEffect(() => {
+        get_flowith_models()
+            .then(models => {
+                setAvailableModels(models);
+                if (models.length > 0 && !models.includes('google nano banana pro')) {
+                    // If default isn't available, pick the first one
+                    setModel(models[0]);
+                }
+            })
+            .catch(err => console.error('Failed to load models:', err));
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,13 +87,22 @@ export const FlowithTestPage: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Model
                             </label>
-                            <input
-                                type="text"
+                            <select
                                 value={model}
                                 onChange={(e) => setModel(e.target.value)}
-                                placeholder="Model Name"
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
-                            />
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm bg-white"
+                            >
+                                {availableModels.length > 0 ? (
+                                    availableModels.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))
+                                ) : (
+                                    <>
+                                        <option value="google nano banana pro">google nano banana pro</option>
+                                        <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                    </>
+                                )}
+                            </select>
                         </div>
                     </div>
 
