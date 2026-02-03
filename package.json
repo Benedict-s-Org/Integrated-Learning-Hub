@@ -11,7 +11,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:integration": "vitest run src/test/integration",
-    "test:auth": "vitest run src/test/integration/auth.test.ts"
+    "test:auth": "vitest run src/test/integration/auth.test.ts",
+    "deploy": "git add . && git commit -m \"Auto-deploy: Update online version\" && git push origin main"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",
