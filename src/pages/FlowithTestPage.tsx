@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Send, Image as ImageIcon } from 'lucide-react';
 import { call_flowith_api, get_flowith_models } from '../utils/flowithApi';
 
+// Saved Prompt Interface
+interface SavedPrompt {
+    id: string;
+    name: string;
+    query: string;
+    kbIds: string;
+    refDesc: string;
+    model: string;
+    timestamp: number;
+}
+
 export const FlowithTestPage: React.FC = () => {
     const [query, setQuery] = useState('');
     const [kbIds, setKbIds] = useState('');
@@ -11,10 +22,26 @@ export const FlowithTestPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [availableModels, setAvailableModels] = useState<string[]>([]);
 
+    // Saved Prompts State
+    const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+    const [showSavedList, setShowSavedList] = useState(false);
+
     // Image Style Transfer State
     const [refImage, setRefImage] = useState<File | null>(null);
     const [refDesc, setRefDesc] = useState('');
     const [targetImage, setTargetImage] = useState<File | null>(null);
+
+    // Load saved prompts from localStorage on mount
+    useEffect(() => {
+        const saved = localStorage.getItem('flowith_saved_prompts');
+        if (saved) {
+            try {
+                setSavedPrompts(JSON.parse(saved));
+            } catch (e) {
+                console.error('Failed to parse saved prompts', e);
+            }
+        }
+    }, []);
 
     useEffect(() => {
         get_flowith_models()
@@ -27,6 +54,46 @@ export const FlowithTestPage: React.FC = () => {
             })
             .catch(err => console.error('Failed to load models:', err));
     }, []);
+
+    const saveCurrentPrompt = () => {
+        if (!query.trim()) {
+            alert('Please enter a query to save.');
+            return;
+        }
+        const name = prompt('Enter a name for this prompt preset:', query.slice(0, 20) + '...');
+        if (!name) return;
+
+        const newPrompt: SavedPrompt = {
+            id: Date.now().toString(),
+            name,
+            query,
+            kbIds,
+            refDesc,
+            model,
+            timestamp: Date.now()
+        };
+
+        const updated = [newPrompt, ...savedPrompts];
+        setSavedPrompts(updated);
+        localStorage.setItem('flowith_saved_prompts', JSON.stringify(updated));
+    };
+
+    const loadPrompt = (p: SavedPrompt) => {
+        setQuery(p.query);
+        setKbIds(p.kbIds);
+        setRefDesc(p.refDesc);
+        setModel(p.model);
+        setShowSavedList(false);
+    };
+
+    const deletePrompt = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Delete this saved prompt?')) return;
+
+        const updated = savedPrompts.filter(p => p.id !== id);
+        setSavedPrompts(updated);
+        localStorage.setItem('flowith_saved_prompts', JSON.stringify(updated));
+    };
 
     const fileToBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -69,15 +136,100 @@ export const FlowithTestPage: React.FC = () => {
 
     return (
         <div className="p-8 max-w-4xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-                    <Sparkles className="text-purple-600" />
-                    Flowith API Playground
-                </h1>
-                <p className="text-gray-600 mt-2">Test image generation and knowledge retrieval.</p>
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+                        <Sparkles className="text-purple-600" />
+                        Flowith API Playground
+                    </h1>
+                    <p className="text-gray-600 mt-2">Test image generation and knowledge retrieval.</p>
+                </div>
+
+                <div className="relative">
+                    <div className="flex bg-white rounded-lg shadow-sm border border-gray-200">
+                        <button
+                            onClick={() => setShowSavedList(!showSavedList)}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border-r border-gray-200 flex items-center gap-2"
+                        >
+                            <span>📂 Prompt Library</span>
+                            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-xs">{savedPrompts.length}</span>
+                        </button>
+                        <button
+                            onClick={saveCurrentPrompt}
+                            className="px-4 py-2 text-sm font-medium text-purple-600 hover:bg-purple-50 flex items-center gap-1"
+                            title="Save current inputs as preset"
+                        >
+                            <span>💾 Save Current</span>
+                        </button>
+                    </div>
+
+                    {showSavedList && (
+                        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-10 max-h-96 overflow-y-auto">
+                            <div className="p-3 border-b border-gray-100 font-medium text-gray-900 bg-gray-50 flex justify-between items-center rounded-t-xl">
+                                <span>Saved Presets</span>
+                                <button onClick={() => setShowSavedList(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+                            </div>
+
+                            {savedPrompts.length === 0 ? (
+                                <div className="p-8 text-center text-gray-500 text-sm">
+                                    No saved prompts yet. Save one to see it here!
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {savedPrompts.map(p => (
+                                        <div
+                                            key={p.id}
+                                            onClick={() => loadPrompt(p)}
+                                            className="p-3 hover:bg-purple-50 cursor-pointer group transition-colors"
+                                        >
+                                            <div className="flex justify-between items-start mb-1">
+                                                <h4 className="font-medium text-gray-800 text-sm">{p.name}</h4>
+                                                <button
+                                                    onClick={(e) => deletePrompt(p.id, e)}
+                                                    className="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Delete preset"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-gray-500 line-clamp-2">{p.query}</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <span className="text-[10px] uppercase bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">{p.model}</span>
+                                                {p.refDesc && <span className="text-[10px] uppercase bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100">Style</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                {!import.meta.env.VITE_FLOWITH_API_KEY && (
+                    <div className="bg-amber-50 border-l-4 border-amber-500 p-4 m-6 mb-0">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-amber-800">
+                                    API Key Not Found
+                                </h3>
+                                <div className="mt-2 text-sm text-amber-700">
+                                    <p>
+                                        <code>VITE_FLOWITH_API_KEY</code> is missing.
+                                        Please ensure you have added it to your <code>.env</code> file and <strong>restarted the server</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
                     <div>
