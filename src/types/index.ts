@@ -41,6 +41,7 @@ export interface AppContextType {
   proofreadingPractices: ProofreadingPractice[];
   addProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[]) => Promise<boolean>;
   deleteProofreadingPractice: (id: string) => Promise<void>;
+  refreshSavedContents: () => Promise<void>;
 }
 
 export type AppPage = 'new' | 'saved' | 'admin' | 'publicPractice' | 'proofreading';

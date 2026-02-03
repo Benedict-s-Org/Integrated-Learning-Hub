@@ -19,55 +19,59 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
   const [saveLimit, setSaveLimit] = useState<number | null>(null);
   const [currentSaveCount, setCurrentSaveCount] = useState<number>(0);
 
-  // Load saved contents from Supabase on mount
+  // Load saved contents from Supabase
+  const fetchSavedContents = async () => {
+    if (!userId) {
+      setLoading(false);
+      setSaveLimit(null);
+      setCurrentSaveCount(0);
+      return;
+    }
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/list`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error('Error fetching saved contents:', responseData.error);
+      } else {
+        const formattedData = responseData.contents.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          originalText: item.originalText,
+          selectedWordIndices: item.selectedWordIndices,
+          createdAt: new Date(item.createdAt),
+          isPublished: item.isPublished || false,
+          publicId: item.publicId || null,
+        }));
+        setSavedContents(formattedData);
+        setSaveLimit(responseData.limit);
+        setCurrentSaveCount(responseData.currentCount);
+      }
+    } catch (error) {
+      console.error('Failed to fetch saved contents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchSavedContents = async () => {
-      if (!userId) {
-        setLoading(false);
-        setSaveLimit(null);
-        setCurrentSaveCount(0);
-        return;
-      }
-
-      try {
-        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/list`;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId }),
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-          console.error('Error fetching saved contents:', responseData.error);
-        } else {
-          const formattedData = responseData.contents.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            originalText: item.originalText,
-            selectedWordIndices: item.selectedWordIndices,
-            createdAt: new Date(item.createdAt),
-            isPublished: item.isPublished || false,
-            publicId: item.publicId || null,
-          }));
-          setSavedContents(formattedData);
-          setSaveLimit(responseData.limit);
-          setCurrentSaveCount(responseData.currentCount);
-        }
-      } catch (error) {
-        console.error('Failed to fetch saved contents:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchSavedContents();
   }, [userId]);
+
+  const refreshSavedContents = async () => {
+    await fetchSavedContents();
+  };
 
   useEffect(() => {
     const fetchSpellingLists = async () => {
@@ -77,7 +81,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
 
       try {
         const { data, error } = await supabase
-          .from('spelling_practice_lists')
+          .from('spelling_practice_lists' as any)
           .select('id, user_id, title, words, created_at, updated_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
@@ -155,36 +159,46 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const { data, error } = await supabase
-        .from('saved_contents')
-        .insert([{
-          user_id: userId,
-          title: content.title,
-          original_text: content.originalText,
-          selected_word_indices: content.selectedWordIndices,
-          is_published: false,
-        }])
-        .select()
-        .single();
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/create`;
 
-      if (error) {
-        console.error('Error adding saved content:', error);
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: content.title,
+          originalText: content.originalText,
+          selectedWordIndices: content.selectedWordIndices,
+          userId: userId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Error adding saved content:', data.error);
         return false;
       }
 
-      const newContent: SavedContent = {
-        id: data.id,
-        title: data.title,
-        originalText: data.original_text,
-        selectedWordIndices: data.selected_word_indices,
-        createdAt: new Date(data.created_at),
-        isPublished: data.is_published || false,
-        publicId: data.public_id || null,
-      };
+      if (data.content) {
+        const newContent: SavedContent = {
+          id: data.content.id,
+          title: data.content.title,
+          originalText: data.content.originalText,
+          selectedWordIndices: data.content.selectedWordIndices,
+          createdAt: new Date(data.content.createdAt),
+          isPublished: data.content.isPublished || false,
+          publicId: data.content.publicId || null,
+        };
 
-      setSavedContents(prev => [newContent, ...prev]);
-      setCurrentSaveCount(prev => prev + 1);
-      return true;
+        setSavedContents(prev => [newContent, ...prev]);
+        setCurrentSaveCount(prev => prev + 1);
+        return true;
+      }
+
+      return false;
     } catch (error) {
       console.error('Failed to add saved content:', error);
       return false;
@@ -240,9 +254,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
 
       // Update local state
-      setSavedContents(prev => 
-        prev.map(content => 
-          content.id === id 
+      setSavedContents(prev =>
+        prev.map(content =>
+          content.id === id
             ? { ...content, isPublished: true, publicId }
             : content
         )
@@ -270,16 +284,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
 
       const words = processText(data.original_text);
+      const selectedIndices = (data.selected_word_indices as number[]) || [];
       const wordsWithSelection = words.map(word => ({
         ...word,
-        isMemorized: data.selected_word_indices.includes(word.index)
+        isMemorized: selectedIndices.includes(word.index)
       }));
 
       return {
         originalText: data.original_text,
         words: wordsWithSelection,
-        selectedWordIndices: data.selected_word_indices,
-        hiddenWords: new Set(data.selected_word_indices),
+        selectedWordIndices: selectedIndices,
+        hiddenWords: new Set(selectedIndices),
       };
     } catch (error) {
       console.error('Failed to fetch public content:', error);
@@ -294,15 +309,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const { data, error } = await supabase
-        .from('spelling_practice_lists')
+      const { data, error } = await (supabase
+        .from('spelling_practice_lists' as any)
         .insert([{
           user_id: userId,
           title,
           words,
         }])
         .select()
-        .single();
+        .single() as any);
 
       if (error) {
         console.error('Error adding spelling list:', error);
@@ -334,7 +349,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
 
     try {
       const { error } = await supabase
-        .from('spelling_practice_lists')
+        .from('spelling_practice_lists' as any)
         .delete()
         .eq('id', id)
         .eq('user_id', userId);
@@ -449,6 +464,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     proofreadingPractices,
     addProofreadingPractice,
     deleteProofreadingPractice,
+    refreshSavedContents,
   };
 
   return (

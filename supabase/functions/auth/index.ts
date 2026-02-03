@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-client-info",
 };
 
 interface LoginRequest {
@@ -18,6 +18,7 @@ interface CreateUserRequest {
   role: 'admin' | 'user';
   adminUserId: string;
   display_name?: string;
+  class?: string;
 }
 
 interface BulkCreateUsersRequest {
@@ -26,6 +27,7 @@ interface BulkCreateUsersRequest {
     password: string;
     role: 'admin' | 'user';
     display_name?: string;
+    class?: string;
   }>;
   adminUserId: string;
 }
@@ -55,6 +57,7 @@ interface UpdateUserRequest {
   username?: string;
   display_name?: string;
   role?: 'admin' | 'user';
+  class?: string;
 }
 
 interface AdminResetPasswordRequest {
@@ -98,6 +101,7 @@ Deno.serve(async (req: Request) => {
     const path = url.pathname;
 
     if (path.endsWith("/login")) {
+      console.log("Processing login request...");
       const { username, password }: LoginRequest = await req.json();
 
       const { data: user, error } = await supabase
@@ -266,6 +270,7 @@ Deno.serve(async (req: Request) => {
             can_access_proofreading_input: false,
             can_access_spelling_input: false,
             can_access_learning_hub_input: false,
+            class_input: user.class || null,
           });
 
           if (error) {
@@ -418,6 +423,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/list-users")) {
+      console.log("Processing list-users request...");
       const { adminUserId } = await req.json();
 
       const { data: admin } = await supabase
@@ -535,7 +541,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/update-user")) {
-      const { adminUserId, userId, username, display_name, role }: UpdateUserRequest = await req.json();
+      const { adminUserId, userId, username, display_name, role, class: className }: UpdateUserRequest = await req.json();
 
       try {
         const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
@@ -544,6 +550,7 @@ Deno.serve(async (req: Request) => {
           new_username: username || null,
           new_display_name: display_name || null,
           new_role: role || null,
+          new_class: className || null,
         });
 
         if (error) {
@@ -554,6 +561,21 @@ Deno.serve(async (req: Request) => {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             }
           );
+        }
+
+        // Sync with auth.users metadata for immediate session reflection
+        const authUpdates: any = {};
+        if (role) authUpdates.role = role;
+        if (display_name) authUpdates.display_name = display_name;
+        if (className) authUpdates.class = className;
+
+        if (Object.keys(authUpdates).length > 0) {
+          await supabase.auth.admin.updateUserById(userId, {
+            user_metadata: {
+              ...(await supabase.auth.admin.getUserById(userId)).data.user?.user_metadata,
+              ...authUpdates
+            }
+          });
         }
 
         return new Response(

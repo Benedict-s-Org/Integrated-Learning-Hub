@@ -40,7 +40,7 @@ interface UserWithProfile {
 
 export function AdminUsersPage() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user: currentUser } = useAuth();
 
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -111,7 +111,7 @@ export function AdminUsersPage() {
     // Validate input
     const result = createUserSchema.safeParse({ email, password, displayName, gender });
     if (!result.success) {
-      setCreateError(result.error.errors[0].message);
+      setCreateError(result.error.issues[0].message);
       return;
     }
 
@@ -448,6 +448,7 @@ export function AdminUsersPage() {
           isOpen={!!editingUser}
           onClose={() => setEditingUser(null)}
           onSuccess={fetchUsers}
+          adminUserId={currentUser?.id || ""}
         />
       )}
 

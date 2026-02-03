@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-client-info",
 };
 
 interface AssignRequest {
@@ -94,6 +94,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/list")) {
+      console.log("Processing proofreading-assignments list request...");
       const { practiceId, adminUserId }: ListRequest = await req.json();
 
       const { data: admin, error: adminError } = await supabase

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Save, CheckCircle, XCircle } from 'lucide-react';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useAppContext } from '../../context/AppContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 
 interface ProofreadingPreviewProps {
@@ -20,6 +21,7 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
   onViewSaved,
 }) => {
   const { user } = useAuth();
+  const { addProofreadingPractice } = useAppContext();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
@@ -152,26 +154,14 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
     setSaveSuccess(false);
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-practices/create`;
+      const success = await addProofreadingPractice(
+        practiceTitle.trim(),
+        sentences,
+        answers
+      );
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: practiceTitle.trim(),
-          sentences,
-          answers,
-          userId: user.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save practice');
+      if (!success) {
+        throw new Error('Failed to save practice');
       }
 
       setSaveSuccess(true);

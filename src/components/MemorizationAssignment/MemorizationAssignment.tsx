@@ -45,36 +45,49 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
     setLoading(true);
     setError(null);
     try {
+      console.log('Fetching students for contentId:', contentId);
       const { data: studentsData, error: studentsError } = await supabase
         .from('users')
         .select('id, username')
         .eq('role', 'user')
         .order('username');
 
-      if (studentsError) throw studentsError;
-      setStudents(studentsData || []);
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        throw studentsError;
+      }
 
+      const studentsList = studentsData || [];
+      setStudents(studentsList);
+      console.log('Fetched students count:', studentsList.length);
+
+      console.log('Fetching assignments for contentId:', contentId);
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('memorization_assignments')
-        .select(`
-          user_id,
-          assigned_at,
-          completed,
-          users!memorization_assignments_user_id_fkey(username)
-        `)
+        .select('user_id, assigned_at, completed')
         .eq('content_id', contentId);
 
-      if (assignmentsError) throw assignmentsError;
+      if (assignmentsError) {
+        console.error('Error fetching assignments:', assignmentsError);
+        throw assignmentsError;
+      }
 
-      const formattedAssignments = (assignmentsData || []).map((a: any) => ({
-        user_id: a.user_id,
-        username: a.users?.username || 'Unknown',
-        assigned_at: a.assigned_at,
-        completed: a.completed,
-      }));
+      console.log('Raw assignments count:', assignmentsData?.length || 0);
 
+      const formattedAssignments = (assignmentsData || []).map((a: any) => {
+        const student = studentsList.find(s => s.id === a.user_id);
+        return {
+          user_id: a.user_id,
+          username: student?.username || 'Unknown Student',
+          assigned_at: a.assigned_at,
+          completed: a.completed,
+        };
+      });
+
+      console.log('Formatted assignments count:', formattedAssignments.length);
       setAssignments(formattedAssignments);
     } catch (err) {
+      console.error('loadData error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
@@ -161,7 +174,7 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Assign Content</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Assign Content <span className="text-[10px] font-normal text-gray-400">v1.0.1</span></h2>
             <p className="text-sm text-gray-600 mt-1">{contentTitle}</p>
           </div>
           <button

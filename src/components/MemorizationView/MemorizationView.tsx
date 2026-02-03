@@ -40,7 +40,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isStoppingRef = useRef(false);
 
-  const { addSavedContent, savedContents, saveLimit, currentSaveCount } = useAppContext();
+  const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user, isAdmin, accentPreference } = useAuth();
 
   useEffect(() => {
@@ -78,7 +78,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     const title = originalText.substring(0, 50) + (originalText.length > 50 ? '...' : '');
 
     try {
-      await supabase.from('memorization_practice_sessions').insert({
+      const { error: sessionError } = await (supabase.from('memorization_practice_sessions' as any).insert({
         user_id: user.id,
         assignment_id: assignmentId || null,
         title,
@@ -87,20 +87,24 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         hidden_words_count: selectedIndices.length,
         session_duration_seconds: sessionDurationSeconds,
         completed_at: new Date().toISOString(),
-      });
+      }) as any);
+
+      if (sessionError) {
+        console.warn('Could not save memorization session (table may be missing):', sessionError);
+      }
 
       if (assignmentId) {
-        const { error: markError } = await supabase.rpc('mark_assignment_complete', {
+        const { error: markError } = await (supabase.rpc('mark_assignment_complete' as any, {
           p_assignment_id: assignmentId,
           p_assignment_type: 'memorization'
-        });
+        }) as any);
 
         if (markError) {
           console.error('Error marking assignment complete:', markError);
         }
       }
     } catch (error) {
-      console.error('Error saving memorization session:', error);
+      console.error('Error in saveSession:', error);
     }
   };
 
@@ -310,41 +314,18 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
 
       const title = originalText.substring(0, 50) + (originalText.length > 50 ? '...' : '');
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/create`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: title,
-          originalText: originalText,
-          selectedWordIndices: selectedIndices,
-          userId: user.id,
-        }),
+      const success = await addSavedContent({
+        title,
+        originalText,
+        selectedWordIndices: selectedIndices,
+        isPublished: false,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save content');
+      if (!success) {
+        throw new Error('Failed to save content');
       }
 
       setSaveSuccess(true);
-
-      if (data.content) {
-        const newContent = {
-          id: data.content.id,
-          title: data.content.title,
-          originalText: data.content.originalText,
-          selectedWordIndices: data.content.selectedWordIndices,
-          createdAt: new Date(data.content.createdAt),
-          isPublished: data.content.isPublished,
-          publicId: data.content.publicId,
-        };
-      }
 
       setTimeout(() => {
         onSave();
@@ -386,8 +367,8 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   <button
                     onClick={() => setDifficultyLevel(1)}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 1
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                   >
                     Level 1 (Easy)
@@ -395,8 +376,8 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   <button
                     onClick={() => setDifficultyLevel(2)}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 2
-                        ? 'bg-yellow-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                   >
                     Level 2 (Medium)
@@ -404,8 +385,8 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   <button
                     onClick={() => setDifficultyLevel(3)}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 3
-                        ? 'bg-red-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                   >
                     Level 3 (Hard)

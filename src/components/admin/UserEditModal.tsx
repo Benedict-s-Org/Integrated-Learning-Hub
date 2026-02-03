@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2 } from "lucide-react";
+import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
@@ -18,14 +18,16 @@ interface UserEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  adminUserId: string;
 }
 
-export function UserEditModal({ user, isOpen, onClose, onSuccess }: UserEditModalProps) {
+export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }: UserEditModalProps) {
   const [displayName, setDisplayName] = useState(user.display_name || "");
   const [email, setEmail] = useState(user.email || "");
   const [password, setPassword] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_url || null);
+  const [role, setRole] = useState<'admin' | 'user'>(user.is_admin ? 'admin' : 'user');
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +165,12 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess }: UserEditModa
         email?: string;
         password?: string;
         avatarUrl?: string | null;
-      } = { userId: user.id };
+        adminUserId: string;
+        role?: 'admin' | 'user';
+      } = {
+        userId: user.id,
+        adminUserId: adminUserId
+      };
 
       // Only include changed fields
       if (displayName !== user.display_name) {
@@ -177,6 +184,9 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess }: UserEditModa
       }
       if (avatarUrl !== user.avatar_url) {
         updateData.avatarUrl = avatarUrl || null;
+      }
+      if (role !== (user.is_admin ? 'admin' : 'user')) {
+        updateData.role = role;
       }
 
       const { data, error: fnError } = await supabase.functions.invoke("update-user", {
@@ -336,6 +346,25 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess }: UserEditModa
               placeholder="至少6個字符"
               className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             />
+          </div>
+
+          {/* Role Selection */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+              <Shield className="w-4 h-4" />
+              用戶權限 (Role)
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+              className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+            >
+              <option value="user">一般用戶 (User)</option>
+              <option value="admin">管理員 (Admin)</option>
+            </select>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              管理員可以訪問後台管理界面並更新其他用戶。
+            </p>
           </div>
         </div>
 
