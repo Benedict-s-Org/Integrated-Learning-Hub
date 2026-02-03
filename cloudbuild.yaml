@@ -5,6 +5,7 @@ steps:
       'build',
       '--build-arg', 'VITE_SUPABASE_URL=$_VITE_SUPABASE_URL',
       '--build-arg', 'VITE_SUPABASE_ANON_KEY=$_VITE_SUPABASE_ANON_KEY',
+      '--build-arg', 'VITE_FLOWITH_API_KEY=$_VITE_FLOWITH_API_KEY',
       '-t', 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA',
       '.'
     ]
