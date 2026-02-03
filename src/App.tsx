@@ -32,6 +32,7 @@ import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepeti
 import { Login } from './components/Auth/Login';
 import { MemoryRouter } from 'react-router-dom';
 import { MemoryPalacePage } from './pages/MemoryPalacePage';
+import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
@@ -63,7 +64,8 @@ type AppState =
   | { page: 'proofreadingAssignments' }
   | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string }
   | { page: 'learningHub' }
-  | { page: 'spacedRepetition' };
+  | { page: 'spacedRepetition' }
+  | { page: 'flowithTest' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
@@ -199,7 +201,7 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => {
     // Check if user is trying to access restricted pages without authentication
     if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition')) {
       setShowLoginModal(true);
@@ -260,6 +262,8 @@ function AppContent() {
       setAppState({ page: 'learningHub' });
     } else if (page === 'spacedRepetition') {
       setAppState({ page: 'spacedRepetition' });
+    } else if (page === 'flowithTest') {
+      setAppState({ page: 'flowithTest' });
     }
   };
 
@@ -667,10 +671,12 @@ function AppContent() {
             assignmentId={appState.assignmentId}
           />
         );
+      case 'flowithTest':
+        return <FlowithTestPage />;
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }

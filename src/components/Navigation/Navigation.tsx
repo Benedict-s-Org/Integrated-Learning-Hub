@@ -1,13 +1,13 @@
 import React from 'react';
 import {
   Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList,
-  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight
+  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => void;
   userRole: string | null;
   onLogin?: () => void;
   isNavOpen: boolean;
@@ -110,11 +110,12 @@ const Navigation: React.FC<NavigationProps> = ({
               <NavItem page="assignments" icon={ClipboardList} label="Assignments" />
             )}
 
-            {userRole === 'admin' && (
+            {userRole === 'admin' && !isUserView && (
               <>
                 <NavItem page="assignmentManagement" icon={FolderKanban} label="Assignment Management" />
                 <NavItem page="admin" icon={Shield} label="Admin Panel" />
                 <NavItem page="database" icon={Database} label="Database" />
+                <NavItem page="flowithTest" icon={Sparkles} label="Flowith Test" />
               </>
             )}
           </div>
