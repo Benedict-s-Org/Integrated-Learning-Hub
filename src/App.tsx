@@ -70,10 +70,24 @@ function AppContent() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
-  const { user, loading } = useAuth();
+  const { user, loading, toggleViewMode } = useAuth();
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
+
+  // Global keyboard shortcut for quick toggle (Alt+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        if (user?.role === 'admin') {
+          e.preventDefault();
+          toggleViewMode();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [user, toggleViewMode]);
 
   useEffect(() => {
     const handleToggle = (e: any) => setShowComponentInspector(e.detail);

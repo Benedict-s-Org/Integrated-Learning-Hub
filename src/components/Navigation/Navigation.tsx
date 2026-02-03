@@ -133,13 +133,15 @@ const Navigation: React.FC<NavigationProps> = ({
               {user?.role === 'admin' && (
                 <button
                   onClick={toggleViewMode}
-                  className={`w-full flex items-center mb-2 ${isNavOpen ? 'px-4 space-x-3' : 'justify-center'} py-2 rounded-lg font-medium transition-colors ${isUserView
+                  className={`w-full flex items-center mb-2 ${isNavOpen ? 'px-4 mb-4 space-x-3' : 'justify-center'} py-2 rounded-lg font-medium transition-colors ${isUserView
                     ? 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent'
                     }`}
-                  title={!isNavOpen ? (isUserView ? 'Switch to Admin' : 'Switch to User') : undefined}
+                  title={isUserView ? 'Switch to Admin' : 'Switch to User'}
                 >
-                  <TrendingUp size={22} className={isUserView ? 'text-purple-600' : ''} />
+                  <div className={`transition-transform duration-300 ${isUserView ? 'rotate-12' : ''}`}>
+                    {isUserView ? <Shield size={22} className="text-purple-600" /> : <TrendingUp size={22} />}
+                  </div>
                   {isNavOpen && <span>{isUserView ? 'Switch to Admin' : 'Switch to User'}</span>}
                 </button>
               )}

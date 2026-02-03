@@ -297,12 +297,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={toggleViewMode}
               className={`w-full flex items-center justify-center gap-2 py-2 mb-2 text-sm rounded-lg transition-all ${isUserView
-                ? "text-purple-600 bg-purple-50 hover:bg-purple-100"
-                : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                ? "text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200"
+                : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent"
                 }`}
+              title={isUserView ? "Switch to Admin" : "Switch to User"}
             >
-              {isUserView ? <ShieldCheck size={16} /> : <User size={16} />}
-              {isUserView ? "Switch to Admin" : "Switch to User"}
+              <div className={`transition-transform duration-300 ${isUserView ? 'rotate-12' : ''}`}>
+                {isUserView ? <ShieldCheck size={16} className="text-purple-600" /> : <User size={16} />}
+              </div>
+              {isOpen && <span>{isUserView ? "Switch to Admin" : "Switch to User"}</span>}
             </button>
           )}
 
