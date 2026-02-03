@@ -11,6 +11,11 @@ export const FlowithTestPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [availableModels, setAvailableModels] = useState<string[]>([]);
 
+    // Image Style Transfer State
+    const [refImage, setRefImage] = useState<File | null>(null);
+    const [refDesc, setRefDesc] = useState('');
+    const [targetImage, setTargetImage] = useState<File | null>(null);
+
     useEffect(() => {
         get_flowith_models()
             .then(models => {
@@ -23,6 +28,15 @@ export const FlowithTestPage: React.FC = () => {
             .catch(err => console.error('Failed to load models:', err));
     }, []);
 
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -33,7 +47,18 @@ export const FlowithTestPage: React.FC = () => {
             // Split kbIds by comma and clean up whitespace
             const kbList = kbIds ? kbIds.split(',').map(id => id.trim()).filter(Boolean) : [];
 
-            const response = await call_flowith_api(query, kbList, model);
+            // Convert images if present
+            const refImageBase64 = refImage ? await fileToBase64(refImage) : undefined;
+            const targetImageBase64 = targetImage ? await fileToBase64(targetImage) : undefined;
+
+            const response = await call_flowith_api(
+                query,
+                kbList,
+                model,
+                refImageBase64,
+                refDesc,
+                targetImageBase64
+            );
             setResult(response);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred calling Flowith API');
@@ -69,6 +94,53 @@ export const FlowithTestPage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="md:col-span-2 space-y-4">
+                            <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                                <h3 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                                    <ImageIcon size={18} /> Style References
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Reference Style Image <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) setRefImage(file);
+                                            }}
+                                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={refDesc}
+                                            onChange={(e) => setRefDesc(e.target.value)}
+                                            placeholder=" Describe this style (e.g. 'Cyberpunk neon')"
+                                            className="mt-2 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Target Content Image (Optional)
+                                        </label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) setTargetImage(file);
+                                            }}
+                                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Knowledge Base IDs (Optional)

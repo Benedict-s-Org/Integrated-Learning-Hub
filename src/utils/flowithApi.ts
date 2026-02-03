@@ -18,7 +18,10 @@ interface FlowithResponse {
 export async function call_flowith_api(
     query: string,
     kb_ids: string[],
-    model: string = 'google nano banana pro'
+    model: string = 'google nano banana pro',
+    refImage?: string,
+    refDesc?: string,
+    targetImage?: string
 ): Promise<string> {
     const apiKey = import.meta.env.VITE_FLOWITH_API_KEY || process.env.FLOWITH_API_KEY;
 
@@ -28,11 +31,58 @@ export async function call_flowith_api(
 
     const endpoint = 'https://edge.flowith.net/external/use/seek-knowledge/seek';
 
+    // Construct content payload
+    let contentPayload: any = query;
+
+    // If images are present, we use the multimodal format (array of content parts)
+    if (refImage || targetImage) {
+        contentPayload = [];
+
+        // Add user query text
+        if (query) {
+            contentPayload.push({
+                type: 'text',
+                text: query
+            });
+        }
+
+        // Add Reference Style Image
+        if (refImage) {
+            let descText = "Reference Style Image";
+            if (refDesc) descText += `: ${refDesc}`;
+
+            contentPayload.push({
+                type: 'text',
+                text: descText
+            });
+            contentPayload.push({
+                type: 'image_url',
+                image_url: {
+                    url: refImage
+                }
+            });
+        }
+
+        // Add Target Content Image
+        if (targetImage) {
+            contentPayload.push({
+                type: 'text',
+                text: "Target Content Image"
+            });
+            contentPayload.push({
+                type: 'image_url',
+                image_url: {
+                    url: targetImage
+                }
+            });
+        }
+    }
+
     const payload = {
         messages: [
             {
                 role: 'user',
-                content: query,
+                content: contentPayload,
             },
         ],
         model: model,
