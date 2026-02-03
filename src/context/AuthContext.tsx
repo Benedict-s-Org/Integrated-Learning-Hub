@@ -118,6 +118,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const [isUserView, setIsUserView] = useState(false);
+  const [testUserId, setTestUserId] = useState<string | null>(null);
+
+  // Fetch test user ID for impersonation when admin switches to user view
+  useEffect(() => {
+    if (user?.role === 'admin' && isUserView && !testUserId) {
+      supabase
+        .from('users')
+        .select('id')
+        .eq('username', 'benedictcftsang@outlook.com')
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setTestUserId(data.id);
+        });
+    }
+  }, [user, isUserView, testUserId]);
 
   const toggleViewMode = () => {
     setIsUserView(prev => !prev);
@@ -126,11 +141,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = user?.role === 'admin' && !isUserView;
   const accentPreference = user?.accent_preference || 'en-US';
 
+  // Effective user for the rest of the app (allows admin to see test user assignments)
+  const effectiveUser = (user?.role === 'admin' && isUserView && testUserId)
+    ? { ...user, id: testUserId, email: 'benedictcftsang@outlook.com', username: 'test-user', display_name: 'Test Account' }
+    : user;
+
   return (
     <AuthContext.Provider
       value={{
-        user,
-        profile: user,
+        user: effectiveUser,
+        profile: effectiveUser,
         session,
         loading,
         isLoading: loading,
