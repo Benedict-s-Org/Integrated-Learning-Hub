@@ -86,6 +86,8 @@ BEGIN
     DROP POLICY IF EXISTS "Admins can update own practices" ON proofreading_practices;
     DROP POLICY IF EXISTS "Admins can delete own practices" ON proofreading_practices;
     DROP POLICY IF EXISTS "Students can view assigned practices" ON proofreading_practices;
+    DROP POLICY IF EXISTS "Admins manage all practices" ON proofreading_practices;
+    DROP POLICY IF EXISTS "Users view assigned practices" ON proofreading_practices;
 
     CREATE POLICY "Admins manage all practices"
       ON proofreading_practices FOR ALL
