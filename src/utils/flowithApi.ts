@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Interface for Flowith API response when stream is false.
@@ -8,109 +9,80 @@ interface FlowithResponse {
 }
 
 /**
- * Calls the Flowith API to perform knowledge seeking or image generation.
- * 
- * @param query - The user's question or prompt.
- * @param kb_ids - Array of Knowledge Base IDs to retrieve information from.
- * @param model - The model to use. Defaults to 'google nano banana pro' as requested.
- * @returns The final content string from the API response.
+ * Calls the Flowith API to perform knowledge seeking or image generation via Supabase Edge Function Proxy.
  */
 export async function call_flowith_api(
-    query: string,
-    kb_ids: string[],
-    model: string = 'google nano banana pro',
-    refImage?: string,
-    refDesc?: string,
-    targetImage?: string
-): Promise<string> {
-    const apiKey = import.meta.env.VITE_FLOWITH_API_KEY || process.env.FLOWITH_API_KEY;
+    prompt: string,
+    model: string,
+    tags: string[] = ['general'],
+    stream: boolean = false
+): Promise<FlowithResponse> {
+    // We now use the Supabase Edge Function proxy
+    // Endpoint path relative to the new host
+    const endpointPath = '/external/use/knowledge-base/seek';
 
-    if (!apiKey) {
-        throw new Error('VITE_FLOWITH_API_KEY is not defined in .env file.');
-    }
-
-    const endpoint = 'https://edge.flowith.net/external/use/knowledge-base/seek';
-
-    // Construct content payload
-    let contentPayload: any = query;
-
-    // If images are present, we use the multimodal format (array of content parts)
-    if (refImage || targetImage) {
-        contentPayload = [];
-
-        // Add user query text
-        if (query) {
-            contentPayload.push({
-                type: 'text',
-                text: query
-            });
-        }
-
-        // Add Reference Style Image
-        if (refImage) {
-            let descText = "Reference Style Image";
-            if (refDesc) descText += `: ${refDesc}`;
-
-            contentPayload.push({
-                type: 'text',
-                text: descText
-            });
-            contentPayload.push({
-                type: 'image_url',
-                image_url: {
-                    url: refImage
-                }
-            });
-        }
-
-        // Add Target Content Image
-        if (targetImage) {
-            contentPayload.push({
-                prompt: string,
-                model: string,
-                tags: string[] = ['general'],
-                stream: boolean = false
-): Promise < FlowithResponse > {
-                // We now use the Supabase Edge Function proxy
-                // Endpoint path relative to the new host
-                const endpointPath = '/external/use/knowledge-base/seek';
-
-                try {
-                    const { data, error } = await supabase.functions.invoke('flowith-proxy', {
-                        body: {
-                            endpoint: endpointPath, // The proxy will prepend https://api.flowith.io
-                            method: 'POST',
-                            body: {
-                                prompt,
-                                model,
-                                tags,
-                                stream
-                            }
-                        }
-                    });
-
-                    if(error) throw error;
-                    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-
-                    return data as FlowithResponse;
-                } catch(error) {
-                    console.error('Error calling Flowith Proxy:', error);
-                    throw error;
+    try {
+        const { data, error } = await supabase.functions.invoke('flowith-proxy', {
+            body: {
+                endpoint: endpointPath, // The proxy will prepend https://api.flowith.io
+                method: 'POST',
+                body: {
+                    prompt,
+                    model,
+                    tags,
+                    stream
                 }
             }
+        });
 
-            /**
-             * Fetches the list of available models from Flowith API.
-             * @returns Array of model ID strings.
-             */
-            export async function get_flowith_models(): Promise<string[]> {
-            }
+        if (error) throw error;
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
-            console.warn('Unknown model list format:', data);
-            return ['google nano banana pro', 'gpt-4o-mini']; // Fallback
-
-        } catch (error) {
-            console.error('Error fetching Flowith models:', error);
-            return ['google nano banana pro', 'gpt-4o-mini']; // Fallback on error
-        }
+        return data as FlowithResponse;
+    } catch (error) {
+        console.error('Error calling Flowith Proxy:', error);
+        throw error;
     }
+}
+
+/**
+ * Fetches the list of available models from Flowith API via Supabase Proxy.
+ * @returns Array of model ID strings.
+ */
+export async function get_flowith_models(): Promise<string[]> {
+    const endpointPath = '/external/use/knowledge-base/models';
+
+    try {
+        const { data, error } = await supabase.functions.invoke('flowith-proxy', {
+            body: {
+                endpoint: endpointPath,
+                method: 'GET'
+            }
+        });
+
+        if (error) throw error;
+        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+        // Handle different possible response formats
+        if (Array.isArray(data)) {
+            // Assume array of strings or objects
+            if (typeof data[0] === 'string') return data;
+            if (data[0] && typeof data[0] === 'object' && 'id' in data[0]) return data.map((m: any) => m.id);
+            return []; // Unknown format
+        } else if (data && Array.isArray(data.data)) {
+            // Standard format { data: [...] }
+            if (typeof data.data[0] === 'string') return data.data;
+            if (data.data[0] && typeof data.data[0] === 'object' && 'id' in data.data[0]) return data.data.map((m: any) => m.id);
+            return [];
+        } else if (data && data.models && Array.isArray(data.models)) {
+            return data.models;
+        }
+
+        console.warn('Unknown model list format:', data);
+        return ['google nano banana pro', 'gpt-4o-mini']; // Fallback
+    } catch (error) {
+        console.error('Error fetching Flowith models:', error);
+        // Fallback or empty array
+        return ['google nano banana pro', 'gpt-4o-mini'];
+    }
+}
