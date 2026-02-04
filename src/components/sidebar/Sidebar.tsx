@@ -298,7 +298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || isUserView) && (
             <button
               onClick={toggleViewMode}
               className={`w-full flex items-center justify-center gap-2 py-2 mb-2 text-sm rounded-lg transition-all ${isUserView

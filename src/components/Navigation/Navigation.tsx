@@ -131,7 +131,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 </div>
               )}
 
-              {user?.role === 'admin' && (
+              {(user?.role === 'admin' || isUserView) && (
                 <button
                   onClick={toggleViewMode}
                   className={`w-full flex items-center mb-2 ${isNavOpen ? 'px-4 mb-4 space-x-3' : 'justify-center'} py-2 rounded-lg font-medium transition-colors ${isUserView

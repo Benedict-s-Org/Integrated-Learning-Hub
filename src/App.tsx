@@ -72,7 +72,7 @@ function AppContent() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
-  const { user, loading, toggleViewMode } = useAuth();
+  const { user, loading, toggleViewMode, isAdmin } = useAuth();
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
@@ -238,14 +238,14 @@ function AppContent() {
       setAppState({ page: 'database' });
     } else if (page === 'proofreading') {
       // Admins go to input, students go to assignments
-      if (user?.role === 'admin') {
+      if (isAdmin) {
         setAppState({ page: 'proofreading', step: 'input' });
       } else {
         setAppState({ page: 'proofreadingAssignments' });
       }
     } else if (page === 'spelling') {
       // Students go directly to saved practices, admins go to input
-      if (user?.role === 'admin') {
+      if (isAdmin) {
         setAppState({ page: 'spelling', step: 'input' });
       } else {
         setAppState({ page: 'spelling', step: 'saved' });
@@ -371,7 +371,7 @@ function AppContent() {
   };
 
   const handleSelectProofreadingPractice = (practice: ProofreadingPractice) => {
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       setAppState({ page: 'proofreading', step: 'preview', sentences: practice.sentences, answers: practice.answers });
     } else {
       setAppState({ page: 'proofreading', step: 'practice', sentences: practice.sentences, answers: practice.answers });
@@ -429,7 +429,7 @@ function AppContent() {
   const handleBackToSpellingPreview = () => {
     if (appState.page === 'spelling' && appState.step === 'practice') {
       // Students go back to saved practices list, admins go to preview
-      if (user?.role === 'admin') {
+      if (isAdmin) {
         setAppState({ page: 'spelling', step: 'preview', title: appState.title, words: appState.words });
       } else {
         setAppState({ page: 'spelling', step: 'saved' });
@@ -501,14 +501,14 @@ function AppContent() {
       case 'proofreading':
         switch (appState.step) {
           case 'input':
-            return <ProofreadingInput onNext={handleProofreadingSentencesSubmit} onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined} />;
+            return <ProofreadingInput onNext={handleProofreadingSentencesSubmit} onViewSaved={isAdmin ? handleViewSavedProofreading : undefined} />;
           case 'answerSetting':
             return (
               <ProofreadingAnswerSetting
                 sentences={appState.sentences}
                 onNext={handleProofreadingAnswersSet}
                 onBack={handleBackToProofreadingInput}
-                onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
+                onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
               />
             );
           case 'preview':
@@ -518,7 +518,7 @@ function AppContent() {
                 answers={appState.answers}
                 onNext={handleProofreadingPreviewNext}
                 onBack={handleBackToAnswerSetting}
-                onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
+                onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
               />
             );
           case 'practice':
@@ -527,7 +527,7 @@ function AppContent() {
                 sentences={appState.sentences}
                 answers={appState.answers}
                 onBack={handleBackToProofreadingPreview}
-                onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
+                onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
               />
             );
           case 'saved':
@@ -565,7 +565,7 @@ function AppContent() {
             return (
               <SpellingInput
                 onNext={handleSpellingWordsSubmit}
-                onViewSaved={user?.role === 'admin' ? handleViewSavedSpelling : undefined}
+                onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
               />
             );
           case 'preview':
@@ -575,8 +575,8 @@ function AppContent() {
                 words={appState.words}
                 onNext={handleSpellingPreviewNext}
                 onBack={handleBackToSpellingInput}
-                onSave={user?.role === 'admin' ? handleViewSavedSpelling : undefined}
-                onViewSaved={user?.role === 'admin' ? handleViewSavedSpelling : undefined}
+                onSave={isAdmin ? handleViewSavedSpelling : undefined}
+                onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
               />
             );
           case 'practice':
@@ -595,7 +595,7 @@ function AppContent() {
                 onCreateNew={handleBackToSpellingCreate}
                 onSelectPractice={(practice) => {
                   // Students go directly to practice, admins can preview
-                  if (user?.role === 'admin') {
+                  if (isAdmin) {
                     setAppState({
                       page: 'spelling',
                       step: 'preview',
@@ -629,7 +629,7 @@ function AppContent() {
         }
         break;
       case 'progress':
-        return user?.role === 'admin' ? <UserAnalytics /> : <StudentProgress />;
+        return isAdmin ? <UserAnalytics /> : <StudentProgress />;
       case 'assignments':
         return (
           <UnifiedAssignments
@@ -728,7 +728,7 @@ function AppContent() {
     }
 
     if (appState.page === 'progress') {
-      return user?.role === 'admin' ? 'progress-admin' : 'progress';
+      return isAdmin ? 'progress-admin' : 'progress';
     }
 
     return appState.page;

@@ -143,7 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Effective user for the rest of the app (allows admin to see test user assignments)
   const effectiveUser = (user?.role === 'admin' && isUserView && testUserId)
-    ? { ...user, id: testUserId, email: 'benedictcftsang@outlook.com', username: 'test-user', display_name: 'Test Account' }
+    ? {
+      ...user,
+      id: testUserId,
+      email: 'benedictcftsang@outlook.com',
+      username: 'test-user',
+      display_name: 'Test Account',
+      role: 'user' as const // Spoof as regular student
+    }
     : user;
 
   return (

@@ -5,8 +5,11 @@ import { useInventory } from "@/hooks/useInventory";
 import { useRoomInteraction } from "@/hooks/useRoomInteraction";
 import { useMemoryPoints } from "@/hooks/useMemoryPoints";
 import { useStudySession } from "@/hooks/useStudySession";
+import { useCityLayout } from "@/hooks/useCityLayout";
 import { Sidebar } from "@/components/sidebar";
 import { IsometricRoom } from "@/components/room/IsometricRoom";
+import { CityMap } from "@/components/city/CityMap";
+import { ShopView } from "@/components/shop/ShopView";
 import { DevPanel } from "@/components/DevPanel";
 import { FurnitureStudio } from "@/components/furniture/FurnitureStudio";
 import { FurnitureUploader } from "@/components/furniture/FurnitureUploader";
@@ -41,6 +44,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     setCustomModels,
     setCustomWalls,
     setCustomFloors,
+    setHouseLevel,
   } = context;
 
   // Deriving active wall/floor objects from ID
@@ -48,7 +52,8 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const activeFloorObj = customFloors.find((f: any) => f.id === activeFloorId) || null;
 
   const {
-    inventory
+    inventory,
+    buyItem
   } = useInventory();
 
   const {
@@ -85,6 +90,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPhase, setCurrentPhase] = useState<"intro" | "encoding" | "recall" | "result">("intro");
+  const [view, setView] = useState<"room" | "map">("room");
 
   // Modals state
   const [showUploader, setShowUploader] = useState(false);
@@ -93,7 +99,11 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const [showSpaceDesign, setShowSpaceDesign] = useState(false);
   const [showCityEditor, setShowCityEditor] = useState(false);
   const [showAssetUpload, setShowAssetUpload] = useState(false);
+  const [showShop, setShowShop] = useState(false);
   const [uiAssets, setUiAssets] = useState<any[]>([]);
+
+  // City data
+  const { buildings: cityBuildings, decorations: cityDecorations, cityLevel } = useCityLayout();
 
   // Grid state
   const [showGrid, setShowGrid] = useState(true);
@@ -135,8 +145,8 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onExit={onExit}
           coins={coins}
           onStart={() => setCurrentPhase("encoding")}
-          onShop={() => {/* TODO: Implement shop modal */ }}
-          onCity={() => {/* TODO: Implement town map */ }}
+          onShop={() => setShowShop(true)}
+          onCity={() => setView("map")}
           currentPhase={currentPhase}
           isAdmin={isAdmin}
           inventory={inventory}
@@ -187,38 +197,72 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onGridModeChange={setGridMode}
         />
         <div className="flex-1 w-full h-full relative bg-slate-200">
-          <IsometricRoom
-            houseLevel={houseLevel}
-            placements={placements}
-            wallPlacements={wallPlacements}
-            onCommitPlacement={handleCommitPlacement}
-            onCommitWallPlacement={handleCommitWallPlacement}
-            draggingItem={draggingItem}
-            setDraggingRotation={setDraggingRotation}
-            draggingRotation={draggingRotation}
-            isRemoveMode={isRemoveMode}
-            removalSelectedId={removalSelectedId}
-            onFurnitureClick={handleFurnitureClick}
-            onFurnitureMouseDown={handleFurnitureMouseDown}
-            movingPlacementId={movingPlacementId}
-            fullCatalog={fullCatalog}
-            fullModels={fullModels}
-            activeWall={activeWallObj as any}
-            activeFloor={activeFloorObj as any}
-            tileWidth={tileSize}
-            tileHeight={tileSize / 2}
-            isMemoryMode={false}
-            onMemoryClick={(type, id) => console.log('Memory Click', type, id)}
-            memoryPoints={memoryPoints}
-            // hasTileMemoryPoint
-            isStudyMode={isStudyMode}
-            onStudyClick={(id) => console.log('Study Click', id)}
-            hasDueCard={hasDueCard}
-            onRemoveWallPlacement={removeWallPlacement}
-            showGrid={showGrid}
-          />
+          {view === "room" ? (
+            <IsometricRoom
+              houseLevel={houseLevel}
+              placements={placements}
+              wallPlacements={wallPlacements}
+              onCommitPlacement={handleCommitPlacement}
+              onCommitWallPlacement={handleCommitWallPlacement}
+              draggingItem={draggingItem}
+              setDraggingRotation={setDraggingRotation}
+              draggingRotation={draggingRotation}
+              isRemoveMode={isRemoveMode}
+              removalSelectedId={removalSelectedId}
+              onFurnitureClick={handleFurnitureClick}
+              onFurnitureMouseDown={handleFurnitureMouseDown}
+              movingPlacementId={movingPlacementId}
+              fullCatalog={fullCatalog}
+              fullModels={fullModels}
+              activeWall={activeWallObj as any}
+              activeFloor={activeFloorObj as any}
+              tileWidth={tileSize}
+              tileHeight={tileSize / 2}
+              isMemoryMode={false}
+              onMemoryClick={(type, id) => console.log('Memory Click', type, id)}
+              memoryPoints={memoryPoints}
+              // hasTileMemoryPoint
+              isStudyMode={isStudyMode}
+              onStudyClick={(id) => console.log('Study Click', id)}
+              hasDueCard={hasDueCard}
+              onRemoveWallPlacement={removeWallPlacement}
+              showGrid={showGrid}
+            />
+          ) : (
+            <CityMap
+              buildings={cityBuildings}
+              decorations={cityDecorations}
+              cityLevel={cityLevel}
+              coins={coins}
+              onBuildingClick={() => setView("room")}
+            />
+          )}
         </div>
       </div>
+
+      {/* Modals */}
+      {showShop && (
+        <ShopView
+          coins={coins}
+          inventory={inventory}
+          houseLevel={houseLevel}
+          onBuy={buyItem as any}
+          onUpgrade={() => setHouseLevel((h: number) => h + 1)}
+          onClose={() => setShowShop(false)}
+          isAdmin={isAdmin}
+          customWalls={customWalls as any}
+          customFloors={customFloors as any}
+          activeWallId={activeWallId}
+          activeFloorId={activeFloorId}
+          onSelectWall={setActiveWallId}
+          onSelectFloor={setActiveFloorId}
+          fullCatalog={fullCatalog as any}
+          publishedBlueprints={[]}
+          ownedBlueprints={[]}
+          onBuyBlueprint={() => { }}
+          onApplyBlueprint={() => { }}
+        />
+      )}
 
       {/* Admin Modals */}
       {showStudio && (
