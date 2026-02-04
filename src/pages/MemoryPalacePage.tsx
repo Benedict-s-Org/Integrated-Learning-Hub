@@ -19,6 +19,8 @@ import { FurnitureEditor } from "@/components/editor/FurnitureEditor";
 import { SpaceDesignCenter } from "@/components/SpaceDesignCenter";
 import { CityEditorModal } from "@/components/admin/CityEditorModal";
 import { AssetUploadCenter } from "@/components/ui-builder/AssetUploadCenter";
+import { MemoryPointModal } from "@/components/MemoryPointModal";
+import { MemoryPoint } from "@/hooks/useMemoryPoints";
 
 // Inner component to consume context
 function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
@@ -79,8 +81,10 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   const {
     memoryPoints,
-    // handled inside room if passed
-    // handleMemoryClick wrapper? Room expects onMemoryClick
+    addMemoryPoint,
+    updateMemoryPoint,
+    deleteMemoryPoint,
+    hasTileMemoryPoint,
   } = useMemoryPoints();
 
   const {
@@ -94,6 +98,18 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPhase, setCurrentPhase] = useState<"intro" | "encoding" | "recall" | "result">("intro");
   const [view, setView] = useState<"room" | "map" | "region">("room");
+  const [isMemoryMode, setIsMemoryMode] = useState(false);
+
+  // Memory point modal state
+  const [memoryModalData, setMemoryModalData] = useState<{
+    isOpen: boolean;
+    targetInfo: { type: 'furniture' | 'wall' | 'floor' | 'tile'; id: string; name: string; image?: string };
+    existingPoint?: MemoryPoint;
+    extra?: any;
+  }>({
+    isOpen: false,
+    targetInfo: { type: 'tile', id: '', name: '' }
+  });
 
   // Modals state
   const [showUploader, setShowUploader] = useState(false);
@@ -120,6 +136,86 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const handleTargetsName = (_type: string, id: string) => {
     // Simple stub for now
     return id;
+  };
+
+  const toggleMemoryMode = () => {
+    setIsMemoryMode(prev => !prev);
+  };
+
+  const handleOpenAddMemory = (type: string, id: string, name: string, image?: string, extra?: any) => {
+    setMemoryModalData({
+      isOpen: true,
+      targetInfo: { type: type as any, id, name, image },
+      extra
+    });
+  };
+
+  const handleOpenEditMemory = (point: MemoryPoint) => {
+    // Attempt to find original item info for the modal
+    let name = point.title;
+    let image = undefined;
+
+    if (point.targetType === 'furniture') {
+      const placement = placements.find(p => p.id === point.targetId);
+      if (placement) {
+        const item = fullCatalog.find(i => i.id === placement.furnitureId);
+        if (item) {
+          name = item.name;
+          image = item.icon;
+        }
+      }
+    }
+
+    setMemoryModalData({
+      isOpen: true,
+      targetInfo: { type: point.targetType, id: point.targetId, name, image },
+      existingPoint: point
+    });
+  };
+
+  const handleSaveMemory = async (data: { title: string; content: string }) => {
+    if (memoryModalData.existingPoint) {
+      await updateMemoryPoint(memoryModalData.existingPoint.id, data);
+    } else {
+      const { type, id } = memoryModalData.targetInfo;
+      const position = type === 'tile' ? memoryModalData.extra?.position : undefined;
+      await addMemoryPoint(type, id, data.title, data.content, position);
+    }
+    setMemoryModalData(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteMemory = async () => {
+    if (memoryModalData.existingPoint) {
+      await deleteMemoryPoint(memoryModalData.existingPoint.id);
+      setMemoryModalData(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleEntityMemoryClick = (type: string, id: string, extra?: any) => {
+    if (isMemoryMode) {
+      const existing = memoryPoints.find(p => p.targetType === type && p.targetId === id);
+      if (existing) {
+        handleOpenEditMemory(existing);
+      } else {
+        let name = "未知物件";
+        let image = undefined;
+
+        if (type === 'furniture') {
+          const placement = placements.find(p => p.id === id);
+          if (placement) {
+            const item = fullCatalog.find(i => i.id === placement.furnitureId);
+            if (item) {
+              name = item.name;
+              image = item.icon;
+            }
+          }
+        } else if (type === 'tile' && extra?.position) {
+          name = `地板格子 (${extra.position.x}, ${extra.position.y})`;
+        }
+
+        handleOpenAddMemory(type, id, name, image, extra);
+      }
+    }
   };
 
   if (isLoading) {
@@ -178,16 +274,16 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           activeFloorId={activeFloorId}
           onSelectWall={setActiveWallId}
           onSelectFloor={setActiveFloorId}
-          isMemoryMode={false}
-          toggleMemoryMode={() => { }}
+          isMemoryMode={isMemoryMode}
+          toggleMemoryMode={toggleMemoryMode}
           isStudyMode={isStudyMode}
           toggleStudyMode={toggleStudyMode}
           dueCount={dueCount}
           memoryPoints={memoryPoints}
-          onAddMemory={() => {/* TODO */ }}
-          onEditMemory={() => {/* TODO */ }}
-          onDeleteMemory={() => {/* TODO */ }}
-          onViewMemory={() => {/* TODO */ }}
+          onAddMemory={(type) => handleEntityMemoryClick(type, '')}
+          onEditMemory={handleOpenEditMemory}
+          onDeleteMemory={deleteMemoryPoint}
+          onViewMemory={handleOpenEditMemory}
           getTargetName={handleTargetsName}
           showGrid={showGrid}
           onShowGridChange={setShowGrid}
@@ -225,10 +321,10 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               activeFloor={activeFloorObj as any}
               tileWidth={tileSize}
               tileHeight={tileSize / 2}
-              isMemoryMode={false}
-              onMemoryClick={(type, id) => console.log('Memory Click', type, id)}
+              isMemoryMode={isMemoryMode}
+              onMemoryClick={handleEntityMemoryClick}
               memoryPoints={memoryPoints}
-              // hasTileMemoryPoint
+              hasTileMemoryPoint={hasTileMemoryPoint}
               isStudyMode={isStudyMode}
               onStudyClick={(id) => console.log('Study Click', id)}
               hasDueCard={hasDueCard}
@@ -259,6 +355,20 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
             )
           )}
         </div>
+
+        {memoryModalData.isOpen && (
+          <MemoryPointModal
+            isOpen={memoryModalData.isOpen}
+            onClose={() => setMemoryModalData(prev => ({ ...prev, isOpen: false }))}
+            targetInfo={memoryModalData.targetInfo}
+            existingData={memoryModalData.existingPoint ? {
+              title: memoryModalData.existingPoint.title,
+              content: memoryModalData.existingPoint.content
+            } : undefined}
+            onSave={handleSaveMemory}
+            onDelete={memoryModalData.existingPoint ? handleDeleteMemory : undefined}
+          />
+        )}
       </div>
 
       {/* Modals */}
