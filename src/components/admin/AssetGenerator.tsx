@@ -36,6 +36,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
     const [hue, setHue] = useState(0);
+    const [refinementPrompt, setRefinementPrompt] = useState(''); // New Refinement State
 
     const processImage = async () => {
         if (!generatedImage) return;
@@ -136,6 +137,106 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
             }, 1000);
         }
     };
+
+    const handleRefine = () => {
+        if (!refinementPrompt) return;
+        const refinedFullPrompt = `${prompt}. Refinement: ${refinementPrompt}`;
+        // Update the main prompt so the user sees it (optional, but good for transparency)
+        setPrompt(refinedFullPrompt);
+        // Trigger generation with the new composite prompt
+        // We need to call a modified version of handleGenerateAI that uses this new prompt
+        // Or we can just update the state and let the user click generate, but "Refine" implies action.
+
+        // Let's call the generation logic directly with the new prompt
+        // Since handleGenerateAI uses the state `prompt`, we updated it above.
+        // However, setState is async. So for reliability, we should pass the prompt as arg or use useEffect.
+        // To avoid refactoring everything, let's delay slightly or pass argument if we refactor handleGenerateAI.
+
+        // Better approach: Refactor handleGenerateAI to accept an optional prompt argument.
+        generateAIWithPrompt(refinedFullPrompt);
+        setRefinementPrompt(''); // Clear input
+    };
+
+    const generateAIWithPrompt = async (promptText: string) => {
+        if (!promptText) return;
+        setIsGenerating(true);
+        setGeneratedImage(null);
+        setErrorMsg(null);
+        setIsEditing(false); // Close edit mode while generating
+
+        if (useRealAI) {
+            try {
+                const { data, error } = await supabase.functions.invoke('generate-asset', {
+                    body: { prompt: promptText, style_preset: 'isometric vector art' }
+                });
+
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                setGeneratedImage(data.image);
+                setName(promptText.split(' ').slice(0, 3).join(' '));
+            } catch (err: any) {
+                console.error('AI Generation failed:', err);
+                if (err.message?.includes('OPENAI_API_KEY')) {
+                    setErrorMsg("Missing API Key. Please add 'OPENAI_API_KEY' to your Supabase secrets.");
+                } else {
+                    setErrorMsg("Generation failed. Please try again or use Simulation Mode.");
+                }
+            } finally {
+                setIsGenerating(false);
+            }
+        } else {
+            // Simulation Logic reused
+            // For brevity, calling existing logic by setting state back (not ideal but works for sim)
+            // Actually, let's just copy the sim blocks for robustness or extract common logic.
+            // Given the context, I will just call handleGenerateAI which reads from state `prompt`.
+            // But since we just setPrompt, we need to wait or rely on React.
+            // Let's just duplicated the sim logic for safety here to ensure immediate execution with *arg*.
+
+            const p = promptText.toLowerCase();
+            let resultImage = mystery_box;
+            let defaultName = 'AI Asset';
+
+            if (p.includes('shelf') || p.includes('book')) {
+                resultImage = wooden_bookshelf;
+                defaultName = 'Wooden Bookshelf';
+            } else if (p.includes('rug') || p.includes('carpet') || p.includes('mat')) {
+                resultImage = round_rug;
+                defaultName = 'Round Rug';
+            } else if (p.includes('lamp') || p.includes('light')) {
+                resultImage = floor_lamp;
+                defaultName = 'Floor Lamp';
+            } else if (p.includes('sofa') || p.includes('couch')) {
+                resultImage = orange_sofa;
+                defaultName = 'Orange Sofa';
+            } else if (p.includes('table') || p.includes('desk') || p.includes('coffee')) {
+                if (p.includes('pink')) {
+                    resultImage = pink_desk;
+                    defaultName = 'Pastel Pink Desk';
+                } else {
+                    resultImage = wooden_table;
+                    defaultName = 'Wooden Table';
+                }
+            } else if (p.includes('bed') || p.includes('sleep') || p.includes('bunk')) {
+                resultImage = cozy_bed;
+                defaultName = 'Cozy Bed';
+            } else if (p.includes('chair') || p.includes('seat') || p.includes('stool')) {
+                resultImage = armchair;
+                defaultName = 'Armchair';
+            } else {
+                defaultName = 'Mystery Item';
+            }
+
+            setTimeout(() => {
+                setIsGenerating(false);
+                setGeneratedImage(resultImage);
+                if (!name) setName(defaultName);
+            }, 1000);
+        }
+    }
+
+    // Keep original wrapper for button click
+    const handleGenerateAI = () => generateAIWithPrompt(prompt);
 
     const handleSaveGenerated = () => {
         if (!generatedImage || !onSave) return;
@@ -435,6 +536,26 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                                         onChange={(e) => setHue(Number(e.target.value))}
                                                         className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
                                                     />
+                                                </div>
+
+                                                <div className="pt-2 border-t border-slate-200">
+                                                    <label className="block text-xs font-bold text-slate-700 mb-1">Refine with Text</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={refinementPrompt}
+                                                            onChange={(e) => setRefinementPrompt(e.target.value)}
+                                                            placeholder="Make it blue..."
+                                                            className="flex-1 text-xs border rounded p-2 outline-none focus:border-indigo-500"
+                                                        />
+                                                        <button
+                                                            onClick={handleRefine}
+                                                            disabled={!refinementPrompt}
+                                                            className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                                                        >
+                                                            Refine
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
