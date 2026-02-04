@@ -9,14 +9,17 @@ import {
   History,
   Package,
   Image as ImageIcon,
+  Palette,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { FurnitureItem } from "@/types/furniture";
+import { FurnitureItem, CustomFurniture, FurnitureColorVariant } from "@/types/furniture";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
-import { 
-  uploadImageToSupabase, 
-  flipImageHorizontally, 
-  dataUrlToFile 
+import {
+  uploadImageToSupabase,
+  flipImageHorizontally,
+  dataUrlToFile
 } from "@/utils/storageUpload";
 
 interface FurnitureUploaderProps {
@@ -52,7 +55,14 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
   const [bgRemovalImageIndex, setBgRemovalImageIndex] = useState<number | null>(null);
   // Upload loading state
   const [isUploading, setIsUploading] = useState(false);
-  
+
+  // Color Variant State
+  const [variants, setVariants] = useState<FurnitureColorVariant[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null); // null = default
+  const [defaultImages, setDefaultImages] = useState<(string | null)[]>([null, null, null, null]);
+  const [newVariantName, setNewVariantName] = useState("");
+  const [newVariantColor, setNewVariantColor] = useState("#000000");
+
   const conditionLabels = ["正面(全新)", "正面有塵(閒置)", "正面封存(閒置久)", "正面破損(過久)"];
 
   const handleBgRemoval = (index: number) => {
@@ -62,15 +72,15 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
 
   const handleBgRemovalApply = async (processedDataUrl: string) => {
     if (bgRemovalImageIndex === null) return;
-    
+
     setIsUploading(true);
     setShowBgRemoval(false);
-    
+
     try {
       // Convert data URL to File and upload to Storage
       const file = dataUrlToFile(processedDataUrl, `furniture_bg_removed_${Date.now()}.png`);
       const url = await uploadImageToSupabase(file, 'furniture-sprites');
-      
+
       if (url) {
         const newImages = [...images];
         newImages[bgRemovalImageIndex] = url;
@@ -88,17 +98,17 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
   const handleImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setIsUploading(true);
     const url = await uploadImageToSupabase(file, 'furniture-sprites');
-    
+
     if (url) {
       const newImages = [...images];
       const newManuallyUploaded = [...manuallyUploaded];
-      
+
       newImages[index] = url;
       newManuallyUploaded[index] = true;
-      
+
       // Auto-flip logic:
       // South (0) -> West (1): if West not manually uploaded, auto-flip South
       // North (2) -> East (3): if East not manually uploaded, auto-flip North
@@ -127,23 +137,23 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
           console.error('Failed to auto-flip image for East:', err);
         }
       }
-      
+
       setImages(newImages);
       setManuallyUploaded(newManuallyUploaded);
       addHistory(`#${history.length + 1} 上傳圖片`, newImages, "");
     }
-    
+
     setIsUploading(false);
   };
 
   const handleConditionImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setIsUploading(true);
     const url = await uploadImageToSupabase(file, 'condition-images');
     setIsUploading(false);
-    
+
     if (url) {
       const newConditionImages = [...conditionImages];
       newConditionImages[index] = url;
@@ -189,12 +199,24 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
   };
 
   const handleSave = () => {
-    if (!name || !images[0]) {
+    // Ensure we save the current viewing images to the correct place before final save
+    let finalDefaultImages = defaultImages;
+    let finalVariants = [...variants];
+
+    if (activeVariantId === null) {
+      finalDefaultImages = images;
+    } else {
+      finalVariants = finalVariants.map(v =>
+        v.id === activeVariantId ? { ...v, images: images } : v
+      );
+    }
+
+    if (!name || !finalDefaultImages[0]) {
       alert("請至少輸入名稱並上傳第一張圖片（南方）");
       return;
     }
-    const finalImages = images.map((img) => img || images[0]) as string[];
-    const newFurniture: FurnitureItem = {
+    const finalImagesNormalized = finalDefaultImages.map((img) => img || finalDefaultImages[0]) as string[];
+    const newFurniture: CustomFurniture = {
       id: `custom_${Date.now()}`,
       name,
       icon: ImageIcon,
@@ -202,11 +224,99 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
       desc: "管理員上傳的自定義家具",
       type: "sprite",
       size: [parseInt(String(dims.ew)) || 1, parseInt(String(dims.ns)) || 1],
-      spriteImages: finalImages,
+      spriteImages: finalImagesNormalized,
       conditionImages: conditionImages,
+      colorVariants: finalVariants,
     };
     onSave(newFurniture);
     onClose();
+  };
+
+  const handleAddVariant = () => {
+    if (!newVariantName) return;
+    const newVariant: FurnitureColorVariant = {
+      id: `variant_${Date.now()}`,
+      name: newVariantName,
+      color: newVariantColor,
+      images: [null, null, null, null],
+    };
+    setVariants([...variants, newVariant]);
+    setNewVariantName("");
+    setNewVariantColor("#000000");
+  };
+
+  const handleDeleteVariant = (id: string) => {
+    if (activeVariantId === id) {
+      switchVariant(null);
+    }
+    setVariants(variants.filter(v => v.id !== id));
+  };
+
+  const switchVariant = (targetId: string | null) => {
+    if (activeVariantId === targetId) return;
+
+    // Save current images
+    if (activeVariantId === null) {
+      setDefaultImages(images);
+    } else {
+      setVariants(prev => prev.map(v => v.id === activeVariantId ? { ...v, images: images } : v));
+    }
+
+    // Load target images
+    if (targetId === null) {
+      // We need to use the LATEST defaultImages which might have just been updated if we were on default
+      // But if we were on default, activeVariantId was null, so we just updated defaultImages.
+      // Wait, setState is async. 
+      // Better strategy: Calculate next images directly.
+      if (activeVariantId === null) {
+        // Already on default, switching to default (handled by guard clause)
+      } else {
+        // Switching FROM variant TO default
+        setImages(defaultImages);
+      }
+    } else {
+      const targetVariant = variants.find(v => v.id === targetId);
+      if (targetVariant) {
+        setImages(targetVariant.images);
+      }
+    }
+
+    setActiveVariantId(targetId);
+  };
+
+  // Override setImages to sync with current view immediately if needed? 
+  // No, we use local 'images' state for UI, and sync on switch/save.
+  // But we need to initialize defaultImages with the initial state of images (which is nulls).
+  // useEffect(..., []) handles basic init.
+
+  // Helper to safely switch (wrapping the async state logic)
+  const handleVariantSwitch = (newId: string | null) => {
+    if (activeVariantId === newId) return;
+
+    // 1. Capture current 'images' into the storage
+    if (activeVariantId === null) {
+      setDefaultImages(images);
+    } else {
+      setVariants(prev => prev.map(v => v.id === activeVariantId ? { ...v, images: images } : v));
+    }
+
+    // 2. Determine new images
+    let nextImages: (string | null)[];
+    if (newId === null) {
+      // If we are switching TO default, we want the stored defaultImages. 
+      // CAUTION: If we are currently default (activeVariantId===null), 'defaultImages' state may be stale compared to 'images' state?
+      // Actually, if activeVariantId === null, we are just saving 'images' to 'defaultImages'.
+      // But since we are switching FROM something else (checked by guard), defaultImages should be safe.
+      // Wait, if I edit default, verify 'defaultImages' isn't updated? Correct.
+      // So if I switch FROM variant TO default, 'defaultImages' holds the preserved default images.
+      nextImages = defaultImages;
+    } else {
+      const v = variants.find(i => i.id === newId);
+      nextImages = v ? v.images : [null, null, null, null];
+    }
+
+    setImages(nextImages);
+    setActiveVariantId(newId);
   };
 
   return (
@@ -220,15 +330,15 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
           </div>
         </div>
       )}
-      
+
       <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
         <div className="flex gap-4 h-[350px]">
           <div className="w-1/2 grid grid-cols-2 gap-2">
             {["南方 (正面)", "西方 (左側)", "北方 (背面)", "東方 (右側)"].map((label, idx) => {
               // Check if this direction uses auto-flip
-              const isAutoFlipped = (idx === 1 && images[1] && !manuallyUploaded[1]) || 
-                                    (idx === 3 && images[3] && !manuallyUploaded[3]);
-              
+              const isAutoFlipped = (idx === 1 && images[1] && !manuallyUploaded[1]) ||
+                (idx === 3 && images[3] && !manuallyUploaded[3]);
+
               return (
                 <div
                   key={idx}
@@ -274,7 +384,7 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
               );
             })}
           </div>
-          
+
           <div className="w-1/2 bg-slate-100 rounded-xl border border-slate-200 relative flex flex-col items-center justify-center overflow-hidden">
             <div
               className="absolute inset-0 opacity-10"
@@ -361,7 +471,7 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
               <span className="text-xs text-slate-400 ml-2">(南北 x 東西)</span>
             </div>
           </div>
-          
+
           <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
             <h3 className="font-bold text-slate-700 flex items-center gap-2">
               <Wand2 size={16} /> AI 修正 (模擬)
@@ -384,6 +494,84 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
               </Button>
             </div>
             {aiMessage && <div className="text-xs text-emerald-600 font-bold">{aiMessage}</div>}
+          </div>
+        </div>
+
+        {/* Color Variant Management */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2">
+            <Palette size={16} /> 顏色款式 (可選)
+          </h3>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            {/* Default Variant Button */}
+            <button
+              onClick={() => handleVariantSwitch(null)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                ${activeVariantId === null
+                  ? "bg-slate-800 text-white border-slate-800"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}
+            >
+              <div className="w-3 h-3 rounded-full bg-slate-400 border border-white shadow-sm" />
+              預設款式
+            </button>
+
+            {variants.map(v => (
+              <button
+                key={v.id}
+                onClick={() => handleVariantSwitch(v.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border group relative
+                  ${activeVariantId === v.id
+                    ? "bg-slate-800 text-white border-slate-800"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}
+              >
+                <div
+                  className="w-3 h-3 rounded-full border border-white shadow-sm"
+                  style={{ backgroundColor: v.color }}
+                />
+                {v.name}
+                <div
+                  onClick={(e) => { e.stopPropagation(); handleDeleteVariant(v.id); }}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                >
+                  <Trash2 size={10} />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">新款式名稱</label>
+              <input
+                type="text"
+                placeholder="例如: 深木色"
+                value={newVariantName}
+                onChange={(e) => setNewVariantName(e.target.value)}
+                className="w-full border rounded p-1.5 text-xs bg-white"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">代表色</label>
+              <input
+                type="color"
+                value={newVariantColor}
+                onChange={(e) => setNewVariantColor(e.target.value)}
+                className="h-8 w-12 cursor-pointer p-0 border-0 rounded overflow-hidden"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              onClick={handleAddVariant}
+              disabled={!newVariantName}
+              className="h-8 text-xs"
+            >
+              <Plus size={14} className="mr-1" /> 新增
+            </Button>
+          </div>
+
+          <div className="text-[10px] text-slate-400">
+            * 目前正在編輯: <span className="font-bold text-indigo-600">{activeVariantId ? variants.find(v => v.id === activeVariantId)?.name : "預設款式"}</span>
           </div>
         </div>
 
@@ -444,7 +632,7 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
           </div>
         ))}
       </div>
-      
+
       {/* Background Removal Editor */}
       {bgRemovalImageIndex !== null && images[bgRemovalImageIndex] && (
         <BackgroundRemovalEditor

@@ -29,6 +29,14 @@ export interface FurnitureItem {
   surfaceHeight?: number; // Added from constant usage
 }
 
+// Color variant definition
+export interface FurnitureColorVariant {
+  id: string;
+  name: string;
+  color: string; // Hex code for UI
+  images: (string | null)[];
+}
+
 // Custom furniture with sprite support
 export interface CustomFurniture extends FurnitureItem {
   spriteImages?: (string | null)[];
@@ -41,6 +49,7 @@ export interface CustomFurniture extends FurnitureItem {
   spriteSkewX?: number;
   spriteSkewY?: number;
   spriteFilter?: string;
+  colorVariants?: FurnitureColorVariant[];
 }
 
 // Placement of furniture on the floor
@@ -50,6 +59,7 @@ export interface Placement {
   x: number;
   y: number;
   rotation: number;
+  variantId?: string;
 }
 
 // Placement of furniture on a wall
@@ -60,6 +70,7 @@ export interface WallPlacement {
   z: number;
   surface: "left-wall" | "right-wall";
   rotation: number;
+  variantId?: string;
 }
 
 // 3D box primitive for geometric furniture models

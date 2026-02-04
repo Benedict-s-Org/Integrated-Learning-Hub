@@ -7,6 +7,13 @@ export interface CustomWall {
   darkImage?: string;
   lightSide?: string;
   darkSide?: string;
+  colorVariants?: {
+    id: string;
+    name: string;
+    color: string;
+    lightImage: string;
+    darkImage: string;
+  }[];
 }
 
 // Custom floor texture
@@ -15,6 +22,12 @@ export interface CustomFloor {
   name: string;
   price?: number;
   image?: string;
+  colorVariants?: {
+    id: string;
+    name: string;
+    color: string;
+    image: string;
+  }[];
 }
 
 // House level configuration

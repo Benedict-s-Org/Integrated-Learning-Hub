@@ -13,6 +13,7 @@
     "test:integration": "vitest run src/test/integration",
     "db:push": "npx supabase db push --include-all",
     "db:pull": "npx supabase db pull",
+    "update-all": "npx supabase db push --include-all && npm run build && npm run deploy",
     "sync": "git pull origin main && npx supabase db push --include-all && npm run deploy",
     "deploy": "git add . && git commit -m \"Auto-deploy: Update online version\" && git push origin main"
   },

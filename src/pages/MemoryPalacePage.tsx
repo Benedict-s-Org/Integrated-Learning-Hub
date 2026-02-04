@@ -73,7 +73,8 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     confirmRemove,
     cancelRemove,
     removalSelectedId,
-    removeWallPlacement
+    removeWallPlacement,
+    updateVariant
   } = useRoomInteraction();
 
   const {
@@ -233,6 +234,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               hasDueCard={hasDueCard}
               onRemoveWallPlacement={removeWallPlacement}
               showGrid={showGrid}
+              onVariantChange={updateVariant}
             />
           ) : view === "map" ? (
             <CityMap
@@ -242,6 +244,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               coins={coins}
               onBuildingClick={() => setView("room")}
               onOpenShop={() => setShowShop(true)}
+              onBackToRoom={() => setView("room")}
             />
           ) : (
             regionData && (

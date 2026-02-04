@@ -15,13 +15,14 @@ interface CityMapProps {
   coins?: number;
   onBuildingClick?: (building: Building) => void;
   onOpenShop?: () => void;
+  onBackToRoom?: () => void;
 }
 
 // Fluffy cloud component
 function FluffyCloud({ x, y, scale = 1, delay = 0 }: { x: number; y: number; scale?: number; delay?: number }) {
   return (
-    <g 
-      transform={`translate(${x}, ${y}) scale(${scale})`} 
+    <g
+      transform={`translate(${x}, ${y}) scale(${scale})`}
       className="animate-float-slow"
       style={{ animationDelay: `${delay}s` }}
     >
@@ -41,9 +42,10 @@ export function CityMap({
   coins = 0,
   onBuildingClick,
   onOpenShop,
+  onBackToRoom,
 }: CityMapProps) {
   const navigate = useNavigate();
-  
+
   const [viewState, setViewState] = useState<CityViewState>({
     selectedBuildingId: null,
     hoveredBuildingId: null,
@@ -78,20 +80,20 @@ export function CityMap({
   // Generate ground tiles with cute cartoon colors
   const groundTiles = useMemo(() => {
     const tiles: React.ReactNode[] = [];
-    
+
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const p1 = toIso(x, y);
         const p2 = toIso(x + 1, y);
         const p3 = toIso(x + 1, y + 1);
         const p4 = toIso(x, y + 1);
-        
+
         // Alternate grass shades for visual interest
         const isLightTile = (x + y) % 2 === 0;
-        const fillColor = isLightTile 
-          ? CARTOON_PALETTE.ground.grass 
+        const fillColor = isLightTile
+          ? CARTOON_PALETTE.ground.grass
           : CARTOON_PALETTE.ground.grassLight;
-        
+
         tiles.push(
           <polygon
             key={`ground-${x}-${y}`}
@@ -103,7 +105,7 @@ export function CityMap({
         );
       }
     }
-    
+
     return tiles;
   }, [gridSize, toIso]);
 
@@ -114,7 +116,7 @@ export function CityMap({
       console.log("Building locked:", building.name);
       return;
     }
-    
+
     if (onBuildingClick) {
       onBuildingClick(building);
     } else {
@@ -148,7 +150,7 @@ export function CityMap({
   return (
     <div className="w-full h-full overflow-hidden relative">
       {/* Warm cartoon sky gradient */}
-      <div 
+      <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(180deg, 
@@ -158,7 +160,7 @@ export function CityMap({
           )`
         }}
       />
-      
+
       {/* City Title */}
       <div className="absolute top-4 left-4 z-10">
         <h1 className="text-2xl font-bold text-foreground drop-shadow-lg">
@@ -171,7 +173,7 @@ export function CityMap({
 
       {/* Coins display - cute style */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div 
+        <div
           className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold shadow-lg border-2"
           style={{
             background: 'linear-gradient(135deg, hsl(45, 90%, 85%) 0%, hsl(40, 85%, 75%) 100%)',
@@ -234,7 +236,7 @@ export function CityMap({
               building.position.x + building.size.width / 2,
               building.position.y + building.size.depth / 2
             );
-            
+
             return (
               <BuildingExterior
                 key={building.id}
@@ -257,7 +259,7 @@ export function CityMap({
       {/* Bottom HUD - cute rounded buttons */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-3">
         <button
-          onClick={() => navigate("/")}
+          onClick={onBackToRoom || (() => navigate("/"))}
           className="px-5 py-2.5 bg-white/95 border-2 border-[hsl(30,40%,80%)] rounded-xl text-sm font-semibold hover:bg-white hover:scale-105 transition-all flex items-center gap-2 shadow-lg text-[hsl(30,50%,40%)]"
         >
           🏠 回到我的房間

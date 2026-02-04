@@ -56,14 +56,22 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
     }));
   }, []);
 
-  // Handle wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setViewState(prev => ({
-      ...prev,
-      zoom: Math.min(Math.max(prev.zoom + delta, minZoom), maxZoom),
-    }));
+  // Handle wheel zoom with non-passive listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setViewState(prev => ({
+        ...prev,
+        zoom: Math.min(Math.max(prev.zoom + delta, minZoom), maxZoom),
+      }));
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
   }, [minZoom, maxZoom]);
 
   // Handle pan
@@ -148,14 +156,14 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
   const renderGroundGrid = () => {
     const gridLines = [];
     const gridSize = region.gridSize;
-    
+
     for (let i = 0; i <= gridSize; i++) {
       // Horizontal lines (in isometric space)
       const hx1 = (0 - i) * (tileWidth / 2);
       const hy1 = (0 + i) * (tileHeight / 2);
       const hx2 = (gridSize - i) * (tileWidth / 2);
       const hy2 = (gridSize + i) * (tileHeight / 2);
-      
+
       // Vertical lines (in isometric space)
       const vx1 = (i - 0) * (tileWidth / 2);
       const vy1 = (i + 0) * (tileHeight / 2);
@@ -189,7 +197,7 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden"
       style={{ backgroundColor: themeColors.ground }}
@@ -197,7 +205,6 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
     >
       {/* SVG Map */}
       <svg

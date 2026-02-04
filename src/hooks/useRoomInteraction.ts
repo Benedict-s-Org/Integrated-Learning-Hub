@@ -10,7 +10,6 @@ export function useRoomInteraction() {
         wallPlacements,
         setWallPlacements,
         fullCatalog,
-        customCatalog,
     } = useMemoryPalaceContext();
 
     // navigate needed for furniture clicking navigation legacy support
@@ -123,6 +122,10 @@ export function useRoomInteraction() {
         setRemovalSelectedId(null);
     }, []);
 
+    const updateVariant = useCallback((placementId: string, variantId: string | null) => {
+        setPlacements((prev) => prev.map((p) => (p.id === placementId ? { ...p, variantId: variantId ?? undefined } : p)));
+    }, [setPlacements]);
+
     return {
         draggingItem,
         setDraggingItem,
@@ -142,6 +145,7 @@ export function useRoomInteraction() {
         removePlacement,
         removeWallPlacement,
         confirmRemove,
-        cancelRemove
+        cancelRemove,
+        updateVariant
     };
 }

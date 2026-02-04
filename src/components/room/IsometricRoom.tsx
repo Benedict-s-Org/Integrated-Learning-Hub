@@ -2,40 +2,21 @@ import React, { useState, useRef } from "react";
 import { HOUSE_LEVELS } from "@/constants/houseLevels";
 import { GridMode } from "@/components/IsometricGridOverlay";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
+import { FurnitureItem, Placement, WallPlacement, CustomFurniture, FurnitureColorVariant } from "@/types/furniture";
+import { CustomWall, CustomFloor } from "@/types/room";
 
 // Types
-interface FurnitureItem {
+interface ActiveWall {
   id: string;
-  name: string;
-  type?: string;
-  size: [number, number];
-  spriteImages?: string[];
-  spriteScale?: number;
-  spriteScaleX?: number;
-  spriteScaleY?: number;
-  spriteSkewX?: number;
-  spriteSkewY?: number;
-  spriteOffsetX?: number;
-  spriteOffsetY?: number;
-  spriteFilter?: string;
-  color?: string;
-  height?: number;
+  lightSide?: string;
+  darkSide?: string;
+  lightImage?: string;
+  darkImage?: string;
 }
 
-interface Placement {
+interface ActiveFloor {
   id: string;
-  furnitureId: string;
-  x: number;
-  y: number;
-  rotation: number;
-}
-
-interface WallPlacement {
-  id: string;
-  furnitureId: string;
-  gridPos: number;
-  z: number;
-  surface: "left-wall" | "right-wall";
+  image?: string;
 }
 
 interface ActiveWall {
@@ -83,6 +64,7 @@ interface IsometricRoomProps {
   gridMode?: GridMode;
   onTileClick?: (x: number, y: number) => void;
   avatarUrl?: string | null;
+  onVariantChange?: (placementId: string, variantId: string | null) => void;
 }
 
 export const IsometricRoom: React.FC<IsometricRoomProps> = ({
@@ -117,6 +99,7 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
   gridMode = "floor" as GridMode,
   onTileClick,
   avatarUrl,
+  onVariantChange,
 }) => {
   const [offset, setOffset] = useState({ x: 0, y: 100 });
   console.log("IsometricRoom: Render with houseLevel", houseLevel);
@@ -280,7 +263,7 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
     );
   };
 
-  const drawSpriteFurniture = (x: number, y: number, item: FurnitureItem, rot: number, isGhost = false, isValid = true, isSelected = false) => {
+  const drawSpriteFurniture = (x: number, y: number, item: CustomFurniture, rot: number, isGhost = false, isValid = true, isSelected = false) => {
     const [w, d] = item.size;
     const effectiveW = rot % 2 === 0 ? w : d;
     const effectiveD = rot % 2 === 0 ? d : w;
@@ -347,8 +330,8 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
   };
 
   const drawComplexFurniture = (x: number, y: number, item: FurnitureItem, rot: number, isGhost = false, isValid = true, isSelected = false) => {
-    if (item.type === "sprite" && item.spriteImages) {
-      return drawSpriteFurniture(x, y, item, rot, isGhost, isValid, isSelected);
+    if (item.type === "sprite" && (item as CustomFurniture).spriteImages) {
+      return drawSpriteFurniture(x, y, item as CustomFurniture, rot, isGhost, isValid, isSelected);
     }
 
     const models = fullModels[item.id] || fullModels.default;
@@ -659,8 +642,24 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
     }
 
     placements.forEach((p) => {
-      const item = fullCatalog.find((f) => f.id === p.furnitureId);
-      if (!item || p.id === movingPlacementId) return;
+      const originalItem = fullCatalog.find((f) => f.id === p.furnitureId);
+      if (!originalItem || p.id === movingPlacementId) return;
+
+      // Resolve Variant
+      let item = originalItem;
+      if (p.variantId && (originalItem as CustomFurniture).colorVariants) {
+        const variant = (originalItem as CustomFurniture).colorVariants?.find(v => v.id === p.variantId);
+        if (variant) {
+          // Create a shallow copy with overridden images
+          // Note: casting to CustomFurniture to access spriteImages
+          item = {
+            ...originalItem,
+            spriteImages: variant.images,
+            // If we had a name change for variant, we could override it too, but visually images matter most
+          } as CustomFurniture;
+        }
+      }
+
       const [w, d] = item.size;
       const effectiveW = p.rotation % 2 === 0 ? w : d;
       const effectiveD = p.rotation % 2 === 0 ? d : w;
@@ -691,6 +690,26 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
               }
             }}
             onClick={(e) => {
+              // Handle variant cycling with Alt + Click
+              if (e.altKey && onVariantChange) {
+                e.stopPropagation();
+                // Find next variant
+                const variants = (item as CustomFurniture).colorVariants || [];
+                if (variants.length > 0) {
+                  const currentId = p.variantId || null;
+                  const currentIndex = currentId ? variants.findIndex(v => v.id === currentId) : -1;
+
+                  // Sequence: Default (starts at -1) -> Variant 0 -> Variant 1 -> ... -> Default
+                  let nextIndex = currentIndex + 1;
+                  if (nextIndex >= variants.length) {
+                    onVariantChange(p.id, null); // Back to default
+                  } else {
+                    onVariantChange(p.id, variants[nextIndex].id);
+                  }
+                }
+                return;
+              }
+
               // Handle special furniture actions (like openPhonicsModal)
               if (!isStudyMode && !isMemoryMode && !isRemoveMode) {
                 e.stopPropagation();
@@ -765,8 +784,21 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
     });
 
     wallPlacements.forEach((wp) => {
-      const item = fullCatalog.find((f) => f.id === wp.furnitureId);
-      if (!item) return;
+      const originalItem = fullCatalog.find((f) => f.id === wp.furnitureId);
+      if (!originalItem) return;
+
+      // Resolve Variant
+      // Cast to CustomFurniture for potential variant access
+      let item = originalItem as CustomFurniture;
+      if (wp.variantId && item.colorVariants) {
+        const variant = item.colorVariants.find(v => v.id === wp.variantId);
+        if (variant) {
+          item = {
+            ...item,
+            spriteImages: variant.images
+          } as CustomFurniture;
+        }
+      }
 
       const wallPos = toIsoWall(wp.gridPos, wp.z, wp.surface);
       const itemSize = Math.max(item.size[0], item.size[1]) * 35;

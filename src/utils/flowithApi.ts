@@ -29,7 +29,7 @@ export async function call_flowith_api(
         throw new Error('VITE_FLOWITH_API_KEY is not defined in .env file.');
     }
 
-    const endpoint = 'https://edge.flowith.net/external/use/seek-knowledge/seek';
+    const endpoint = 'https://edge.flowith.net/external/use/knowledge-base/seek';
 
     // Construct content payload
     let contentPayload: any = query;
@@ -131,7 +131,7 @@ export async function get_flowith_models(): Promise<string[]> {
         throw new Error('VITE_FLOWITH_API_KEY is not defined in .env file.');
     }
 
-    const endpoint = 'https://edge.flowith.net/external/use/seek-knowledge/models';
+    const endpoint = 'https://edge.flowith.net/external/use/knowledge-base/models';
 
     try {
         const response = await fetch(endpoint, {
