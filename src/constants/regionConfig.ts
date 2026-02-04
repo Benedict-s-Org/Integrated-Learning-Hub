@@ -19,32 +19,32 @@ export interface ThemeColors {
 
 export const REGION_THEME_COLORS: Record<RegionTheme, ThemeColors> = {
     countryside: {
-        ground: '#e6f3d9', // Light green
-        road: '#d8ccb9',   // Dirt road color
-        water: '#a5d6f5',
-        highlight: '#8bc34a',
-        text: '#33691e',
+        ground: '#E3F2DA', // Soft Sage
+        road: '#FDF6E3',   // Warm Cream
+        water: '#C7CEEA',  // Periwinkle
+        highlight: '#FFDAC1', // Soft Peach
+        text: '#5D4037',   // Warm Brown
     },
     suburban: {
-        ground: '#f0f4f8', // Light blue-grey
-        road: '#cfd8dc',   // Paved road
-        water: '#90caf9',
-        highlight: '#2196f3',
-        text: '#263238',
+        ground: '#F0F4F8', // Cool Mist
+        road: '#E2E8F0',   // Soft Grey
+        water: '#B5EAD7',  // Mint
+        highlight: '#FFB7B2', // Pastel Red
+        text: '#4A5568',   // Slate
     },
     urban: {
-        ground: '#eceff1', // Concrete/grey
-        road: '#b0bec5',   // Darker paved road
-        water: '#81d4fa',
-        highlight: '#607d8b',
-        text: '#37474f',
+        ground: '#FAFAFA', // Almost White
+        road: '#CBD5E0',   // Cool Grey
+        water: '#A0CED9',  // Soft Blue
+        highlight: '#E2F0CB', // Pale Lime
+        text: '#2D3748',   // Dark Slate
     },
 };
 
 export const PLOT_TYPE_COLORS = {
-    city: '#4CAF50',
-    public_facility: '#2196F3',
-    empty: '#9E9E9E',
+    city: '#B5EAD7',      // Mint (friendly green)
+    public_facility: '#FFB7B2', // Pastel Red (standout but soft)
+    empty: '#E2E8F0',     // Light Grey (neutral)
 };
 
 export const CITY_LEVEL_COLORS = {

@@ -9,6 +9,9 @@ interface RegionHUDProps {
   onZoomOut: () => void;
   onResetView: () => void;
   onNavigateHome: () => void;
+  onClaimPlot?: () => void;
+  onOpenBuilder?: () => void;
+  isAdmin?: boolean;
 }
 
 export function RegionHUD({
@@ -18,9 +21,16 @@ export function RegionHUD({
   onZoomOut,
   onResetView,
   onNavigateHome,
+  onClaimPlot,
+  onOpenBuilder,
+  isAdmin = false,
 }: RegionHUDProps) {
   const occupiedPlots = region.plots.filter(p => p.plotType === 'city').length;
   const totalFacilities = region.facilities.length;
+
+  const selectedPlot = viewState.selectedPlotId
+    ? region.plots.find(p => p.id === viewState.selectedPlotId)
+    : null;
 
   return (
     <>
@@ -71,6 +81,29 @@ export function RegionHUD({
         >
           <Map className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Bottom Center - Action Buttons */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4 pointer-events-none">
+        {selectedPlot?.plotType === 'empty' && onClaimPlot && (
+          <button
+            onClick={onClaimPlot}
+            className="pointer-events-auto bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg hover:scale-105 transition-all flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4"
+          >
+            <Home className="w-5 h-5" />
+            建立我的城市
+          </button>
+        )}
+
+        {isAdmin && onOpenBuilder && (
+          <button
+            onClick={onOpenBuilder}
+            className="pointer-events-auto bg-secondary text-secondary-foreground px-6 py-3 rounded-xl font-bold shadow-lg hover:scale-105 transition-all flex items-center gap-2"
+          >
+            <Users className="w-5 h-5" />
+            建設公共設施 (Admin)
+          </button>
+        )}
       </div>
 
       {/* Bottom left - Navigation */}

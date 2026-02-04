@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import type { RegionData, RegionViewState, PublicFacility } from '@/types/region';
+import type { RegionData, RegionViewState, PublicFacility, FacilityType } from '@/types/region';
 import { REGION_CONFIG, REGION_THEME_COLORS } from '@/constants/regionConfig';
 import { CityPlot } from './CityPlot';
 import { PublicFacilityMarker } from './PublicFacilityMarker';
 import { RegionHUD } from './RegionHUD';
 import { FacilityModal } from './FacilityModal';
+import { FacilityBuilderModal } from './FacilityBuilderModal';
+import { useRegion } from '@/hooks/useRegion';
 
 interface RegionMapProps {
   region: RegionData;
@@ -12,8 +14,13 @@ interface RegionMapProps {
   onNavigateHome: () => void;
 }
 
-export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMapProps) {
+export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateHome }: RegionMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Use the hook to get actions, but rely on props for data to avoid double fetch if possible
+  const { claimPlot, visitFacility, createPublicFacility } = useRegion(initialRegion.id);
+
+  // We'll use local state for immediate UI feedback, but ideally sync with server
   const [viewState, setViewState] = useState<RegionViewState>({
     selectedPlotId: null,
     hoveredPlotId: null,
@@ -22,30 +29,26 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
     zoom: REGION_CONFIG.defaultZoom,
     showFacilityModal: null,
   });
+
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [selectedFacility, setSelectedFacility] = useState<PublicFacility | null>(null);
+  const [showBuilderModal, setShowBuilderModal] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
-  const themeColors = REGION_THEME_COLORS[region.theme];
+  // TODO: Get actual admin status
+  const isAdmin = true;
+
+  const themeColors = REGION_THEME_COLORS[initialRegion.theme];
   const { tileWidth, tileHeight, minZoom, maxZoom } = REGION_CONFIG;
-
-  // Calculate map dimensions
-  const mapWidth = region.gridSize * tileWidth * 2;
-  const mapHeight = region.gridSize * tileHeight * 2;
 
   // Handle zoom
   const handleZoomIn = useCallback(() => {
-    setViewState(prev => ({
-      ...prev,
-      zoom: Math.min(prev.zoom + 0.2, maxZoom),
-    }));
+    setViewState(prev => ({ ...prev, zoom: Math.min(prev.zoom + 0.2, maxZoom) }));
   }, [maxZoom]);
 
   const handleZoomOut = useCallback(() => {
-    setViewState(prev => ({
-      ...prev,
-      zoom: Math.max(prev.zoom - 0.2, minZoom),
-    }));
+    setViewState(prev => ({ ...prev, zoom: Math.max(prev.zoom - 0.2, minZoom) }));
   }, [minZoom]);
 
   const handleResetView = useCallback(() => {
@@ -100,7 +103,7 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
 
   // Handle plot selection
   const handleSelectPlot = useCallback((plotId: string) => {
-    const plot = region.plots.find(p => p.id === plotId);
+    const plot = initialRegion.plots.find(p => p.id === plotId);
     if (plot?.plotType === 'city' && plot.ownerId) {
       onNavigateToCity(plot.ownerId);
     }
@@ -109,7 +112,7 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
       selectedPlotId: plotId,
       selectedFacilityId: null,
     }));
-  }, [region.plots, onNavigateToCity]);
+  }, [initialRegion.plots, onNavigateToCity]);
 
   const handleHoverPlot = useCallback((plotId: string | null) => {
     setViewState(prev => ({
@@ -120,7 +123,7 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
 
   // Handle facility selection
   const handleSelectFacility = useCallback((facilityId: string) => {
-    const facility = region.facilities.find(f => f.id === facilityId);
+    const facility = initialRegion.facilities.find(f => f.id === facilityId);
     if (facility) {
       setSelectedFacility(facility);
     }
@@ -129,7 +132,7 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
       selectedFacilityId: facilityId,
       selectedPlotId: null,
     }));
-  }, [region.facilities]);
+  }, [initialRegion.facilities]);
 
   const handleHoverFacility = useCallback((facilityId: string | null) => {
     setViewState(prev => ({
@@ -140,57 +143,69 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
 
   const handleCloseFacilityModal = useCallback(() => {
     setSelectedFacility(null);
-    setViewState(prev => ({
-      ...prev,
-      selectedFacilityId: null,
-    }));
+    setViewState(prev => ({ ...prev, selectedFacilityId: null }));
   }, []);
 
-  const handleVisitFacility = useCallback(() => {
-    // TODO: Implement facility visit logic
-    console.log('Visiting facility:', selectedFacility?.id);
+  // Action Handlers
+  const handleClaimPlot = async () => {
+    if (!viewState.selectedPlotId) return;
+    if (isClaiming) return;
+
+    try {
+      setIsClaiming(true);
+      const success = await claimPlot(viewState.selectedPlotId, '我的新城市');
+      if (success) {
+        alert('成功建立城市！');
+        setViewState(prev => ({ ...prev, selectedPlotId: null }));
+      } else {
+        alert('建立城市失敗，請稍後再試');
+      }
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const handleVisitFacility = async () => {
+    if (!selectedFacility) return;
+
+    const result = await visitFacility(selectedFacility.id);
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert(result.message);
+    }
     handleCloseFacilityModal();
-  }, [selectedFacility, handleCloseFacilityModal]);
+  };
+
+  const handleBuildFacility = async (type: FacilityType, name: string) => {
+    const position = { x: Math.floor(Math.random() * 5) + 2, y: Math.floor(Math.random() * 5) + 2 };
+
+    const success = await createPublicFacility(type, name, position);
+    if (success) {
+      alert(`成功建設 ${name}`);
+      setShowBuilderModal(false);
+    }
+  };
 
   // Create ground grid pattern
   const renderGroundGrid = () => {
     const gridLines = [];
-    const gridSize = region.gridSize;
+    const gridSize = initialRegion.gridSize;
 
     for (let i = 0; i <= gridSize; i++) {
-      // Horizontal lines (in isometric space)
       const hx1 = (0 - i) * (tileWidth / 2);
       const hy1 = (0 + i) * (tileHeight / 2);
       const hx2 = (gridSize - i) * (tileWidth / 2);
       const hy2 = (gridSize + i) * (tileHeight / 2);
 
-      // Vertical lines (in isometric space)
       const vx1 = (i - 0) * (tileWidth / 2);
       const vy1 = (i + 0) * (tileHeight / 2);
       const vx2 = (i - gridSize) * (tileWidth / 2);
       const vy2 = (i + gridSize) * (tileHeight / 2);
 
       gridLines.push(
-        <line
-          key={`h-${i}`}
-          x1={hx1}
-          y1={hy1}
-          x2={hx2}
-          y2={hy2}
-          stroke={themeColors.road}
-          strokeWidth={0.5}
-          opacity={0.3}
-        />,
-        <line
-          key={`v-${i}`}
-          x1={vx1}
-          y1={vy1}
-          x2={vx2}
-          y2={vy2}
-          stroke={themeColors.road}
-          strokeWidth={0.5}
-          opacity={0.3}
-        />
+        <line key={`h-${i}`} x1={hx1} y1={hy1} x2={hx2} y2={hy2} stroke={themeColors.road} strokeWidth={0.5} opacity={0.3} />,
+        <line key={`v-${i}`} x1={vx1} y1={vy1} x2={vx2} y2={vy2} stroke={themeColors.road} strokeWidth={0.5} opacity={0.3} />
       );
     }
     return gridLines;
@@ -199,8 +214,11 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden"
-      style={{ backgroundColor: themeColors.ground }}
+      className="relative w-full h-screen overflow-hidden bg-region-ground"
+      style={{
+        backgroundColor: themeColors?.ground || '#FDF6E3',
+        transition: 'background-color 0.5s ease'
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -210,22 +228,15 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
       <svg
         width="100%"
         height="100%"
-        style={{
-          cursor: isDragging ? 'grabbing' : 'grab',
-        }}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
-        <g
-          transform={`
-            translate(${mapWidth / 2 + viewState.cameraOffset.x}, ${100 + viewState.cameraOffset.y})
-            scale(${viewState.zoom})
-          `}
-        >
+        <g transform={`translate(${(containerRef.current?.clientWidth ?? 1000) / 2 + viewState.cameraOffset.x}, ${(containerRef.current?.clientHeight ?? 800) / 2 + viewState.cameraOffset.y}) scale(${viewState.zoom})`}>
           {/* Ground grid */}
           <g>{renderGroundGrid()}</g>
 
           {/* City plots */}
           <g>
-            {region.plots.map(plot => (
+            {initialRegion.plots.map(plot => (
               <CityPlot
                 key={plot.id}
                 plot={plot}
@@ -239,14 +250,14 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
 
           {/* Public facilities */}
           <g>
-            {region.facilities.map(facility => (
+            {initialRegion.facilities.map(facility => (
               <PublicFacilityMarker
                 key={facility.id}
                 facility={facility}
                 isSelected={viewState.selectedFacilityId === facility.id}
                 isHovered={false}
                 onSelect={handleSelectFacility}
-                onHover={handleHoverFacility}
+                onHover={(fid) => handleHoverFacility(fid)}
               />
             ))}
           </g>
@@ -255,20 +266,31 @@ export function RegionMap({ region, onNavigateToCity, onNavigateHome }: RegionMa
 
       {/* HUD Overlay */}
       <RegionHUD
-        region={region}
+        region={initialRegion}
         viewState={viewState}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetView={handleResetView}
         onNavigateHome={onNavigateHome}
+        onClaimPlot={handleClaimPlot}
+        onOpenBuilder={() => setShowBuilderModal(true)}
+        isAdmin={isAdmin}
       />
 
-      {/* Facility Modal */}
+      {/* Facility Visit Modal */}
       {selectedFacility && (
         <FacilityModal
           facility={selectedFacility}
           onClose={handleCloseFacilityModal}
           onVisit={handleVisitFacility}
+        />
+      )}
+
+      {/* Facility Builder Modal */}
+      {showBuilderModal && (
+        <FacilityBuilderModal
+          onClose={() => setShowBuilderModal(false)}
+          onBuild={handleBuildFacility}
         />
       )}
     </div>

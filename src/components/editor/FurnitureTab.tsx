@@ -20,7 +20,9 @@ interface FurnitureTabProps {
   onUpdate: (item: FurnitureItem) => void;
   onDelete: (id: string) => void;
   onEnterTransformMode: (id: string) => void;
+  onEnterTransformMode: (id: string) => void;
   onClose: () => void;
+  customModels: Record<string, any>;
 }
 
 export const FurnitureTab: React.FC<FurnitureTabProps> = ({
@@ -29,6 +31,7 @@ export const FurnitureTab: React.FC<FurnitureTabProps> = ({
   onDelete,
   onEnterTransformMode,
   onClose,
+  customModels,
 }) => {
   const [selectedId, setSelectedId] = useState("");
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
@@ -214,7 +217,7 @@ export const FurnitureTab: React.FC<FurnitureTabProps> = ({
           >
             <option value="">-- 請選擇要編輯的家具 --</option>
             {customCatalog
-              .filter((f) => f.id.startsWith("custom_"))
+              .filter((f) => f.id.startsWith("custom_") || f.id.startsWith("asset_"))
               .map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -282,6 +285,38 @@ export const FurnitureTab: React.FC<FurnitureTabProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Geometric Preview for Non-Sprite Items */}
+            {customCatalog.find(f => f.id === selectedId)?.type === 'geometric' && (
+              <div className="bg-slate-50 p-4 rounded-xl border border-gray-200">
+                <h3 className="font-bold text-slate-700 mb-2">幾何模型預覽</h3>
+                <div className="aspect-video bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                  {/* Simple Isometric SVG Renderer */}
+                  <svg viewBox="-50 -50 100 100" className="w-full h-full">
+                    {(customModels[selectedId] || []).map((box: any, idx: number) => {
+                      // Simple projection: x goes right-down, y goes left-down, z goes up
+                      // x, y, z are grid coordinates. 
+                      // To center, we might need offsets. 
+                      // Let's just draw a simple cube for now to verify data presence.
+                      const isoX = (box.x - box.y) * 10;
+                      const isoY = (box.x + box.y) * 5 - box.z * 10;
+                      // Using box.w, box.d, box.h directly in the render
+                      return (
+                        <g key={idx} transform={`translate(${isoX}, ${isoY})`}>
+                          <path d={`M0 0 L${10 * box.w} ${5 * box.w} L${10 * box.w} ${5 * box.w - 10 * box.h} L0 ${-10 * box.h} Z`} fill={box.color} stroke="black" strokeWidth="0.5" opacity="0.8" />
+                          <path d={`M0 0 L${-10 * box.d} ${5 * box.d} L${-10 * box.d} ${5 * box.d - 10 * box.h} L0 ${-10 * box.h} Z`} fill={box.color} filter="brightness(0.9)" stroke="black" strokeWidth="0.5" opacity="0.8" />
+                          <path d={`M0 ${-10 * box.h} L${10 * box.w} ${5 * box.w - 10 * box.h} L${10 * box.w - 10 * box.d} ${5 * box.w - 10 * box.h + 5 * box.d} L${-10 * box.d} ${5 * box.d - 10 * box.h} Z`} fill={box.color} filter="brightness(1.1)" stroke="black" strokeWidth="0.5" opacity="0.8" />
+                        </g>
+                      );
+                    })}
+                    {(customModels[selectedId] || []).length === 0 && (
+                      <text x="0" y="0" textAnchor="middle" fontSize="5" fill="gray">No Model Data</text>
+                    )}
+                  </svg>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">預覽模式僅供參考，實際效果以房間內為準</p>
+              </div>
+            )}
 
             <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">

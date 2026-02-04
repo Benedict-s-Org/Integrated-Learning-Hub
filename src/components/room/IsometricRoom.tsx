@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { HOUSE_LEVELS } from "@/constants/houseLevels";
 import { GridMode } from "@/components/IsometricGridOverlay";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
-import { FurnitureItem, Placement, WallPlacement, CustomFurniture, FurnitureColorVariant } from "@/types/furniture";
+import { FurnitureItem, Placement, WallPlacement, CustomFurniture, FurnitureColorVariant, FurnitureBoxPrimitive } from "@/types/furniture";
 import { CustomWall, CustomFloor } from "@/types/room";
 
 // Types
@@ -335,6 +335,12 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
     }
 
     const models = fullModels[item.id] || fullModels.default;
+
+    // Debug logging for new assets
+    if (item.id.startsWith('asset_')) {
+      console.log('Rendering asset:', item.id, 'Has models:', !!models, 'Model count:', models?.length);
+    }
+
     const furnitureW = item.size[0];
     const furnitureD = item.size[1];
     let colorOverride: string | null = null;

@@ -34,6 +34,10 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
     );
 }
 
+export function useMemoryPalace() {
+    return useContext(MemoryPalaceContext);
+}
+
 export function useMemoryPalaceContext() {
     const context = useContext(MemoryPalaceContext);
     if (!context) {

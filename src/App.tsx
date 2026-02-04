@@ -35,8 +35,7 @@ import { MemoryPalacePage } from './pages/MemoryPalacePage';
 import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 
-import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
-import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
+import { AssetGenerator } from './components/admin/AssetGenerator';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -44,6 +43,7 @@ type AppState =
   | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
+  | { page: 'assetGenerator' }
   | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
   | { page: 'publicPractice'; memorizationState: MemorizationState }
@@ -68,7 +68,7 @@ type AppState =
   | { page: 'flowithTest' };
 
 function AppContent() {
-  const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
+  const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
@@ -173,7 +173,7 @@ function AppContent() {
     appState.page === 'assignmentManagement' ||
     appState.page === 'spacedRepetition';
 
-  if (!user && isRestrictedPage) {
+  if (!user && isRestrictedPage && !import.meta.env.DEV) {
     return <Login />;
   }
 
@@ -201,9 +201,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition')) {
       setShowLoginModal(true);
       return;
     }
@@ -469,7 +469,9 @@ function AppContent() {
       case 'saved':
         return <SavedContent onLoadContent={handleLoadContent} onCreateNew={handleCreateNewMemorization} />;
       case 'admin':
-        return <AdminPanel />;
+        return <AdminPanel onNavigateToAssets={() => setAppState({ page: 'assetGenerator' })} />;
+      case 'assetGenerator':
+        return <AssetGenerator />;
       case 'database':
         return <ContentDatabase />;
       case 'practice':
@@ -676,7 +678,7 @@ function AppContent() {
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -697,6 +699,9 @@ function AppContent() {
     }
     if (appState.page === 'admin') {
       return 'admin';
+    }
+    if (appState.page === 'assetGenerator') {
+      return 'assetGenerator';
     }
     if (appState.page === 'database') {
       return 'database';

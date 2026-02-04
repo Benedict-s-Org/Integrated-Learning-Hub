@@ -198,3 +198,8 @@
 .animate-water-ripple {
   animation: water-ripple 2s ease-out infinite;
 }
+
+/* Force override for region map background */
+.bg-region-ground {
+  background-color: #FDF6E3 !important;
+}

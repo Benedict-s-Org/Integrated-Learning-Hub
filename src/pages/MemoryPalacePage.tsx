@@ -13,7 +13,7 @@ import { CityMap } from "@/components/city/CityMap";
 import { RegionMap } from "@/components/region/RegionMap";
 import { ShopView } from "@/components/shop/ShopView";
 import { DevPanel } from "@/components/DevPanel";
-import { FurnitureStudio } from "@/components/furniture/FurnitureStudio";
+import { AssetGenerator } from "@/components/admin/AssetGenerator";
 import { FurnitureUploader } from "@/components/furniture/FurnitureUploader";
 import { FurnitureEditor } from "@/components/editor/FurnitureEditor";
 import { SpaceDesignCenter } from "@/components/SpaceDesignCenter";
@@ -49,6 +49,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     setCustomWalls,
     setCustomFloors,
     setHouseLevel,
+    setInventory,
   } = context;
 
   // Deriving active wall/floor objects from ID
@@ -399,11 +400,12 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
       {showStudio && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] overflow-hidden">
-            <FurnitureStudio
+            <AssetGenerator
               onClose={() => setShowStudio(false)}
               onSave={(item, model) => {
                 setCustomCatalog((prev: any[]) => [...prev, item]);
                 setCustomModels((prev: any) => ({ ...prev, [item.id]: model }));
+                setInventory((prev: any[]) => [...prev, item.id]);
                 setShowStudio(false);
               }}
             />
@@ -448,6 +450,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
                   onDeleteWall={(id: string) => setCustomWalls((prev: any[]) => prev.filter(w => w.id !== id))}
                   onDeleteFloor={(id: string) => setCustomFloors((prev: any[]) => prev.filter(f => f.id !== id))}
                   onEnterTransformMode={(id) => console.log('Enter transform', id)}
+                  customModels={fullModels}
                 />
               </div>
             </div>
