@@ -6,8 +6,8 @@ import {
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => void;
   userRole: string | null;
   onLogin?: () => void;
   isNavOpen: boolean;

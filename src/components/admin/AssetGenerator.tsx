@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { generateAssetPrompt, getDesignJSON } from '@/utils/promptGenerator';
-import { Copy, Sparkles, Image as ImageIcon, Wand2, Loader2, Box, X, Sliders } from 'lucide-react';
-import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box } from '@/assets/furniture/orange_sofa';
+import { Copy, Sparkles, Image as ImageIcon, Wand2, Loader2, Box, X, Sliders, Zap } from 'lucide-react';
+import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box, pink_desk } from '@/assets/furniture/orange_sofa';
+import { supabase } from '@/integrations/supabase/client';
 
 import { FurnitureItem, FurnitureBoxPrimitive, CustomFurniture } from '@/types/furniture';
 import { PenTool } from 'lucide-react';
@@ -24,9 +25,11 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
 
     // AI Gen State
     const [genMode, setGenMode] = useState<'manual' | 'ai'>('manual');
+    const [useRealAI, setUseRealAI] = useState(false); // Toggle for Real AI
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Edit State
     const [isEditing, setIsEditing] = useState(false);
@@ -63,48 +66,75 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setJsonOutput(json);
     };
 
-    const handleGenerateAI = () => {
+    const handleGenerateAI = async () => {
         if (!prompt) return;
         setIsGenerating(true);
-        setGeneratedImage(null); // Clear previous image
+        setGeneratedImage(null);
+        setErrorMsg(null);
 
-        // Simple keyword matching simulation
-        const p = prompt.toLowerCase();
-        let resultImage = mystery_box; // Default to mystery box
-        let defaultName = 'AI Asset';
+        if (useRealAI) {
+            try {
+                const { data, error } = await supabase.functions.invoke('generate-asset', {
+                    body: { prompt: prompt, style_preset: 'isometric vector art' }
+                });
 
-        if (p.includes('shelf') || p.includes('book')) {
-            resultImage = wooden_bookshelf;
-            defaultName = 'Wooden Bookshelf';
-        } else if (p.includes('rug') || p.includes('carpet') || p.includes('mat')) {
-            resultImage = round_rug;
-            defaultName = 'Round Rug';
-        } else if (p.includes('lamp') || p.includes('light')) {
-            resultImage = floor_lamp;
-            defaultName = 'Floor Lamp';
-        } else if (p.includes('sofa') || p.includes('couch')) {
-            resultImage = orange_sofa;
-            defaultName = 'Orange Sofa';
-        } else if (p.includes('table') || p.includes('desk') || p.includes('coffee')) {
-            resultImage = wooden_table;
-            defaultName = 'Wooden Table';
-        } else if (p.includes('bed') || p.includes('sleep') || p.includes('bunk')) {
-            resultImage = cozy_bed;
-            defaultName = 'Cozy Bed';
-        } else if (p.includes('chair') || p.includes('seat') || p.includes('stool')) {
-            resultImage = armchair;
-            defaultName = 'Armchair';
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                setGeneratedImage(data.image);
+                setName(prompt.split(' ').slice(0, 3).join(' ')); // Simple default name
+            } catch (err: any) {
+                console.error('AI Generation failed:', err);
+                if (err.message?.includes('OPENAI_API_KEY')) {
+                    setErrorMsg("Missing API Key. Please add 'OPENAI_API_KEY' to your Supabase secrets.");
+                } else {
+                    setErrorMsg("Generation failed. Please try again or use Simulation Mode.");
+                }
+            } finally {
+                setIsGenerating(false);
+            }
         } else {
-            defaultName = 'Mystery Item';
-            // resultImage is already mystery_box
-        }
+            // Simulation Mode (Existing Logic)
+            const p = prompt.toLowerCase();
+            let resultImage = mystery_box;
+            let defaultName = 'AI Asset';
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsGenerating(false);
-            setGeneratedImage(resultImage);
-            if (!name) setName(defaultName);
-        }, 1500);
+            if (p.includes('shelf') || p.includes('book')) {
+                resultImage = wooden_bookshelf;
+                defaultName = 'Wooden Bookshelf';
+            } else if (p.includes('rug') || p.includes('carpet') || p.includes('mat')) {
+                resultImage = round_rug;
+                defaultName = 'Round Rug';
+            } else if (p.includes('lamp') || p.includes('light')) {
+                resultImage = floor_lamp;
+                defaultName = 'Floor Lamp';
+            } else if (p.includes('sofa') || p.includes('couch')) {
+                resultImage = orange_sofa;
+                defaultName = 'Orange Sofa';
+            } else if (p.includes('table') || p.includes('desk') || p.includes('coffee')) {
+                if (p.includes('pink')) {
+                    resultImage = pink_desk;
+                    defaultName = 'Pastel Pink Desk';
+                } else {
+                    resultImage = wooden_table;
+                    defaultName = 'Wooden Table';
+                }
+            } else if (p.includes('bed') || p.includes('sleep') || p.includes('bunk')) {
+                resultImage = cozy_bed;
+                defaultName = 'Cozy Bed';
+            } else if (p.includes('chair') || p.includes('seat') || p.includes('stool')) {
+                resultImage = armchair;
+                defaultName = 'Armchair';
+            } else {
+                defaultName = 'Mystery Item';
+            }
+
+            setTimeout(() => {
+                setIsGenerating(false);
+                setGeneratedImage(resultImage); // simulation fallback
+                if (!name) setName(defaultName);
+            }, 1000);
+        }
     };
 
     const handleSaveGenerated = () => {
@@ -313,7 +343,21 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                         /* AI Mode Content */
                         <div className="space-y-6">
                             <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl border border-purple-100">
-                                <label className="block text-sm font-bold text-purple-900 mb-2">Describe your asset</label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-bold text-purple-900">Describe your asset</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs font-medium ${useRealAI ? 'text-purple-600' : 'text-slate-500'}`}>
+                                            {useRealAI ? 'Live Generating' : 'Simulation Mode'}
+                                        </span>
+                                        <button
+                                            onClick={() => setUseRealAI(!useRealAI)}
+                                            className={`p-1 rounded-full w-12 h-6 flex items-center transition-colors ${useRealAI ? 'bg-purple-600 justify-end' : 'bg-slate-300 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-sm mx-1" />
+                                        </button>
+                                        <Zap size={14} className={useRealAI ? "text-purple-600" : "text-slate-300"} />
+                                    </div>
+                                </div>
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
@@ -347,7 +391,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                             {!isEditing && (
                                                 <button
                                                     onClick={() => setIsEditing(true)}
-                                                    className="absolute top-2 right-2 p-2 bg-white/90 rounded-full shadow-md text-slate-600 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
+                                                    className="absolute top-2 right-2 p-2 bg-white/90 rounded-full shadow-md text-slate-600 hover:text-indigo-600 transition-all font-bold z-10"
                                                 >
                                                     <Sliders size={18} />
                                                 </button>
@@ -438,7 +482,16 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                             {isGenerating && (
                                 <div className="text-center py-20 text-purple-600">
                                     <Loader2 size={48} className="mx-auto mb-4 animate-spin" />
-                                    <p className="animate-pulse">Dreaming up your asset...</p>
+                                    <p className="animate-pulse">
+                                        {useRealAI ? 'Sending request to AI Brain...' : 'Dreaming up your asset...'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {errorMsg && (
+                                <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 text-sm flex items-center gap-2">
+                                    <X size={16} />
+                                    {errorMsg}
                                 </div>
                             )}
                         </div>

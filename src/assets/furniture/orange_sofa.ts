@@ -6,3 +6,4 @@ export const wooden_table = "/furniture/wooden_table.png";
 export const cozy_bed = "/furniture/cozy_bed.png";
 export const armchair = "/furniture/armchair.png";
 export const mystery_box = "/furniture/mystery_box.png";
+export const pink_desk = "/furniture/pink_desk.png";
