@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { generateAssetPrompt, getDesignJSON } from '@/utils/promptGenerator';
-import { Copy, Sparkles, Image as ImageIcon, Wand2, Loader2, Box, X } from 'lucide-react';
+import { Copy, Sparkles, Image as ImageIcon, Wand2, Loader2, Box, X, Sliders } from 'lucide-react';
 import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box } from '@/assets/furniture/orange_sofa';
 
 import { FurnitureItem, FurnitureBoxPrimitive, CustomFurniture } from '@/types/furniture';
@@ -27,6 +27,34 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+
+    // Edit State
+    const [isEditing, setIsEditing] = useState(false);
+    const [brightness, setBrightness] = useState(100);
+    const [contrast, setContrast] = useState(100);
+    const [hue, setHue] = useState(0);
+
+    const processImage = async () => {
+        if (!generatedImage) return;
+
+        const img = new Image();
+        img.src = generatedImage;
+        img.crossOrigin = "anonymous";
+
+        await new Promise((resolve) => { img.onload = resolve; });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) hue-rotate(${hue}deg)`;
+        ctx.drawImage(img, 0, 0);
+
+        setGeneratedImage(canvas.toDataURL('image/png'));
+        setIsEditing(false);
+    };
 
     const handleGenerate = () => {
         const prompt = generateAssetPrompt(category, name, description);
@@ -309,10 +337,63 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                             {generatedImage && (
                                 <div className="flex gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     <div className="w-1/2">
-                                        <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm relative group">
-                                            <img src={generatedImage} alt="Generated" className="w-full h-auto rounded-lg" />
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-lg pointer-events-none" />
+                                        <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm relative group overflow-hidden">
+                                            <img
+                                                src={generatedImage}
+                                                alt="Generated"
+                                                className="w-full h-auto rounded-lg transition-all"
+                                                style={{ filter: isEditing ? `brightness(${brightness}%) contrast(${contrast}%) hue-rotate(${hue}deg)` : 'none' }}
+                                            />
+                                            {!isEditing && (
+                                                <button
+                                                    onClick={() => setIsEditing(true)}
+                                                    className="absolute top-2 right-2 p-2 bg-white/90 rounded-full shadow-md text-slate-600 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
+                                                >
+                                                    <Sliders size={18} />
+                                                </button>
+                                            )}
                                         </div>
+                                        {isEditing && (
+                                            <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 animate-in slide-in-from-top-2">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <h3 className="font-bold text-sm text-slate-700">Refine Asset</h3>
+                                                    <button onClick={processImage} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full">Apply</button>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between text-xs text-slate-500">
+                                                        <span>Brightness</span>
+                                                        <span>{brightness}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="50" max="150" value={brightness}
+                                                        onChange={(e) => setBrightness(Number(e.target.value))}
+                                                        className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between text-xs text-slate-500">
+                                                        <span>Contrast</span>
+                                                        <span>{contrast}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="50" max="150" value={contrast}
+                                                        onChange={(e) => setContrast(Number(e.target.value))}
+                                                        className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between text-xs text-slate-500">
+                                                        <span>Hue</span>
+                                                        <span>{hue}°</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="-180" max="180" value={hue}
+                                                        onChange={(e) => setHue(Number(e.target.value))}
+                                                        className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="w-1/2 space-y-4">
                                         <div>
