@@ -1,5 +1,4 @@
-import React from "react";
-import { Coins, Brain, ShoppingBag, Building2 } from "lucide-react";
+import { Coins, Brain, ShoppingBag, Building2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 interface SidebarMenuProps {
@@ -9,6 +8,7 @@ interface SidebarMenuProps {
   onStart: () => void;
   onShop: () => void;
   onCity: () => void;
+  onRegion: () => void;
   currentPhase: string;
 }
 
@@ -19,6 +19,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   onStart,
   onShop,
   onCity,
+  onRegion,
   currentPhase,
 }) => {
   return (
@@ -53,6 +54,9 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
           </Button>
           <Button variant="secondary" className="w-full" onClick={onCity} icon={Building2}>
             城市地圖
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={onRegion} icon={Globe}>
+            大地區系統
           </Button>
         </div>
       </div>

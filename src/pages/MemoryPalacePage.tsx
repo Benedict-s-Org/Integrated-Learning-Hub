@@ -6,9 +6,11 @@ import { useRoomInteraction } from "@/hooks/useRoomInteraction";
 import { useMemoryPoints } from "@/hooks/useMemoryPoints";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useCityLayout } from "@/hooks/useCityLayout";
+import { useRegion } from "@/hooks/useRegion";
 import { Sidebar } from "@/components/sidebar";
 import { IsometricRoom } from "@/components/room/IsometricRoom";
 import { CityMap } from "@/components/city/CityMap";
+import { RegionMap } from "@/components/region/RegionMap";
 import { ShopView } from "@/components/shop/ShopView";
 import { DevPanel } from "@/components/DevPanel";
 import { FurnitureStudio } from "@/components/furniture/FurnitureStudio";
@@ -90,7 +92,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPhase, setCurrentPhase] = useState<"intro" | "encoding" | "recall" | "result">("intro");
-  const [view, setView] = useState<"room" | "map">("room");
+  const [view, setView] = useState<"room" | "map" | "region">("room");
 
   // Modals state
   const [showUploader, setShowUploader] = useState(false);
@@ -104,6 +106,9 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   // City data
   const { buildings: cityBuildings, decorations: cityDecorations, cityLevel } = useCityLayout();
+
+  // Region data
+  const { region: regionData } = useRegion();
 
   // Grid state
   const [showGrid, setShowGrid] = useState(true);
@@ -147,6 +152,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onStart={() => setCurrentPhase("encoding")}
           onShop={() => setShowShop(true)}
           onCity={() => setView("map")}
+          onRegion={() => setView("region")}
           currentPhase={currentPhase}
           isAdmin={isAdmin}
           inventory={inventory}
@@ -228,14 +234,26 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               onRemoveWallPlacement={removeWallPlacement}
               showGrid={showGrid}
             />
-          ) : (
+          ) : view === "map" ? (
             <CityMap
               buildings={cityBuildings}
               decorations={cityDecorations}
               cityLevel={cityLevel}
               coins={coins}
               onBuildingClick={() => setView("room")}
+              onOpenShop={() => setShowShop(true)}
             />
+          ) : (
+            regionData && (
+              <RegionMap
+                region={regionData}
+                onNavigateToCity={(ownerId) => {
+                  console.log("Navigating to city of owner:", ownerId);
+                  setView("map");
+                }}
+                onNavigateHome={() => setView("map")}
+              />
+            )
           )}
         </div>
       </div>

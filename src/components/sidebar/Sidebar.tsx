@@ -57,6 +57,7 @@ interface SidebarProps {
   onStart: () => void;
   onShop: () => void;
   onCity: () => void;
+  onRegion: () => void;
   currentPhase: string;
   isAdmin: boolean;
   inventory: string[];
@@ -104,6 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onStart,
   onShop,
   onCity,
+  onRegion,
   currentPhase,
   isAdmin,
   inventory,
@@ -211,6 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onStart={onStart}
             onShop={onShop}
             onCity={onCity}
+            onRegion={onRegion}
             currentPhase={currentPhase}
           />
         )}
