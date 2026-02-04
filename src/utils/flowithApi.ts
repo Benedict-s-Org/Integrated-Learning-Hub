@@ -21,23 +21,34 @@ export async function call_flowith_api(
     // Endpoint path relative to the new host
     const endpointPath = '/external/use/knowledge-base/seek';
 
+    // Construct the payload expected by Flowith API
+    // Doc: https://doc.flowith.io/knowledge-garden/knowledge-retrieval-api-guide
+    const payload = {
+        model: model, // Must be a valid model ID (e.g. 'gpt-4o-mini')
+        stream: stream,
+        messages: [
+            {
+                role: 'user',
+                content: prompt // Must be a string
+            }
+        ],
+        kb_list: tags // Assuming tags are used as kb_ids
+    };
+
     try {
         const { data, error } = await supabase.functions.invoke('flowith-proxy', {
             body: {
                 endpoint: endpointPath, // The proxy will prepend https://api.flowith.io
                 method: 'POST',
-                body: {
-                    prompt,
-                    model,
-                    tags,
-                    stream
-                }
+                body: payload
             }
         });
 
         if (error) throw error;
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
+        // API returns just the response object, but we need to map it to FlowithResponse interface if needed
+        // The previous error showed "tag" and "content" in the expected response type
         return data as FlowithResponse;
     } catch (error) {
         console.error('Error calling Flowith Proxy:', error);
@@ -65,12 +76,10 @@ export async function get_flowith_models(): Promise<string[]> {
 
         // Handle different possible response formats
         if (Array.isArray(data)) {
-            // Assume array of strings or objects
             if (typeof data[0] === 'string') return data;
             if (data[0] && typeof data[0] === 'object' && 'id' in data[0]) return data.map((m: any) => m.id);
-            return []; // Unknown format
+            return [];
         } else if (data && Array.isArray(data.data)) {
-            // Standard format { data: [...] }
             if (typeof data.data[0] === 'string') return data.data;
             if (data.data[0] && typeof data.data[0] === 'object' && 'id' in data.data[0]) return data.data.map((m: any) => m.id);
             return [];
@@ -79,10 +88,10 @@ export async function get_flowith_models(): Promise<string[]> {
         }
 
         console.warn('Unknown model list format:', data);
-        return ['google nano banana pro', 'gpt-4o-mini']; // Fallback
+        return ['gpt-4o-mini', 'gpt-4o']; // Valid Fallbacks
     } catch (error) {
         console.error('Error fetching Flowith models:', error);
-        // Fallback or empty array
-        return ['google nano banana pro', 'gpt-4o-mini'];
+        // Fallback or empty array with VALID models
+        return ['gpt-4o-mini', 'gpt-4o'];
     }
 }
