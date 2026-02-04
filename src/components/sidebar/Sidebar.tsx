@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   LogOut,
   User,
+  Grid,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { SidebarMenu } from "./SidebarMenu";
@@ -92,6 +93,8 @@ interface SidebarProps {
   onViewMemory: (point: MemoryPoint) => void;
   getTargetName: (type: string, id: string) => string;
   onExit?: () => void;
+  showGrid: boolean;
+  onShowGridChange: (show: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -137,6 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onViewMemory,
   getTargetName,
   onExit,
+  showGrid,
+  onShowGridChange,
 }) => {
   const { signOut, profile, user, toggleViewMode, isUserView } = useAuth();
   const [tab, setTab] = useState<"menu" | "furniture" | "memory" | "history" | "admin">("menu");
@@ -308,6 +313,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {isOpen && <span>{isUserView ? "Switch to Admin" : "Switch to User"}</span>}
             </button>
           )}
+
+          {/* Grid Toggle */}
+          <button
+            onClick={() => onShowGridChange(!showGrid)}
+            className={`w-full flex items-center justify-center gap-2 py-2 mb-2 text-sm rounded-lg transition-all ${showGrid
+              ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+              : "text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent"
+              }`}
+          >
+            <div className="bg-indigo-100 text-indigo-600 p-1 rounded">
+              <Grid size={16} className={showGrid ? "text-indigo-600" : "text-slate-400"} />
+            </div>
+            {isOpen && <span>輔助網格：{showGrid ? "開啟" : "關閉"}</span>}
+          </button>
 
           <button
             onClick={() => signOut()}

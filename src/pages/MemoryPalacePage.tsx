@@ -172,6 +172,8 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onDeleteMemory={() => {/* TODO */ }}
           onViewMemory={() => {/* TODO */ }}
           getTargetName={handleTargetsName}
+          showGrid={showGrid}
+          onShowGridChange={setShowGrid}
         />
       </div>
 
