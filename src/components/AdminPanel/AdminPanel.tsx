@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2 } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface User {
@@ -11,6 +11,7 @@ interface User {
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   display_name?: string;
+  class?: string | null;
 }
 
 interface PendingPermissions {
@@ -47,6 +48,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   const [editUsername, setEditUsername] = useState('');
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editClass, setEditClass] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
 
@@ -58,6 +60,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Sorting and Filtering States
+  const [sortBy, setSortBy] = useState<'created_at' | 'username' | 'class'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterClass, setFilterClass] = useState<string>('all');
 
   useEffect(() => {
     console.log('AdminPanel: Current User:', currentUser);
@@ -155,11 +162,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     lines.forEach((line, index) => {
       const parts = line.split(',').map(p => p.trim());
       if (parts.length < 2) {
-        errors.push(`Line ${index + 1}: Missing password (format: username, password, [Display Name])`);
+        errors.push(`Line ${index + 1}: Missing password (format: username, password, [Display Name], [Class])`);
         return;
       }
 
-      const [username, password, display_name] = parts;
+      const [username, password, display_name, userClass] = parts;
 
       if (!username || username.length < 3) {
         errors.push(`Line ${index + 1}: Username must be at least 3 characters`);
@@ -169,7 +176,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
         errors.push(`Line ${index + 1}: Password must be at least 6 characters`);
       }
 
-      valid.push({ username, password, display_name });
+      valid.push({ username, password, display_name, class: userClass });
     });
 
     setValidationErrors(errors);
@@ -228,6 +235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setEditUsername(user.username);
     setEditDisplayName(user.display_name || '');
     setEditRole(user.role);
+    setEditClass(user.class || '');
     setEditPassword('');
     setShowEditModal(true);
   };
@@ -253,6 +261,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           username: editUsername,
           display_name: editDisplayName,
           role: editRole,
+          class: editClass,
         }),
       });
 
@@ -436,6 +445,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     }
   };
 
+  const filteredAndSortedUsers = users
+    .filter(user => filterClass === 'all' || user.class === filterClass)
+    .sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'username') {
+        comparison = a.username.localeCompare(b.username);
+      } else if (sortBy === 'class') {
+        comparison = (a.class || '').localeCompare(b.class || '');
+      } else {
+        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+  const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter(Boolean))) as string[];
+
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-8" data-component-name="AdminPanel" data-source-file="src/components/AdminPanel/AdminPanel.tsx">
       <div className="max-w-6xl mx-auto">
@@ -494,12 +519,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           </div>
         )}
 
+        {/* Sorting and Filtering UI */}
+        <div className="mb-6 flex flex-wrap gap-4 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-slate-700">Filter Class:</span>
+            <select
+              value={filterClass}
+              onChange={(e) => setFilterClass(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="all">All Classes</option>
+              {uniqueClasses.sort().map(cls => (
+                <option key={cls} value={cls}>{cls}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-slate-700">Sort By:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="created_at">Joined Date</option>
+              <option value="username">Username</option>
+              <option value="class">Class</option>
+            </select>
+            <button
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="p-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition"
+              title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
+            >
+              {sortOrder === 'asc' ? <TrendingUp size={16} /> : <TrendingUp size={16} className="rotate-180" />}
+            </button>
+          </div>
+
+          <div className="ml-auto text-sm text-slate-500">
+            Showing {filteredAndSortedUsers.length} of {users.length} users
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl shadow-xl overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Role</th>
                 <th className="text-center px-6 py-4 text-sm font-semibold text-slate-700">Permissions</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Created</th>
@@ -507,7 +574,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {filteredAndSortedUsers.map((user) => {
                 console.log('Rendering user row:', user.username, 'isSuperAdmin:', isSuperAdmin);
                 return (
                   <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
@@ -516,6 +583,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-slate-700">{user.display_name || user.username}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className={`text-sm font-medium ${user.class ? 'text-blue-600' : 'text-slate-400 italic'}`}>
+                        {user.class || 'No Class'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium ${user.role === 'admin'
@@ -786,6 +858,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Class
+                </label>
+                <input
+                  type="text"
+                  value={editClass}
+                  onChange={(e) => setEditClass(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="Enter class label (e.g. A, B, Grade 9)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   New Password (optional)
                 </label>
                 <div className="relative">
@@ -835,90 +920,92 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               </div>
             </form>
           </div>
-        </div>
+        </div >
       )}
 
-      {showResetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Reset User Password</h2>
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Verification Code
-                </label>
-                <div className="relative">
-                  <input
-                    type={showVerificationCode ? "text" : "password"}
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                    placeholder="Enter system verification code"
-                  />
+      {
+        showResetModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6">Reset User Password</h2>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Verification Code
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showVerificationCode ? "text" : "password"}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                      placeholder="Enter system verification code"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowVerificationCode(!showVerificationCode)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    >
+                      {showVerificationCode ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Required for password reset operations
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? "text" : "password"}
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full px-4 py-3 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    >
+                      {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex space-x-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowVerificationCode(!showVerificationCode)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    onClick={() => {
+                      setShowResetModal(false);
+                      setSelectedUserId(null);
+                      setVerificationCode('');
+                      setResetPassword('');
+                    }}
+                    className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 px-4 rounded-lg transition"
                   >
-                    {showVerificationCode ? <EyeOff size={20} /> : <Eye size={20} />}
+                    Cancel
                   </button>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Required for password reset operations
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showResetPassword ? "text" : "password"}
-                    value={resetPassword}
-                    onChange={(e) => setResetPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="w-full px-4 py-3 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                    placeholder="Enter new password"
-                  />
                   <button
-                    type="button"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    type="submit"
+                    disabled={isProcessing}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-slate-400 disabled:cursor-not-allowed"
                   >
-                    {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {isProcessing ? 'Resetting...' : 'Reset Password'}
                   </button>
                 </div>
-              </div>
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowResetModal(false);
-                    setSelectedUserId(null);
-                    setVerificationCode('');
-                    setResetPassword('');
-                  }}
-                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 px-4 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-slate-400 disabled:cursor-not-allowed"
-                >
-                  {isProcessing ? 'Resetting...' : 'Reset Password'}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

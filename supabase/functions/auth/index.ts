@@ -445,7 +445,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: users, error } = await supabase
         .from("users")
-        .select("id, username, role, created_at, can_access_proofreading, can_access_spelling, display_name")
+        .select("id, username, role, created_at, can_access_proofreading, can_access_spelling, display_name, class")
         .order("created_at", { ascending: false });
 
       if (error) {

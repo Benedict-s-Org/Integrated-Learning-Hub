@@ -23,6 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       created_at: supabaseUser.created_at,
       updated_at: supabaseUser.updated_at || supabaseUser.created_at,
       accent_preference: supabaseUser.user_metadata?.accent_preference || 'en-US',
+      class: supabaseUser.user_metadata?.class,
       // Default permissions to true for simplicity or based on role
       can_access_proofreading: true,
       can_access_spelling: true,
