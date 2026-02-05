@@ -47,12 +47,16 @@ serve(async (req) => {
 
         const data = await response.json()
 
-        // Pass specific error details if available
         if (!response.ok) {
             console.error('Flowith API Error:', data)
             return new Response(
-                JSON.stringify({ error: data, status: response.status }),
-                { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                JSON.stringify({
+                    error: data,
+                    proxyError: true,
+                    flowithStatus: response.status,
+                    targetUrl: targetUrl
+                }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }
 
@@ -63,9 +67,9 @@ serve(async (req) => {
     } catch (error) {
         console.error('Proxy Error:', error.message)
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: error.message, proxyError: true, status: 500 }),
             {
-                status: 500,
+                status: 200, // Return 200 even on catch to allow client to read body
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             }
         )

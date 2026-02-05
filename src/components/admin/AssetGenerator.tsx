@@ -67,76 +67,6 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setJsonOutput(json);
     };
 
-    const handleGenerateAI = async () => {
-        if (!prompt) return;
-        setIsGenerating(true);
-        setGeneratedImage(null);
-        setErrorMsg(null);
-
-        if (useRealAI) {
-            try {
-                const { data, error } = await supabase.functions.invoke('generate-asset', {
-                    body: { prompt: prompt, style_preset: 'isometric vector art' }
-                });
-
-                if (error) throw error;
-                if (data.error) throw new Error(data.error);
-
-                setGeneratedImage(data.image);
-                setName(prompt.split(' ').slice(0, 3).join(' ')); // Simple default name
-            } catch (err: any) {
-                console.error('AI Generation failed:', err);
-                if (err.message?.includes('OPENAI_API_KEY')) {
-                    setErrorMsg("Missing API Key. Please add 'OPENAI_API_KEY' to your Supabase secrets.");
-                } else {
-                    setErrorMsg("Generation failed. Please try again or use Simulation Mode.");
-                }
-            } finally {
-                setIsGenerating(false);
-            }
-        } else {
-            // Simulation Mode (Existing Logic)
-            const p = prompt.toLowerCase();
-            let resultImage = mystery_box;
-            let defaultName = 'AI Asset';
-
-            if (p.includes('shelf') || p.includes('book')) {
-                resultImage = wooden_bookshelf;
-                defaultName = 'Wooden Bookshelf';
-            } else if (p.includes('rug') || p.includes('carpet') || p.includes('mat')) {
-                resultImage = round_rug;
-                defaultName = 'Round Rug';
-            } else if (p.includes('lamp') || p.includes('light')) {
-                resultImage = floor_lamp;
-                defaultName = 'Floor Lamp';
-            } else if (p.includes('sofa') || p.includes('couch')) {
-                resultImage = orange_sofa;
-                defaultName = 'Orange Sofa';
-            } else if (p.includes('table') || p.includes('desk') || p.includes('coffee')) {
-                if (p.includes('pink')) {
-                    resultImage = pink_desk;
-                    defaultName = 'Pastel Pink Desk';
-                } else {
-                    resultImage = wooden_table;
-                    defaultName = 'Wooden Table';
-                }
-            } else if (p.includes('bed') || p.includes('sleep') || p.includes('bunk')) {
-                resultImage = cozy_bed;
-                defaultName = 'Cozy Bed';
-            } else if (p.includes('chair') || p.includes('seat') || p.includes('stool')) {
-                resultImage = armchair;
-                defaultName = 'Armchair';
-            } else {
-                defaultName = 'Mystery Item';
-            }
-
-            setTimeout(() => {
-                setIsGenerating(false);
-                setGeneratedImage(resultImage); // simulation fallback
-                if (!name) setName(defaultName);
-            }, 1000);
-        }
-    };
 
     const handleRefine = () => {
         if (!refinementPrompt) return;
@@ -144,15 +74,15 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         // Update the main prompt so the user sees it (optional, but good for transparency)
         setPrompt(refinedFullPrompt);
         // Trigger generation with the new composite prompt
-        // We need to call a modified version of handleGenerateAI that uses this new prompt
+        // We need to call a modified version of handleTriggerAIGenerator that uses this new prompt
         // Or we can just update the state and let the user click generate, but "Refine" implies action.
 
         // Let's call the generation logic directly with the new prompt
-        // Since handleGenerateAI uses the state `prompt`, we updated it above.
+        // Since handleTriggerAIGenerator uses the state `prompt`, we updated it above.
         // However, setState is async. So for reliability, we should pass the prompt as arg or use useEffect.
-        // To avoid refactoring everything, let's delay slightly or pass argument if we refactor handleGenerateAI.
+        // To avoid refactoring everything, let's delay slightly or pass argument if we refactor handleTriggerAIGenerator.
 
-        // Better approach: Refactor handleGenerateAI to accept an optional prompt argument.
+        // Better approach: Refactor handleTriggerAIGenerator to accept an optional prompt argument.
         generateAIWithPrompt(refinedFullPrompt);
         setRefinementPrompt(''); // Clear input
     };
@@ -189,7 +119,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
             // Simulation Logic reused
             // For brevity, calling existing logic by setting state back (not ideal but works for sim)
             // Actually, let's just copy the sim blocks for robustness or extract common logic.
-            // Given the context, I will just call handleGenerateAI which reads from state `prompt`.
+            // Given the context, I will just call handleTriggerAIGenerator which reads from state `prompt`.
             // But since we just setPrompt, we need to wait or rely on React.
             // Let's just duplicated the sim logic for safety here to ensure immediate execution with *arg*.
 
@@ -236,7 +166,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     }
 
     // Keep original wrapper for button click
-    const handleGenerateAI = () => generateAIWithPrompt(prompt);
+    const handleTriggerAIGenerator = () => generateAIWithPrompt(prompt);
 
     const handleSaveGenerated = () => {
         if (!generatedImage || !onSave) return;
@@ -466,10 +396,10 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                         onChange={(e) => setPrompt(e.target.value)}
                                         className="flex-1 border-purple-200 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 outline-none shadow-sm"
                                         placeholder="e.g. A cute orange isometric sofa with yellow pillows..."
-                                        onKeyDown={(e) => e.key === 'Enter' && handleGenerateAI()}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleTriggerAIGenerator()}
                                     />
                                     <button
-                                        onClick={handleGenerateAI}
+                                        onClick={handleTriggerAIGenerator}
                                         disabled={isGenerating || !prompt}
                                         className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                                     >

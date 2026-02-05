@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Send, Image as ImageIcon } from 'lucide-react';
 import { call_flowith_api, get_flowith_models } from '../utils/flowithApi';
+import { useAuth } from '../context/AuthContext';
 
 // Saved Prompt Interface
 interface SavedPrompt {
@@ -14,6 +15,7 @@ interface SavedPrompt {
 }
 
 export const FlowithTestPage: React.FC = () => {
+    const { session } = useAuth();
     const [query, setQuery] = useState('');
     const [kbIds, setKbIds] = useState('');
     const [model, setModel] = useState('google nano banana pro');
@@ -21,15 +23,14 @@ export const FlowithTestPage: React.FC = () => {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [availableModels, setAvailableModels] = useState<string[]>([]);
+    const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+    const [apiErrorDetail, setApiErrorDetail] = useState<string | null>(null);
 
     // Saved Prompts State
     const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
     const [showSavedList, setShowSavedList] = useState(false);
 
-    // Image Style Transfer State
-    const [refImage, setRefImage] = useState<File | null>(null);
     const [refDesc, setRefDesc] = useState('');
-    const [targetImage, setTargetImage] = useState<File | null>(null);
 
     // Load saved prompts from localStorage on mount
     useEffect(() => {
@@ -44,16 +45,33 @@ export const FlowithTestPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        get_flowith_models()
-            .then(models => {
+        const checkStatus = async () => {
+            console.log("Flowith Center: Checking status. Session:", !!session);
+            if (!session) {
+                console.warn("Flowith Center: No active session. API call skipped.");
+                return;
+            }
+
+            setApiStatus('checking');
+            try {
+                const models = await get_flowith_models();
                 setAvailableModels(models);
+                setApiStatus('online');
+                setApiErrorDetail(null);
                 if (models.length > 0 && !models.includes('google nano banana pro')) {
-                    // If default isn't available, pick the first one
                     setModel(models[0]);
                 }
-            })
-            .catch(err => console.error('Failed to load models:', err));
-    }, []);
+            } catch (err) {
+                console.error('Failed to load models:', err);
+                setApiStatus('offline');
+                setApiErrorDetail(err instanceof Error ? err.message : String(err));
+            }
+        };
+
+        if (session) {
+            checkStatus();
+        }
+    }, [session]);
 
     const saveCurrentPrompt = () => {
         if (!query.trim()) {
@@ -95,14 +113,6 @@ export const FlowithTestPage: React.FC = () => {
         localStorage.setItem('flowith_saved_prompts', JSON.stringify(updated));
     };
 
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -114,19 +124,14 @@ export const FlowithTestPage: React.FC = () => {
             // Split kbIds by comma and clean up whitespace
             const kbList = kbIds ? kbIds.split(',').map(id => id.trim()).filter(Boolean) : [];
 
-            // Convert images if present
-            const refImageBase64 = refImage ? await fileToBase64(refImage) : undefined;
-            const targetImageBase64 = targetImage ? await fileToBase64(targetImage) : undefined;
+
 
             const response = await call_flowith_api(
                 query,
-                kbList,
                 model,
-                refImageBase64,
-                refDesc,
-                targetImageBase64
+                kbList
             );
-            setResult(response);
+            setResult(response.content);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred calling Flowith API');
         } finally {
@@ -140,9 +145,24 @@ export const FlowithTestPage: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
                         <Sparkles className="text-purple-600" />
-                        Flowith API Playground
+                        Flowith Center
                     </h1>
-                    <p className="text-gray-600 mt-2">Test image generation and knowledge retrieval.</p>
+                    <p className="text-gray-600 mt-2">Test knowledge retrieval and AI capabilities.</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 border ${apiStatus === 'online' ? 'bg-green-50 text-green-700 border-green-200' :
+                        apiStatus === 'offline' ? 'bg-red-50 text-red-700 border-red-200' :
+                            'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
+                        <div className={`w-2 h-2 rounded-full ${apiStatus === 'online' ? 'bg-green-500 animate-pulse' :
+                            apiStatus === 'offline' ? 'bg-red-500' :
+                                'bg-gray-400'
+                            }`} />
+                        {apiStatus === 'online' ? 'API Online' :
+                            apiStatus === 'offline' ? 'API Offline' :
+                                'Checking API...'}
+                    </div>
                 </div>
 
                 <div className="relative">
@@ -206,6 +226,26 @@ export const FlowithTestPage: React.FC = () => {
                 </div>
             </div>
 
+            {apiStatus === 'offline' && apiErrorDetail && (
+                <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="flex">
+                        <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-red-800">API Connection Error</h3>
+                            <div className="mt-1 text-sm text-red-700">
+                                <p className="font-mono bg-red-100/50 p-2 rounded mt-2 overflow-x-auto whitespace-pre-wrap">
+                                    {apiErrorDetail}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 {!import.meta.env.VITE_FLOWITH_API_KEY && (
                     <div className="bg-amber-50 border-l-4 border-amber-500 p-4 m-6 mb-0">
@@ -246,52 +286,6 @@ export const FlowithTestPage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="md:col-span-2 space-y-4">
-                            <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-                                <h3 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
-                                    <ImageIcon size={18} /> Style References
-                                </h3>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Reference Style Image <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) setRefImage(file);
-                                            }}
-                                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={refDesc}
-                                            onChange={(e) => setRefDesc(e.target.value)}
-                                            placeholder=" Describe this style (e.g. 'Cyberpunk neon')"
-                                            className="mt-2 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Target Content Image (Optional)
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) setTargetImage(file);
-                                            }}
-                                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">

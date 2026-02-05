@@ -34,6 +34,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { MemoryPalacePage } from './pages/MemoryPalacePage';
 import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
+import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
+import {
+  Word,
+  MemorizationState,
+  ProofreadingAnswer,
+  ProofreadingPractice,
+  AssignedProofreadingPracticeContent
+} from './types';
 
 import { AssetGenerator } from './components/admin/AssetGenerator';
 
@@ -171,9 +179,10 @@ function AppContent() {
     appState.page === 'progress' ||
     appState.page === 'assignments' ||
     appState.page === 'assignmentManagement' ||
-    appState.page === 'spacedRepetition';
+    appState.page === 'spacedRepetition' ||
+    appState.page === 'flowithTest';
 
-  if (!user && isRestrictedPage && !import.meta.env.DEV) {
+  if (!user && isRestrictedPage) {
     return <Login />;
   }
 

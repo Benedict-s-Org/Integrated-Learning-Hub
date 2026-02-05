@@ -1,0 +1,4 @@
+project_id = "lpyhtbvycxqjjqpwjxyh"
+
+[functions.flowith-proxy]
+verify_jwt = false

@@ -45,6 +45,14 @@ export async function call_flowith_api(
         });
 
         if (error) throw error;
+
+        // Handle proxy diagnostics
+        if (data && data.proxyError) {
+            console.error('Proxy reported an error:', data);
+            const detail = data.error ? (typeof data.error === 'string' ? data.error : JSON.stringify(data.error)) : 'Unknown proxy error';
+            throw new Error(`[Proxy Error ${data.flowithStatus || 500}] ${detail} (URL: ${data.targetUrl})`);
+        }
+
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
         // API returns just the response object, but we need to map it to FlowithResponse interface if needed
@@ -72,6 +80,13 @@ export async function get_flowith_models(): Promise<string[]> {
         });
 
         if (error) throw error;
+
+        // Handle proxy diagnostics
+        if (data && data.proxyError) {
+            console.error('Proxy reported an error during model fetch:', data);
+            // Don't throw for models, just log and return fallbacks
+        }
+
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
         // Handle different possible response formats

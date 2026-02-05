@@ -115,7 +115,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 <NavItem page="assignmentManagement" icon={FolderKanban} label="Assignment Management" />
                 <NavItem page="admin" icon={Shield} label="Admin Panel" />
                 <NavItem page="database" icon={Database} label="Database" />
-                <NavItem page="flowithTest" icon={Sparkles} label="Flowith Test" />
+                <NavItem page="flowithTest" icon={Sparkles} label="Flowith Center" />
               </>
             )}
           </div>
