@@ -96,7 +96,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
       // supabase.functions.invoke doesn't easily support subpaths 
       // and our edge function routing depends on the path.
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/list-users`, {
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL.endsWith('/')
+        ? import.meta.env.VITE_SUPABASE_URL.slice(0, -1)
+        : import.meta.env.VITE_SUPABASE_URL;
+      const url = `${baseUrl}/functions/v1/auth/list-users`;
+
+      console.log('AdminPanel: Fetching users from:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,9 +113,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
         body: JSON.stringify({ adminUserId: currentUser?.id }),
       });
 
+      console.log('AdminPanel: Fetch users status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch users');
+        const errorText = await response.text();
+        console.error('AdminPanel: Fetch users error text:', errorText);
+        let errorMessage = 'Failed to fetch users';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `${errorMessage} (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data_users = await response.json();
