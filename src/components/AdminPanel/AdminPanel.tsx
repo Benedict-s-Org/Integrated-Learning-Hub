@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface User {
@@ -44,11 +44,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   const [validUsers, setValidUsers] = useState<Array<{ username: string; password: string; display_name?: string }>>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Create Class States
-  const [showClassModal, setShowClassModal] = useState(false);
-  const [className, setClassName] = useState('');
-  const [classUserText, setClassUserText] = useState('');
-
   // Edit User States
   const [editUsername, setEditUsername] = useState('');
   const [editDisplayName, setEditDisplayName] = useState('');
@@ -62,6 +57,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   const [resetPassword, setResetPassword] = useState('');
   const [showVerificationCode, setShowVerificationCode] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+
+  // Multi-selection states
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [batchClassName, setBatchClassName] = useState('');
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -150,6 +149,71 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     }
   };
 
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedUserIds.size === filteredAndSortedUsers.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(filteredAndSortedUsers.map(u => u.id)));
+    }
+  };
+
+  const handleBatchAssignClass = async () => {
+    if (!batchClassName.trim() || selectedUserIds.size === 0) return;
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      const userIds = Array.from(selectedUserIds);
+      for (const userId of userIds) {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            adminUserId: currentUser?.id,
+            userId,
+            class: batchClassName.trim(),
+          }),
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
+
+      setSuccess(`Successfully assigned class "${batchClassName}" to ${successCount} student(s)${failCount > 0 ? `, ${failCount} failed` : ''}`);
+      setBatchClassName('');
+      setSelectedUserIds(new Set());
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleBulkUserTextChange = (text: string) => {
     setBulkUserText(text);
     validateBulkUserInput(text);
@@ -234,60 +298,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     }
   };
 
-  const handleCreateClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!className.trim() || !classUserText.trim()) {
-      setError('Please provide both class name and student list');
-      return;
-    }
-
-    const lines = classUserText.split('\n').filter(line => line.trim() !== '');
-    const studentsToCreate = lines.map(line => {
-      const [username, password, display_name] = line.split(',').map(p => p.trim());
-      return {
-        username,
-        password: password || 'password123', // Default password if missing
-        display_name: display_name || username,
-        role: 'user' as const,
-        class: className.trim()
-      };
-    });
-
-    setIsProcessing(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/bulk-create-users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          adminUserId: currentUser?.id,
-          users: studentsToCreate
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(`Successfully created class "${className}" with ${studentsToCreate.length} students`);
-        setClassName('');
-        setClassUserText('');
-        setShowClassModal(false);
-        fetchUsers();
-      } else {
-        setError(data.message || 'Failed to create class');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  // Removed handleCreateClass as we're switching to selection-based flow
 
   const openEditModal = (user: User) => {
     setSelectedUserId(user.id);
@@ -552,13 +563,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               </button>
             )}
             <button
-              onClick={() => setShowClassModal(true)}
-              className="bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
-            >
-              <Users size={20} />
-              <span>Create Class</span>
-            </button>
-            <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
             >
@@ -566,6 +570,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               <span>Create User</span>
             </button>
           </div>
+        </div>
+
+        {/* Create Class Selection Bar */}
+        <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Class to Selected Students</label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  value={batchClassName}
+                  onChange={(e) => setBatchClassName(e.target.value)}
+                  placeholder="Type Class Name to assign (e.g. Grade 10B)"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                />
+              </div>
+            </div>
+            <div className="flex items-end text-sm text-slate-500 pb-1">
+              {selectedUserIds.size} student(s) selected
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Select students using the checkboxes in the table below, then enter a class name to group them.
+          </p>
         </div>
 
         {loading && (
@@ -631,6 +660,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
+                <th className="px-6 py-4 text-left w-10">
+                  <button
+                    onClick={toggleAllSelection}
+                    className="text-slate-500 hover:text-blue-600 transition"
+                  >
+                    {selectedUserIds.size === filteredAndSortedUsers.length && filteredAndSortedUsers.length > 0 ? (
+                      <CheckSquare size={20} className="text-blue-600" />
+                    ) : (
+                      <Square size={20} />
+                    )}
+                  </button>
+                </th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
@@ -642,9 +683,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
             </thead>
             <tbody>
               {filteredAndSortedUsers.map((user) => {
-                console.log('Rendering user row:', user.username, 'isSuperAdmin:', isSuperAdmin);
+                const isSelected = selectedUserIds.has(user.id);
                 return (
-                  <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                  <tr key={user.id} className={`border-b border-slate-100 hover:bg-slate-50 transition ${isSelected ? 'bg-blue-50/50' : ''}`}>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => toggleUserSelection(user.id)}
+                        className="text-slate-500 hover:text-blue-600 transition"
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={20} className="text-blue-600" />
+                        ) : (
+                          <Square size={20} />
+                        )}
+                      </button>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-800">{user.username}</div>
                     </td>
@@ -1073,78 +1126,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
         )
       }
 
-      {showClassModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Create Class</h2>
-              <button
-                onClick={() => setShowClassModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
+      {/* Fixed Bottom Bar for Confirmation */}
+      {selectedUserIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-[60] flex items-center justify-between animate-in slide-in-from-bottom duration-300">
+          <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                  {selectedUserIds.size}
+                </span>
+                <span className="text-sm font-medium">Students Selected</span>
+              </div>
+              <div className="h-6 w-px bg-slate-700"></div>
+              {batchClassName ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span>Assigning to class:</span>
+                  <span className="text-blue-400 font-bold">{batchClassName}</span>
+                </div>
+              ) : (
+                <span className="text-slate-400 text-sm italic">Enter a class name above to confirm</span>
+              )}
             </div>
 
-            <form onSubmit={handleCreateClass} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Class Name
-                </label>
-                <input
-                  type="text"
-                  value={className}
-                  onChange={(e) => setClassName(e.target.value)}
-                  placeholder="e.g. Grade 9A, Monday Evening"
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Student List (format: username, password, [Display Name])
-                </label>
-                <textarea
-                  value={classUserText}
-                  onChange={(e) => setClassUserText(e.target.value)}
-                  placeholder="user1, pass123, Student One&#10;user2, pass123, Student Two"
-                  rows={8}
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition font-mono text-sm"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  One student per line. Password and Display Name are optional.
-                </p>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowClassModal(false)}
-                  className="flex-1 px-4 py-3 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="flex-1 px-4 py-3 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-900 transition flex items-center justify-center gap-2"
-                >
-                  {isProcessing ? (
-                    'Processing...'
-                  ) : (
-                    <>
-                      <Users size={20} />
-                      <span>Create Class & Students</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedUserIds(new Set())}
+                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition"
+              >
+                Clear Selection
+              </button>
+              <button
+                onClick={handleBatchAssignClass}
+                disabled={!batchClassName.trim() || isProcessing}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-8 rounded-lg transition shadow-lg flex items-center gap-2"
+              >
+                {isProcessing ? 'Processing...' : 'Confirm Class Assignment'}
+              </button>
+              <button
+                onClick={() => setSelectedUserIds(new Set())}
+                className="p-2 text-slate-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Removed old showClassModal */}
     </div >
   );
 };
