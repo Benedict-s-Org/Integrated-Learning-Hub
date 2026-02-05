@@ -27,9 +27,376 @@ interface AdminPanelProps {
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) => {
   const { user: currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  // ... existing state ...
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // ... existing code ...
+  // Create User States
+  const [bulkUserText, setBulkUserText] = useState('');
+  const [createAsAdmin, setCreateAsAdmin] = useState(false);
+  const [validUsers, setValidUsers] = useState<Array<{ username: string; password: string; display_name?: string }>>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Edit User States
+  const [editUsername, setEditUsername] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Reset Password States
+  const [verificationCode, setVerificationCode] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [showVerificationCode, setShowVerificationCode] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
+
+  // Super Admin Check (hardcoded for the main developer/admin account)
+  const isSuperAdmin = currentUser?.email === 'benedictcftsang@outlook.com';
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, [isAdmin]);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // We must use direct fetch to the edge function URL because 
+      // supabase.functions.invoke doesn't easily support subpaths 
+      // and our edge function routing depends on the path.
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/list-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ adminUserId: currentUser?.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch users');
+      }
+
+      const data_users = await response.json();
+      setUsers(data_users.users);
+    } catch (err: any) {
+      console.error('Error fetching users:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkUserTextChange = (text: string) => {
+    setBulkUserText(text);
+    validateBulkUserInput(text);
+  };
+
+  const validateBulkUserInput = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim() !== '');
+    const errors: string[] = [];
+    const valid: any[] = [];
+
+    if (lines.length > 30) {
+      errors.push('Maximum 30 users can be created at once');
+    }
+
+    lines.forEach((line, index) => {
+      const parts = line.split(',').map(p => p.trim());
+      if (parts.length < 2) {
+        errors.push(`Line ${index + 1}: Missing password (format: username, password, [Display Name])`);
+        return;
+      }
+
+      const [username, password, display_name] = parts;
+
+      if (!username || username.length < 3) {
+        errors.push(`Line ${index + 1}: Username must be at least 3 characters`);
+      }
+
+      if (!password || password.length < 6) {
+        errors.push(`Line ${index + 1}: Password must be at least 6 characters`);
+      }
+
+      valid.push({ username, password, display_name });
+    });
+
+    setValidationErrors(errors);
+    setValidUsers(valid);
+  };
+
+  const handleCreateUsers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validationErrors.length > 0 || validUsers.length === 0) return;
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/bulk-create-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          adminUserId: currentUser?.id,
+          users: validUsers.map(u => ({
+            ...u,
+            role: createAsAdmin ? 'admin' : 'user'
+          }))
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(data.message);
+        setBulkUserText('');
+        setValidUsers([]);
+        setShowCreateModal(false);
+        fetchUsers();
+      } else {
+        setError(data.message || 'Failed to create users');
+        if (data.errors) {
+          setValidationErrors(data.errors.map((e: any) => `${e.username}: ${e.error}`));
+        }
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const openEditModal = (user: User) => {
+    setSelectedUserId(user.id);
+    setSelectedUser(user);
+    setEditUsername(user.username);
+    setEditDisplayName(user.display_name || '');
+    setEditRole(user.role);
+    setEditPassword('');
+    setShowEditModal(true);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          adminUserId: currentUser?.id,
+          userId: selectedUserId,
+          username: editUsername,
+          display_name: editDisplayName,
+          role: editRole,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // If password was also provided, reset it separately or as part of update
+        if (editPassword) {
+          const resetRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/admin-reset-password`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+              adminUserId: currentUser?.id,
+              userId: selectedUserId,
+              newPassword: editPassword
+            }),
+          });
+          if (!resetRes.ok) throw new Error('User updated, but password reset failed');
+        }
+
+        setSuccess('User updated successfully');
+        setShowEditModal(false);
+        fetchUsers();
+      } else {
+        setError(data.error || 'Failed to update user');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!window.confirm(`Are you sure you want to delete user "${username}" (ID: ${userId})? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          adminUserId: currentUser?.id,
+          userIdToDelete: userId
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess('User deleted successfully');
+        fetchUsers();
+      } else {
+        setError(data.error || 'Failed to delete user');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/admin-reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          adminUserId: currentUser?.id,
+          userId: selectedUserId,
+          newPassword: resetPassword,
+          verificationCode: verificationCode // The edge function actually should check code if provided or just rely on adminUserId
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess('Password reset successfully');
+        setShowResetModal(false);
+        setResetPassword('');
+        setVerificationCode('');
+      } else {
+        setError(data.error || 'Failed to reset password');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePermissionChange = (userId: string, field: 'proofreading' | 'spelling', value: boolean) => {
+    setPendingPermissions(prev => ({
+      ...prev,
+      [userId]: {
+        ...prev[userId],
+        [field]: value
+      }
+    }));
+  };
+
+  const getDisplayValue = (userId: string, field: 'proofreading' | 'spelling', currentValue: boolean) => {
+    if (pendingPermissions[userId] && pendingPermissions[userId][field] !== undefined) {
+      return pendingPermissions[userId][field];
+    }
+    return currentValue;
+  };
+
+  const hasAnyPendingChanges = () => {
+    return Object.keys(pendingPermissions).length > 0;
+  };
+
+  const cancelAllPermissionChanges = () => {
+    setPendingPermissions({});
+  };
+
+  const updateAllPermissions = async () => {
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    const userIds = Object.keys(pendingPermissions);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const userId of userIds) {
+        const permissions = pendingPermissions[userId];
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-permissions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            adminUserId: currentUser?.id,
+            userId,
+            can_access_proofreading: permissions.proofreading,
+            can_access_spelling: permissions.spelling
+          }),
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
+
+      setSuccess(`Updated permissions for ${successCount} user(s)${failCount > 0 ? `, ${failCount} failed` : ''}`);
+      setPendingPermissions({});
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-8" data-component-name="AdminPanel" data-source-file="src/components/AdminPanel/AdminPanel.tsx">
@@ -47,6 +414,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           </div>
           <div className="flex gap-4">
             <button
+              onClick={() => fetchUsers()}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition"
+              title="Refresh User List"
+            >
+              Refresh
+            </button>
+            {onNavigateToAssets && (
+              <button
+                onClick={onNavigateToAssets}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 px-6 rounded-lg transition"
+              >
+                Asset Generator
+              </button>
+            )}
+            <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
             >
@@ -55,6 +437,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
             </button>
           </div>
         </div>
+
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">

@@ -24,13 +24,12 @@ serve(async (req) => {
         // Or simply expect the client to send the correct path, but we enforce the host here for safety.
 
         // Actually, let's allow flexibility but default to the user's requested fix
-        let targetUrl = endpoint;
-        if (endpoint.includes('edge.flowith.net')) {
-            targetUrl = endpoint.replace('edge.flowith.net', 'api.flowith.io');
+        let targetUrl = endpoint || '';
+        if (targetUrl.includes('edge.flowith.net')) {
+            targetUrl = targetUrl.replace('edge.flowith.net', 'api.flowith.io');
         }
 
-        // If the client sends a relative path or just the path, prepend the host
-        if (!targetUrl.startsWith('http')) {
+        if (targetUrl && !targetUrl.startsWith('http')) {
             targetUrl = `https://api.flowith.io${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
         }
 
@@ -45,7 +44,15 @@ serve(async (req) => {
             body: body ? JSON.stringify(body) : undefined,
         })
 
-        const data = await response.json()
+        // Safely parse JSON or return text
+        const contentType = response.headers.get('content-type') || '';
+        let data;
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { message: text.slice(0, 500) }; // Capture start of HTML if any
+        }
 
         if (!response.ok) {
             console.error('Flowith API Error:', data)
@@ -65,11 +72,16 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     } catch (error) {
-        console.error('Proxy Error:', error.message)
+        console.error('Proxy Catch Error:', error.message)
         return new Response(
-            JSON.stringify({ error: error.message, proxyError: true, status: 500 }),
+            JSON.stringify({
+                error: error.message,
+                proxyError: true,
+                status: 500,
+                targetUrl: 'Check logs for URL'
+            }),
             {
-                status: 200, // Return 200 even on catch to allow client to read body
+                status: 200,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             }
         )
