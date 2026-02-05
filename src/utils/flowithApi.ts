@@ -19,7 +19,7 @@ export async function call_flowith_api(
 ): Promise<FlowithResponse> {
     // We now use the Supabase Edge Function proxy
     // Endpoint path relative to the new host
-    const endpointPath = '/external/use/knowledge-base/seek';
+    const endpointPath = '/external/use/seek-knowledge/seek';
 
     // Construct the payload expected by Flowith API
     // Doc: https://doc.flowith.io/knowledge-garden/knowledge-retrieval-api-guide
@@ -69,7 +69,7 @@ export async function call_flowith_api(
  * @returns Array of model ID strings.
  */
 export async function get_flowith_models(): Promise<string[]> {
-    const endpointPath = '/external/use/knowledge-base/models';
+    const endpointPath = '/external/use/seek-knowledge/models';
 
     try {
         const { data, error } = await supabase.functions.invoke('flowith-proxy', {

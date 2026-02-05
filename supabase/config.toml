@@ -5,3 +5,24 @@ verify_jwt = false
 
 [functions.auth]
 verify_jwt = false
+
+[functions.ai-proofread]
+verify_jwt = false
+
+[functions.generate-asset]
+verify_jwt = false
+
+[functions.memorization-content]
+verify_jwt = false
+
+[functions.pica-notion]
+verify_jwt = false
+
+[functions.proofreading-assignments]
+verify_jwt = false
+
+[functions.proofreading-practices]
+verify_jwt = false
+
+[functions.spelling-practices]
+verify_jwt = false

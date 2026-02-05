@@ -118,29 +118,20 @@ export function AdminUsersPage() {
     setIsCreating(true);
 
     try {
-      // Use direct fetch to the auth function's create-user endpoint
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('auth/create-user', {
+        body: {
           email: result.data.email,
           username: result.data.email.split('@')[0],
           password: result.data.password,
           role: 'user',
-          adminUserId: (await supabase.auth.getUser()).data.user?.id,
+          adminUserId: currentUser?.id,
           display_name: result.data.displayName,
           gender: result.data.gender,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setCreateError(data.error || '建立用戶失敗');
+      if (error) {
+        setCreateError(error.message || '建立用戶失敗');
         return;
       }
 

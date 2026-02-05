@@ -81,18 +81,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
 
   const checkSuperAdminStatus = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/check-super-admin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ adminUserId: currentUser?.id }),
+      const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
+        body: { adminUserId: currentUser?.id },
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (!error && data) {
         setIsSuperAdmin(data.isSuperAdmin);
       }
     } catch (err) {
@@ -104,44 +97,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setLoading(true);
     setError(null);
     try {
-      // We must use direct fetch to the edge function URL because 
-      // supabase.functions.invoke doesn't easily support subpaths 
-      // and our edge function routing depends on the path.
-
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL.endsWith('/')
-        ? import.meta.env.VITE_SUPABASE_URL.slice(0, -1)
-        : import.meta.env.VITE_SUPABASE_URL;
-      const url = `${baseUrl}/functions/v1/auth/list-users`;
-
-      console.log('AdminPanel: Fetching users from:', url);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ adminUserId: currentUser?.id }),
+      const { data, error } = await supabase.functions.invoke('auth/list-users', {
+        body: { adminUserId: currentUser?.id },
       });
 
-      console.log('AdminPanel: Fetch users status:', response.status);
+      if (error) throw error;
+      if (!data) throw new Error('No data returned');
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('AdminPanel: Fetch users error text:', errorText);
-        let errorMessage = 'Failed to fetch users';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          errorMessage = `${errorMessage} (${response.status})`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data_users = await response.json();
-      setUsers(data_users.users);
+      setUsers(data.users);
     } catch (err: any) {
       console.error('Error fetching users:', err);
       setError(err.message);
@@ -183,21 +146,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     try {
       const userIds = Array.from(selectedUserIds);
       for (const userId of userIds) {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
+        const { error } = await supabase.functions.invoke('auth/update-user', {
+          body: {
             adminUserId: currentUser?.id,
             userId,
             class: batchClassName.trim(),
-          }),
+          },
         });
 
-        if (response.ok) {
+        if (!error) {
           successCount++;
         } else {
           failCount++;
@@ -263,25 +220,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setSuccess(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/bulk-create-users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('auth/bulk-create-users', {
+        body: {
           adminUserId: currentUser?.id,
           users: validUsers.map(u => ({
             ...u,
             role: createAsAdmin ? 'admin' : 'user'
           }))
-        }),
+        },
       });
 
-      const data = await response.json();
+      if (error) throw error;
 
-      if (data.success) {
+      if (data && data.success) {
         setSuccess(data.message);
         setBulkUserText('');
         setValidUsers([]);
@@ -321,42 +272,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('auth/update-user', {
+        body: {
           adminUserId: currentUser?.id,
           userId: selectedUserId,
           username: editUsername,
           display_name: editDisplayName,
           role: editRole,
           class: editClass,
-        }),
+        },
       });
 
-      const data = await response.json();
+      if (error) throw error;
 
       if (data.success) {
         // If password was also provided, reset it separately or as part of update
         if (editPassword) {
-          const resetRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/admin-reset-password`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({
+          const { error: resetError } = await supabase.functions.invoke('auth/admin-reset-password', {
+            body: {
               adminUserId: currentUser?.id,
               userId: selectedUserId,
               newPassword: editPassword
-            }),
+            },
           });
-          if (!resetRes.ok) throw new Error('User updated, but password reset failed');
+          if (resetError) throw resetError;
         }
 
         setSuccess('User updated successfully');
@@ -381,20 +320,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/delete-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('auth/delete-user', {
+        body: {
           adminUserId: currentUser?.id,
           userIdToDelete: userId
-        }),
+        },
       });
 
-      const data = await response.json();
+      if (error) throw error;
 
       if (data.success) {
         setSuccess('User deleted successfully');
@@ -417,22 +350,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/admin-reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('auth/admin-reset-password', {
+        body: {
           adminUserId: currentUser?.id,
           userId: selectedUserId,
           newPassword: resetPassword,
-          verificationCode: verificationCode // The edge function actually should check code if provided or just rely on adminUserId
-        }),
+          verificationCode: verificationCode
+        },
       });
 
-      const data = await response.json();
+      if (error) throw error;
 
       if (data.success) {
         setSuccess('Password reset successfully');
@@ -486,22 +413,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
     try {
       for (const userId of userIds) {
         const permissions = pendingPermissions[userId];
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-permissions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
+        const { error } = await supabase.functions.invoke('auth/update-permissions', {
+          body: {
             adminUserId: currentUser?.id,
             userId,
             can_access_proofreading: permissions.proofreading,
             can_access_spelling: permissions.spelling
-          }),
+          },
         });
 
-        if (response.ok) {
+        if (!error) {
           successCount++;
         } else {
           failCount++;

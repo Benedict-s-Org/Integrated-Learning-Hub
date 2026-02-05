@@ -29,22 +29,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/list`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
+      const { data: responseData, error } = await supabase.functions.invoke('memorization-content/list', {
+        body: { userId },
       });
 
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        console.error('Error fetching saved contents:', responseData.error);
-      } else {
+      if (error) {
+        console.error('Error fetching saved contents:', error);
+      } else if (responseData) {
         const formattedData = responseData.contents.map((item: any) => ({
           id: item.id,
           title: item.title,
@@ -115,23 +106,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
 
       try {
-        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-practices/list`;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ userId }),
+        const { data, error } = await supabase.functions.invoke('proofreading-practices/list', {
+          body: { userId },
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error('Error fetching proofreading practices:', data.error);
+        if (error) {
+          console.error('Error fetching proofreading practices:', error);
           setProofreadingPractices([]);
-        } else {
+        } else if (data) {
           const formattedData = data.practices.map((item: any) => ({
             id: item.id,
             user_id: item.user_id,
@@ -159,26 +141,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/memorization-content/create`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('memorization-content/create', {
+        body: {
           title: content.title,
           originalText: content.originalText,
           selectedWordIndices: content.selectedWordIndices,
           userId: userId,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Error adding saved content:', data.error);
+      if (error) {
+        console.error('Error adding saved content:', error);
         return false;
       }
 
@@ -372,41 +345,35 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-practices/create`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('proofreading-practices/create', {
+        body: {
           title,
           sentences,
           answers,
           userId,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Error adding proofreading practice:', data.error);
+      if (error) {
+        console.error('Error adding proofreading practice:', error);
         return false;
       }
 
-      const newPractice: ProofreadingPractice = {
-        id: data.practice.id,
-        user_id: data.practice.user_id,
-        title: data.practice.title,
-        sentences: data.practice.sentences,
-        answers: data.practice.answers,
-        created_at: data.practice.created_at,
-        updated_at: data.practice.updated_at,
-      };
+      if (data.practice) {
+        const newPractice: ProofreadingPractice = {
+          id: data.practice.id,
+          user_id: data.practice.user_id,
+          title: data.practice.title,
+          sentences: data.practice.sentences,
+          answers: data.practice.answers,
+          created_at: data.practice.created_at,
+          updated_at: data.practice.updated_at,
+        };
 
-      setProofreadingPractices(prev => [newPractice, ...prev]);
-      return true;
+        setProofreadingPractices(prev => [newPractice, ...prev]);
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Failed to add proofreading practice:', error);
       return false;
@@ -420,24 +387,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-practices/delete`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('proofreading-practices/delete', {
+        body: {
           practiceId: id,
           userId,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Error deleting proofreading practice:', data.error);
+      if (error) {
+        console.error('Error deleting proofreading practice:', error);
         return;
       }
 

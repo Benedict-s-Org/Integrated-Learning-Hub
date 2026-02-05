@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ProofreadingPractice } from '../../types';
+import { supabase } from '@/integrations/supabase/client';
 import ProofreadingPracticeComponent from '../ProofreadingPractice/ProofreadingPractice';
 
 interface User {
@@ -39,43 +40,29 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
     try {
       setError(null);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/list-users`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          adminUserId: currentUser?.id,
-        }),
+      const { data, error } = await supabase.functions.invoke('auth/list-users', {
+        body: { adminUserId: currentUser?.id },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (error) throw error;
+
+      if (!data) throw new Error('No data returned');
 
       const nonAdminUsers = (data.users || []).filter((u: User) => u.role !== 'admin');
       setUsers(nonAdminUsers);
 
-      const assignmentsResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-assignments/list`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            practiceId: practice.id,
-            adminUserId: currentUser?.id,
-          }),
-        }
-      );
+      const { data: assignmentsResult, error: assignmentsError } = await supabase.functions.invoke('proofreading-assignments/list', {
+        body: {
+          practiceId: practice.id,
+          adminUserId: currentUser?.id,
+        },
+      });
 
-      const assignmentsResult = await assignmentsResponse.json();
-      if (!assignmentsResponse.ok) throw new Error(assignmentsResult.error);
+      if (assignmentsError) throw assignmentsError;
 
-      const assignedUserIds = new Set(assignmentsResult.assignments?.map((a: { user_id: string }) => a.user_id) || []);
+      if (!assignmentsResult) throw new Error('No assignments data returned');
+
+      const assignedUserIds = new Set<string>(assignmentsResult.assignments?.map((a: { user_id: string }) => a.user_id as string) || []);
       setAssignments(assignedUserIds);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -133,24 +120,17 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
         return;
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-assignments/assign`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            practiceId: practice.id,
-            userIds: usersToAssign,
-            assignedBy: currentUser.id,
-          }),
-        }
-      );
+      const { data: result, error: assignError } = await supabase.functions.invoke('proofreading-assignments/assign', {
+        body: {
+          practiceId: practice.id,
+          userIds: usersToAssign,
+          assignedBy: currentUser.id,
+        },
+      });
 
-      const result = await response.json();
-      if (!response.ok) {
+      if (assignError) throw assignError;
+
+      if (result && !result.success) {
         setError(result.error || 'Failed to assign practice');
         return;
       }
@@ -278,13 +258,12 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
                       <div
                         key={user.id}
                         onClick={() => toggleUserSelection(user.id)}
-                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                          isAssigned
-                            ? 'bg-green-50 border-green-300'
-                            : isSelected
+                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${isAssigned
+                          ? 'bg-green-50 border-green-300'
+                          : isSelected
                             ? 'bg-blue-50 border-blue-300'
                             : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"
