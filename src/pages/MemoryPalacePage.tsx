@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { MemoryPalaceProvider, useMemoryPalaceContext } from "@/contexts/MemoryPalaceContext";
+import { useMemoryPalaceContext } from "@/contexts/MemoryPalaceContext";
 import { useInventory } from "@/hooks/useInventory";
 import { useRoomInteraction } from "@/hooks/useRoomInteraction";
 import { useMemoryPoints } from "@/hooks/useMemoryPoints";
@@ -545,9 +545,7 @@ export function MemoryPalacePage({ onExit }: { onExit?: () => void }) {
   return (
     <ErrorBoundary>
       <div className="h-full w-full bg-slate-50">
-        <MemoryPalaceProvider>
-          <MemoryPalaceContent onExit={onExit} />
-        </MemoryPalaceProvider>
+        <MemoryPalaceContent onExit={onExit} />
       </div>
     </ErrorBoundary>
   );

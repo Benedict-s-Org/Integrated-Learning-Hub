@@ -1,13 +1,13 @@
 import React from 'react';
 import {
   Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList,
-  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight, Sparkles
+  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight, Sparkles, Pencil
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake') => void;
   userRole: string | null;
   onLogin?: () => void;
   isNavOpen: boolean;
@@ -96,6 +96,10 @@ const Navigation: React.FC<NavigationProps> = ({
 
             {user && (user.can_access_spaced_repetition || user.role === 'admin') && (
               <NavItem page="spacedRepetition" icon={Zap} label="Spaced Repetition" />
+            )}
+
+            {user && (
+              <NavItem page="wordSnake" icon={Pencil} label="Word Snake" />
             )}
 
             {user && (

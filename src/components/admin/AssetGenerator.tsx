@@ -141,16 +141,24 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                 const referenceImages = getReferenceImages();
                 console.log(`Sending ${referenceImages.length} style references to AI`);
 
+                const payload = {
+                    prompt: promptText,
+                    style_preset: 'isometric vector art',
+                    reference_images: referenceImages
+                };
+                console.log('Invoke generate-asset with payload:', payload);
+
                 const { data, error } = await supabase.functions.invoke('generate-asset', {
-                    body: {
-                        prompt: promptText,
-                        style_preset: 'isometric vector art',
-                        reference_images: referenceImages
-                    }
+                    body: payload
                 });
 
+                console.log('Invoke Result:', { data, error });
+
                 if (error) throw error;
-                if (data.error) throw new Error(data.error);
+                if (data.error || data.success === false) {
+                    const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                    throw new Error(errorMsg || "Generation failed with no error message");
+                }
 
                 setGeneratedImage(data.image);
                 setName(promptText.split(' ').slice(0, 3).join(' '));

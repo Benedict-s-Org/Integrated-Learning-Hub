@@ -35,6 +35,8 @@ import { MemoryPalacePage } from './pages/MemoryPalacePage';
 import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
+import { WordSnakeGame } from './pages/WordSnakeGame';
+import { MemoryPalaceProvider } from './contexts/MemoryPalaceContext';
 import {
   Word,
   MemorizationState,
@@ -73,7 +75,8 @@ type AppState =
   | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string }
   | { page: 'learningHub' }
   | { page: 'spacedRepetition' }
-  | { page: 'flowithTest' };
+  | { page: 'flowithTest' }
+  | { page: 'wordSnake' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
@@ -180,6 +183,7 @@ function AppContent() {
     appState.page === 'assignments' ||
     appState.page === 'assignmentManagement' ||
     appState.page === 'spacedRepetition' ||
+    appState.page === 'wordSnake' ||
     appState.page === 'flowithTest';
 
   if (!user && isRestrictedPage) {
@@ -210,9 +214,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake')) {
       setShowLoginModal(true);
       return;
     }
@@ -273,6 +277,8 @@ function AppContent() {
       setAppState({ page: 'spacedRepetition' });
     } else if (page === 'flowithTest') {
       setAppState({ page: 'flowithTest' });
+    } else if (page === 'wordSnake') {
+      setAppState({ page: 'wordSnake' });
     }
   };
 
@@ -684,10 +690,12 @@ function AppContent() {
         );
       case 'flowithTest':
         return <FlowithTestPage />;
+      case 'wordSnake':
+        return <WordSnakeGame />;
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -790,8 +798,10 @@ function AppProviderWrapper() {
   return (
     <AppProvider userId={user?.id}>
       <SpacedRepetitionProvider userId={user?.id}>
-        <SourceInspector />
-        <AppContent />
+        <MemoryPalaceProvider>
+          <SourceInspector />
+          <AppContent />
+        </MemoryPalaceProvider>
       </SpacedRepetitionProvider>
     </AppProvider>
   );
