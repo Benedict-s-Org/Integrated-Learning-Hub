@@ -32,7 +32,7 @@ const loadSavedPosition = (): ButtonPosition => {
         y: Math.min(Math.max(0, pos.y), window.innerHeight - BUTTON_SIZE.height)
       };
     }
-  } catch {}
+  } catch { }
   return getDefaultPosition();
 };
 
@@ -262,19 +262,17 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
           }
         }}
         onClick={handleButtonClick}
-        className={`fixed z-50 flex items-center gap-2 px-3 py-3 rounded-lg shadow-lg select-none ${
-          isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
-        } ${
-          errorDetails
+        className={`fixed z-[10000] flex items-center gap-2 px-3 py-3 rounded-l-lg rounded-r-none border-r-0 shadow-lg select-none ${isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
+          } ${errorDetails
             ? 'bg-red-600 text-white'
             : hasFailures
-            ? 'bg-red-500 text-white'
-            : hasWarnings
-            ? 'bg-yellow-500 text-white'
-            : isEnabled
-            ? 'bg-green-600 text-white'
-            : 'bg-gray-700 text-white'
-        }`}
+              ? 'bg-red-500 text-white'
+              : hasWarnings
+                ? 'bg-yellow-500 text-white'
+                : isEnabled
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-700 text-white'
+          }`}
         style={{
           left: buttonPosition.x,
           top: buttonPosition.y,
@@ -340,14 +338,12 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
               </div>
               <button
                 onClick={() => handleToggleEnabled(!isEnabled)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  isEnabled ? 'bg-green-500' : 'bg-gray-300'
-                }`}
+                className={`relative w-12 h-6 rounded-full transition-colors ${isEnabled ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
               >
                 <span
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    isEnabled ? 'translate-x-7' : 'translate-x-1'
-                  }`}
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`}
                 />
               </button>
             </div>

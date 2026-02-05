@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Eye, EyeOff, Pin, X, Database, Zap, MousePointer, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { getComponentDebugInfo, ComponentDebugInfo } from './componentRegistry';
 
 interface SourceInfo {
@@ -28,7 +29,7 @@ const DRAG_THRESHOLD = 5;
 const BUTTON_SIZE = { width: 44, height: 40 };
 
 const getDefaultPosition = (): ButtonPosition => ({
-  x: window.innerWidth - BUTTON_SIZE.width - 16,
+  x: window.innerWidth - BUTTON_SIZE.width,
   y: 16
 });
 
@@ -42,11 +43,12 @@ const loadSavedPosition = (): ButtonPosition => {
         y: Math.min(Math.max(0, pos.y), window.innerHeight - BUTTON_SIZE.height)
       };
     }
-  } catch {}
+  } catch { }
   return getDefaultPosition();
 };
 
 const SourceInspector: React.FC = () => {
+  const { isAdmin } = useAuth();
   const [isDetectionMode, setIsDetectionMode] = useState(() => {
     const saved = localStorage.getItem('detectionMode');
     return saved === 'true';
@@ -57,6 +59,10 @@ const SourceInspector: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; buttonX: number; buttonY: number } | null>(null);
   const hasDraggedRef = useRef(false);
+
+  if (!isAdmin) {
+    return null;
+  }
 
   useEffect(() => {
     const handleResize = () => {
@@ -140,17 +146,12 @@ const SourceInspector: React.FC = () => {
     }
   };
 
-  const toggleDetectionMode = () => {
-    const newValue = !isDetectionMode;
-    setIsDetectionMode(newValue);
-    localStorage.setItem('detectionMode', String(newValue));
-  };
 
   const detectElementStatus = (element: HTMLElement): ElementStatus => {
     const container = element.closest('[data-source-tsx]') || element;
     const hasLoadingText = container.textContent?.toLowerCase().includes('loading');
     const hasErrorText = container.textContent?.toLowerCase().includes('error') ||
-                         container.textContent?.toLowerCase().includes('failed');
+      container.textContent?.toLowerCase().includes('failed');
     const errorElement = container.querySelector('.text-red-600, .text-red-700, .bg-red-50');
     const errorMessage = errorElement?.textContent || null;
 
@@ -351,13 +352,11 @@ const SourceInspector: React.FC = () => {
           }
         }}
         onClick={handleButtonClick}
-        className={`fixed z-[9999] flex items-center space-x-2 px-3 py-2 rounded-lg font-medium shadow-lg select-none ${
-          isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
-        } ${
-          isDetectionMode
+        className={`fixed z-[9999] flex items-center space-x-2 px-3 py-2 rounded-l-lg rounded-r-none border-r-0 font-medium shadow-lg select-none ${isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
+          } ${isDetectionMode
             ? 'bg-orange-600 text-white'
             : 'bg-gray-700 text-white opacity-70 hover:opacity-100'
-        }`}
+          }`}
         style={{
           left: buttonPosition.x,
           top: buttonPosition.y,
