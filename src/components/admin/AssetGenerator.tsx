@@ -3,6 +3,7 @@ import { Sparkles, Wand2, Loader2, X, Sliders, Zap } from 'lucide-react';
 import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box, pink_desk } from '@/assets/furniture/orange_sofa';
 import { supabase } from '@/integrations/supabase/client';
 import { generateAssetPrompt, getDesignJSON } from '@/utils/promptGenerator';
+import { useMemoryPalaceContext } from '@/contexts/MemoryPalaceContext';
 
 import { FurnitureItem, FurnitureBoxPrimitive, CustomFurniture } from '@/types/furniture';
 
@@ -102,12 +103,30 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setIsEditing(false);
     };
 
+    const { fullCatalog } = useMemoryPalaceContext();
+
     const handleRefine = () => {
         if (!refinementPrompt) return;
         const refinedFullPrompt = `${prompt}. Refinement: ${refinementPrompt}`;
         setPrompt(refinedFullPrompt);
         generateAIWithPrompt(refinedFullPrompt);
         setRefinementPrompt('');
+    };
+
+    const getReferenceImages = () => {
+        // Collect all unique sprite images from custom assets
+        const urls = new Set<string>();
+        fullCatalog.forEach(item => {
+            if (item.type === 'sprite' && Array.isArray(item.spriteImages)) {
+                item.spriteImages.forEach((img: any) => {
+                    if (typeof img === 'string' && img.startsWith('http')) {
+                        urls.add(img);
+                    }
+                });
+            }
+        });
+        // We take the latest ones (end of the list usually)
+        return Array.from(urls).reverse().slice(0, 5);
     };
 
     const generateAIWithPrompt = async (promptText: string) => {
@@ -119,8 +138,15 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
 
         if (useRealAI) {
             try {
+                const referenceImages = getReferenceImages();
+                console.log(`Sending ${referenceImages.length} style references to AI`);
+
                 const { data, error } = await supabase.functions.invoke('generate-asset', {
-                    body: { prompt: promptText, style_preset: 'isometric vector art' }
+                    body: {
+                        prompt: promptText,
+                        style_preset: 'isometric vector art',
+                        reference_images: referenceImages
+                    }
                 });
 
                 if (error) throw error;
@@ -344,6 +370,23 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                         Edit the underlying prompt and design JSON to fine-tune the AI brain.
                                     </p>
                                 </div>
+
+                                {useRealAI && (
+                                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 mt-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles size={14} className="text-indigo-600" />
+                                                <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Style Consistency</label>
+                                            </div>
+                                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                                                {getReferenceImages().length} Refs Active
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                                            Every image you save now acts as a reference for future generations, maintaining your unique world's aesthetic.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

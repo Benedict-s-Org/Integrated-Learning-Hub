@@ -65,48 +65,17 @@ export async function call_flowith_api(
 }
 
 /**
+ * Static list of verified Flowith models to avoid 522 timeouts on the models endpoint.
+ */
+export const FLOWITH_CHAT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'claude-3-5-sonnet'];
+export const FLOWITH_IMAGE_MODELS = ["nano-banana-pro", "seedream", "flux"];
+
+/**
  * Fetches the list of available models from Flowith API via Supabase Proxy.
+ * Now returns a hardcoded list immediately to avoid 522 timeouts.
  * @returns Array of model ID strings.
  */
 export async function get_flowith_models(): Promise<string[]> {
-    const endpointPath = '/external/use/seek-knowledge/models';
-
-    try {
-        const { data, error } = await supabase.functions.invoke('flowith-proxy', {
-            body: {
-                endpoint: endpointPath,
-                method: 'GET'
-            }
-        });
-
-        if (error) throw error;
-
-        // Handle proxy diagnostics
-        if (data && data.proxyError) {
-            console.error('Proxy reported an error during model fetch:', data);
-            // Don't throw for models, just log and return fallbacks
-        }
-
-        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-
-        // Handle different possible response formats
-        if (Array.isArray(data)) {
-            if (typeof data[0] === 'string') return data;
-            if (data[0] && typeof data[0] === 'object' && 'id' in data[0]) return data.map((m: any) => m.id);
-            return [];
-        } else if (data && Array.isArray(data.data)) {
-            if (typeof data.data[0] === 'string') return data.data;
-            if (data.data[0] && typeof data.data[0] === 'object' && 'id' in data.data[0]) return data.data.map((m: any) => m.id);
-            return [];
-        } else if (data && data.models && Array.isArray(data.models)) {
-            return data.models;
-        }
-
-        console.warn('Unknown model list format:', data);
-        return ['gpt-4o-mini', 'gpt-4o']; // Valid Fallbacks
-    } catch (error) {
-        console.error('Error fetching Flowith models:', error);
-        // Fallback or empty array with VALID models
-        return ['gpt-4o-mini', 'gpt-4o'];
-    }
+    // We hardcode the models to avoid hitting the unstable /models endpoint
+    return [...FLOWITH_CHAT_MODELS, ...FLOWITH_IMAGE_MODELS];
 }
