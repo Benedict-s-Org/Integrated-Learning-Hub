@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface User {
@@ -43,6 +43,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   const [createAsAdmin, setCreateAsAdmin] = useState(false);
   const [validUsers, setValidUsers] = useState<Array<{ username: string; password: string; display_name?: string }>>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Create Class States
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [className, setClassName] = useState('');
+  const [classUserText, setClassUserText] = useState('');
 
   // Edit User States
   const [editUsername, setEditUsername] = useState('');
@@ -221,6 +226,61 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
         if (data.errors) {
           setValidationErrors(data.errors.map((e: any) => `${e.username}: ${e.error}`));
         }
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!className.trim() || !classUserText.trim()) {
+      setError('Please provide both class name and student list');
+      return;
+    }
+
+    const lines = classUserText.split('\n').filter(line => line.trim() !== '');
+    const studentsToCreate = lines.map(line => {
+      const [username, password, display_name] = line.split(',').map(p => p.trim());
+      return {
+        username,
+        password: password || 'password123', // Default password if missing
+        display_name: display_name || username,
+        role: 'user' as const,
+        class: className.trim()
+      };
+    });
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/bulk-create-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          adminUserId: currentUser?.id,
+          users: studentsToCreate
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`Successfully created class "${className}" with ${studentsToCreate.length} students`);
+        setClassName('');
+        setClassUserText('');
+        setShowClassModal(false);
+        fetchUsers();
+      } else {
+        setError(data.message || 'Failed to create class');
       }
     } catch (err: any) {
       setError(err.message);
@@ -491,6 +551,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
                 Asset Generator
               </button>
             )}
+            <button
+              onClick={() => setShowClassModal(true)}
+              className="bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+            >
+              <Users size={20} />
+              <span>Create Class</span>
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
@@ -1005,6 +1072,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           </div>
         )
       }
+
+      {showClassModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">Create Class</h2>
+              <button
+                onClick={() => setShowClassModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateClass} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Class Name
+                </label>
+                <input
+                  type="text"
+                  value={className}
+                  onChange={(e) => setClassName(e.target.value)}
+                  placeholder="e.g. Grade 9A, Monday Evening"
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Student List (format: username, password, [Display Name])
+                </label>
+                <textarea
+                  value={classUserText}
+                  onChange={(e) => setClassUserText(e.target.value)}
+                  placeholder="user1, pass123, Student One&#10;user2, pass123, Student Two"
+                  rows={8}
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition font-mono text-sm"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  One student per line. Password and Display Name are optional.
+                </p>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowClassModal(false)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessing}
+                  className="flex-1 px-4 py-3 rounded-lg bg-slate-800 text-white font-medium hover:bg-slate-900 transition flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    'Processing...'
+                  ) : (
+                    <>
+                      <Users size={20} />
+                      <span>Create Class & Students</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div >
   );
 };
