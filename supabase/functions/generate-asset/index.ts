@@ -13,51 +13,49 @@ serve(async (req) => {
 
     try {
         const { prompt, style_preset } = await req.json()
-        const apiKey = Deno.env.get('OPENAI_API_KEY')
+        const apiKey = Deno.env.get('FLOWITH_API_KEY')
 
         if (!apiKey) {
-            throw new Error('Missing OPENAI_API_KEY in Supabase secrets')
+            throw new Error('Missing FLOWITH_API_KEY in Supabase secrets')
         }
 
         if (!prompt) {
             throw new Error('Missing prompt in request body')
         }
 
-        console.log(`Generating asset for prompt: ${prompt}`)
+        console.log(`Generating asset for prompt: ${prompt} using Flowith`)
 
         // enhance prompt for game asset style
         const enhancedPrompt = `Isometric ${prompt}, ${style_preset || 'cute vector art style'}, high quality, simple design, thick outlines, white background, isolated, game asset style`
 
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
+        const response = await fetch('https://api.flowith.io/v1/images/generations', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: "dall-e-3",
+                model: "nano-banana-pro",
                 prompt: enhancedPrompt,
                 n: 1,
                 size: "1024x1024",
-                response_format: "b64_json",
-                quality: "standard",
-                style: "vivid"
+                response_format: "url"
             }),
         })
 
         const data = await response.json()
 
-        if (data.error) {
-            console.error('OpenAI API Error:', data.error)
-            throw new Error(data.error.message || 'OpenAI API Error')
+        if (!response.ok || data.error) {
+            console.error('Flowith API Error:', data.error || data)
+            throw new Error(data.error?.message || data.message || 'Flowith API Error')
         }
 
-        const image = data.data[0].b64_json
+        const imageUrl = data.data[0].url
         const revisedPrompt = data.data[0].revised_prompt
 
         return new Response(
             JSON.stringify({
-                image: `data:image/png;base64,${image}`,
+                image: imageUrl,
                 revisedPrompt: revisedPrompt
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -131,11 +131,11 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
             } catch (err: any) {
                 console.error('AI Generation failed:', err);
                 if (err.status === 401 || err.message?.includes('401')) {
-                    setErrorMsg("Authentication Error (401). Please ensure you are signed in or help me deploy the function as public.");
-                } else if (err.message?.includes('OPENAI_API_KEY')) {
-                    setErrorMsg("Missing API Key. Please add 'OPENAI_API_KEY' to your Supabase secrets.");
+                    setErrorMsg("Authentication Error (401). Please ensure you have deployed the function with the correct config.");
+                } else if (err.message?.includes('FLOWITH_API_KEY')) {
+                    setErrorMsg("Missing API Key. Please add 'FLOWITH_API_KEY' to your Supabase secrets.");
                 } else {
-                    setErrorMsg("Generation failed. Please check the Logic Panel or try Simulation Mode.");
+                    setErrorMsg(`Generation failed: ${err.message || "Please check the Logic Panel or try Simulation Mode."}`);
                 }
             } finally {
                 setIsGenerating(false);
