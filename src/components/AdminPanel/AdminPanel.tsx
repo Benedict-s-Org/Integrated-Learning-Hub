@@ -61,6 +61,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   // Multi-selection states
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [batchClassName, setBatchClassName] = useState('');
+  const [isBatchMode, setIsBatchMode] = useState(false);
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -206,6 +207,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
       setSuccess(`Successfully assigned class "${batchClassName}" to ${successCount} student(s)${failCount > 0 ? `, ${failCount} failed` : ''}`);
       setBatchClassName('');
       setSelectedUserIds(new Set());
+      setIsBatchMode(false);
       fetchUsers();
     } catch (err: any) {
       setError(err.message);
@@ -563,6 +565,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               </button>
             )}
             <button
+              onClick={() => setIsBatchMode(prev => !prev)}
+              className={`${isBatchMode ? 'bg-slate-300 text-slate-800' : 'bg-slate-800 text-white'} hover:opacity-90 font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm`}
+            >
+              <Users size={20} />
+              <span>{isBatchMode ? 'Cancel Class Selection' : 'Create Class'}</span>
+            </button>
+            <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
             >
@@ -572,30 +581,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           </div>
         </div>
 
-        {/* Create Class Selection Bar */}
-        <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Class to Selected Students</label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  type="text"
-                  value={batchClassName}
-                  onChange={(e) => setBatchClassName(e.target.value)}
-                  placeholder="Type Class Name to assign (e.g. Grade 10B)"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                />
+        {/* Create Class Selection Bar - Only show in Batch Mode */}
+        {isBatchMode && (
+          <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top duration-300">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Class to Selected Students</label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text"
+                    value={batchClassName}
+                    onChange={(e) => setBatchClassName(e.target.value)}
+                    placeholder="Type Class Name to assign (e.g. Grade 10B)"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  />
+                </div>
+              </div>
+              <div className="flex items-end text-sm text-slate-500 pb-1">
+                {selectedUserIds.size} student(s) selected
               </div>
             </div>
-            <div className="flex items-end text-sm text-slate-500 pb-1">
-              {selectedUserIds.size} student(s) selected
-            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Select students using the checkboxes in the table below, then enter a class name to group them.
+            </p>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Select students using the checkboxes in the table below, then enter a class name to group them.
-          </p>
-        </div>
+        )}
 
         {loading && (
           <div className="flex justify-center items-center py-12">
@@ -660,18 +671,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4 text-left w-10">
-                  <button
-                    onClick={toggleAllSelection}
-                    className="text-slate-500 hover:text-blue-600 transition"
-                  >
-                    {selectedUserIds.size === filteredAndSortedUsers.length && filteredAndSortedUsers.length > 0 ? (
-                      <CheckSquare size={20} className="text-blue-600" />
-                    ) : (
-                      <Square size={20} />
-                    )}
-                  </button>
-                </th>
+                {isBatchMode && (
+                  <th className="px-6 py-4 text-left w-10">
+                    <button
+                      onClick={toggleAllSelection}
+                      className="text-slate-500 hover:text-blue-600 transition"
+                    >
+                      {selectedUserIds.size === filteredAndSortedUsers.length && filteredAndSortedUsers.length > 0 ? (
+                        <CheckSquare size={20} className="text-blue-600" />
+                      ) : (
+                        <Square size={20} />
+                      )}
+                    </button>
+                  </th>
+                )}
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
@@ -686,18 +699,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
                 const isSelected = selectedUserIds.has(user.id);
                 return (
                   <tr key={user.id} className={`border-b border-slate-100 hover:bg-slate-50 transition ${isSelected ? 'bg-blue-50/50' : ''}`}>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => toggleUserSelection(user.id)}
-                        className="text-slate-500 hover:text-blue-600 transition"
-                      >
-                        {isSelected ? (
-                          <CheckSquare size={20} className="text-blue-600" />
-                        ) : (
-                          <Square size={20} />
-                        )}
-                      </button>
-                    </td>
+                    {isBatchMode && (
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => toggleUserSelection(user.id)}
+                          className="text-slate-500 hover:text-blue-600 transition"
+                        >
+                          {isSelected ? (
+                            <CheckSquare size={20} className="text-blue-600" />
+                          ) : (
+                            <Square size={20} />
+                          )}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-800">{user.username}</div>
                     </td>
@@ -1127,7 +1142,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
       }
 
       {/* Fixed Bottom Bar for Confirmation */}
-      {selectedUserIds.size > 0 && (
+      {isBatchMode && selectedUserIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-[60] flex items-center justify-between animate-in slide-in-from-bottom duration-300">
           <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
             <div className="flex items-center gap-6">
@@ -1150,10 +1165,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setSelectedUserIds(new Set())}
+                onClick={() => {
+                  setSelectedUserIds(new Set());
+                  setIsBatchMode(false);
+                }}
                 className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition"
               >
-                Clear Selection
+                Cancel
               </button>
               <button
                 onClick={handleBatchAssignClass}
@@ -1172,6 +1190,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
           </div>
         </div>
       )}
+
+      {/* Spacer to prevent bottom bar from blocking content */}
+      {isBatchMode && selectedUserIds.size > 0 && <div className="h-24"></div>}
 
       {/* Removed old showClassModal */}
     </div >
