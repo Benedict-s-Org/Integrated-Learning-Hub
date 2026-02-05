@@ -18,12 +18,13 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const [description, setDescription] = useState('');
 
     // AI Gen State
-    const [useRealAI, setUseRealAI] = useState(false);
+    const [useRealAI, setUseRealAI] = useState(true);
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+    const [selectedModel, setSelectedModel] = useState('nano-banana-pro');
 
     // Edit State
     const [isEditing, setIsEditing] = useState(false);
@@ -137,6 +138,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setIsEditing(false);
 
         if (useRealAI) {
+            console.log('🚀 AI Engine: Real AI (Flowith)');
             try {
                 const referenceImages = getReferenceImages();
                 console.log(`Sending ${referenceImages.length} style references to AI`);
@@ -146,15 +148,24 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                     style_preset: 'isometric vector art',
                     reference_images: referenceImages
                 };
-                console.log('Invoke generate-asset with payload:', payload);
+                const functionUrl = `${(supabase as any).functions.url}/generate-asset`;
+                console.log('Invoke generate-asset at:', functionUrl, 'with payload:', payload);
 
                 const { data, error } = await supabase.functions.invoke('generate-asset', {
-                    body: payload
+                    body: { ...payload, model: selectedModel }
                 });
 
                 console.log('Invoke Result:', { data, error });
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Function Invoke Error Object:', error);
+                    let errMsg = error.message || "Unknown invocation error";
+                    if (errMsg.includes('Unexpected token')) {
+                        errMsg = "The server returned an invalid response (HTML instead of JSON). This usually means the Edge Function crashed too early or the URL is wrong.";
+                    }
+                    throw new Error(errMsg);
+                }
+
                 if (data.error || data.success === false) {
                     const errorMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
                     throw new Error(errorMsg || "Generation failed with no error message");
@@ -175,6 +186,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                 setIsGenerating(false);
             }
         } else {
+            console.log('🎮 AI Engine: Isometric Simulation (Fallback)');
             const p = promptText.toLowerCase();
             let resultImage = mystery_box;
             let defaultName = 'AI Asset';
@@ -225,8 +237,8 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     }
 
     const handleTriggerAIGenerator = () => {
-        // Use optimizedPrompt for generation if logic is open or if we want better results
-        generateAIWithPrompt(optimizedPrompt || prompt);
+        // Use optimizedPrompt if the logic panel is open, otherwise use the simpler prompt
+        generateAIWithPrompt(isLogicOpen ? optimizedPrompt : prompt);
     };
 
     const handleSaveGenerated = () => {
@@ -347,7 +359,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                         <label className="text-sm font-bold text-indigo-900">AI Engine</label>
                                         <div className="flex items-center gap-3">
                                             <span className={`text-xs font-semibold ${useRealAI ? 'text-purple-600' : 'text-slate-500'}`}>
-                                                {useRealAI ? 'DALL-E 3' : 'Isometric Sim'}
+                                                {useRealAI ? 'Flowith AI' : 'Isometric Sim'}
                                             </span>
                                             <button
                                                 onClick={() => setUseRealAI(!useRealAI)}
@@ -357,9 +369,32 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="p-3 bg-white/60 rounded-xl border border-indigo-100 text-xs text-slate-500 flex items-center gap-2">
+
+                                    {useRealAI && (
+                                        <div className="flex flex-col gap-2 mt-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-tighter">AI Model</label>
+                                                <div className="flex gap-1">
+                                                    {['nano-banana-pro', 'flux'].map(m => (
+                                                        <button
+                                                            key={m}
+                                                            onClick={() => setSelectedModel(m)}
+                                                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${selectedModel === m ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200 hover:border-indigo-400'}`}
+                                                        >
+                                                            {m === 'nano-banana-pro' ? 'Banana' : 'Flux'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 italic">
+                                                {selectedModel === 'nano-banana-pro' ? 'Best for assets. Direct API path.' : 'Fallback model if Banana is timing out.'}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="p-3 bg-white/60 rounded-xl border border-indigo-100 text-xs text-slate-500 flex items-center gap-2 mt-3">
                                         <Zap size={14} className={useRealAI ? "text-purple-600" : "text-slate-400"} />
-                                        {useRealAI ? 'Uses Supabase Edge Function with OpenAI' : 'Uses pre-loaded isometric asset library'}
+                                        {useRealAI ? 'Uses Supabase Edge Function with Flowith' : 'Uses pre-loaded isometric asset library'}
                                     </div>
                                 </div>
 

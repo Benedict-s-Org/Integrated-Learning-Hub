@@ -1,52 +1,50 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-console.log("🔥 generate-asset: Module Loaded");
-
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req) => {
-    console.log("🚀 generate-asset: Handler Start -", req.method);
+console.log("🔥 generate-asset: Module Loaded (v3 - Multi-Model Support)");
 
+serve(async (req) => {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders })
+        return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        let bodyText = "";
-        try {
-            bodyText = await req.text();
-            console.log("📦 Body received (len):", bodyText.length);
-        } catch (e) {
-            console.error("❌ Body read error:", e);
+        const body = await req.json().catch(() => ({}));
+
+        if (body.ping) {
+            return new Response(JSON.stringify({ ok: true, message: "pong" }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
         }
 
-        if (!bodyText) {
-            console.error("❌ No body text found");
-            throw new Error("Missing request body");
-        }
-
-        let payload;
-        try {
-            payload = JSON.parse(bodyText);
-        } catch (e) {
-            console.error("❌ JSON Parse error:", e.message);
-            throw new Error(`Invalid JSON: ${e.message}`);
-        }
-
-        const { prompt, style_preset, reference_images } = payload;
+        const { prompt, style_preset, reference_images, model = "nano-banana-pro" } = body;
         const apiKey = Deno.env.get('FLOWITH_API_KEY');
 
-        console.log("🔑 API Key Present:", !!apiKey);
+        if (!apiKey) throw new Error("FLOWITH_API_KEY missing");
+        if (!prompt) throw new Error("Prompt missing");
 
-        if (!apiKey) throw new Error('Missing FLOWITH_API_KEY');
-        if (!prompt) throw new Error('Missing prompt');
+        // Strategy 1: Nano Banana Direct (More stable for this specific model)
+        const isNanoBanana = model.includes('banana');
+        const targetUrl = isNanoBanana
+            ? 'https://nanobananapro.cloud/api/v1/image/nano-banana'
+            : 'https://api.flowith.io/v1/images/generations';
 
-        const flowithBody = {
-            model: "nano-banana-pro",
+        console.log(`📡 Calling Model: ${model} via ${targetUrl}`);
+
+        const flowithBody = isNanoBanana ? {
+            model: model,
+            prompt: `Isometric ${prompt}, ${style_preset || 'cute vector art style'}, high quality, game asset style, white background, isolated`,
+            aspectRatio: "1:1",
+            imageSize: "1K",
+            imageUrl: Array.isArray(reference_images) && reference_images.length > 0 ? reference_images[0] : undefined
+        } : {
+            model: model,
             prompt: `Isometric ${prompt}, ${style_preset || 'cute vector art style'}, high quality, game asset style, white background, isolated`,
             n: 1,
             size: "1024x1024",
@@ -54,8 +52,7 @@ serve(async (req) => {
             images: Array.isArray(reference_images) ? reference_images.slice(0, 5) : undefined
         };
 
-        console.log("📡 Calling Flowith...");
-        const response = await fetch('https://api.flowith.io/v1/images/generations', {
+        const flowithResp = await fetch(targetUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -64,32 +61,47 @@ serve(async (req) => {
             body: JSON.stringify(flowithBody),
         });
 
-        console.log("📶 Flowith HTTP Status:", response.status);
+        const flowithText = await flowithResp.text();
+        console.log(`📶 Status: ${flowithResp.status} from ${targetUrl}`);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            console.error("❌ Flowith API Error Payload:", data);
-            throw new Error(`Flowith error (${response.status}): ${JSON.stringify(data)}`);
+        let flowithData;
+        try {
+            flowithData = JSON.parse(flowithText);
+        } catch {
+            throw new Error(`Flowith non-JSON response (${flowithResp.status}): ${flowithText.slice(0, 100)}`);
         }
 
-        console.log("✅ Success! Image generated.");
+        if (!flowithResp.ok) {
+            // Check for common Cloudflare 522/524 errors
+            if (flowithResp.status === 522 || flowithResp.status === 524) {
+                throw new Error(`The AI service is currently overloaded or timing out (Error ${flowithResp.status}). Please try switching the model or try again later.`);
+            }
+            throw new Error(`Flowith API error (${flowithResp.status}): ${JSON.stringify(flowithData)}`);
+        }
+
+        // Adapt response based on endpoint
+        const imageUrl = isNanoBanana
+            ? (flowithData.imageUrl || flowithData.data?.[0]?.url)
+            : flowithData.data?.[0]?.url;
+
+        if (!imageUrl) throw new Error("Image URL not found in response");
+
         return new Response(
             JSON.stringify({
-                image: data.data?.[0]?.url,
+                image: imageUrl,
                 success: true,
-                model: "nano-banana-pro"
+                modelUsed: model
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
     } catch (error) {
-        console.error('💥 CRASH in handler:', error.message);
+        console.error("💥 Error:", error.message);
         return new Response(
             JSON.stringify({
                 error: error.message,
                 success: false,
-                stack: error.stack
+                tip: "Try switching to 'Flux' model if Nano Banana is timing out."
             }),
             {
                 status: 200,
