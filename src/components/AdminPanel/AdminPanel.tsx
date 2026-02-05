@@ -57,15 +57,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
   const [showResetPassword, setShowResetPassword] = useState(false);
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
-
-  // Super Admin Check (hardcoded for the main developer/admin account)
-  const isSuperAdmin = currentUser?.email === 'benedictcftsang@outlook.com';
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
+    console.log('AdminPanel: Current User:', currentUser);
     if (isAdmin) {
       fetchUsers();
+      checkSuperAdminStatus();
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentUser]);
+
+  const checkSuperAdminStatus = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/check-super-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ adminUserId: currentUser?.id }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsSuperAdmin(data.isSuperAdmin);
+      }
+    } catch (err) {
+      console.error('Error checking super admin status:', err);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
