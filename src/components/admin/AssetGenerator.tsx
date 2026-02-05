@@ -241,6 +241,36 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         generateAIWithPrompt(isLogicOpen ? optimizedPrompt : prompt);
     };
 
+    const handleSaveAsCityStyle = async () => {
+        if (!generatedImage) {
+            alert('Please generate an image first!');
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('city_style_assets')
+                .insert({
+                    name: name || 'AI City Style',
+                    asset_type: category === 'city_building' ? 'building' : category === 'decoration' ? 'decoration' : 'building',
+                    image_url: generatedImage,
+                    config: {
+                        prompt: prompt,
+                        optimizedPrompt: optimizedPrompt,
+                        description: description,
+                        category: category
+                    }
+                });
+
+            if (error) throw error;
+            alert('City Style Asset saved successfully!');
+            if (onClose) onClose();
+        } catch (err: any) {
+            console.error('Error saving city style:', err);
+            alert('Failed to save city style: ' + err.message);
+        }
+    };
+
     const handleSaveGenerated = () => {
         if (!generatedImage || !onSave) {
             alert('Please generate an image first!');
@@ -594,13 +624,20 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                                         placeholder="Description..."
                                     />
                                 </div>
-                                <div className="pt-4">
+                                <div className="pt-4 grid grid-cols-2 gap-3">
                                     <button
                                         onClick={handleSaveGenerated}
                                         disabled={!name}
-                                        className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-lg shadow-green-200 disabled:opacity-50 disabled:shadow-none transition-all transform active:scale-95"
+                                        className="py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-lg shadow-green-200 disabled:opacity-50 disabled:shadow-none transition-all transform active:scale-95"
                                     >
                                         Save to Inventory
+                                    </button>
+                                    <button
+                                        onClick={handleSaveAsCityStyle}
+                                        disabled={!name}
+                                        className="py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none transition-all transform active:scale-95"
+                                    >
+                                        Save as City Style
                                     </button>
                                 </div>
                             </div>

@@ -108,7 +108,7 @@ export interface CityViewState {
 }
 
 // City style asset type
-export type CityAssetType = 'building' | 'decoration' | 'ground' | 'road';
+export type CityAssetType = 'building' | 'decoration' | 'ground' | 'road' | 'map_element';
 
 // City style asset (uploaded by admin)
 export interface CityStyleAsset {

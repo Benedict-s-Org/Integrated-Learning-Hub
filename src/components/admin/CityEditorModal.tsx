@@ -27,7 +27,9 @@ import {
   Loader2,
   Wand2,
   Sliders,
+  Sparkles,
 } from "lucide-react";
+import { AssetGenerator } from "./AssetGenerator";
 
 interface UserOption {
   id: string;
@@ -71,7 +73,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  
+
   const [activePanel, setActivePanel] = useState<"buildings" | "decorations" | "settings" | "templates" | "style">("buildings");
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedDecorationId, setSelectedDecorationId] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
   // Style panel state
   const [styleAssets, setStyleAssets] = useState<CityStyleAsset[]>([]);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [uploadAssetType, setUploadAssetType] = useState<CityAssetType>("building");
   const [uploadAssetName, setUploadAssetName] = useState("");
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
@@ -122,7 +125,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
   // Fetch users on open
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
@@ -185,7 +188,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
       const settings = (data || []).reduce((acc, s) => ({
         ...acc,
         [s.setting_key]: s.setting_value
-      }), {} as Record<string, { value?: number }>);
+      }), {} as Record<string, any>);
 
       setDefaultCityLevel(settings.initial_city_level?.value ?? 0);
       setDefaultCityCoins(settings.initial_city_coins?.value ?? 0);
@@ -212,11 +215,11 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
 
   const handleSave = async () => {
     if (!selectedUserId) return;
-    
+
     setSaveStatus("saving");
     const success = await saveLayout(selectedUserId);
     setSaveStatus(success ? "saved" : "error");
-    
+
     if (success) {
       setTimeout(() => setSaveStatus("idle"), 2000);
     }
@@ -265,10 +268,10 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
 
     const gridSize = currentLevel?.cityGridSize || 16;
     let position = { x: Math.floor(gridSize / 2), y: Math.floor(gridSize / 2) };
-    
+
     let attempts = 0;
     while (attempts < 100) {
-      const collision = buildings.some(b => 
+      const collision = buildings.some(b =>
         Math.abs(b.position.x - position.x) < catalogItem.size.width &&
         Math.abs(b.position.y - position.y) < catalogItem.size.depth
       );
@@ -293,7 +296,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
   const handleAddDecoration = (type: CityDecoration["type"]) => {
     const currentLevel = CITY_LEVELS.find(l => l.level === cityLevel);
     const gridSize = currentLevel?.cityGridSize || 16;
-    
+
     const position = {
       x: Math.floor(Math.random() * gridSize),
       y: Math.floor(Math.random() * gridSize),
@@ -342,7 +345,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
       const fileExt = uploadFile.name.split('.').pop();
       const fileName = `${uploadAssetType}/${Date.now()}.${fileExt}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: _uploadData, error: uploadError } = await supabase.storage
         .from("city-assets")
         .upload(fileName, uploadFile);
 
@@ -450,7 +453,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
         .from("default_user_settings")
         .upsert({
           setting_key: settingKey,
-          setting_value: { items },
+          setting_value: { items } as any,
         }, { onConflict: "setting_key" });
 
       if (error) {
@@ -479,13 +482,13 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
   // Handle transform panel apply
   const handleTransformApply = (newTransform: CityTransformData) => {
     if (!transformTarget) return;
-    
+
     if (transformTarget.type === 'building') {
       updateBuilding(transformTarget.id, { transform: newTransform });
     } else {
       updateDecoration(transformTarget.id, { transform: newTransform });
     }
-    
+
     setShowTransformPanel(false);
     setTransformTarget(null);
   };
@@ -509,6 +512,20 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      {/* AI Generator Modal Overlay */}
+      {showAIGenerator && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-10">
+          <div className="w-full max-w-5xl h-[90vh] relative">
+            <AssetGenerator
+              onClose={() => {
+                setShowAIGenerator(false);
+                fetchStyleAssets(); // Refresh assets after saving
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="relative w-[95vw] h-[90vh] max-w-[1600px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="border-b border-slate-700/50 bg-slate-900/80 px-4 py-3 flex items-center justify-between shrink-0">
@@ -536,6 +553,13 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
             {selectedUserId && (
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowAIGenerator(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-sm transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  AI 樣式生成
+                </button>
+                <button
                   onClick={handleReset}
                   className="flex items-center gap-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg text-sm transition-colors"
                 >
@@ -545,13 +569,12 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                 <button
                   onClick={handleSave}
                   disabled={saveStatus === "saving"}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    saveStatus === "saved"
-                      ? "bg-green-600 text-white"
-                      : saveStatus === "error"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${saveStatus === "saved"
+                    ? "bg-green-600 text-white"
+                    : saveStatus === "error"
                       ? "bg-red-600 text-white"
                       : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  }`}
+                    }`}
                 >
                   <Save className="w-4 h-4" />
                   {saveStatus === "saving" ? "儲存中..." : saveStatus === "saved" ? "已儲存" : "儲存"}
@@ -579,55 +602,50 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                 <div className="flex border-b border-slate-700/50">
                   <button
                     onClick={() => setActivePanel("buildings")}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                      activePanel === "buildings"
-                        ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "buildings"
+                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     <Building2 className="w-4 h-4 inline mr-1" />
                     建築
                   </button>
                   <button
                     onClick={() => setActivePanel("decorations")}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                      activePanel === "decorations"
-                        ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "decorations"
+                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     <Trees className="w-4 h-4 inline mr-1" />
                     裝飾
                   </button>
                   <button
                     onClick={() => setActivePanel("settings")}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                      activePanel === "settings"
-                        ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "settings"
+                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     <Coins className="w-4 h-4 inline mr-1" />
                     設定
                   </button>
                   <button
                     onClick={() => setActivePanel("templates")}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                      activePanel === "templates"
-                        ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "templates"
+                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     <FileJson className="w-4 h-4 inline mr-1" />
                     模板
                   </button>
                   <button
                     onClick={() => setActivePanel("style")}
-                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                      activePanel === "style"
-                        ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "style"
+                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     <Image className="w-4 h-4 inline mr-1" />
                     風格
@@ -646,11 +664,10 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                               key={item.id}
                               onClick={() => handleAddBuilding(item)}
                               disabled={item.requiredCityLevel > cityLevel}
-                              className={`p-2 rounded-lg text-xs text-left transition-colors ${
-                                item.requiredCityLevel > cityLevel
-                                  ? "bg-slate-800/50 text-slate-500 cursor-not-allowed"
-                                  : "bg-slate-800 hover:bg-slate-700 text-white"
-                              }`}
+                              className={`p-2 rounded-lg text-xs text-left transition-colors ${item.requiredCityLevel > cityLevel
+                                ? "bg-slate-800/50 text-slate-500 cursor-not-allowed"
+                                : "bg-slate-800 hover:bg-slate-700 text-white"
+                                }`}
                             >
                               <div className="font-medium">{item.name}</div>
                               <div className="text-slate-400 mt-1">
@@ -674,11 +691,10 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                             {buildings.map((building) => (
                               <div
                                 key={building.id}
-                                className={`p-3 rounded-lg transition-colors cursor-pointer ${
-                                  selectedBuildingId === building.id
-                                    ? "bg-emerald-600/20 border border-emerald-500/50"
-                                    : "bg-slate-800 hover:bg-slate-700"
-                                }`}
+                                className={`p-3 rounded-lg transition-colors cursor-pointer ${selectedBuildingId === building.id
+                                  ? "bg-emerald-600/20 border border-emerald-500/50"
+                                  : "bg-slate-800 hover:bg-slate-700"
+                                  }`}
                                 onClick={() => setSelectedBuildingId(building.id)}
                               >
                                 <div className="flex items-center justify-between">
@@ -754,21 +770,21 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                             {/* Style Selector for Buildings */}
                             <div className="border-t border-slate-700 pt-3">
                               <label className="block text-xs text-slate-400 mb-2">外觀風格</label>
-                              
+
                               {selectedBuilding.customImageUrl ? (
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2 p-2 bg-slate-700 rounded-lg">
-                                    <img 
-                                      src={selectedBuilding.customImageUrl} 
-                                      alt="Custom" 
+                                    <img
+                                      src={selectedBuilding.customImageUrl}
+                                      alt="Custom"
                                       className="w-10 h-10 object-contain"
                                     />
                                     <span className="text-xs text-slate-300 flex-1">使用自定義圖片</span>
                                   </div>
                                   <button
-                                    onClick={() => updateBuilding(selectedBuilding.id, { 
-                                      customImageUrl: undefined, 
-                                      customAssetId: undefined 
+                                    onClick={() => updateBuilding(selectedBuilding.id, {
+                                      customImageUrl: undefined,
+                                      customAssetId: undefined
                                     })}
                                     className="w-full px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded text-xs transition-colors"
                                   >
@@ -798,8 +814,8 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                                           })}
                                           className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors group"
                                         >
-                                          <img 
-                                            src={asset.image_url} 
+                                          <img
+                                            src={asset.image_url}
                                             alt={asset.name}
                                             className="w-full h-8 object-contain"
                                           />
@@ -853,11 +869,10 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                             {decorations.map((decoration) => (
                               <div
                                 key={decoration.id}
-                                className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                                  selectedDecorationId === decoration.id
-                                    ? "bg-emerald-600/20 border border-emerald-500/50"
-                                    : "bg-slate-800 hover:bg-slate-700"
-                                }`}
+                                className={`p-2 rounded-lg transition-colors cursor-pointer ${selectedDecorationId === decoration.id
+                                  ? "bg-emerald-600/20 border border-emerald-500/50"
+                                  : "bg-slate-800 hover:bg-slate-700"
+                                  }`}
                                 onClick={() => setSelectedDecorationId(decoration.id)}
                               >
                                 <div className="flex items-center justify-between">
@@ -917,21 +932,21 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                             {/* Style Selector for Decorations */}
                             <div className="border-t border-slate-700 pt-3">
                               <label className="block text-xs text-slate-400 mb-2">外觀風格</label>
-                              
+
                               {selectedDecoration.customImageUrl ? (
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2 p-2 bg-slate-700 rounded-lg">
-                                    <img 
-                                      src={selectedDecoration.customImageUrl} 
-                                      alt="Custom" 
+                                    <img
+                                      src={selectedDecoration.customImageUrl}
+                                      alt="Custom"
                                       className="w-10 h-10 object-contain"
                                     />
                                     <span className="text-xs text-slate-300 flex-1">使用自定義圖片</span>
                                   </div>
                                   <button
-                                    onClick={() => updateDecoration(selectedDecoration.id, { 
-                                      customImageUrl: undefined, 
-                                      customAssetId: undefined 
+                                    onClick={() => updateDecoration(selectedDecoration.id, {
+                                      customImageUrl: undefined,
+                                      customAssetId: undefined
                                     })}
                                     className="w-full px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded text-xs transition-colors"
                                   >
@@ -961,8 +976,8 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                                           })}
                                           className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors group"
                                         >
-                                          <img 
-                                            src={asset.image_url} 
+                                          <img
+                                            src={asset.image_url}
                                             alt={asset.name}
                                             className="w-full h-8 object-contain"
                                           />
@@ -1017,9 +1032,9 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
 
                   {activePanel === "templates" && (
                     <CityTemplateManager
-                      currentBuildings={buildings}
-                      currentDecorations={decorations}
-                      currentCityLevel={cityLevel}
+                      buildings={buildings}
+                      decorations={decorations}
+                      cityLevel={cityLevel}
                       onApplyTemplate={handleApplyTemplate}
                     />
                   )}
@@ -1032,7 +1047,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                           <Users className="w-4 h-4" />
                           預設使用者城市配置
                         </h3>
-                        
+
                         <div className="space-y-3">
                           <div>
                             <label className="block text-xs text-slate-400 mb-1">初始城市等級</label>
@@ -1103,11 +1118,10 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                                 <button
                                   key={type}
                                   onClick={() => setUploadAssetType(type)}
-                                  className={`px-3 py-1.5 rounded text-xs transition-colors ${
-                                    uploadAssetType === type
-                                      ? "bg-emerald-600 text-white"
-                                      : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                  }`}
+                                  className={`px-3 py-1.5 rounded text-xs transition-colors ${uploadAssetType === type
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                    }`}
                                 >
                                   {ASSET_TYPE_LABELS[type]}
                                 </button>
@@ -1181,7 +1195,7 @@ export const CityEditorModal: React.FC<CityEditorModalProps> = ({ isOpen, onClos
                         <h3 className="text-sm font-medium text-slate-200 mb-3">
                           已上傳資源 ({styleAssets.length})
                         </h3>
-                        
+
                         {isLoadingAssets ? (
                           <div className="text-center py-4 text-slate-400">
                             <Loader2 className="w-6 h-6 mx-auto animate-spin" />

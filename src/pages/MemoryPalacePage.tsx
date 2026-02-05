@@ -18,6 +18,7 @@ import { FurnitureUploader } from "@/components/furniture/FurnitureUploader";
 import { FurnitureEditor } from "@/components/editor/FurnitureEditor";
 import { SpaceDesignCenter } from "@/components/SpaceDesignCenter";
 import { CityEditorModal } from "@/components/admin/CityEditorModal";
+import { DistrictEditorModal } from "@/components/admin/DistrictEditorModal";
 import { AssetUploadCenter } from "@/components/ui-builder/AssetUploadCenter";
 import { MemoryPointModal } from "@/components/MemoryPointModal";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
@@ -118,6 +119,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const [showEditor, setShowEditor] = useState(false);
   const [showSpaceDesign, setShowSpaceDesign] = useState(false);
   const [showCityEditor, setShowCityEditor] = useState(false);
+  const [showDistrictEditor, setShowDistrictEditor] = useState(false);
   const [showAssetUpload, setShowAssetUpload] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [uiAssets, setUiAssets] = useState<any[]>([]);
@@ -265,7 +267,8 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onOpenEditor={() => setShowEditor(true)}
           onOpenSpaceDesign={() => setShowSpaceDesign(true)}
           onOpenCityEditor={() => setShowCityEditor(true)}
-          onOpenAssetUpload={() => setShowAssetUpload(true)}
+          onOpenDistrictEditor={() => setShowDistrictEditor(true)}
+          onOpenAssetUpload={() => setShowAssetUpload(false)}
           globalHistory={globalHistory as any[]}
           onRestoreHistory={restoreHistory as any}
           fullCatalog={fullCatalog as any}
@@ -480,6 +483,11 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
       <CityEditorModal
         isOpen={showCityEditor}
         onClose={() => setShowCityEditor(false)}
+      />
+
+      <DistrictEditorModal
+        isOpen={showDistrictEditor}
+        onClose={() => setShowDistrictEditor(false)}
       />
 
       {showAssetUpload && (

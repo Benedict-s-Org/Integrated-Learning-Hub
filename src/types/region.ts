@@ -1,9 +1,9 @@
 // Public facility types
-export type FacilityType = 
-  | 'park' 
-  | 'school' 
-  | 'library' 
-  | 'town_hall' 
+export type FacilityType =
+  | 'park'
+  | 'school'
+  | 'library'
+  | 'town_hall'
   | 'train_station'
   | 'marketplace';
 
@@ -36,6 +36,18 @@ export interface RegionPlot {
   cityName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Map element definition (visual component on the map)
+export interface RegionMapElement {
+  id: string;
+  regionId: string;
+  assetId: string;
+  assetUrl?: string; // URL from joined asset
+  x: number;
+  y: number;
+  zIndex: number;
+  createdAt: string;
 }
 
 // Public facility definition
@@ -85,6 +97,7 @@ export interface RegionViewState {
 export interface RegionData extends Region {
   plots: RegionPlot[];
   facilities: PublicFacility[];
+  mapElements: RegionMapElement[];
 }
 
 // Facility display info for UI
