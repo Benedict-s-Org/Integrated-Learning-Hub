@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useDefaultAssets } from '@/hooks/useDefaultAssets';
 import type { RegionData, RegionViewState, PublicFacility, FacilityType } from '@/types/region';
 import { REGION_CONFIG, REGION_THEME_COLORS } from '@/constants/regionConfig';
+import { CARTOON_PALETTE } from '@/constants/cityStyleGuide';
 import { CityPlot } from './CityPlot';
 import { PublicFacilityMarker } from './PublicFacilityMarker';
 import { RegionHUD } from './RegionHUD';
@@ -16,6 +18,7 @@ interface RegionMapProps {
 
 export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateHome }: RegionMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { defaultTerrain } = useDefaultAssets();
 
   // Use the hook to get actions, but rely on props for data to avoid double fetch if possible
   const { claimPlot, visitFacility, createPublicFacility } = useRegion(initialRegion.id);
@@ -41,6 +44,14 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
 
   const themeColors = REGION_THEME_COLORS[initialRegion.theme];
   const { tileWidth, tileHeight, minZoom, maxZoom } = REGION_CONFIG;
+
+  // Coordinate conversion helper
+  const toIso = useCallback((x: number, y: number) => {
+    return {
+      x: (x - y) * (tileWidth / 2),
+      y: (x + y) * (tileHeight / 2),
+    };
+  }, [tileWidth, tileHeight]);
 
   // Handle zoom
   const handleZoomIn = useCallback(() => {
@@ -134,7 +145,7 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
     }));
   }, [initialRegion.facilities]);
 
-  const handleHoverFacility = useCallback((facilityId: string | null) => {
+  const handleHoverFacility = useCallback(() => {
     setViewState(prev => ({
       ...prev,
       hoveredPlotId: null,
@@ -231,8 +242,71 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
         <g transform={`translate(${(containerRef.current?.clientWidth ?? 1000) / 2 + viewState.cameraOffset.x}, ${(containerRef.current?.clientHeight ?? 800) / 2 + viewState.cameraOffset.y}) scale(${viewState.zoom})`}>
+          <defs>
+            {defaultTerrain && (
+              <pattern
+                id="region-grass-pattern"
+                patternUnits="userSpaceOnUse"
+                width={tileWidth}
+                height={tileHeight}
+                viewBox={`0 0 ${tileWidth} ${tileHeight}`}
+              >
+                <image
+                  href={defaultTerrain.image_url}
+                  width={tileWidth}
+                  height={tileHeight}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+              </pattern>
+            )}
+          </defs>
+
           {/* Ground grid */}
-          <g>{renderGroundGrid()}</g>
+          <g>
+            {Array.from({ length: initialRegion.gridSize * initialRegion.gridSize }).map((_, i) => {
+              const x = i % initialRegion.gridSize;
+              const y = Math.floor(i / initialRegion.gridSize);
+              const p1 = toIso(x, y);
+
+              // Calculate vertices for fallback polygon
+              const p2 = toIso(x + 1, y);
+              const p3 = toIso(x + 1, y + 1);
+              const p4 = toIso(x, y + 1);
+
+              // Scale factors for the image to handle padding and ensure overlap
+              const scale = 2.1;
+              const scaledWidth = tileWidth * scale;
+              const scaledHeight = tileHeight * scale;
+
+              // Center the scaled image on the isometric tile
+              // Push the image down so the base sits on the grid line
+              const imageX = p1.x - scaledWidth / 2;
+              const imageY = p1.y + tileHeight - scaledHeight * 0.65; // Adjust offset to anchor base
+
+              return (
+                <g key={`ground-${x}-${y}`}>
+                  {defaultTerrain ? (
+                    <image
+                      x={imageX}
+                      y={imageY}
+                      width={scaledWidth}
+                      height={scaledHeight}
+                      href={defaultTerrain.image_url}
+                      preserveAspectRatio="none"
+                    />
+                  ) : (
+                    <polygon
+                      points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`}
+                      fill={CARTOON_PALETTE.ground.grass}
+                      stroke="rgba(0,0,0,0.1)"
+                      strokeWidth={0.5}
+                    />
+                  )}
+                </g>
+              );
+            })}
+            {renderGroundGrid()}
+          </g>
 
           {/* City plots */}
           <g>
@@ -257,7 +331,7 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
                 isSelected={viewState.selectedFacilityId === facility.id}
                 isHovered={false}
                 onSelect={handleSelectFacility}
-                onHover={(fid) => handleHoverFacility(fid)}
+                onHover={() => handleHoverFacility()}
               />
             ))}
           </g>

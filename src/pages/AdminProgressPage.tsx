@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import {
   Loader2,
   ArrowLeft,
@@ -264,71 +265,9 @@ export function AdminProgressPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))] flex">
-      {/* Left Sidebar */}
-      <aside className="w-56 border-r border-[hsl(var(--border))] bg-[hsl(var(--card))] flex flex-col">
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-[hsl(var(--border))]">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors text-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            返回主頁
-          </button>
-        </div>
-
-        {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1">
-          <button
-            onClick={() => navigate("/admin/users")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-          >
-            <Users className="w-4 h-4" />
-            用戶管理
-          </button>
-          <button
-            onClick={() => navigate("/admin/progress")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-          >
-            <BarChart3 className="w-4 h-4" />
-            進度總覽
-          </button>
-          <button
-            onClick={() => navigate("/design")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-          >
-            <Home className="w-4 h-4" />
-            空間設計中心
-          </button>
-          <button
-            onClick={() => navigate("/admin/city-editor")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-          >
-            <MapPin className="w-4 h-4" />
-            城市編輯器
-          </button>
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[hsl(var(--border))]">
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">管理員面板</p>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 overflow-auto">
+    <AdminLayout title="用戶進度總覽" icon={<BarChart3 className="w-5 h-5" />}>
+      <main className="p-4 md:p-8 overflow-auto">
         <div className="max-w-5xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-lg bg-[hsl(var(--primary))]">
-              <BarChart3 className="w-5 h-5 text-[hsl(var(--primary-foreground))]" />
-            </div>
-            <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              用戶進度總覽
-            </h1>
-          </div>
-
           {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <div className="relative flex-1">
@@ -360,8 +299,8 @@ export function AdminProgressPage() {
                         setSortDropdownOpen(false);
                       }}
                       className={`w-full px-4 py-2 text-left text-sm hover:bg-[hsl(var(--muted))] transition-colors ${sortBy === option.value
-                          ? 'bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]'
-                          : 'text-[hsl(var(--foreground))]'
+                        ? 'bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]'
+                        : 'text-[hsl(var(--foreground))]'
                         }`}
                     >
                       {option.label}
@@ -374,7 +313,7 @@ export function AdminProgressPage() {
 
           {/* Stats Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4">
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
               <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
                 <Users className="w-4 h-4" />
                 總用戶數
@@ -383,7 +322,7 @@ export function AdminProgressPage() {
                 {users.length}
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4">
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
               <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
                 <BookOpen className="w-4 h-4" />
                 總卡片數
@@ -392,7 +331,7 @@ export function AdminProgressPage() {
                 {users.reduce((sum, u) => sum + u.total_cards, 0)}
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4">
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
               <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
                 <Brain className="w-4 h-4" />
                 總記憶點
@@ -401,7 +340,7 @@ export function AdminProgressPage() {
                 {users.reduce((sum, u) => sum + u.memory_count, 0)}
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4">
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
               <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
                 <TrendingUp className="w-4 h-4" />
                 總複習次數
@@ -426,7 +365,7 @@ export function AdminProgressPage() {
               {filteredUsers.map((user) => (
                 <div
                   key={user.id}
-                  className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-5"
+                  className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-5 shadow-sm"
                 >
                   {/* User Header */}
                   <div className="flex items-center justify-between mb-4">
@@ -440,7 +379,7 @@ export function AdminProgressPage() {
                             {user.display_name || '未設定名稱'}
                           </h3>
                           {user.is_admin && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-xs">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-xs font-bold uppercase tracking-wider">
                               <Shield className="w-3 h-3" />
                               管理員
                             </span>
@@ -460,7 +399,7 @@ export function AdminProgressPage() {
                   {/* Progress Sections */}
                   <div className="grid md:grid-cols-3 gap-4">
                     {/* Room Progress */}
-                    <div className="bg-[hsl(var(--muted))] rounded-xl p-4">
+                    <div className="bg-[hsl(var(--muted)/0.5)] rounded-xl p-4 border border-[hsl(var(--border))]">
                       <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] mb-3">
                         <Home className="w-4 h-4 text-[hsl(var(--primary))]" />
                         房間進度
@@ -499,7 +438,7 @@ export function AdminProgressPage() {
                     </div>
 
                     {/* Learning Progress */}
-                    <div className="bg-[hsl(var(--muted))] rounded-xl p-4">
+                    <div className="bg-[hsl(var(--muted)/0.5)] rounded-xl p-4 border border-[hsl(var(--border))]">
                       <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] mb-3">
                         <BookOpen className="w-4 h-4 text-[hsl(var(--primary))]" />
                         學習進度
@@ -518,13 +457,13 @@ export function AdminProgressPage() {
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">平均穩定性</div>
+                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">穩定性</div>
                           <div className="font-semibold text-[hsl(var(--foreground))]">
                             {user.avg_stability.toFixed(1)}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">平均難度</div>
+                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">難度</div>
                           <div className="font-semibold text-[hsl(var(--foreground))]">
                             {user.avg_difficulty.toFixed(1)}
                           </div>
@@ -538,17 +477,17 @@ export function AdminProgressPage() {
                     </div>
 
                     {/* Memory Points */}
-                    <div className="bg-[hsl(var(--muted))] rounded-xl p-4">
+                    <div className="bg-[hsl(var(--muted)/0.5)] rounded-xl p-4 border border-[hsl(var(--border))]">
                       <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] mb-3">
                         <Brain className="w-4 h-4 text-[hsl(var(--primary))]" />
                         記憶點
                       </div>
-                      <div className="flex flex-col items-center justify-center h-20">
+                      <div className="flex flex-col items-center justify-center h-24">
                         <div className="text-center">
                           <div className="text-4xl font-bold text-[hsl(var(--primary))]">
                             {user.memory_count}
                           </div>
-                          <div className="text-sm text-[hsl(var(--muted-foreground))]">
+                          <div className="text-sm text-[hsl(var(--muted-foreground))] font-medium">
                             個記憶點
                           </div>
                         </div>
@@ -560,7 +499,7 @@ export function AdminProgressPage() {
                                 name: user.display_name || '未設定名稱',
                               })
                             }
-                            className="mt-2 flex items-center gap-1 px-3 py-1 text-xs rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.2)] transition-colors"
+                            className="mt-2 flex items-center gap-1 px-3 py-1 text-xs rounded-full bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.2)] transition-colors font-medium border border-[hsl(var(--primary)/0.2)]"
                           >
                             <Eye className="w-3 h-3" />
                             檢視詳情
@@ -585,6 +524,6 @@ export function AdminProgressPage() {
           />
         )}
       </main>
-    </div>
+    </AdminLayout>
   );
 }

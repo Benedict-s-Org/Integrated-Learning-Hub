@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
+import { useDefaultAssets } from "@/hooks/useDefaultAssets";
 import { Coins, Move } from "lucide-react";
 import type { Building, CityDecoration, CityViewState } from "@/types/city";
 import { BuildingExterior } from "./BuildingExterior";
@@ -23,8 +24,8 @@ interface AdminCityMapProps {
 // Fluffy cloud component
 function FluffyCloud({ x, y, scale = 1, delay = 0 }: { x: number; y: number; scale?: number; delay?: number }) {
   return (
-    <g 
-      transform={`translate(${x}, ${y}) scale(${scale})`} 
+    <g
+      transform={`translate(${x}, ${y}) scale(${scale})`}
       className="animate-float-slow"
       style={{ animationDelay: `${delay}s` }}
     >
@@ -50,7 +51,8 @@ export function AdminCityMap({
   onBuildingDrag,
 }: AdminCityMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  
+  const { defaultTerrain } = useDefaultAssets();
+
   const [viewState, setViewState] = useState<CityViewState>({
     selectedBuildingId: null,
     hoveredBuildingId: null,
@@ -91,10 +93,10 @@ export function AdminCityMap({
   const fromIso = useCallback((screenX: number, screenY: number) => {
     const relX = screenX - centerX;
     const relY = screenY - centerY;
-    
+
     const gridX = (relX / (tileWidth / 2) + relY / (tileHeight / 2)) / 2;
     const gridY = (relY / (tileHeight / 2) - relX / (tileWidth / 2)) / 2;
-    
+
     return {
       x: Math.round(gridX),
       y: Math.round(gridY),
@@ -104,15 +106,15 @@ export function AdminCityMap({
   // Get SVG coordinates from mouse event
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return { x: 0, y: 0 };
-    
+
     const svg = svgRef.current;
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
-    
+
     const ctm = svg.getScreenCTM();
     if (!ctm) return { x: 0, y: 0 };
-    
+
     const svgPt = pt.matrixTransform(ctm.inverse());
     return { x: svgPt.x, y: svgPt.y };
   }, []);
@@ -120,34 +122,34 @@ export function AdminCityMap({
   // Generate ground tiles with cute cartoon colors
   const groundTiles = useMemo(() => {
     const tiles: React.ReactNode[] = [];
-    
+
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const p1 = toIso(x, y);
         const p2 = toIso(x + 1, y);
         const p3 = toIso(x + 1, y + 1);
         const p4 = toIso(x, y + 1);
-        
+
         // Alternate grass shades for visual interest
         const isLightTile = (x + y) % 2 === 0;
-        const fillColor = isLightTile 
-          ? CARTOON_PALETTE.ground.grass 
+        const fillColor = isLightTile
+          ? CARTOON_PALETTE.ground.grass
           : CARTOON_PALETTE.ground.grassLight;
-        
+
         tiles.push(
           <polygon
             key={`ground-${x}-${y}`}
             points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`}
-            fill={fillColor}
-            stroke={CARTOON_PALETTE.ground.grassDark}
+            fill={defaultTerrain ? "url(#admin-grass-pattern)" : fillColor}
+            stroke={defaultTerrain ? "transparent" : CARTOON_PALETTE.ground.grassDark}
             strokeWidth={0.3}
           />
         );
       }
     }
-    
+
     return tiles;
-  }, [gridSize, toIso]);
+  }, [gridSize, toIso, defaultTerrain]);
 
   // Handle building click
   const handleBuildingClick = useCallback((building: Building) => {
@@ -168,7 +170,7 @@ export function AdminCityMap({
   const handleDecorationDragStart = useCallback((decoration: CityDecoration, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onDecorationDrag) return;
-    
+
     setDraggingDecoration(decoration.id);
     const svgCoords = getSVGCoords(e);
     const isoPos = toIso(decoration.position.x, decoration.position.y);
@@ -182,7 +184,7 @@ export function AdminCityMap({
   const handleBuildingDragStart = useCallback((building: Building, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onBuildingDrag) return;
-    
+
     setDraggingBuilding(building.id);
     const svgCoords = getSVGCoords(e);
     const isoPos = toIso(building.position.x + building.size.width / 2, building.position.y + building.size.depth / 2);
@@ -195,24 +197,24 @@ export function AdminCityMap({
   // Handle mouse move for dragging
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!draggingDecoration && !draggingBuilding) return;
-    
+
     const svgCoords = getSVGCoords(e);
     const adjustedCoords = {
       x: svgCoords.x - dragOffset.x,
       y: svgCoords.y - dragOffset.y,
     };
     const gridPos = fromIso(adjustedCoords.x, adjustedCoords.y);
-    
+
     // Clamp to grid bounds
     const clampedPos = {
       x: Math.max(0, Math.min(gridSize - 1, gridPos.x)),
       y: Math.max(0, Math.min(gridSize - 1, gridPos.y)),
     };
-    
+
     if (draggingDecoration && onDecorationDrag) {
       onDecorationDrag(draggingDecoration, clampedPos);
     }
-    
+
     if (draggingBuilding && onBuildingDrag) {
       onBuildingDrag(draggingBuilding, clampedPos);
     }
@@ -249,7 +251,7 @@ export function AdminCityMap({
   return (
     <div className="w-full h-full overflow-hidden relative">
       {/* Warm cartoon sky gradient */}
-      <div 
+      <div
         className="absolute inset-0"
         style={{
           background: `linear-gradient(180deg, 
@@ -259,7 +261,7 @@ export function AdminCityMap({
           )`
         }}
       />
-      
+
       {/* City Title */}
       <div className="absolute top-4 left-4 z-10">
         <h1 className="text-2xl font-bold text-foreground drop-shadow-lg">
@@ -272,7 +274,7 @@ export function AdminCityMap({
 
       {/* Coins display - cute style */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div 
+        <div
           className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold shadow-lg border-2"
           style={{
             background: 'linear-gradient(135deg, hsl(45, 90%, 85%) 0%, hsl(40, 85%, 75%) 100%)',
@@ -321,6 +323,26 @@ export function AdminCityMap({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
+        {/* Patterns and Definitions */}
+        <defs>
+          {defaultTerrain && (
+            <pattern
+              id="admin-grass-pattern"
+              patternUnits="userSpaceOnUse"
+              width={tileWidth}
+              height={tileHeight}
+              viewBox={`0 0 ${tileWidth} ${tileHeight}`}
+            >
+              <image
+                href={defaultTerrain.image_url}
+                width={tileWidth}
+                height={tileHeight}
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </pattern>
+          )}
+        </defs>
+
         {/* Fluffy clouds layer */}
         <g className="clouds-layer">
           <FluffyCloud x={100} y={50} scale={0.8} delay={0} />
@@ -343,7 +365,7 @@ export function AdminCityMap({
             const pos = toIso(decoration.position.x, decoration.position.y);
             const isSelected = selectedDecorationId === decoration.id;
             const isDragging = draggingDecoration === decoration.id;
-            
+
             return (
               <g
                 key={decoration.id}
@@ -381,7 +403,7 @@ export function AdminCityMap({
             );
             const isSelected = selectedBuildingId === building.id;
             const isDragging = draggingBuilding === building.id;
-            
+
             return (
               <g
                 key={building.id}

@@ -60,9 +60,6 @@ const SourceInspector: React.FC = () => {
   const dragStartRef = useRef<{ x: number; y: number; buttonX: number; buttonY: number } | null>(null);
   const hasDraggedRef = useRef(false);
 
-  if (!isAdmin) {
-    return null;
-  }
 
   useEffect(() => {
     const handleResize = () => {
@@ -338,6 +335,8 @@ const SourceInspector: React.FC = () => {
       </div>
     );
   };
+
+  if (!isAdmin) return null;
 
   return (
     <>

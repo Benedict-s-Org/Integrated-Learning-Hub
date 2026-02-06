@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useDefaultAssets } from "@/hooks/useDefaultAssets";
 import { useNavigate } from "react-router-dom";
 import { Coins } from "lucide-react";
 import type { Building, CityDecoration, CityViewState } from "@/types/city";
@@ -45,6 +46,7 @@ export function CityMap({
   onBackToRoom,
 }: CityMapProps) {
   const navigate = useNavigate();
+  const { defaultTerrain } = useDefaultAssets();
 
   const [viewState, setViewState] = useState<CityViewState>({
     selectedBuildingId: null,
@@ -98,8 +100,8 @@ export function CityMap({
           <polygon
             key={`ground-${x}-${y}`}
             points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`}
-            fill={fillColor}
-            stroke={CARTOON_PALETTE.ground.grassDark}
+            fill={defaultTerrain ? "url(#grass-pattern)" : fillColor}
+            stroke={defaultTerrain ? "transparent" : CARTOON_PALETTE.ground.grassDark}
             strokeWidth={0.3}
           />
         );
@@ -107,7 +109,7 @@ export function CityMap({
     }
 
     return tiles;
-  }, [gridSize, toIso]);
+  }, [gridSize, toIso, defaultTerrain]);
 
   // Handle building click
   const handleBuildingClick = useCallback((building: Building) => {
@@ -210,6 +212,26 @@ export function CityMap({
         preserveAspectRatio="xMidYMid meet"
         style={{ transform: `scale(${viewState.zoom})`, transformOrigin: "center" }}
       >
+        {/* Patterns and Definitions */}
+        <defs>
+          {defaultTerrain && (
+            <pattern
+              id="grass-pattern"
+              patternUnits="userSpaceOnUse"
+              width={tileWidth}
+              height={tileHeight}
+              viewBox={`0 0 ${tileWidth} ${tileHeight}`}
+            >
+              <image
+                href={defaultTerrain.image_url}
+                width={tileWidth}
+                height={tileHeight}
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </pattern>
+          )}
+        </defs>
+
         {/* Fluffy clouds layer */}
         <g className="clouds-layer">
           <FluffyCloud x={100} y={50} scale={0.8} delay={0} />

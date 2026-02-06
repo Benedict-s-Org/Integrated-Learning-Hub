@@ -18,8 +18,7 @@ interface SidebarAdminProps {
   onOpenUploader: () => void;
   onOpenEditor: () => void;
   onOpenSpaceDesign: () => void;
-  onOpenCityEditor: () => void;
-  onOpenDistrictEditor: () => void;
+  onOpenMapEditor: () => void; // Unified editor
   onOpenAssetUpload: () => void;
 }
 
@@ -29,8 +28,7 @@ export const SidebarAdmin: React.FC<SidebarAdminProps> = ({
   onOpenUploader,
   onOpenEditor,
   onOpenSpaceDesign,
-  onOpenCityEditor,
-  onOpenDistrictEditor,
+  onOpenMapEditor,
   onOpenAssetUpload,
 }) => {
   if (!isOpen) return null;
@@ -54,11 +52,8 @@ export const SidebarAdmin: React.FC<SidebarAdminProps> = ({
           <Button variant="secondary" className="w-full justify-start" onClick={onOpenSpaceDesign}>
             <Building2 size={16} /> 空間設計中心
           </Button>
-          <Button variant="secondary" className="w-full justify-start" onClick={onOpenCityEditor}>
-            <Map size={16} /> 城市編輯器
-          </Button>
-          <Button variant="secondary" className="w-full justify-start" onClick={onOpenDistrictEditor}>
-            <Layout size={16} /> 地區編輯器
+          <Button variant="secondary" className="w-full justify-start" onClick={onOpenMapEditor}>
+            <Map size={16} /> 地圖編輯器
           </Button>
           <Button variant="secondary" className="w-full justify-start" onClick={onOpenAssetUpload}>
             <FolderUp size={16} /> 多格式上傳資料區

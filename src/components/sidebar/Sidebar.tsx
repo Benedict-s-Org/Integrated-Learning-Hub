@@ -71,8 +71,7 @@ interface SidebarProps {
   onOpenStudio: () => void;
   onOpenEditor: () => void;
   onOpenSpaceDesign: () => void;
-  onOpenCityEditor: () => void;
-  onOpenDistrictEditor: () => void;
+  onOpenMapEditor: () => void;
   onOpenAssetUpload: () => void;
   globalHistory: HistoryRecord[];
   onRestoreHistory: (record: HistoryRecord) => void;
@@ -120,8 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenStudio,
   onOpenEditor,
   onOpenSpaceDesign,
-  onOpenCityEditor,
-  onOpenDistrictEditor,
+  onOpenMapEditor,
   onOpenAssetUpload,
   globalHistory,
   onRestoreHistory,
@@ -270,8 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onOpenUploader={onOpenUploader}
             onOpenEditor={onOpenEditor}
             onOpenSpaceDesign={onOpenSpaceDesign}
-            onOpenCityEditor={onOpenCityEditor}
-            onOpenDistrictEditor={onOpenDistrictEditor}
+            onOpenMapEditor={onOpenMapEditor}
             onOpenAssetUpload={onOpenAssetUpload}
           />
         )}

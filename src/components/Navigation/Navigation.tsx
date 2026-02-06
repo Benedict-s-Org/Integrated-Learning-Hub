@@ -1,13 +1,13 @@
 import React from 'react';
 import {
   Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList,
-  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight, Sparkles, Pencil
+  Database, FolderKanban, BookMarked, Lightbulb, Zap, ChevronLeft, ChevronRight, Sparkles, Pencil, LayoutGrid
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard') => void;
   userRole: string | null;
   onLogin?: () => void;
   isNavOpen: boolean;
@@ -116,6 +116,7 @@ const Navigation: React.FC<NavigationProps> = ({
 
             {userRole === 'admin' && !isUserView && (
               <>
+                <NavItem page="classDashboard" icon={LayoutGrid} label="Class Dashboard" />
                 <NavItem page="assignmentManagement" icon={FolderKanban} label="Assignment Management" />
                 <NavItem page="admin" icon={Shield} label="Admin Panel" />
                 <NavItem page="database" icon={Database} label="Database" />

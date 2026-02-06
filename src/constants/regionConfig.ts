@@ -4,7 +4,7 @@ export const REGION_CONFIG = {
     tileWidth: 100, // Width of a single plot in the isometric grid
     tileHeight: 50, // Height of a single plot in the isometric grid
     minZoom: 0.5,
-    maxZoom: 2.0,
+    maxZoom: 5.0,
     defaultZoom: 1.0,
     gridColor: 'rgba(255, 255, 255, 0.2)',
 };

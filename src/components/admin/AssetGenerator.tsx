@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, Loader2, X, Sliders, Zap } from 'lucide-react';
 import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box, pink_desk } from '@/assets/furniture/orange_sofa';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,7 @@ interface AssetGeneratorProps {
 }
 
 export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
+    const { fullCatalog } = useMemoryPalaceContext();
     const [category, setCategory] = useState('furniture');
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -39,7 +40,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const [configJson, setConfigJson] = useState('');
     const [hasManuallyEditedLogic, setHasManuallyEditedLogic] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const checkApiStatus = async () => {
             setApiStatus('checking');
             try {
@@ -71,7 +72,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     }, []);
 
     // Sync logic from basic inputs
-    React.useEffect(() => {
+    useEffect(() => {
         if (!hasManuallyEditedLogic) {
             const newPrompt = generateAssetPrompt(category, name, description);
             const newJson = JSON.stringify(getDesignJSON(category, name, description), null, 2);
@@ -103,8 +104,6 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setGeneratedImage(canvas.toDataURL('image/png'));
         setIsEditing(false);
     };
-
-    const { fullCatalog } = useMemoryPalaceContext();
 
     const handleRefine = () => {
         if (!refinementPrompt) return;

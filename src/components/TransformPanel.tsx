@@ -82,11 +82,10 @@ const QuickButton = ({
 }) => (
   <button
     onClick={onClick}
-    className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${
-      active
+    className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${active
         ? "bg-indigo-500 text-white"
         : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-    }`}
+      }`}
   >
     {label}
   </button>
@@ -112,7 +111,10 @@ export const TransformPanel: React.FC<TransformPanelProps> = ({
   };
 
   return (
-    <div className="w-72 bg-slate-800 border-r border-slate-700 flex flex-col h-full">
+    <div
+      className="w-72 bg-slate-800 border-r border-slate-700 flex flex-col h-full"
+      onWheel={(e) => e.stopPropagation()}
+    >
       {/* Header */}
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center gap-3 mb-3">
@@ -127,7 +129,7 @@ export const TransformPanel: React.FC<TransformPanelProps> = ({
             <p className="text-slate-400 text-xs">Transform Panel</p>
           </div>
         </div>
-        
+
         {/* Furniture Preview */}
         <div className="bg-slate-700/50 rounded-lg p-3 flex items-center gap-3">
           {furnitureImage ? (
@@ -255,7 +257,7 @@ export const TransformPanel: React.FC<TransformPanelProps> = ({
               onChange={(v) => onChange({ spriteSkewY: v })}
             />
             <p className="text-[10px] text-slate-500">用途：拉高右側/壓低左側，修正「左右不平」的變形</p>
-            
+
             <SliderControl
               label="水平傾斜 (Skew X)"
               value={data.spriteSkewX}

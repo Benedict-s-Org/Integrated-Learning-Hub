@@ -37,6 +37,7 @@ import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { WordSnakeGame } from './pages/WordSnakeGame';
 import { MemoryPalaceProvider } from './contexts/MemoryPalaceContext';
+import { ClassDashboardPage } from './pages/ClassDashboardPage';
 import {
   Word,
   MemorizationState,
@@ -46,6 +47,7 @@ import {
 } from './types';
 
 import { AssetGenerator } from './components/admin/AssetGenerator';
+import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -76,10 +78,12 @@ type AppState =
   | { page: 'learningHub' }
   | { page: 'spacedRepetition' }
   | { page: 'flowithTest' }
-  | { page: 'wordSnake' };
+  | { page: 'wordSnake' }
+  | { page: 'classDashboard' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
+  const [showMapEditor, setShowMapEditor] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
@@ -184,7 +188,8 @@ function AppContent() {
     appState.page === 'assignmentManagement' ||
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
-    appState.page === 'flowithTest';
+    appState.page === 'flowithTest' ||
+    appState.page === 'classDashboard';
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -214,9 +219,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard')) {
       setShowLoginModal(true);
       return;
     }
@@ -279,6 +284,8 @@ function AppContent() {
       setAppState({ page: 'flowithTest' });
     } else if (page === 'wordSnake') {
       setAppState({ page: 'wordSnake' });
+    } else if (page === 'classDashboard') {
+      setAppState({ page: 'classDashboard' });
     }
   };
 
@@ -484,7 +491,10 @@ function AppContent() {
       case 'saved':
         return <SavedContent onLoadContent={handleLoadContent} onCreateNew={handleCreateNewMemorization} />;
       case 'admin':
-        return <AdminPanel onNavigateToAssets={() => setAppState({ page: 'assetGenerator' })} />;
+        return <AdminPanel
+          onNavigateToAssets={() => setAppState({ page: 'assetGenerator' })}
+          onOpenMapEditor={() => setShowMapEditor(true)}
+        />;
       case 'assetGenerator':
         return <AssetGenerator />;
       case 'database':
@@ -692,10 +702,12 @@ function AppContent() {
         return <FlowithTestPage />;
       case 'wordSnake':
         return <WordSnakeGame />;
+      case 'classDashboard':
+        return <ClassDashboardPage />;
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -780,6 +792,10 @@ function AppContent() {
       )}
       <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
       <ComponentInspector enabled={showComponentInspector} />
+      <UnifiedMapEditor
+        isOpen={showMapEditor}
+        onClose={() => setShowMapEditor(false)}
+      />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface User {
@@ -23,9 +23,10 @@ interface PendingPermissions {
 
 interface AdminPanelProps {
   onNavigateToAssets?: () => void;
+  onOpenMapEditor?: () => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor }) => {
   const { user: currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -492,6 +493,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets }) =>
               <Users size={20} />
               <span>{isBatchMode ? 'Cancel Class Selection' : 'Create Class'}</span>
             </button>
+            {onOpenMapEditor && (
+              <button
+                onClick={onOpenMapEditor}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <Map size={20} />
+                <span>地圖編輯器</span>
+              </button>
+            )}
             <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"

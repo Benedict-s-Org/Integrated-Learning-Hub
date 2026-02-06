@@ -122,6 +122,12 @@ export interface CityStyleAsset {
     height?: number;
     offsetX?: number;
     offsetY?: number;
+    scale?: number;
+    anchorMultiplier?: number;
+    scaleX?: number;
+    scaleY?: number;
+    skewX?: number;
+    skewY?: number;
   };
   is_default: boolean;
   created_at: string;

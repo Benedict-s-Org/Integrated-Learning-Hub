@@ -16,12 +16,13 @@ import { DevPanel } from "@/components/DevPanel";
 import { AssetGenerator } from "@/components/admin/AssetGenerator";
 import { FurnitureUploader } from "@/components/furniture/FurnitureUploader";
 import { FurnitureEditor } from "@/components/editor/FurnitureEditor";
+import { TransformPanel } from "@/components/TransformPanel";
 import { SpaceDesignCenter } from "@/components/SpaceDesignCenter";
-import { CityEditorModal } from "@/components/admin/CityEditorModal";
-import { DistrictEditorModal } from "@/components/admin/DistrictEditorModal";
+import { UnifiedMapEditor } from "@/components/admin/UnifiedMapEditor";
 import { AssetUploadCenter } from "@/components/ui-builder/AssetUploadCenter";
 import { MemoryPointModal } from "@/components/MemoryPointModal";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
+import { CustomFurniture } from "@/types/furniture";
 
 // Inner component to consume context
 function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
@@ -118,11 +119,14 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const [showStudio, setShowStudio] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [showSpaceDesign, setShowSpaceDesign] = useState(false);
-  const [showCityEditor, setShowCityEditor] = useState(false);
-  const [showDistrictEditor, setShowDistrictEditor] = useState(false);
+  const [showMapEditor, setShowMapEditor] = useState(false);
   const [showAssetUpload, setShowAssetUpload] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [uiAssets, setUiAssets] = useState<any[]>([]);
+
+  // Transform panel state
+  const [showTransformPanel, setShowTransformPanel] = useState(false);
+  const [transformTargetId, setTransformTargetId] = useState<string | null>(null);
 
   // City data
   const { buildings: cityBuildings, decorations: cityDecorations, cityLevel } = useCityLayout();
@@ -266,8 +270,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           onOpenStudio={() => setShowStudio(true)}
           onOpenEditor={() => setShowEditor(true)}
           onOpenSpaceDesign={() => setShowSpaceDesign(true)}
-          onOpenCityEditor={() => setShowCityEditor(true)}
-          onOpenDistrictEditor={() => setShowDistrictEditor(true)}
+          onOpenMapEditor={() => setShowMapEditor(true)}
           onOpenAssetUpload={() => setShowAssetUpload(false)}
           globalHistory={globalHistory as any[]}
           onRestoreHistory={restoreHistory as any}
@@ -452,7 +455,10 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
                   onUpdateFloor={(floor: any) => setCustomFloors((prev: any[]) => prev.map(f => f.id === floor.id ? floor : f))}
                   onDeleteWall={(id: string) => setCustomWalls((prev: any[]) => prev.filter(w => w.id !== id))}
                   onDeleteFloor={(id: string) => setCustomFloors((prev: any[]) => prev.filter(f => f.id !== id))}
-                  onEnterTransformMode={(id) => console.log('Enter transform', id)}
+                  onEnterTransformMode={(id) => {
+                    setTransformTargetId(id);
+                    setShowTransformPanel(true);
+                  }}
                   customModels={fullModels}
                 />
               </div>
@@ -480,14 +486,9 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
         </div>
       )}
 
-      <CityEditorModal
-        isOpen={showCityEditor}
-        onClose={() => setShowCityEditor(false)}
-      />
-
-      <DistrictEditorModal
-        isOpen={showDistrictEditor}
-        onClose={() => setShowDistrictEditor(false)}
+      <UnifiedMapEditor
+        isOpen={showMapEditor}
+        onClose={() => setShowMapEditor(false)}
       />
 
       {showAssetUpload && (
@@ -512,6 +513,88 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           </div>
         </div>
       )}
+
+      {/* Transform Panel Modal */}
+      {showTransformPanel && transformTargetId && (() => {
+        const targetItem = fullCatalog.find((f: any) => f.id === transformTargetId) as CustomFurniture | undefined;
+        if (!targetItem) return null;
+        return (
+          <div className="fixed inset-0 z-[60] flex">
+            <TransformPanel
+              furnitureName={targetItem.name || '未命名家具'}
+              furnitureImage={targetItem.spriteImages?.[0] || undefined}
+              data={{
+                spriteOffsetX: targetItem.spriteOffsetX ?? 0,
+                spriteOffsetY: targetItem.spriteOffsetY ?? 20,
+                spriteScale: targetItem.spriteScale ?? 1,
+                spriteScaleX: targetItem.spriteScaleX ?? 100,
+                spriteScaleY: targetItem.spriteScaleY ?? 100,
+                spriteSkewX: targetItem.spriteSkewX ?? 0,
+                spriteSkewY: targetItem.spriteSkewY ?? 0,
+              }}
+              onChange={(changes) => {
+                setCustomCatalog((prev: any[]) =>
+                  prev.map((item) =>
+                    item.id === transformTargetId ? { ...item, ...changes } : item
+                  )
+                );
+              }}
+              onSave={() => {
+                setShowTransformPanel(false);
+                setTransformTargetId(null);
+              }}
+              onCancel={() => {
+                setShowTransformPanel(false);
+                setTransformTargetId(null);
+              }}
+              onReset={() => {
+                setCustomCatalog((prev: any[]) =>
+                  prev.map((item) =>
+                    item.id === transformTargetId
+                      ? {
+                        ...item,
+                        spriteOffsetX: 0,
+                        spriteOffsetY: 20,
+                        spriteScale: 1,
+                        spriteScaleX: 100,
+                        spriteScaleY: 100,
+                        spriteSkewX: 0,
+                        spriteSkewY: 0,
+                      }
+                      : item
+                  )
+                );
+              }}
+            />
+            {/* Live preview area - takes rest of screen */}
+            <div className="flex-1 bg-slate-900/80 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-white text-lg mb-2">即時預覽</p>
+                <p className="text-slate-400 text-sm">拖動左側滑桿查看家具變化</p>
+                {targetItem.spriteImages?.[0] && (
+                  <div className="mt-8 inline-block">
+                    <img
+                      src={targetItem.spriteImages[0]}
+                      alt="Preview"
+                      className="max-w-[300px] max-h-[300px] drop-shadow-2xl"
+                      style={{
+                        transform: `
+                          translate(${targetItem.spriteOffsetX ?? 0}px, ${targetItem.spriteOffsetY ?? 20}px)
+                          scale(${targetItem.spriteScale ?? 1})
+                          scaleX(${(targetItem.spriteScaleX ?? 100) / 100})
+                          scaleY(${(targetItem.spriteScaleY ?? 100) / 100})
+                          skewX(${targetItem.spriteSkewX ?? 0}deg)
+                          skewY(${targetItem.spriteSkewY ?? 0}deg)
+                        `,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
