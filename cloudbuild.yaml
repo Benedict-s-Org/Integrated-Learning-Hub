@@ -1,20 +1,13 @@
 steps:
-  # Build the container image
+  # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: [
-      'build',
-      '--build-arg', 'VITE_SUPABASE_URL=$_VITE_SUPABASE_URL',
-      '--build-arg', 'VITE_SUPABASE_ANON_KEY=$_VITE_SUPABASE_ANON_KEY',
-      '--build-arg', 'VITE_FLOWITH_API_KEY=$_VITE_FLOWITH_API_KEY',
-      '-t', 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA',
-      '.'
-    ]
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA', '.']
 
-  # Push the image to Container Registry
+  # Push the Docker image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA']
 
-  # Deploy container image to Cloud Run
+  # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -25,10 +18,17 @@ steps:
       - 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
+      - '--platform'
+      - 'managed'
       - '--allow-unauthenticated'
 
+# Store images in Container Registry
 images:
   - 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA'
 
+# Timeout for the build
+timeout: '1200s'
+
+# Options
 options:
   logging: CLOUD_LOGGING_ONLY
