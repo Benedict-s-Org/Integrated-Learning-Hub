@@ -1,7 +1,15 @@
 steps:
-  # Build the Docker image
+  # Build the Docker image with environment variables
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA', '.']
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'VITE_SUPABASE_URL=https://lpyhtbvycxqjjqpwjxyh.supabase.co'
+      - '--build-arg'
+      - 'VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxweWh0YnZ5Y3hxampxcHdqeHloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODYyNDQsImV4cCI6MjA4MjI2MjI0NH0.cLmBHopkqJz3R8CtaVy3Cx6o9obOalczV5tAmVbofjg'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/learning-hub:$COMMIT_SHA'
+      - '.'
 
   # Push the Docker image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
