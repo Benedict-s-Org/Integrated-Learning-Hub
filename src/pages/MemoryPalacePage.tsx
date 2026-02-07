@@ -1,13 +1,12 @@
 import React, { useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, ArrowLeft } from "lucide-react";
 import { useMemoryPalaceContext } from "@/contexts/MemoryPalaceContext";
 import { useInventory } from "@/hooks/useInventory";
 import { useRoomInteraction } from "@/hooks/useRoomInteraction";
 import { useMemoryPoints } from "@/hooks/useMemoryPoints";
-import { useStudySession } from "@/hooks/useStudySession";
 import { useCityLayout } from "@/hooks/useCityLayout";
 import { useRegion } from "@/hooks/useRegion";
-import { Sidebar } from "@/components/sidebar";
+import { SidebarFurniture, SidebarHistory, SidebarMemory } from "@/components/sidebar";
 import { IsometricRoom } from "@/components/room/IsometricRoom";
 import { CityMap } from "@/components/city/CityMap";
 import { RegionMap } from "@/components/region/RegionMap";
@@ -27,7 +26,6 @@ import { CustomFurniture } from "@/types/furniture";
 // Inner component to consume context
 function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const context = useMemoryPalaceContext();
-  console.log("MemoryPalaceContent: Context", context);
   const {
     isLoading,
     roomError,
@@ -52,9 +50,40 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     setCustomFloors,
     setHouseLevel,
     setInventory,
+    // UI State from Context
+    uiState,
+    setUiState,
+    toggleShop,
+    toggleStudio,
+    toggleEditor,
+    toggleUploader,
+    toggleMapEditor,
+    toggleAssetUpload,
+    toggleSpaceDesign,
+    toggleFurniturePanel,
+    toggleHistoryPanel,
+    toggleMemoryPanel,
+    toggleMemoryMode,
+    setView,
+    studySession
   } = context;
 
-  // Deriving active wall/floor objects from ID
+  const {
+    showShop,
+    showStudio,
+    showEditor,
+    showUploader,
+    showMapEditor,
+    showAssetUpload,
+    showSpaceDesign,
+    showFurniturePanel,
+    showHistoryPanel,
+    showMemoryPanel,
+    isMemoryMode,
+    view
+  } = uiState;
+
+  // Derive active wall/floor objects
   const activeWallObj = customWalls.find((w: any) => w.id === activeWallId) || null;
   const activeFloorObj = customFloors.find((f: any) => f.id === activeFloorId) || null;
 
@@ -95,15 +124,9 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     isStudyMode,
     toggleStudyMode,
     hasDueCard
-    // Room expects onStudyClick
-  } = useStudySession();
+  } = studySession;
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentPhase, setCurrentPhase] = useState<"intro" | "encoding" | "recall" | "result">("intro");
-  const [view, setView] = useState<"room" | "map" | "region">("room");
-  const [isMemoryMode, setIsMemoryMode] = useState(false);
-
-  // Memory point modal state
+  // Local state for modals that need data not in global UI state
   const [memoryModalData, setMemoryModalData] = useState<{
     isOpen: boolean;
     targetInfo: { type: 'furniture' | 'wall' | 'floor' | 'tile'; id: string; name: string; image?: string };
@@ -114,14 +137,6 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     targetInfo: { type: 'tile', id: '', name: '' }
   });
 
-  // Modals state
-  const [showUploader, setShowUploader] = useState(false);
-  const [showStudio, setShowStudio] = useState(false);
-  const [showEditor, setShowEditor] = useState(false);
-  const [showSpaceDesign, setShowSpaceDesign] = useState(false);
-  const [showMapEditor, setShowMapEditor] = useState(false);
-  const [showAssetUpload, setShowAssetUpload] = useState(false);
-  const [showShop, setShowShop] = useState(false);
   const [uiAssets, setUiAssets] = useState<any[]>([]);
 
   // Transform panel state
@@ -130,7 +145,6 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   // City data
   const { buildings: cityBuildings, decorations: cityDecorations, cityLevel } = useCityLayout();
-
   // Region data
   const { region: regionData } = useRegion();
 
@@ -141,12 +155,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   // Helper to match Sidebar's expected signature
   const handleTargetsName = (_type: string, id: string) => {
-    // Simple stub for now
     return id;
-  };
-
-  const toggleMemoryMode = () => {
-    setIsMemoryMode(prev => !prev);
   };
 
   const handleOpenAddMemory = (type: string, id: string, name: string, image?: string, extra?: any) => {
@@ -158,7 +167,6 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   };
 
   const handleOpenEditMemory = (point: MemoryPoint) => {
-    // Attempt to find original item info for the modal
     let name = point.title;
     let image = undefined;
 
@@ -247,54 +255,88 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden relative">
-      <div className="w-20 md:w-64 h-full bg-white border-r relative shrink-0">
-        <Sidebar
-          isOpen={sidebarOpen}
-          toggle={() => setSidebarOpen(!sidebarOpen)}
-          onExit={onExit}
-          coins={coins}
-          onStart={() => setCurrentPhase("encoding")}
-          onShop={() => setShowShop(true)}
-          onCity={() => setView("map")}
-          onRegion={() => setView("region")}
-          currentPhase={currentPhase}
-          isAdmin={isAdmin}
-          inventory={inventory}
-          onDragStart={handleDragStart as any}
-          isRemoveMode={isRemoveMode}
-          toggleRemoveMode={() => toggleRemoveMode(!isRemoveMode)}
-          confirmRemove={confirmRemove}
-          cancelRemove={cancelRemove}
-          hasSelection={!!removalSelectedId}
-          onOpenUploader={() => setShowUploader(true)}
-          onOpenStudio={() => setShowStudio(true)}
-          onOpenEditor={() => setShowEditor(true)}
-          onOpenSpaceDesign={() => setShowSpaceDesign(true)}
-          onOpenMapEditor={() => setShowMapEditor(true)}
-          onOpenAssetUpload={() => setShowAssetUpload(false)}
-          globalHistory={globalHistory as any[]}
-          onRestoreHistory={restoreHistory as any}
-          fullCatalog={fullCatalog as any}
-          customWalls={customWalls as any}
-          customFloors={customFloors as any}
-          activeWallId={activeWallId}
-          activeFloorId={activeFloorId}
-          onSelectWall={setActiveWallId}
-          onSelectFloor={setActiveFloorId}
-          isMemoryMode={isMemoryMode}
-          toggleMemoryMode={toggleMemoryMode}
-          isStudyMode={isStudyMode}
-          toggleStudyMode={toggleStudyMode}
-          dueCount={dueCount}
-          memoryPoints={memoryPoints}
-          onAddMemory={(type) => handleEntityMemoryClick(type, '')}
-          onEditMemory={handleOpenEditMemory}
-          onDeleteMemory={deleteMemoryPoint}
-          onViewMemory={handleOpenEditMemory}
-          getTargetName={handleTargetsName}
-          showGrid={showGrid}
-          onShowGridChange={setShowGrid}
-        />
+      {/* Furniture Panel Drawer */}
+      <div className={`absolute top-0 left-0 h-full bg-white shadow-xl transform transition-transform duration-300 z-40 w-80 border-r ${showFurniturePanel ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-full flex flex-col">
+          <div className="p-4 border-b flex justify-between items-center bg-amber-50">
+            <h3 className="font-bold text-amber-800 flex items-center gap-2">
+              <span className="text-xl">🛋️</span>
+              Inventory
+            </h3>
+            <button onClick={toggleFurniturePanel} className="p-1 hover:bg-amber-100 rounded-full text-amber-600">
+              <ArrowLeft size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <SidebarFurniture
+              isOpen={true}
+              inventory={inventory}
+              fullCatalog={fullCatalog as any[]}
+              customWalls={customWalls as any[]}
+              customFloors={customFloors as any[]}
+              activeWallId={activeWallId}
+              activeFloorId={activeFloorId}
+              onSelectWall={setActiveWallId}
+              onSelectFloor={setActiveFloorId}
+              onDragStart={handleDragStart as any}
+              isRemoveMode={isRemoveMode}
+              toggleRemoveMode={() => toggleRemoveMode(!isRemoveMode)}
+              confirmRemove={confirmRemove}
+              cancelRemove={cancelRemove}
+              hasSelection={!!removalSelectedId}
+              currentPhase="intro"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* History Panel Drawer */}
+      <div className={`absolute top-0 left-0 h-full bg-white shadow-xl transform transition-transform duration-300 z-40 w-72 border-r ${showHistoryPanel ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-full flex flex-col">
+          <div className="p-4 border-b flex justify-between items-center bg-blue-50">
+            <h3 className="font-bold text-blue-800 flex items-center gap-2">
+              <span className="text-xl">📜</span>
+              History
+            </h3>
+            <button onClick={toggleHistoryPanel} className="p-1 hover:bg-blue-100 rounded-full text-blue-600">
+              <ArrowLeft size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <SidebarHistory
+              history={globalHistory as any[]}
+              onRestore={restoreHistory as any}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Memory Panel Drawer */}
+      <div className={`absolute top-0 left-0 h-full bg-white shadow-xl transform transition-transform duration-300 z-40 w-80 border-r ${showMemoryPanel ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-full flex flex-col">
+          <div className="p-4 border-b flex justify-between items-center bg-purple-50">
+            <h3 className="font-bold text-purple-800 flex items-center gap-2">
+              <span className="text-xl">🧠</span>
+              Memory Points
+            </h3>
+            <button onClick={toggleMemoryPanel} className="p-1 hover:bg-purple-100 rounded-full text-purple-600">
+              <ArrowLeft size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <SidebarMemory
+              isOpen={true}
+              memoryPoints={memoryPoints}
+              onAddMemory={() => handleEntityMemoryClick('tile', '')}
+              onEditMemory={handleOpenEditMemory}
+              onDeleteMemory={deleteMemoryPoint}
+              onViewMemory={handleOpenEditMemory}
+              getTargetName={handleTargetsName}
+              isMemoryMode={isMemoryMode}
+              toggleMemoryMode={toggleMemoryMode}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 relative flex flex-col items-center justify-center">
@@ -346,7 +388,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               cityLevel={cityLevel}
               coins={coins}
               onBuildingClick={() => setView("room")}
-              onOpenShop={() => setShowShop(true)}
+              onOpenShop={toggleShop}
               onBackToRoom={() => setView("room")}
             />
           ) : (
@@ -386,7 +428,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           houseLevel={houseLevel}
           onBuy={buyItem as any}
           onUpgrade={() => setHouseLevel((h: number) => h + 1)}
-          onClose={() => setShowShop(false)}
+          onClose={toggleShop}
           isAdmin={isAdmin}
           customWalls={customWalls as any}
           customFloors={customFloors as any}
@@ -407,12 +449,12 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] overflow-hidden">
             <AssetGenerator
-              onClose={() => setShowStudio(false)}
+              onClose={toggleStudio}
               onSave={(item, model) => {
                 setCustomCatalog((prev: any[]) => [...prev, item]);
                 setCustomModels((prev: any) => ({ ...prev, [item.id]: model }));
                 setInventory((prev: any[]) => [...prev, item.id]);
-                setShowStudio(false);
+                toggleStudio();
               }}
             />
           </div>
@@ -423,10 +465,10 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden">
             <FurnitureUploader
-              onClose={() => setShowUploader(false)}
+              onClose={toggleUploader}
               onSave={(item) => {
                 setCustomCatalog((prev: any[]) => [...prev, item]);
-                setShowUploader(false);
+                toggleUploader();
               }}
             />
           </div>
@@ -439,13 +481,13 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
             <div className="h-full flex flex-col p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-xl">家具編輯器</h3>
-                <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                <button onClick={toggleEditor} className="p-2 hover:bg-slate-100 rounded-full">
                   <X className="w-6 h-6" />
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">
                 <FurnitureEditor
-                  onClose={() => setShowEditor(false)}
+                  onClose={toggleEditor}
                   customCatalog={fullCatalog as any[]}
                   onUpdate={(item: any) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === item.id ? item : i))}
                   onDelete={(id: string) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
@@ -471,7 +513,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full h-full bg-white flex flex-col">
             <SpaceDesignCenter
-              onClose={() => setShowSpaceDesign(false)}
+              onClose={toggleSpaceDesign}
               fullCatalog={fullCatalog as any[]}
               activeWall={activeWallObj}
               activeFloor={activeFloorObj}
@@ -488,7 +530,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
 
       <UnifiedMapEditor
         isOpen={showMapEditor}
-        onClose={() => setShowMapEditor(false)}
+        onClose={toggleMapEditor}
       />
 
       {showAssetUpload && (
@@ -497,7 +539,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
             <div className="h-full flex flex-col">
               <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                 <h3 className="font-bold text-xl">素材上傳中心</h3>
-                <button onClick={() => setShowAssetUpload(false)} className="p-2 hover:bg-slate-200 rounded-full">
+                <button onClick={toggleAssetUpload} className="p-2 hover:bg-slate-200 rounded-full">
                   <X className="w-6 h-6" />
                 </button>
               </div>

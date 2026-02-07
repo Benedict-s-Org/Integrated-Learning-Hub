@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Wand2, Loader2, X, Sliders, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, Wand2, Loader2, X, Sliders, Zap, Package, Grid } from 'lucide-react';
 import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, cozy_bed, armchair, mystery_box, pink_desk } from '@/assets/furniture/orange_sofa';
 import { supabase } from '@/integrations/supabase/client';
 import { generateAssetPrompt, getDesignJSON } from '@/utils/promptGenerator';
@@ -32,7 +32,6 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
     const [hue, setHue] = useState(0);
-    const [refinementPrompt, setRefinementPrompt] = useState('');
 
     // Advanced Logic State
     const [isLogicOpen, setIsLogicOpen] = useState(false);
@@ -105,13 +104,6 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
         setIsEditing(false);
     };
 
-    const handleRefine = () => {
-        if (!refinementPrompt) return;
-        const refinedFullPrompt = `${prompt}. Refinement: ${refinementPrompt}`;
-        setPrompt(refinedFullPrompt);
-        generateAIWithPrompt(refinedFullPrompt);
-        setRefinementPrompt('');
-    };
 
     const getReferenceImages = () => {
         // Collect all unique sprite images from custom assets
@@ -293,7 +285,7 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
             size: [2, 1],
             height: 1,
             color: '#ffffff',
-            icon: Wand2,
+            icon: null,
             spriteImages: [generatedImage, generatedImage, generatedImage, generatedImage],
             spriteScale: 1,
             price: 100,
@@ -312,361 +304,257 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     };
 
     return (
-        <div className="p-6 h-full bg-region-ground overflow-y-auto">
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/50">
-                <div className="flex items-center justify-between gap-3 mb-8">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-indigo-100 rounded-xl">
-                            <Sparkles className="w-6 h-6 text-indigo-600" />
+        <div className="flex-1 flex flex-col min-h-0 bg-background/50 p-6 overflow-hidden font-bold">
+            <div className="flex-1 flex gap-8 overflow-hidden">
+                {/* Left Column: Generator Controls */}
+                <div className="w-[480px] flex flex-col gap-6 overflow-y-auto pr-2 pb-6">
+                    {/* Basic Info Card */}
+                    <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-primary/5 border-2 border-primary/5 flex flex-col gap-6">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black text-primary flex items-center gap-3">
+                                <Sparkles className="w-7 h-7 p-1.5 bg-primary text-white rounded-xl shadow-lg shadow-primary/20" />
+                                靈感來源
+                            </h3>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-full border border-primary/10">
+                                    <div className={`w-2 h-2 rounded-full ${apiStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 animate-pulse'}`} />
+                                    <span className="text-[10px] text-primary/60 uppercase tracking-tighter">AI {apiStatus === 'online' ? '已連線' : '離線'}</span>
+                                </div>
+                                <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full text-primary/40 transition-all">
+                                    <X size={24} />
+                                </button>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">AI Asset Generator</h2>
-                            <p className="text-slate-500">Generate unique furniture with AI</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${apiStatus === 'online' ? 'bg-green-50 text-green-700 border-green-200' :
-                            apiStatus === 'offline' ? 'bg-red-50 text-red-700 border-red-200' :
-                                'bg-gray-50 text-gray-700 border-gray-200'
-                            }`}>
-                            <div className={`w-2 h-2 rounded-full ${apiStatus === 'online' ? 'bg-green-500 animate-pulse' :
-                                apiStatus === 'offline' ? 'bg-red-500' :
-                                    'bg-gray-400'
-                                }`} />
-                            {apiStatus === 'online' ? 'AI Systems Online' :
-                                apiStatus === 'offline' ? 'AI Systems Offline' :
-                                    'Checking Systems...'}
-                        </div>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                            <X size={24} />
-                        </button>
-                    </div>
-                </div>
 
-                <div className="space-y-6">
-                    <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <div className="space-y-4">
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-indigo-900">Asset Name</label>
+                                    <label className="text-[10px] font-black text-primary/50 uppercase ml-2 tracking-widest">家具名稱</label>
                                     <input
                                         type="text"
+                                        placeholder="例如: 夢幻雲朵沙發"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="w-full p-3 rounded-xl border border-indigo-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="e.g. Vintage Record Player"
+                                        className="w-full px-5 py-3.5 rounded-2xl bg-secondary/30 border-2 border-transparent focus:border-primary/20 focus:bg-white transition-all outline-none text-sm placeholder:text-primary/20"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-indigo-900">Description</label>
-                                    <textarea
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        className="w-full p-3 rounded-xl border border-indigo-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-none"
-                                        placeholder="Details like colors, materials..."
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-indigo-900">Asset Category</label>
+                                    <label className="text-[10px] font-black text-primary/50 uppercase ml-2 tracking-widest">類別</label>
                                     <select
-                                        className="w-full p-3 rounded-xl border border-indigo-200 bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                         value={category}
                                         onChange={(e) => setCategory(e.target.value)}
+                                        className="w-full px-5 py-3.5 rounded-2xl bg-secondary/30 border-2 border-transparent focus:border-primary/20 focus:bg-white transition-all outline-none text-sm cursor-pointer appearance-none"
                                     >
-                                        <option value="furniture">Furniture (Table, Chair, Bed)</option>
-                                        <option value="decoration">Decoration (Plant, Rug, Lamp)</option>
-                                        <option value="city_building">City Building (House, Shop)</option>
-                                        <option value="public_facility">Public Facility (Library, Gym)</option>
-                                        <option value="map_element">Map Element (Tree, Rock)</option>
+                                        <option value="furniture">家具 (Sofa, Table)</option>
+                                        <option value="decoration">裝飾 (Lamp, Rug)</option>
+                                        <option value="map_element">地圖元素 (Tree, Rock)</option>
                                     </select>
                                 </div>
                             </div>
-
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-sm font-bold text-indigo-900">AI Engine</label>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-xs font-semibold ${useRealAI ? 'text-purple-600' : 'text-slate-500'}`}>
-                                                {useRealAI ? 'Flowith AI' : 'Isometric Sim'}
-                                            </span>
-                                            <button
-                                                onClick={() => setUseRealAI(!useRealAI)}
-                                                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${useRealAI ? 'bg-purple-600' : 'bg-slate-300'}`}
-                                            >
-                                                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${useRealAI ? 'translate-x-5' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {useRealAI && (
-                                        <div className="flex flex-col gap-2 mt-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-tighter">AI Model</label>
-                                                <div className="flex gap-1">
-                                                    {['nano-banana-pro', 'flux'].map(m => (
-                                                        <button
-                                                            key={m}
-                                                            onClick={() => setSelectedModel(m)}
-                                                            className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${selectedModel === m ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200 hover:border-indigo-400'}`}
-                                                        >
-                                                            {m === 'nano-banana-pro' ? 'Banana' : 'Flux'}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <p className="text-[9px] text-slate-500 italic">
-                                                {selectedModel === 'nano-banana-pro' ? 'Best for assets. Direct API path.' : 'Fallback model if Banana is timing out.'}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    <div className="p-3 bg-white/60 rounded-xl border border-indigo-100 text-xs text-slate-500 flex items-center gap-2 mt-3">
-                                        <Zap size={14} className={useRealAI ? "text-purple-600" : "text-slate-400"} />
-                                        {useRealAI ? 'Uses Supabase Edge Function with Flowith' : 'Uses pre-loaded isometric asset library'}
-                                    </div>
-                                </div>
-
-                                <div className="bg-white/40 p-4 rounded-xl border border-indigo-100/50">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider">AI Logic Panel</label>
-                                        <button
-                                            onClick={() => setIsLogicOpen(!isLogicOpen)}
-                                            className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 transition-colors flex items-center gap-1"
-                                        >
-                                            {isLogicOpen ? <X size={12} /> : <Sliders size={12} />}
-                                            {isLogicOpen ? "Hide Logic" : "Display Logic"}
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-500 italic">
-                                        Edit the underlying prompt and design JSON to fine-tune the AI brain.
-                                    </p>
-                                </div>
-
-                                {useRealAI && (
-                                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50 mt-4">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <Sparkles size={14} className="text-indigo-600" />
-                                                <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Style Consistency</label>
-                                            </div>
-                                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
-                                                {getReferenceImages().length} Refs Active
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 leading-relaxed">
-                                            Every image you save now acts as a reference for future generations, maintaining your unique world's aesthetic.
-                                        </p>
-                                    </div>
-                                )}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-primary/50 uppercase ml-2 tracking-widest">描述資訊</label>
+                                <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="描述一下這個家具的風格..."
+                                    rows={3}
+                                    className="w-full px-5 py-4 rounded-3xl bg-secondary/30 border-2 border-transparent focus:border-primary/20 focus:bg-white transition-all outline-none text-sm resize-none placeholder:text-primary/20 leading-relaxed"
+                                />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* AI Logic Panel */}
+                    <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-primary/5 border-2 border-primary/5 flex flex-col gap-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Zap className="w-5 h-5 text-primary" />
+                                <h3 className="text-sm font-black text-primary uppercase tracking-widest">生成核心設定</h3>
+                            </div>
+                            <button
+                                onClick={() => setIsLogicOpen(!isLogicOpen)}
+                                className={`p-2 rounded-xl transition-all ${isLogicOpen ? 'bg-primary text-white' : 'bg-primary/5 text-primary hover:bg-primary/10'}`}
+                            >
+                                <Sliders size={18} />
+                            </button>
                         </div>
 
                         {isLogicOpen && (
-                            <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 border-t border-indigo-100 pt-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-6 animate-in slide-in-from-top-4 duration-300">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-xs font-bold text-indigo-900">Optimized AI Prompt</label>
+                                        <label className="text-[10px] font-black text-primary/40 uppercase ml-2">模型選擇</label>
+                                        <div className="flex bg-secondary/50 p-1.5 rounded-2xl gap-1">
+                                            {['nano-banana-pro', 'flux'].map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => setSelectedModel(m)}
+                                                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${selectedModel === m ? 'bg-white text-primary shadow-sm' : 'text-primary/40 hover:text-primary'}`}
+                                                >
+                                                    {m === 'nano-banana-pro' ? 'Banana' : 'Flux'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-primary/40 uppercase ml-2">生成模式</label>
+                                        <div className="flex bg-secondary/50 p-1.5 rounded-2xl gap-1">
                                             <button
-                                                onClick={() => setHasManuallyEditedLogic(false)}
-                                                className="text-[10px] text-indigo-600 hover:underline"
+                                                onClick={() => setUseRealAI(true)}
+                                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${useRealAI ? 'bg-white text-primary shadow-sm' : 'text-primary/40 hover:text-primary'}`}
                                             >
-                                                Reset to Auto
+                                                AI 生成
+                                            </button>
+                                            <button
+                                                onClick={() => setUseRealAI(false)}
+                                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${!useRealAI ? 'bg-white text-primary shadow-sm' : 'text-primary/40 hover:text-primary'}`}
+                                            >
+                                                本地庫
                                             </button>
                                         </div>
-                                        <textarea
-                                            value={optimizedPrompt}
-                                            onChange={(e) => {
-                                                setOptimizedPrompt(e.target.value);
-                                                setHasManuallyEditedLogic(true);
-                                            }}
-                                            className="w-full h-32 p-3 text-xs font-mono rounded-lg border border-indigo-200 bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
-                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-indigo-900">Design Config JSON</label>
-                                        <textarea
-                                            value={configJson}
-                                            onChange={(e) => {
-                                                setConfigJson(e.target.value);
-                                                setHasManuallyEditedLogic(true);
-                                            }}
-                                            className="w-full h-32 p-3 text-[10px] font-mono rounded-lg border border-indigo-200 bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
-                                        />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center ml-2">
+                                        <label className="text-[10px] font-black text-primary/40 uppercase">進階優化指令</label>
+                                        <button onClick={() => setHasManuallyEditedLogic(false)} className="text-[9px] text-primary hover:underline">回復預設</button>
                                     </div>
+                                    <textarea
+                                        value={optimizedPrompt}
+                                        onChange={(e) => { setOptimizedPrompt(e.target.value); setHasManuallyEditedLogic(true); }}
+                                        rows={3}
+                                        className="w-full px-4 py-3 rounded-2xl bg-secondary/30 border border-primary/10 text-[10px] font-mono focus:bg-white outline-none"
+                                    />
                                 </div>
                             </div>
                         )}
 
-                        <div className="mt-6 space-y-2">
-                            <label className="block text-sm font-bold text-indigo-900">Custom Prompt Overlay (Final Tweak)</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    className="flex-1 border-indigo-200 rounded-xl p-4 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm bg-white"
-                                    placeholder="e.g. A cute orange isometric sofa with yellow pillows..."
-                                    onKeyDown={(e) => e.key === 'Enter' && handleTriggerAIGenerator()}
-                                />
-                                <button
-                                    onClick={handleTriggerAIGenerator}
-                                    disabled={isGenerating || (!prompt && !optimizedPrompt)}
-                                    className="px-8 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                    {isGenerating ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                                    Generate
-                                </button>
-                            </div>
-                        </div>
+                        <button
+                            onClick={handleTriggerAIGenerator}
+                            disabled={isGenerating || (!prompt && !optimizedPrompt)}
+                            className="w-full h-16 bg-gradient-to-r from-primary to-accent text-white rounded-[1.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all transform disabled:opacity-50 disabled:scale-100"
+                        >
+                            {isGenerating ? <Loader2 className="animate-spin" /> : "開始施展魔法生成 ✨"}
+                        </button>
                     </div>
+                </div>
 
-                    {generatedImage && (
-                        <div className="flex gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="w-1/2">
-                                <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm relative group overflow-hidden">
+                {/* Right Column: Preview & Actions */}
+                <div className="flex-1 flex flex-col gap-8 overflow-hidden">
+                    {/* Preview Canvas */}
+                    <div className="flex-1 bg-white rounded-[3rem] shadow-2xl shadow-primary/5 border-8 border-white relative flex flex-col items-center justify-center group overflow-hidden">
+                        {/* Static Grid Background */}
+                        <div className="absolute inset-0 opacity-10 pointer-events-none"
+                            style={{ backgroundImage: 'radial-gradient(var(--primary) 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+                        />
+
+                        {/* Content */}
+                        <div className="relative z-10 p-12 transition-all duration-700 transform group-hover:scale-110">
+                            {generatedImage ? (
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full scale-150 animate-sparkle" />
                                     <img
                                         src={generatedImage}
                                         alt="Generated"
-                                        className="w-full h-auto rounded-lg transition-all"
+                                        className="max-w-[500px] max-h-[500px] object-contain relative z-10 drop-shadow-[0_40px_80px_rgba(0,0,0,0.25)] filter"
                                         style={{ filter: isEditing ? `brightness(${brightness}%) contrast(${contrast}%) hue-rotate(${hue}deg)` : 'none' }}
                                     />
-                                    {!isEditing && (
-                                        <button
-                                            onClick={() => setIsEditing(true)}
-                                            className="absolute top-2 right-2 p-2 bg-white/90 rounded-full shadow-md text-slate-600 hover:text-indigo-600 transition-all font-bold z-10"
-                                        >
-                                            <Sliders size={18} />
-                                        </button>
-                                    )}
                                 </div>
-                                {isEditing && (
-                                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 animate-in slide-in-from-top-2">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h3 className="font-bold text-sm text-slate-700">Refine Asset</h3>
-                                            <button onClick={processImage} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full">Apply</button>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-xs text-slate-500">
-                                                <span>Brightness</span>
-                                                <span>{brightness}%</span>
-                                            </div>
-                                            <input
-                                                type="range" min="50" max="150" value={brightness}
-                                                onChange={(e) => setBrightness(Number(e.target.value))}
-                                                className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-xs text-slate-500">
-                                                <span>Contrast</span>
-                                                <span>{contrast}%</span>
-                                            </div>
-                                            <input
-                                                type="range" min="50" max="150" value={contrast}
-                                                onChange={(e) => setContrast(Number(e.target.value))}
-                                                className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-xs text-slate-500">
-                                                <span>Hue</span>
-                                                <span>{hue}°</span>
-                                            </div>
-                                            <input
-                                                type="range" min="-180" max="180" value={hue}
-                                                onChange={(e) => setHue(Number(e.target.value))}
-                                                className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
-                                            />
-                                        </div>
-
-                                        <div className="pt-2 border-t border-slate-200">
-                                            <label className="block text-xs font-bold text-slate-700 mb-1">Refine with Text</label>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={refinementPrompt}
-                                                    onChange={(e) => setRefinementPrompt(e.target.value)}
-                                                    placeholder="Make it blue..."
-                                                    className="flex-1 text-xs border rounded p-2 outline-none focus:border-indigo-500"
-                                                />
-                                                <button
-                                                    onClick={handleRefine}
-                                                    disabled={!refinementPrompt}
-                                                    className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                                                >
-                                                    Refine
-                                                </button>
-                                            </div>
-                                        </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-6 text-primary/20">
+                                    <Wand2 size={96} className="animate-sway" />
+                                    <div className="text-center">
+                                        <p className="font-black text-2xl uppercase tracking-[0.2em] mb-2">等待召喚...</p>
+                                        <p className="text-sm font-bold opacity-50">在左側輸入描述來創造你的家具</p>
                                     </div>
-                                )}
+                                </div>
+                            )}
+
+                            {isGenerating && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm z-50 rounded-[2rem]">
+                                    <div className="w-24 h-24 relative">
+                                        <div className="absolute inset-0 border-8 border-primary/20 rounded-full" />
+                                        <div className="absolute inset-0 border-8 border-primary border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                    <p className="mt-6 text-primary font-black animate-bounce">AI 正在畫室裡精心描繪中...</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Floating Interaction Controls */}
+                        {generatedImage && !isGenerating && (
+                            <div className="absolute bottom-10 flex gap-4 opacity-0 group-hover:opacity-100 transition-all transform translate-y-4 group-hover:translate-y-0">
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className={`px-8 py-3 rounded-2xl font-black text-sm flex items-center gap-2 shadow-xl transition-all ${isEditing ? 'bg-primary text-white' : 'bg-white text-primary hover:bg-secondary'}`}
+                                >
+                                    <Sliders size={18} />
+                                    微調外觀
+                                </button>
                             </div>
-                            <div className="w-1/2 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Asset Name</label>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-purple-500 outline-none"
-                                        placeholder="Name your generated asset..."
-                                    />
+                        )}
+
+                        {/* Refine Overlay */}
+                        {isEditing && (
+                            <div className="absolute top-10 right-10 w-72 bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] shadow-2xl border-2 border-white space-y-6 animate-in slide-in-from-right-8 duration-500">
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-[10px] font-black text-primary/60 uppercase">
+                                            <span>亮度</span>
+                                            <span>{brightness}%</span>
+                                        </div>
+                                        <input type="range" min="50" max="150" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-full accent-primary h-2 bg-primary/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-[10px] font-black text-primary/60 uppercase">
+                                            <span>對比</span>
+                                            <span>{contrast}%</span>
+                                        </div>
+                                        <input type="range" min="50" max="150" value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className="w-full accent-primary h-2 bg-primary/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-[10px] font-black text-primary/60 uppercase">
+                                            <span>色相</span>
+                                            <span>{hue}°</span>
+                                        </div>
+                                        <input type="range" min="-180" max="180" value={hue} onChange={(e) => setHue(Number(e.target.value))} className="w-full accent-primary h-2 bg-primary/10 rounded-full appearance-none cursor-pointer" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">Description</label>
-                                    <textarea
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-purple-500 outline-none h-24 resize-none"
-                                        placeholder="Description..."
-                                    />
-                                </div>
-                                <div className="pt-4 grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={handleSaveGenerated}
-                                        disabled={!name}
-                                        className="py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-lg shadow-green-200 disabled:opacity-50 disabled:shadow-none transition-all transform active:scale-95"
-                                    >
-                                        Save to Inventory
-                                    </button>
-                                    <button
-                                        onClick={handleSaveAsCityStyle}
-                                        disabled={!name}
-                                        className="py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none transition-all transform active:scale-95"
-                                    >
-                                        Save as City Style
-                                    </button>
-                                </div>
+                                <button onClick={processImage} className="w-full py-3 bg-primary text-white rounded-xl font-black text-xs hover:opacity-90 transition-all shadow-lg shadow-primary/20">套用設定</button>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
-                    {!generatedImage && !isGenerating && (
-                        <div className="text-center py-20 text-slate-400">
-                            <Wand2 size={48} className="mx-auto mb-4 opacity-20" />
-                            <p>Enter a prompt above to generate a unique asset</p>
-                        </div>
-                    )}
-
-                    {isGenerating && (
-                        <div className="text-center py-20 text-purple-600">
-                            <Loader2 size={48} className="mx-auto mb-4 animate-spin" />
-                            <p className="animate-pulse">
-                                {useRealAI ? 'Sending request to AI Brain...' : 'Dreaming up your asset...'}
-                            </p>
-                        </div>
-                    )}
-
-                    {errorMsg && (
-                        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 text-sm flex items-center gap-2">
-                            <X size={16} />
-                            {errorMsg}
-                        </div>
-                    )}
+                    {/* Bottom Actions */}
+                    <div className="flex gap-4 p-1">
+                        <button
+                            onClick={handleSaveGenerated}
+                            disabled={!generatedImage || isGenerating}
+                            className="flex-1 h-20 bg-white border-4 border-primary/20 text-primary rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all hover:bg-primary/5 hover:border-primary/40 disabled:opacity-30 active:scale-95 shadow-xl shadow-primary/5"
+                        >
+                            <Package size={28} />
+                            存入背包
+                        </button>
+                        <button
+                            onClick={handleSaveAsCityStyle}
+                            disabled={!generatedImage || isGenerating}
+                            className="flex-1 h-20 bg-primary text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all hover:opacity-90 shadow-2xl shadow-primary/30 disabled:opacity-30 active:scale-95"
+                        >
+                            <Grid size={28} />
+                            發布到商店
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {errorMsg && (
+                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-rose-50 border-2 border-rose-200 text-rose-600 px-8 py-4 rounded-3xl font-black animate-in slide-in-from-top-10 shadow-2xl flex items-center gap-3 z-[100]">
+                    <span className="text-xl">⚠️</span>
+                    {errorMsg}
+                    <button onClick={() => setErrorMsg(null)} className="ml-4 hover:opacity-50">✕</button>
+                </div>
+            )}
         </div>
     );
 }

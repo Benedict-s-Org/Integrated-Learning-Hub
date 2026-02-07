@@ -4,7 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
 import { useAppContext } from './context/AppContext';
 import { useAuth } from './context/AuthContext';
-import Navigation from './components/Navigation/Navigation';
+import { UnifiedNavigation } from './components/UnifiedNavigation';
 import TextInput from './components/TextInput/TextInput';
 import WordSelection from './components/WordSelection/WordSelection';
 import MemorizationView from './components/MemorizationView/MemorizationView';
@@ -36,7 +36,7 @@ import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { WordSnakeGame } from './pages/WordSnakeGame';
-import { MemoryPalaceProvider } from './contexts/MemoryPalaceContext';
+import { MemoryPalaceProvider, useMemoryPalaceContext } from './contexts/MemoryPalaceContext';
 import { ClassDashboardPage } from './pages/ClassDashboardPage';
 import {
   Word,
@@ -88,6 +88,21 @@ function AppContent() {
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
   const { user, loading, toggleViewMode, isAdmin } = useAuth();
+
+  // Memory Palace Context Handlers
+  const {
+    toggleShop,
+    toggleStudio,
+    toggleEditor,
+    toggleUploader,
+    toggleMapEditor,
+    toggleAssetUpload,
+    toggleSpaceDesign,
+    toggleFurniturePanel,
+    toggleHistoryPanel,
+    toggleMemoryPanel,
+    setView
+  } = useMemoryPalaceContext();
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
@@ -772,15 +787,27 @@ function AppContent() {
 
   return (
     <>
-      <Navigation
+      <UnifiedNavigation
         currentPage={getCurrentPage()}
         onPageChange={handlePageChange}
-        userRole={user?.role || null}
         onLogin={handleLogin}
         isNavOpen={isNavOpen}
         onToggle={() => setIsNavOpen(!isNavOpen)}
+        // Memory Palace Handlers
+        onShop={toggleShop}
+        onCity={() => setView('map')}
+        onRegion={() => setView('region')}
+        onOpenStudio={toggleStudio}
+        onOpenUploader={toggleUploader}
+        onOpenEditor={toggleEditor}
+        onOpenSpaceDesign={toggleSpaceDesign}
+        onOpenMapEditor={toggleMapEditor}
+        onOpenAssetUpload={toggleAssetUpload}
+        onOpenFurniture={toggleFurniturePanel}
+        onOpenHistory={toggleHistoryPanel}
+        onOpenMemory={toggleMemoryPanel}
       />
-      <main className={`h-screen overflow-y-auto transition-all duration-300 ${isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20"}`}>
+      <main className={`h-screen overflow-y-auto transition-all duration-300 ${isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20"}`}>
         {renderCurrentView()}
       </main>
       {showLoginModal && (

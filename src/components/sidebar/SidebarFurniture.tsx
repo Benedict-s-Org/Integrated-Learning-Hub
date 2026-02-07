@@ -31,6 +31,7 @@ interface FurnitureItem {
   icon?: any;
   cost?: number;
   desc?: string;
+  spriteImages?: (string | null)[];
 }
 
 interface SidebarFurnitureProps {
@@ -132,7 +133,6 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
           {fullCatalog
             .filter((f) => inventory.includes(f.id))
             .map((item) => {
-              const Icon = item.icon || Sofa;
               return (
                 <div
                   key={item.id}
@@ -140,8 +140,14 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
                   onDragStart={() => onDragStart(item)}
                   className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl cursor-grab hover:border-indigo-300 hover:shadow-sm transition-all active:scale-95"
                 >
-                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <Icon size={18} className="text-slate-600" />
+                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    {item.icon && typeof item.icon === "function" ? (
+                      <item.icon size={18} className="text-slate-600" />
+                    ) : item.spriteImages?.[0] ? (
+                      <img src={item.spriteImages[0]} alt={item.name} className="w-full h-full object-contain" />
+                    ) : (
+                      <Sofa size={18} className="text-slate-600" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="font-bold text-sm text-slate-800">{item.name}</div>
@@ -351,7 +357,6 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
         {fullCatalog
           .filter((f) => inventory.includes(f.id))
           .map((item) => {
-            const Icon = item.icon || Sofa;
             return (
               <div
                 key={item.id}
@@ -359,8 +364,14 @@ export const SidebarFurniture: React.FC<SidebarFurnitureProps> = ({
                 onDragStart={() => onDragStart(item)}
                 className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl cursor-grab hover:border-indigo-300 hover:shadow-sm transition-all active:scale-95"
               >
-                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                  <Icon size={18} className="text-slate-600" />
+                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden">
+                  {item.icon && typeof item.icon === "function" ? (
+                    <item.icon size={18} className="text-slate-600" />
+                  ) : item.spriteImages?.[0] ? (
+                    <img src={item.spriteImages[0]} alt={item.name} className="w-full h-full object-contain" />
+                  ) : (
+                    <Sofa size={18} className="text-slate-600" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <div className="font-bold text-sm text-slate-800">{item.name}</div>

@@ -9,7 +9,7 @@ export interface FurnitureCategory {
 export interface FurnitureItem {
   id: string;
   name: string;
-  icon: string | LucideIcon | null;
+  icon?: string | LucideIcon | null;
   // cost: number; // Inconsistency: catalog uses price, type uses cost. Unified to price/cost?
   // Let's support both or pick one. The constants used `price`. The type used `cost`.
   // I will add price to type as optional or alias.

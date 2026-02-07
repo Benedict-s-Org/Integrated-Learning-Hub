@@ -219,7 +219,7 @@ export const FurnitureUploader: React.FC<FurnitureUploaderProps> = ({ onClose, o
     const newFurniture: CustomFurniture = {
       id: `custom_${Date.now()}`,
       name,
-      icon: ImageIcon,
+      icon: null,
       cost: parseInt(String(price)) || refPrice,
       desc: "管理員上傳的自定義家具",
       type: "sprite",

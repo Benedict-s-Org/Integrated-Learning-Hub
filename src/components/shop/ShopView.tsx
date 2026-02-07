@@ -59,87 +59,94 @@ export const ShopView: React.FC<ShopViewProps> = ({
   const [shopTab, setShopTab] = useState<"furniture" | "wall" | "floor" | "blueprint">("furniture");
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-slate-800 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden flex"
+        className="bg-background rounded-[2rem] shadow-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden flex border-4 border-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Sidebar - Category Selection */}
-        <div className="w-48 bg-slate-900 border-r border-slate-700 flex flex-col">
-          <div className="p-4 border-b border-slate-700">
-            <h3 className="text-sm font-bold text-slate-400 uppercase">商品類別</h3>
+        <div className="w-56 bg-secondary/50 border-r border-primary/10 flex flex-col">
+          <div className="p-6 border-b border-primary/10">
+            <h3 className="text-xs font-bold text-primary/60 uppercase tracking-widest text-center">商品類別</h3>
           </div>
-          <div className="flex-1 p-2 space-y-1">
+          <div className="flex-1 p-3 space-y-2">
             <button
               onClick={() => setShopTab("furniture")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                shopTab === "furniture"
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              }`}
+              className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl text-left transition-all ${shopTab === "furniture"
+                ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                : "text-primary/70 hover:bg-white hover:text-primary"
+                }`}
             >
               <Package size={20} />
-              <span className="font-medium">購買家具</span>
+              <span className="font-bold">購買家具</span>
             </button>
             <button
               onClick={() => setShopTab("wall")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                shopTab === "wall" ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              }`}
+              className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl text-left transition-all ${shopTab === "wall"
+                ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                : "text-primary/70 hover:bg-white hover:text-primary"
+                }`}
             >
               <Square size={20} />
-              <span className="font-medium">購買牆壁</span>
+              <span className="font-bold">購買牆壁</span>
             </button>
             <button
               onClick={() => setShopTab("floor")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                shopTab === "floor" ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              }`}
+              className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl text-left transition-all ${shopTab === "floor"
+                ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                : "text-primary/70 hover:bg-white hover:text-primary"
+                }`}
             >
               <Grid size={20} />
-              <span className="font-medium">購買地板</span>
+              <span className="font-bold">購買地板</span>
             </button>
             <button
               onClick={() => setShopTab("blueprint")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                shopTab === "blueprint"
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              }`}
+              className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl text-left transition-all ${shopTab === "blueprint"
+                ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                : "text-primary/70 hover:bg-white hover:text-primary"
+                }`}
             >
               <Layout size={20} />
-              <span className="font-medium">房間藍圖</span>
+              <span className="font-bold">房間藍圖</span>
               {publishedBlueprints.length > 0 && (
-                <span className="ml-auto bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                <span className="ml-auto bg-accent text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
                   {publishedBlueprints.length}
                 </span>
               )}
             </button>
           </div>
-          <div className="p-4 border-t border-slate-700">
-            <div className="text-xs text-slate-500">
-              已上傳: {fullCatalog.length} 家具 / {customWalls.length} 牆壁 / {customFloors.length} 地板
+          <div className="p-6 border-t border-primary/10 bg-white/30 text-center">
+            <div className="text-[10px] text-primary/50 font-medium">
+              庫存: {fullCatalog.length} 家具 / {customWalls.length} 牆 / {customFloors.length} 地
             </div>
           </div>
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col bg-white/40">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-slate-700">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              🏪{" "}
+          <div className="flex items-center justify-between p-8 border-b border-primary/10">
+            <h2 className="text-3xl font-extrabold text-primary flex items-center gap-3">
               {shopTab === "furniture"
-                ? "家具商店"
+                ? "🪑 家具商店"
                 : shopTab === "wall"
-                  ? "牆壁商店"
+                  ? "🧱 牆壁樣式"
                   : shopTab === "floor"
-                    ? "地板商店"
-                    : "房間藍圖"}
+                    ? "🪵 地板樣式"
+                    : "🏠 房間藍圖"}
             </h2>
-            <div className="flex items-center gap-4">
-              <span className="text-yellow-400 font-bold text-lg">💰 {isAdmin ? "♾️" : coins}</span>
-              <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors text-2xl">
+            <div className="flex items-center gap-6">
+              <div className="bg-amber-100 px-4 py-2 rounded-full border border-amber-200">
+                <span className="text-amber-600 font-black text-xl flex items-center gap-2">
+                  <span className="text-lg">💰</span>
+                  {isAdmin ? "♾️" : coins.toLocaleString()}
+                </span>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all transform hover:rotate-90"
+              >
                 ✕
               </button>
             </div>
@@ -151,21 +158,21 @@ export const ShopView: React.FC<ShopViewProps> = ({
               <>
                 {/* House Upgrade Section */}
                 {nextHouse && (
-                  <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 rounded-xl p-5 border border-indigo-500/30">
-                    <h3 className="text-lg font-semibold text-indigo-300 mb-3">🏠 升級房屋</h3>
+                  <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-[1.5rem] p-6 border-2 border-primary/20 shadow-inner">
+                    <h3 className="text-xl font-black text-primary mb-4 flex items-center gap-2">🏠 升級房屋</h3>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white font-medium">
+                        <p className="text-primary/80 font-bold">
                           {currentHouse.name} → {nextHouse.name}
                         </p>
-                        <p className="text-slate-400 text-sm">
-                          容量: {currentHouse.capacity} → {nextHouse.capacity} 個位置
+                        <p className="text-primary/50 text-xs font-medium">
+                          容量: {currentHouse.maxItems} → {nextHouse.maxItems} 個位置
                         </p>
                       </div>
                       <button
                         onClick={onUpgrade}
                         disabled={!isAdmin && coins < nextHouse.cost}
-                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                        className="px-8 py-3 bg-primary hover:opacity-90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black rounded-2xl transition-all shadow-lg shadow-primary/20 hover:scale-105 active:scale-95"
                       >
                         升級 💰{nextHouse.cost}
                       </button>
@@ -179,27 +186,28 @@ export const ShopView: React.FC<ShopViewProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {fullCatalog.map((item) => {
                       const owned = inventory.includes(item.id);
-                      const canAfford = isAdmin || coins >= item.cost;
+                      const cost = item.cost ?? item.price ?? 0;
+                      const canAfford = isAdmin || coins >= cost;
                       const IconComponent = item.icon;
+                      const customItem = item as any;
 
                       return (
                         <div
                           key={item.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${
-                            owned
-                              ? "border-green-500/50 bg-green-900/20"
-                              : canAfford
-                                ? "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                                : "border-slate-600 opacity-60"
-                          }`}
+                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${owned
+                            ? "border-green-500/50 bg-green-900/20"
+                            : canAfford
+                              ? "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
+                              : "border-slate-600 opacity-60"
+                            }`}
                         >
                           <div className="mb-2">
                             {IconComponent && typeof IconComponent === "function" ? (
-                              <IconComponent className="w-10 h-10 text-indigo-400" />
-                            ) : item.spriteImages?.[0] ? (
-                              <img src={item.spriteImages[0]} alt={item.name} className="w-10 h-10 object-contain" />
+                              <IconComponent className="w-10 h-10 text-primary" />
+                            ) : customItem.spriteImages?.[0] ? (
+                              <img src={customItem.spriteImages[0]} alt={item.name} className="w-10 h-10 object-contain" />
                             ) : (
-                              <Package className="w-10 h-10 text-indigo-400" />
+                              <Package className="w-10 h-10 text-primary" />
                             )}
                           </div>
                           <h4 className="text-white font-medium text-sm">{item.name}</h4>
@@ -211,9 +219,9 @@ export const ShopView: React.FC<ShopViewProps> = ({
                               <button
                                 onClick={() => onBuy(item)}
                                 disabled={!canAfford}
-                                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                                className="w-full py-2 bg-primary hover:opacity-90 disabled:bg-primary/20 disabled:text-primary/40 disabled:cursor-not-allowed text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-primary/20 hover:scale-[1.05] active:scale-[0.95]"
                               >
-                                💰 {item.cost}
+                                💰 {cost}
                               </button>
                             )}
                           </div>
@@ -241,11 +249,10 @@ export const ShopView: React.FC<ShopViewProps> = ({
                       return (
                         <div
                           key={wall.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${
-                            isActive
-                              ? "border-green-500 bg-green-900/20"
-                              : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                          }`}
+                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${isActive
+                            ? "border-green-500 bg-green-900/20"
+                            : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
+                            }`}
                         >
                           <div className="mb-3 flex gap-2">
                             <div className="flex-1 aspect-square rounded-lg overflow-hidden bg-slate-600">
@@ -295,11 +302,10 @@ export const ShopView: React.FC<ShopViewProps> = ({
                       return (
                         <div
                           key={floor.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${
-                            isActive
-                              ? "border-green-500 bg-green-900/20"
-                              : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                          }`}
+                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${isActive
+                            ? "border-green-500 bg-green-900/20"
+                            : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
+                            }`}
                         >
                           <div className="mb-3 aspect-square rounded-lg overflow-hidden bg-slate-600">
                             <img src={floor.image} alt={floor.name} className="w-full h-full object-cover" />
@@ -346,13 +352,12 @@ export const ShopView: React.FC<ShopViewProps> = ({
                       return (
                         <div
                           key={blueprint.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${
-                            owned
-                              ? "border-green-500/50 bg-green-900/20"
-                              : canAfford
-                                ? "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                                : "border-slate-600 opacity-60"
-                          }`}
+                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${owned
+                            ? "border-green-500/50 bg-green-900/20"
+                            : canAfford
+                              ? "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
+                              : "border-slate-600 opacity-60"
+                            }`}
                         >
                           <div className="mb-3 aspect-video rounded-lg overflow-hidden bg-slate-600">
                             {blueprint.preview ? (
