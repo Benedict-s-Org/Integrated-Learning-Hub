@@ -22,6 +22,8 @@ import { AssetUploadCenter } from "@/components/ui-builder/AssetUploadCenter";
 import { MemoryPointModal } from "@/components/MemoryPointModal";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
 import { CustomFurniture } from "@/types/furniture";
+import { ThemeDesigner } from "@/components/admin/ThemeDesigner";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 // Inner component to consume context
 function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
@@ -60,6 +62,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     toggleMapEditor,
     toggleAssetUpload,
     toggleSpaceDesign,
+    toggleThemeDesigner,
     toggleFurniturePanel,
     toggleHistoryPanel,
     toggleMemoryPanel,
@@ -76,6 +79,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     showMapEditor,
     showAssetUpload,
     showSpaceDesign,
+    showThemeDesigner,
     showFurniturePanel,
     showHistoryPanel,
     showMemoryPanel,
@@ -553,6 +557,25 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Theme Designer Modal */}
+      {showThemeDesigner && (
+        <div className="fixed inset-0 z-50 flex">
+          <ThemeProvider>
+            <div className="w-full h-full bg-background flex flex-col">
+              <div className="p-4 border-b flex justify-between items-center bg-card">
+                <h3 className="font-bold text-xl">🎨 主題設計</h3>
+                <button onClick={toggleThemeDesigner} className="p-2 hover:bg-muted rounded-full">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <ThemeDesigner />
+              </div>
+            </div>
+          </ThemeProvider>
         </div>
       )}
 

@@ -8,6 +8,7 @@ import {
   Layout,
   Map as MapIcon,
   AlertTriangle,
+  Paintbrush,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
 
@@ -59,6 +60,11 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       path: "/admin/errors",
       label: "錯誤知識庫",
       icon: <AlertTriangle className="w-4 h-4" />,
+    },
+    {
+      path: "/admin/theme",
+      label: "主題設計",
+      icon: <Paintbrush className="w-4 h-4" />,
     },
   ];
 

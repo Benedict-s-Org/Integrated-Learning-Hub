@@ -34,6 +34,7 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
         showMapEditor: boolean;
         showAssetUpload: boolean;
         showSpaceDesign: boolean;
+        showThemeDesigner: boolean;
         showFurniturePanel: boolean;
         showHistoryPanel: boolean;
         showMemoryPanel: boolean;
@@ -47,6 +48,7 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
     toggleMapEditor: () => void;
     toggleAssetUpload: () => void;
     toggleSpaceDesign: () => void;
+    toggleThemeDesigner: () => void;
     toggleFurniturePanel: () => void;
     toggleHistoryPanel: () => void;
     toggleMemoryPanel: () => void;
@@ -69,6 +71,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         showMapEditor: false,
         showAssetUpload: false,
         showSpaceDesign: false,
+        showThemeDesigner: false,
         showFurniturePanel: false,
         showHistoryPanel: false,
         showMemoryPanel: false,
@@ -91,6 +94,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
     const toggleMapEditor = () => setUiState(prev => ({ ...prev, showMapEditor: !prev.showMapEditor }));
     const toggleAssetUpload = () => setUiState(prev => ({ ...prev, showAssetUpload: !prev.showAssetUpload }));
     const toggleSpaceDesign = () => setUiState(prev => ({ ...prev, showSpaceDesign: !prev.showSpaceDesign }));
+    const toggleThemeDesigner = () => setUiState(prev => ({ ...prev, showThemeDesigner: !prev.showThemeDesigner }));
     const toggleFurniturePanel = () => setUiState(prev => ({ ...prev, showFurniturePanel: !prev.showFurniturePanel }));
     const toggleHistoryPanel = () => setUiState(prev => ({ ...prev, showHistoryPanel: !prev.showHistoryPanel }));
     const toggleMemoryPanel = () => setUiState(prev => ({ ...prev, showMemoryPanel: !prev.showMemoryPanel }));
@@ -111,6 +115,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         toggleMapEditor,
         toggleAssetUpload,
         toggleSpaceDesign,
+        toggleThemeDesigner,
         toggleFurniturePanel,
         toggleHistoryPanel,
         toggleMemoryPanel,

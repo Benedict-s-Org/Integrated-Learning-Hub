@@ -33,6 +33,7 @@ import {
     Layout,
     BarChart3,
     FolderUp,
+    Palette,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
@@ -57,6 +58,7 @@ interface UnifiedNavigationProps {
     onOpenUploader?: () => void;
     onOpenEditor?: () => void;
     onOpenSpaceDesign?: () => void;
+    onOpenThemeDesigner?: () => void;
     onOpenMapEditor?: () => void;
     onOpenAssetUpload?: () => void;
     onOpenFurniture?: () => void;
@@ -77,6 +79,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     onOpenUploader,
     onOpenEditor,
     onOpenSpaceDesign,
+    onOpenThemeDesigner,
     onOpenMapEditor,
     onOpenAssetUpload,
     onOpenFurniture,
@@ -273,6 +276,11 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             icon={BarChart3}
                             label="User Progress"
                             onClick={() => (window.location.href = '/admin/progress')}
+                        />
+                        <NavItem
+                            icon={Palette}
+                            label="Theme Designer"
+                            onClick={onOpenThemeDesigner}
                         />
                     </NavSection>
                 )}

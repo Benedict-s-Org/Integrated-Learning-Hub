@@ -98,6 +98,7 @@ function AppContent() {
     toggleMapEditor,
     toggleAssetUpload,
     toggleSpaceDesign,
+    toggleThemeDesigner,
     toggleFurniturePanel,
     toggleHistoryPanel,
     toggleMemoryPanel,
@@ -801,6 +802,7 @@ function AppContent() {
         onOpenUploader={toggleUploader}
         onOpenEditor={toggleEditor}
         onOpenSpaceDesign={toggleSpaceDesign}
+        onOpenThemeDesigner={toggleThemeDesigner}
         onOpenMapEditor={toggleMapEditor}
         onOpenAssetUpload={toggleAssetUpload}
         onOpenFurniture={toggleFurniturePanel}
