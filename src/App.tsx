@@ -277,8 +277,7 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
-    appState.page === 'classDashboard' ||
-    appState.page === 'quickReward';
+    appState.page === 'classDashboard';
 
   if (!user && isRestrictedPage) {
     return <Login />;
