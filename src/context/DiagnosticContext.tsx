@@ -22,7 +22,8 @@ export type PageType =
   | 'proofreadingAssignments'
   | 'memorization-assignment'
   | 'practice'
-  | 'assignedPractice';
+  | 'assignedPractice'
+  | 'quickReward';
 
 interface DiagnosticContextType {
   isEnabled: boolean;
