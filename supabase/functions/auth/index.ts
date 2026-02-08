@@ -58,6 +58,8 @@ interface UpdateUserRequest {
   display_name?: string;
   role?: 'admin' | 'user';
   class?: string;
+  className?: string; // Support for className aliasing
+  classNumber?: number;
 }
 
 interface AdminResetPasswordRequest {
@@ -541,7 +543,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/update-user")) {
-      const { adminUserId, userId, username, display_name, role, class: className, classNumber }: UpdateUserRequest = await req.json();
+      const body = await req.json();
+      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber }: UpdateUserRequest = body;
+      const finalClass = classInput || classNameInput;
 
       try {
         const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
@@ -550,8 +554,8 @@ Deno.serve(async (req: Request) => {
           new_username: username || null,
           new_display_name: display_name || null,
           new_role: role || null,
-          new_class: className || null,
-          new_seat_number: classNumber || null,
+          new_class: finalClass || null,
+          new_seat_number: classNumber === 0 ? 0 : (classNumber || null),
         });
 
         if (error) {
@@ -568,7 +572,8 @@ Deno.serve(async (req: Request) => {
         const authUpdates: any = {};
         if (role) authUpdates.role = role;
         if (display_name) authUpdates.display_name = display_name;
-        if (className) authUpdates.class = className;
+        if (finalClass) authUpdates.class = finalClass;
+        if (classNumber !== undefined) authUpdates.seat_number = classNumber;
 
         if (Object.keys(authUpdates).length > 0) {
           await supabase.auth.admin.updateUserById(userId, {

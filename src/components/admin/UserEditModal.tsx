@@ -195,7 +195,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
       // Add Class and Class Number to update data
       // Note: We need to pass these to the edge function
-      (updateData as any).className = className;
+      (updateData as any).class = className;
       (updateData as any).classNumber = classNumber ? parseInt(classNumber) : null;
 
       const { data, error: fnError } = await supabase.functions.invoke("auth/update-user", {
