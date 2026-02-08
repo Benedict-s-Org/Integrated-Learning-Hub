@@ -3,7 +3,17 @@ import {
     X, Heart, Star, Zap, Trophy, BookOpen, Users,
     AlertCircle, Clock, XCircle, Plus, Trash2, Edit2, Check,
     Lightbulb, Flame, Award, ThumbsUp, Medal, Crown, Target,
-    Smile, Frown, AlertTriangle, Ban
+    Smile, Frown, AlertTriangle, Ban,
+    Gift, Rocket, Gem, PartyPopper, ShieldCheck, Sun, Moon,
+    Compass, Music, Gamepad2, Camera, Palette, Coffee,
+    Pizza, IceCream, Apple, Cherry, Banana, Bike, Car, Plane,
+    Cloud, Rainbow, Ghost, Cat, Dog, Rabbit, ThumbsDown,
+    Skull, CloudRain, Bomb, CloudOff, ZapOff, ShieldAlert,
+    VolumeX, WifiOff, Trash, History, UserMinus, UserX,
+    ShieldX, Flag, Anchor, Key, Hammer, Wrench, Search,
+    Bell, Mail, Link, MapPin, Clipboard, Calendar, Briefcase,
+    Glasses, Ear, Eye, HandMetal, HeartHandshake, Mic,
+    MessageSquare, Send, Share2, Sparkles, Wand2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -26,10 +36,24 @@ interface ClassReward {
 
 // Map string icon names to Lucide components
 const ICON_MAP: Record<string, any> = {
-    Heart, Star, Zap, Trophy, BookOpen, Users,
-    AlertCircle, Clock, XCircle, Lightbulb, Flame,
-    Award, ThumbsUp, Medal, Crown, Target,
-    Smile, Frown, AlertTriangle, Ban
+    // Frequently Chosen / Positive
+    Star, Heart, Trophy, Medal, Award, Crown, Thumbup: ThumbsUp, Zap, Sparkles, PartyPopper, Gift, Gem, Rocket, Target, Smile,
+    // Academic / Behavior
+    BookOpen, Lightbulb, Clock, Check, ShieldCheck, Flag, Users,
+    // Hobbies / Fun
+    Music, Mic, Gamepad2, Palette, Camera, Wand2, Ghost,
+    // Daily Life / Food
+    Coffee, Pizza, IceCream, Apple, Cherry, Banana,
+    // Nature / Travel
+    Flame, Sun, Moon, Rainbow, Cloud, Rain: CloudRain, Compass, MapPin, Bike, Car, Plane,
+    // Animals
+    Cat, Dog, Rabbit,
+    // Neutral / Tools
+    Search, Bell, Mail, Link, Clipboard, Calendar, Briefcase, Key, Hammer, Wrench, Glasses, Ear, Eye,
+    // Community / Relationship
+    HeartHandshake, HandMetal, MessageSquare, Send, Share2,
+    // Consequences / Negative
+    ThumbsDown, Frown, AlertCircle, AlertTriangle, Ban, XCircle, Skull, Bomb, CloudOff, ZapOff, ShieldAlert, ShieldX, VolumeX, WifiOff, UserMinus, UserX, Trash, History
 };
 
 const COLOR_OPTIONS = [
