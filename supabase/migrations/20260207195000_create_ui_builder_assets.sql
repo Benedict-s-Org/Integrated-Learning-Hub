@@ -14,14 +14,17 @@ CREATE TABLE IF NOT EXISTS public.ui_builder_assets (
 ALTER TABLE public.ui_builder_assets ENABLE ROW LEVEL SECURITY;
 
 -- Policies for ui_builder_assets
+DROP POLICY IF EXISTS "Admins can view UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can view UI assets" ON public.ui_builder_assets
     FOR SELECT TO authenticated
     USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can insert UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can insert UI assets" ON public.ui_builder_assets
     FOR INSERT TO authenticated
     WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));
 
+DROP POLICY IF EXISTS "Admins can delete UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can delete UI assets" ON public.ui_builder_assets
     FOR DELETE TO authenticated
     USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));

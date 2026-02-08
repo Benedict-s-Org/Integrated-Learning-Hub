@@ -25,6 +25,7 @@ ALTER TABLE public.target_behaviors ENABLE ROW LEVEL SECURITY;
 
 -- Policies for coin_transactions
 -- Admins can view all transactions
+DROP POLICY IF EXISTS "Admins can view all coin transactions" ON public.coin_transactions;
 CREATE POLICY "Admins can view all coin transactions"
     ON public.coin_transactions
     FOR SELECT
@@ -36,12 +37,14 @@ CREATE POLICY "Admins can view all coin transactions"
     );
 
 -- Users can view their own transactions
+DROP POLICY IF EXISTS "Users can view their own coin transactions" ON public.coin_transactions;
 CREATE POLICY "Users can view their own coin transactions"
     ON public.coin_transactions
     FOR SELECT
     USING (auth.uid() = user_id);
 
 -- Admins can insert transactions (award coins)
+DROP POLICY IF EXISTS "Admins can insert coin transactions" ON public.coin_transactions;
 CREATE POLICY "Admins can insert coin transactions"
     ON public.coin_transactions
     FOR INSERT
@@ -54,12 +57,14 @@ CREATE POLICY "Admins can insert coin transactions"
 
 -- Policies for target_behaviors
 -- Everyone can view active behaviors (for display)
+DROP POLICY IF EXISTS "Everyone can view active target behaviors" ON public.target_behaviors;
 CREATE POLICY "Everyone can view active target behaviors"
     ON public.target_behaviors
     FOR SELECT
     USING (true);
 
 -- Only admins can manage behaviors
+DROP POLICY IF EXISTS "Admins can manage target behaviors" ON public.target_behaviors;
 CREATE POLICY "Admins can manage target behaviors"
     ON public.target_behaviors
     FOR ALL
@@ -77,4 +82,5 @@ INSERT INTO public.target_behaviors (label, icon, coin_value, category) VALUES
 ('Homework Completion', 'BookCheck', 5, 'Academic'),
 ('Insightful Question', 'Lightbulb', 3, 'Academic'),
 ('Perfect Attendance', 'CalendarCheck', 5, 'Attendance'),
-('Positive Attitude', 'Smile', 2, 'Behavior');
+('Positive Attitude', 'Smile', 2, 'Behavior')
+ON CONFLICT DO NOTHING;
