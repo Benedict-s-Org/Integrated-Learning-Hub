@@ -20,47 +20,86 @@ interface UserWithCoins {
 
 export function ClassDashboardPage() {
     const { isAdmin, user: currentUser } = useAuth();
+
+    // Guest Mode State
+    const searchParams = new URLSearchParams(window.location.search);
+    const token = searchParams.get('token');
+    const [isGuestMode, setIsGuestMode] = useState(!!token);
+    const [guestToken] = useState<string | null>(token);
+
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
-    const [allUsers, setAllUsers] = useState<UserWithCoins[]>([]);
+
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const { data: authData, error: authError } = await supabase.functions.invoke('auth/list-users', {
-                body: { adminUserId: currentUser?.id }
-            });
+            let usersData = [];
 
-            if (authError) throw authError;
+            if (isGuestMode && guestToken) {
+                const { data: verifyData, error: verifyError } = await supabase.functions.invoke('public-access/verify', {
+                    body: { token: guestToken }
+                });
 
-            const { data: roomData, error: roomError } = await supabase
-                .from('user_room_data')
-                .select('user_id, coins');
+                if (verifyError || !verifyData.valid) {
+                    setIsGuestMode(false);
+                    alert("Invalid or expired link");
+                    return;
+                }
 
-            if (roomError) {
-                console.warn('Error fetching room data:', roomError);
+                const { data: listData, error: listError } = await supabase.functions.invoke('public-access/list-users', {
+                    body: { token: guestToken }
+                });
+                if (listError) throw listError;
+                usersData = listData.users;
+
+            } else {
+                const { data: authData, error: authError } = await supabase.functions.invoke('auth/list-users', {
+                    body: { adminUserId: currentUser?.id }
+                });
+                if (authError) throw authError;
+                usersData = authData.users;
             }
 
-            const roomDataMap = new Map((roomData || []).map(r => [r.user_id, r.coins]));
+            let finalUsers: UserWithCoins[] = [];
 
-            const usersWithCoins: UserWithCoins[] = (authData.users || []).map((u: any) => ({
-                id: u.id,
-                display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                coins: roomDataMap.get(u.id) || 0,
-                class: u.class || u.user_metadata?.class || 'Unassigned',
-                seat_number: u.seat_number || null,
-                email: u.email || '',
-                created_at: u.created_at || new Date().toISOString(),
-                is_admin: u.role === 'admin'
-            }));
+            if (isGuestMode) {
+                finalUsers = usersData.map((u: any) => ({
+                    id: u.id,
+                    display_name: u.display_name || u.user_metadata?.display_name || u.email,
+                    avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
+                    coins: u.coins || 0,
+                    class: u.class || u.user_metadata?.class || 'Unassigned',
+                    seat_number: u.seat_number || null,
+                    email: u.email || '',
+                    created_at: u.created_at || new Date().toISOString(),
+                    is_admin: u.role === 'admin'
+                }));
+            } else {
+                const { data: roomData, error: roomError } = await supabase
+                    .from('user_room_data')
+                    .select('user_id, coins');
 
-            setAllUsers(usersWithCoins);
+                if (roomError) console.warn('Error fetching room data:', roomError);
+                const roomDataMap = new Map((roomData || []).map(r => [r.user_id, r.coins]));
 
-            const grouped = usersWithCoins.reduce((acc, user) => {
+                finalUsers = usersData.map((u: any) => ({
+                    id: u.id,
+                    display_name: u.display_name || u.user_metadata?.display_name || u.email,
+                    avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
+                    coins: roomDataMap.get(u.id) || 0,
+                    class: u.class || u.user_metadata?.class || 'Unassigned',
+                    seat_number: u.seat_number || null,
+                    email: u.email || '',
+                    created_at: u.created_at || new Date().toISOString(),
+                    is_admin: u.role === 'admin'
+                }));
+            }
+
+            const grouped = finalUsers.reduce((acc, user) => {
                 const className = user.class || 'Unassigned';
                 if (!acc[className]) {
                     acc[className] = [];
@@ -83,62 +122,71 @@ export function ClassDashboardPage() {
     };
 
     useEffect(() => {
-        if (isAdmin && currentUser) {
+        if (isGuestMode && guestToken) {
+            fetchUsers();
+        } else if (isAdmin && currentUser) {
             fetchUsers();
         }
-    }, [isAdmin, currentUser]);
+    }, [isAdmin, currentUser, isGuestMode, guestToken]);
 
-    const handleAwardCoins = async (userIds: string[], amount: number) => {
+    const handleAwardCoins = async (userIds: string[], amount: number, reason?: string) => {
         try {
-            for (const userId of userIds) {
-                const { error } = await supabase.rpc('increment_room_coins' as any, {
-                    target_user_id: userId,
-                    amount: amount
+            if (isGuestMode) {
+                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
+                    body: {
+                        token: guestToken,
+                        targetUserIds: userIds,
+                        amount: amount,
+                        reason: reason || 'Class Reward'
+                    }
                 });
 
-                if (error) {
-                    console.error(`Failed to award coins to ${userId}:`, error);
+                if (error) throw error;
+                alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
+            } else {
+                for (const userId of userIds) {
+                    const { error } = await supabase.rpc('increment_room_coins' as any, {
+                        target_user_id: userId,
+                        amount: amount,
+                        log_reason: reason || 'Class Reward',
+                        log_admin_id: currentUser?.id
+                    });
+                    if (error) console.error(`Failed to award coins to ${userId}:`, error);
                 }
+                await fetchUsers();
             }
-            await fetchUsers();
             setShowAwardModal(false);
             setSelectedForAward([]);
         } catch (err) {
-            console.error('Error awarding coins:', err);
-            alert('Failed to award coins');
+            console.error('Error awarding/requesting coins:', err);
+            alert('Failed to process request');
         }
     };
 
     const handleReorder = async (newOrder: UserWithCoins[]) => {
+        if (isGuestMode) return;
         try {
             console.log('Starting reorder for', newOrder.length, 'students');
 
             const updates = newOrder.map((student, index) => ({
                 userId: student.id,
                 classNumber: index + 1,
-                class: student.class // Maintain existing class name
+                class: student.class
             }));
 
-            const { data, error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+            const { error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates,
-                    syncAuthMetadata: false // Skip slow sync
+                    syncAuthMetadata: false
                 }
             });
 
             if (error) throw error;
-
-            if (data?.errors && data.errors.length > 0) {
-                console.warn('Some reorder updates failed:', data.errors);
-            }
-
-            console.log('Bulk update successful, refreshing users...');
             await fetchUsers();
         } catch (err) {
             console.error('Failed to reorder students:', err);
-            alert('Failed to save order. Please check console.');
-            throw err;
+            alert('Failed to save order');
         }
     };
 
@@ -150,7 +198,7 @@ export function ClassDashboardPage() {
         setSelectedStudent(null);
     };
 
-    if (!isAdmin) {
+    if (!isAdmin && !isGuestMode) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
     }
 
@@ -159,11 +207,15 @@ export function ClassDashboardPage() {
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-end mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900">Class Dashboard</h1>
-                        <p className="text-slate-500">Manage student rewards and feedback</p>
+                        <h1 className="text-3xl font-bold text-slate-900">
+                            {isGuestMode ? 'Class View (Guest)' : 'Class Dashboard'}
+                        </h1>
+                        <p className="text-slate-500">
+                            {isGuestMode ? 'Request rewards for students' : 'Manage student rewards and feedback'}
+                        </p>
                     </div>
 
-                    {isAdmin && (
+                    <div className="flex gap-2">
                         <button
                             onClick={() => {
                                 setSelectedForAward([]);
@@ -172,9 +224,9 @@ export function ClassDashboardPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all"
                         >
                             <Settings2 size={20} className="text-slate-400" />
-                            Manage Rewards
+                            {isGuestMode ? 'Request Reward' : 'Manage Rewards'}
                         </button>
-                    )}
+                    </div>
                 </div>
 
                 <div className="space-y-8">
@@ -206,7 +258,7 @@ export function ClassDashboardPage() {
                 isOpen={showAwardModal}
                 onClose={() => setShowAwardModal(false)}
                 selectedCount={selectedForAward.length}
-                onAward={(amount) => handleAwardCoins(selectedForAward, amount)}
+                onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
             />
 
             <StudentProfileModal
@@ -214,7 +266,10 @@ export function ClassDashboardPage() {
                 onClose={handleCloseProfile}
                 student={selectedStudent}
                 onUpdateCoins={fetchUsers}
+                isGuestMode={isGuestMode}
+                guestToken={guestToken || undefined}
             />
+
         </div>
     );
 }

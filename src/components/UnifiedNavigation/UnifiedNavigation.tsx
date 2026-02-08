@@ -5,6 +5,7 @@ import {
     Mic,
     Zap,
     Pencil,
+    Bell,
     Home,
     TrendingUp,
     ClipboardList,
@@ -65,6 +66,8 @@ interface UnifiedNavigationProps {
     onOpenFurniture?: () => void;
     onOpenHistory?: () => void;
     onOpenMemory?: () => void;
+    pendingCount?: number;
+    onOpenNotifications?: () => void;
 }
 
 export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
@@ -86,6 +89,8 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     onOpenFurniture,
     onOpenHistory,
     onOpenMemory,
+    pendingCount = 0,
+    onOpenNotifications,
 }) => {
     const { user, signOut, toggleViewMode, isUserView, isAdmin } = useAuth();
     const isInCommunity = currentPage === 'learningHub';
@@ -324,6 +329,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             icon={Users}
                             label="User Management"
                             onClick={() => (window.location.href = '/admin/users')}
+                        />
+                        <NavItem
+                            icon={Bell}
+                            label="Notifications"
+                            onClick={onOpenNotifications}
+                            badge={pendingCount}
                         />
 
                         <div className="my-2 border-t border-purple-100 mx-2" />

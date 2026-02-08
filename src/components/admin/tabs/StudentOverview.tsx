@@ -9,6 +9,8 @@ interface StudentOverviewProps {
         coins: number;
     };
     onUpdateCoins: () => void;
+    isGuestMode?: boolean;
+    guestToken?: string;
 }
 
 interface Transaction {
@@ -26,7 +28,7 @@ interface TargetBehavior {
     category: string;
 }
 
-export function StudentOverview({ student, onUpdateCoins }: StudentOverviewProps) {
+export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, guestToken }: StudentOverviewProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [behaviors, setBehaviors] = useState<TargetBehavior[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -77,34 +79,40 @@ export function StudentOverview({ student, onUpdateCoins }: StudentOverviewProps
 
         setIsSubmitting(true);
         try {
-            // 1. Update Room Data (Actual Balance)
-            const { error: roomError } = await supabase.rpc('increment_room_coins', {
-                target_user_id: student.id,
-                amount: amount
-            });
+            if (isGuestMode) {
+                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
+                    body: {
+                        token: guestToken,
+                        targetUserIds: [student.id],
+                        amount: amount,
+                        reason: reason
+                    }
+                });
 
-            if (roomError) throw roomError;
-
-            // 2. Log Transaction History
-            const { error: logError } = await (supabase
-                .from('coin_transactions' as any)
-                .insert({
-                    user_id: student.id,
+                if (error) throw error;
+                alert('Reward request submitted for approval!');
+            } else {
+                // 1. Update Room Data (Actual Balance) via Admin RPC
+                const { error: roomError } = await (supabase.rpc as any)('increment_room_coins', {
+                    target_user_id: student.id,
                     amount: amount,
-                    reason: reason
-                }) as any);
+                    log_reason: reason,
+                    log_admin_id: (await supabase.auth.getUser()).data.user?.id
+                });
 
-            if (logError) console.error('Failed to log transaction:', logError);
+                if (roomError) throw roomError;
 
-            // 3. Refresh UI
-            await fetchData();
-            onUpdateCoins(); // Update parent component
+                // 2. Refresh UI
+                await fetchData();
+                onUpdateCoins(); // Update parent component
+            }
+
             setManualAmount('0');
             setManualReason('');
 
         } catch (err) {
             console.error('Error awarding coins:', err);
-            alert('Failed to update coins');
+            alert(isGuestMode ? 'Failed to submit request' : 'Failed to update coins');
         } finally {
             setIsSubmitting(false);
         }

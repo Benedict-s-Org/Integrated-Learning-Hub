@@ -19,6 +19,8 @@ import { FlowithTestPage } from './pages/FlowithTestPage';
 import { WordSnakeGame } from './pages/WordSnakeGame';
 import { ClassDashboardPage } from './pages/ClassDashboardPage';
 import { QuickRewardPage } from './pages/QuickRewardPage';
+import { PendingRewardsModal } from './components/admin/PendingRewardsModal';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Word,
   MemorizationState,
@@ -140,6 +142,8 @@ function AppContent() {
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
+  const [pendingCount, setPendingCount] = useState(0);
+  const [showPendingModal, setShowPendingModal] = useState(false);
 
   // Global keyboard shortcut for quick toggle (Alt+S)
   useEffect(() => {
@@ -168,6 +172,47 @@ function AppContent() {
     }
   }, [user, showLoginModal]);
 
+  // Fetch and Subscribe to Pending Rewards Count
+  useEffect(() => {
+    if (!user || user.role !== 'admin') {
+      setPendingCount(0);
+      return;
+    }
+
+    const fetchPendingCount = async () => {
+      const { count, error } = await supabase
+        .from('pending_rewards' as any)
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (!error && count !== null) {
+        setPendingCount(count);
+      }
+    };
+
+    fetchPendingCount();
+
+    // Subscribe to changes in the pending_rewards table
+    const channel = supabase
+      .channel('pending_rewards_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pending_rewards'
+        },
+        () => {
+          fetchPendingCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.role]);
+
   // Reset app state when user signs out
   useEffect(() => {
     if (!user && !loading) {
@@ -192,6 +237,7 @@ function AppContent() {
     const quickRewardMatch = path.match(/^\/quick-reward\/([^\/]+)$/);
     const legacyRewardMatch = path.match(/^\/reward\/([^\/]+)$/);
     const scannerMatch = path.match(/^\/scanner$/);
+    const classMatch = path.match(/^\/class$/);
 
     if (quickRewardMatch) {
       setAppState({ page: 'quickReward', qrToken: quickRewardMatch[1] });
@@ -205,6 +251,11 @@ function AppContent() {
 
     if (scannerMatch) {
       setAppState({ page: 'scanner' });
+      return;
+    }
+
+    if (classMatch) {
+      setAppState({ page: 'classDashboard' });
       return;
     }
 
@@ -284,7 +335,7 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
-    appState.page === 'classDashboard';
+    appState.page === 'classDashboard' && !new URLSearchParams(window.location.search).get('token');
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -894,13 +945,15 @@ function AppContent() {
 
   return (
     <>
-      {!['scanner', 'quickReward'].includes(appState.page) && (
+      {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
         <UnifiedNavigation
           currentPage={getCurrentPage()}
           onPageChange={handlePageChange}
           onLogin={handleLogin}
           isNavOpen={isNavOpen}
           onToggle={() => setIsNavOpen(!isNavOpen)}
+          pendingCount={pendingCount}
+          onOpenNotifications={() => setShowPendingModal(true)}
           // Memory Palace Handlers
           onShop={toggleShop}
           onCity={() => setView('map')}
@@ -917,7 +970,7 @@ function AppContent() {
           onOpenMemory={toggleMemoryPanel}
         />
       )}
-      <main className={`h-screen overflow-y-auto transition-all duration-300 ${['scanner', 'quickReward'].includes(appState.page) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
+      <main className={`h-screen overflow-y-auto transition-all duration-300 ${(['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
         {renderCurrentView()}
       </main>
       {showLoginModal && (
@@ -996,6 +1049,16 @@ function AppContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPendingModal && (
+        <PendingRewardsModal
+          isOpen={true}
+          onClose={() => setShowPendingModal(false)}
+          onProcessed={() => {
+            // Count will be updated by Realtime subscription
+          }}
+        />
       )}
 
       {uiState.showThemeDesigner && (

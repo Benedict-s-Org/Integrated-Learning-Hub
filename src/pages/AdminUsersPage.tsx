@@ -244,7 +244,39 @@ export function AdminUsersPage() {
               <ScanLine size={20} />
               Scan QR
             </button>
-            <BulkQRCodeExport students={users} />
+            <div className="flex gap-2">
+              {/* Share Link Button */}
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('Generating link for admin:', currentUser?.id);
+                    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+
+                    const { data, error } = await supabase.functions.invoke('public-access/create-link', {
+                      body: { adminUserId: currentUser?.id }
+                    });
+
+                    if (error) {
+                      console.error('Edge Function Error Object:', error);
+                      throw error;
+                    }
+
+                    const url = `${window.location.origin}/class?token=${data.token}`;
+                    await navigator.clipboard.writeText(url);
+                    alert('Class Public Link copied to clipboard!');
+                  } catch (err: any) {
+                    console.error('Failed to create link detail:', err);
+                    alert('Failed to generate link: ' + (err.message || 'Unknown error'));
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <Users className="w-5 h-5" />
+                Share Link
+              </button>
+
+              <BulkQRCodeExport students={users} />
+            </div>
             {/* View Toggle */}
             <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
               <button

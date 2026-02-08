@@ -15,12 +15,21 @@ interface StudentProfileModalProps {
     isOpen: boolean;
     onClose: () => void;
     student: UserWithCoins | null;
-    onUpdateCoins: () => void; // Callback to refresh parent list
+    onUpdateCoins: () => void;
+    isGuestMode?: boolean;
+    guestToken?: string;
 }
 
 type TabType = 'overview' | 'progress' | 'assignments' | 'settings';
 
-export function StudentProfileModal({ isOpen, onClose, student, onUpdateCoins }: StudentProfileModalProps) {
+export function StudentProfileModal({
+    isOpen,
+    onClose,
+    student,
+    onUpdateCoins,
+    isGuestMode = false,
+    guestToken
+}: StudentProfileModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [isClosing, setIsClosing] = useState(false);
 
@@ -144,6 +153,8 @@ export function StudentProfileModal({ isOpen, onClose, student, onUpdateCoins }:
                                 <StudentOverview
                                     student={student}
                                     onUpdateCoins={onUpdateCoins}
+                                    isGuestMode={isGuestMode}
+                                    guestToken={guestToken}
                                 />
                             )}
                             {activeTab === 'progress' && (
