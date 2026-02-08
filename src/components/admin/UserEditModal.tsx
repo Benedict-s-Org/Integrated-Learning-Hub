@@ -198,15 +198,21 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       (updateData as any).class = className;
       (updateData as any).classNumber = classNumber ? parseInt(classNumber) : null;
 
+      console.log("Sending update request:", updateData);
+
       const { data, error: fnError } = await supabase.functions.invoke("auth/update-user", {
         body: updateData,
       });
 
+      console.log("Update response:", { data, fnError });
+
       if (fnError) {
+        console.error("Function error:", fnError);
         throw fnError;
       }
 
       if (data?.error) {
+        console.error("Data error:", data.error);
         throw new Error(data.error);
       }
 

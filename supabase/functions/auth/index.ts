@@ -544,6 +544,7 @@ Deno.serve(async (req: Request) => {
 
     if (path.endsWith("/update-user")) {
       const body = await req.json();
+      console.log("Update user request body:", JSON.stringify(body));
       const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber }: UpdateUserRequest = body;
       const finalClass = classInput || classNameInput;
 
@@ -591,9 +592,10 @@ Deno.serve(async (req: Request) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
-      } catch (err) {
+      } catch (err: any) {
+        console.error("Update User Error:", err);
         return new Response(
-          JSON.stringify({ error: "Failed to update user" }),
+          JSON.stringify({ error: err.message || "Failed to update user" }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },

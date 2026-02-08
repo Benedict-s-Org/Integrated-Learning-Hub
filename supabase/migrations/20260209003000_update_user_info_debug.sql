@@ -1,5 +1,5 @@
--- Relax security checks to allow ANY admin (not just the first one) to manage users
--- This prevents 403 errors when using an admin account that is not the "earliest" one.
+-- Update update_user_info to include debug info in exception
+-- This is a re-application of the function with better error messages
 
 CREATE OR REPLACE FUNCTION update_user_info(
   caller_user_id uuid,
@@ -17,9 +17,12 @@ DECLARE
   current_role text;
   current_seat_number integer;
 BEGIN
+  -- Verify caller is an admin
   SELECT role INTO current_role FROM users WHERE id = caller_user_id;
+  
+  -- Debug: Include caller info in exception if check fails
   IF current_role != 'admin' OR current_role IS NULL THEN
-    RAISE EXCEPTION 'Only admins can update user information. Caller ID: %, Role: %', caller_user_id, current_role;
+    RAISE EXCEPTION 'Only admins can update user information. Caller ID: %, Role: %', caller_user_id, COALESCE(current_role, 'NULL');
   END IF;
 
   -- Get the first admin ID to protect super admin
@@ -79,33 +82,6 @@ BEGIN
   WHERE id = target_user_id;
 
   RETURN updated_user;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public, pg_temp, extensions;
-
--- Also relax admin_change_user_password
-CREATE OR REPLACE FUNCTION admin_change_user_password(
-  caller_user_id uuid,
-  target_user_id uuid,
-  new_password text
-)
-RETURNS boolean AS $$
-DECLARE
-  current_role text;
-BEGIN
-  -- Verify caller is an admin
-  SELECT role INTO current_role FROM users WHERE id = caller_user_id;
-  IF current_role != 'admin' THEN
-    RAISE EXCEPTION 'Only admins can change user passwords';
-  END IF;
-
-  -- Update the password (using crypt if available, or just set it if using a different system)
-  -- Since we have pgcrypto from previous migrations:
-  UPDATE users
-  SET password_hash = crypt(new_password, gen_salt('bf'))
-  WHERE id = target_user_id;
-
-  RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp, extensions;
