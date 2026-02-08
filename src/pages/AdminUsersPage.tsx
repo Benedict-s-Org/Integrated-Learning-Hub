@@ -42,7 +42,7 @@ interface UserWithProfile {
   created_at: string;
   is_admin: boolean;
   coins: number;
-  seat_number: number | null; // Now referred to as "Class Number" in UI
+  seat_number: number | null; // Class Number
   class_name?: string | null; // Mapped from 'class' column in users table
   qr_token?: string;
 }

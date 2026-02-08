@@ -375,7 +375,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             {/* Class Number */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-[hsl(var(--foreground))]">
-                學號 (Class No.)
+                班級編號 (Class Number)
               </label>
               <input
                 type="number"

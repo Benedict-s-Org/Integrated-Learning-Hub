@@ -652,7 +652,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">No.</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class Number</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Role</th>
                 <th className="text-center px-6 py-4 text-sm font-semibold text-slate-700">Permissions</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Created</th>
@@ -983,6 +983,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                   onChange={(e) => setEditClass(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                   placeholder="Enter class label (e.g. A, B, Grade 9)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Class Number
+                </label>
+                <input
+                  type="number"
+                  value={editClassNumber}
+                  onChange={(e) => setEditClassNumber(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="Enter class number (e.g. 1, 2, 3)"
                 />
               </div>
 
