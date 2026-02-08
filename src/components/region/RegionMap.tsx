@@ -274,14 +274,23 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
               const p4 = toIso(x, y + 1);
 
               // Scale factors for the image to handle padding and ensure overlap
-              const scale = 2.1;
-              const scaledWidth = tileWidth * scale;
-              const scaledHeight = tileHeight * scale;
+              const config = (defaultTerrain?.config as any) || {};
+              const masterScale = config.scale ?? 2.1;
+              const multiplier = config.anchorMultiplier ?? 0.65;
+              const offsetX = config.offsetX ?? 0;
+              const offsetY = config.offsetY ?? 0;
+              const sx = (config.scaleX ?? 100) / 100;
+              const sy = (config.scaleY ?? 100) / 100;
+
+              const scaledWidth = tileWidth * masterScale * sx;
+              const scaledHeight = tileHeight * masterScale * sy;
 
               // Center the scaled image on the isometric tile
               // Push the image down so the base sits on the grid line
-              const imageX = p1.x - scaledWidth / 2;
-              const imageY = p1.y + tileHeight - scaledHeight * 0.65; // Adjust offset to anchor base
+              // Center the scaled image on the isometric tile
+              // Push the image down so the base sits on the grid line
+              const imageX = p1.x - scaledWidth / 2 + offsetX;
+              const imageY = p1.y + tileHeight - scaledHeight * multiplier + offsetY;
 
               return (
                 <g key={`ground-${x}-${y}`}>
@@ -293,6 +302,11 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
                       height={scaledHeight}
                       href={defaultTerrain.image_url}
                       preserveAspectRatio="none"
+                      style={{
+                        transformBox: 'fill-box',
+                        transformOrigin: 'center',
+                        transform: `skewX(${config.skewX ?? 0}deg) skewY(${config.skewY ?? 0}deg)`
+                      }}
                     />
                   ) : (
                     <polygon

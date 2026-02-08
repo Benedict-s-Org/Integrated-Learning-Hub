@@ -121,9 +121,11 @@ export function QRScannerPage() {
             await scannerRef.current.stop();
         }
 
-        // Extract qrToken from URL (format: .../reward/UUID)
-        const match = decodedText.match(/\/reward\/([a-f0-9-]{36})$/i);
+        // Extract qrToken from URL (format: .../quick-reward/UUID or .../reward/UUID)
+        // Supports both legacy and new formats
+        const match = decodedText.match(/\/(?:quick-reward|reward)\/([a-f0-9-]{36})$/i);
         if (!match) {
+            console.warn('Scanned text did not match expected format:', decodedText);
             setError('Invalid QR code format.');
             setScannerState('error');
             return;

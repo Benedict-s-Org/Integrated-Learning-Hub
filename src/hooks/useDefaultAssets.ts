@@ -29,6 +29,27 @@ export function useDefaultAssets() {
 
     useEffect(() => {
         fetchDefaults();
+
+        // Subscribe to Realtime updates for city_style_assets
+        const channel = supabase
+            .channel('city-assets-updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'city_style_assets',
+                    filter: 'is_default=eq.true',
+                },
+                () => {
+                    fetchDefaults();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchDefaults]);
 
     return { defaultTerrain, isLoading, refresh: fetchDefaults };

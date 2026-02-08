@@ -4,6 +4,9 @@ import { useAuth } from "@/context/AuthContext";
 import type { Building, CityDecoration, CityLayout } from "@/types/city";
 import { INITIAL_CITY_LAYOUT } from "@/constants/cityLevels";
 
+// Helper for deep comparison to prevent unnecessary re-renders/loops
+const isDifferent = (a: any, b: any) => JSON.stringify(a) !== JSON.stringify(b);
+
 export interface UseCityLayoutReturn {
   buildings: Building[];
   decorations: CityDecoration[];
@@ -69,6 +72,46 @@ export function useCityLayout(): UseCityLayoutReturn {
     };
 
     loadLayout();
+
+    // Subscribe to Realtime updates
+    const channel = supabase
+      .channel(`room-updates-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_room_data',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          const newLayout = newData?.custom_catalog?.cityLayout;
+
+          if (newLayout) {
+            // Only update state if data is strictly different to prevent infinite autosave loops
+            setBuildings((prev) => {
+              const next = newLayout.buildings || INITIAL_CITY_LAYOUT.buildings;
+              return isDifferent(prev, next) ? next : prev;
+            });
+
+            setDecorations((prev) => {
+              const next = newLayout.decorations || INITIAL_CITY_LAYOUT.decorations;
+              return isDifferent(prev, next) ? next : prev;
+            });
+
+            setCityLevel((prev) => {
+              const next = newLayout.cityLevel ?? 0;
+              return prev !== next ? next : prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Add a new building
