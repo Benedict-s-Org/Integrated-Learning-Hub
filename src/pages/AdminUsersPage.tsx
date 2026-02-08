@@ -24,6 +24,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
+import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
 import { LayoutGrid, List } from 'lucide-react';
 
 const createUserSchema = z.object({
@@ -249,6 +250,7 @@ export function AdminUsersPage() {
               <ScanLine size={20} />
               Scan QR
             </button>
+            <BulkQRCodeExport students={users} />
             {/* View Toggle */}
             <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
               <button
