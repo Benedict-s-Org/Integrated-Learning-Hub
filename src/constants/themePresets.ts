@@ -43,6 +43,8 @@ export const peachTheme: Theme = {
         ring: '15 85% 65%',
         destructive: '0 85% 65%',
         destructiveForeground: baseColors.white,
+        panelBg: '35 100% 97%',
+        panelBorder: '15 30% 88%',
     },
     styles: defaultStyles,
 };
@@ -71,6 +73,8 @@ export const oceanTheme: Theme = {
         ring: '200 80% 50%',
         destructive: '0 75% 55%',
         destructiveForeground: baseColors.white,
+        panelBg: '200 40% 96%',
+        panelBorder: '200 30% 90%',
     },
     styles: defaultStyles,
 };
@@ -99,6 +103,8 @@ export const forestTheme: Theme = {
         ring: '140 45% 45%',
         destructive: '0 70% 55%',
         destructiveForeground: baseColors.white,
+        panelBg: '80 30% 96%',
+        panelBorder: '80 20% 90%',
     },
     styles: defaultStyles,
 };
@@ -127,6 +133,8 @@ export const sakuraTheme: Theme = {
         ring: '340 70% 75%',
         destructive: '0 80% 60%',
         destructiveForeground: baseColors.white,
+        panelBg: '350 40% 97%',
+        panelBorder: '350 30% 93%',
     },
     styles: defaultStyles,
 };
@@ -156,6 +164,8 @@ export const midnightTheme: Theme = {
         ring: '260 70% 65%',
         destructive: '0 70% 50%',
         destructiveForeground: baseColors.white,
+        panelBg: '240 20% 6%',
+        panelBorder: '240 15% 15%',
     },
     styles: defaultStyles,
 };

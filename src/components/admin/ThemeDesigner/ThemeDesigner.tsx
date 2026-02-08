@@ -17,12 +17,18 @@ import {
     Download,
     Upload,
     Sliders,
-    Eye
+    Eye,
+    X,
+    Check
 } from 'lucide-react';
 
 type TabId = 'presets' | 'colors' | 'styles';
 
-export function ThemeDesigner() {
+interface ThemeDesignerProps {
+    onClose?: () => void;
+}
+
+export function ThemeDesigner({ onClose }: ThemeDesignerProps) {
     const {
         currentTheme,
         updateColors,
@@ -30,13 +36,21 @@ export function ThemeDesigner() {
         resetToDefault,
         saveAsCustom,
         exportTheme,
-        importTheme
+        importTheme,
+        applyToPlatform,
     } = useThemeContext();
 
     const [activeTab, setActiveTab] = useState<TabId>('presets');
     const [saveModalOpen, setSaveModalOpen] = useState(false);
     const [themeName, setThemeName] = useState('');
     const [themeDescription, setThemeDescription] = useState('');
+    const [isApplying, setIsApplying] = useState(false);
+
+    const handleApply = () => {
+        setIsApplying(true);
+        applyToPlatform();
+        setTimeout(() => setIsApplying(false), 2000);
+    };
 
     const handleSave = () => {
         if (themeName.trim()) {
@@ -81,12 +95,32 @@ export function ThemeDesigner() {
                         </div>
                         <div>
                             <h1 className="text-xl font-black text-foreground">主題設計</h1>
-                            <p className="text-xs text-muted-foreground">自訂平台的顏色與樣式</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground">自訂平台的顏色與樣式</p>
+                                <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full font-bold animate-pulse">
+                                    即時生效
+                                </span>
+                            </div>
                         </div>
                     </div>
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleApply}
+                            disabled={isApplying}
+                            className={`
+                                flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all
+                                ${isApplying
+                                    ? 'bg-green-500 text-white animate-pulse'
+                                    : 'bg-primary/20 text-primary hover:bg-primary/30'
+                                }
+                            `}
+                        >
+                            <Check className={`w-4 h-4 ${isApplying ? 'animate-bounce' : ''}`} />
+                            {isApplying ? '套用中...' : '套用變更'}
+                        </button>
+
                         <button
                             onClick={() => setSaveModalOpen(true)}
                             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:opacity-90 transition-opacity"
@@ -115,6 +149,19 @@ export function ThemeDesigner() {
                         >
                             <RotateCcw className="w-4 h-4" />
                         </button>
+
+                        {onClose && (
+                            <>
+                                <div className="w-px h-6 bg-border mx-1" />
+                                <button
+                                    onClick={onClose}
+                                    className="w-10 h-10 bg-muted text-muted-foreground rounded-xl flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-all"
+                                    title="關閉"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

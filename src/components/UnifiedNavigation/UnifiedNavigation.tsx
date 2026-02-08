@@ -34,6 +34,7 @@ import {
     BarChart3,
     FolderUp,
     Palette,
+    Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
@@ -227,16 +228,57 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                     </NavSection>
                 )}
 
-                {/* City Admin Section - Only visible when in community and is admin */}
-                {isInCommunity && isAdmin && !isUserView && (
+                {/* My Progress Section */}
+                {user && (
                     <NavSection
-                        title="City Admin"
-                        icon={Map}
-                        iconColor="text-indigo-500"
-                        bgColor="bg-indigo-50"
+                        title="My Progress"
+                        icon={TrendingUp}
+                        iconColor="text-blue-500"
+                        bgColor="bg-blue-50"
+                        isCollapsed={!isNavOpen}
+                    >
+                        <NavItem
+                            icon={TrendingUp}
+                            label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
+                            isActive={currentPage === 'progress'}
+                            onClick={() => onPageChange('progress')}
+                        />
+                        {isAdmin && (
+                            <NavItem
+                                icon={LayoutGrid}
+                                label="Class Dashboard"
+                                isActive={currentPage === 'classDashboard'}
+                                onClick={() => onPageChange('classDashboard')}
+                            />
+                        )}
+                        {user.role !== 'admin' && (
+                            <NavItem
+                                icon={ClipboardList}
+                                label="Assignments"
+                                isActive={currentPage === 'assignments'}
+                                onClick={() => onPageChange('assignments')}
+                            />
+                        )}
+                        <NavItem
+                            icon={BookMarked}
+                            label="Saved Content"
+                            isActive={currentPage === 'saved'}
+                            onClick={() => onPageChange('saved')}
+                        />
+                    </NavSection>
+                )}
+
+                {/* Admin Section */}
+                {isAdmin && !isUserView && (
+                    <NavSection
+                        title="Admin"
+                        icon={Shield}
+                        iconColor="text-purple-500"
+                        bgColor="bg-purple-50"
                         defaultOpen={false}
                         isCollapsed={!isNavOpen}
                     >
+                        {/* Previously in City Admin */}
                         <NavItem
                             icon={PenTool}
                             label="Furniture Studio"
@@ -273,66 +315,19 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             onClick={() => (window.location.href = '/admin/ui-builder')}
                         />
                         <NavItem
-                            icon={BarChart3}
-                            label="User Progress"
-                            onClick={() => (window.location.href = '/admin/progress')}
-                        />
-                        <NavItem
                             icon={Palette}
                             label="Theme Designer"
                             onClick={onOpenThemeDesigner}
                         />
-                    </NavSection>
-                )}
 
-                {/* My Progress Section */}
-                {user && (
-                    <NavSection
-                        title="My Progress"
-                        icon={TrendingUp}
-                        iconColor="text-blue-500"
-                        bgColor="bg-blue-50"
-                        isCollapsed={!isNavOpen}
-                    >
                         <NavItem
-                            icon={TrendingUp}
-                            label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
-                            isActive={currentPage === 'progress'}
-                            onClick={() => onPageChange('progress')}
+                            icon={Users}
+                            label="User Management"
+                            onClick={() => (window.location.href = '/admin/users')}
                         />
-                        {user.role !== 'admin' && (
-                            <NavItem
-                                icon={ClipboardList}
-                                label="Assignments"
-                                isActive={currentPage === 'assignments'}
-                                onClick={() => onPageChange('assignments')}
-                            />
-                        )}
-                        <NavItem
-                            icon={BookMarked}
-                            label="Saved Content"
-                            isActive={currentPage === 'saved'}
-                            onClick={() => onPageChange('saved')}
-                        />
-                    </NavSection>
-                )}
 
-                {/* Admin Section */}
-                {isAdmin && !isUserView && (
-                    <NavSection
-                        title="Admin"
-                        icon={Shield}
-                        iconColor="text-purple-500"
-                        bgColor="bg-purple-50"
-                        defaultOpen={false}
-                        isCollapsed={!isNavOpen}
-                    >
-                        <NavItem
-                            icon={LayoutGrid}
-                            label="Class Dashboard"
-                            isActive={currentPage === 'classDashboard'}
-                            onClick={() => onPageChange('classDashboard')}
-                        />
+                        <div className="my-2 border-t border-purple-100 mx-2" />
+
                         <NavItem
                             icon={Shield}
                             label="Admin Panel"
@@ -356,6 +351,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             label="Flowith Center"
                             isActive={currentPage === 'flowithTest'}
                             onClick={() => onPageChange('flowithTest')}
+                        />
+                        <NavItem
+                            icon={BarChart3}
+                            label="User Progress"
+                            isActive={currentPage === 'progress'}
+                            onClick={() => onPageChange('progress')}
                         />
                     </NavSection>
                 )}

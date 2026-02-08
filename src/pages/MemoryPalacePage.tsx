@@ -1,32 +1,22 @@
 import React, { useState } from "react";
-import { Loader2, X, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { useMemoryPalaceContext } from "@/contexts/MemoryPalaceContext";
 import { useInventory } from "@/hooks/useInventory";
 import { useRoomInteraction } from "@/hooks/useRoomInteraction";
 import { useMemoryPoints } from "@/hooks/useMemoryPoints";
 import { useCityLayout } from "@/hooks/useCityLayout";
 import { useRegion } from "@/hooks/useRegion";
-import { SidebarFurniture, SidebarHistory, SidebarMemory } from "@/components/sidebar";
+import { SidebarFurniture, SidebarMemory } from "@/components/sidebar";
 import { IsometricRoom } from "@/components/room/IsometricRoom";
 import { CityMap } from "@/components/city/CityMap";
 import { RegionMap } from "@/components/region/RegionMap";
-import { ShopView } from "@/components/shop/ShopView";
 import { DevPanel } from "@/components/DevPanel";
-import { AssetGenerator } from "@/components/admin/AssetGenerator";
-import { FurnitureUploader } from "@/components/furniture/FurnitureUploader";
-import { FurnitureEditor } from "@/components/editor/FurnitureEditor";
-import { TransformPanel } from "@/components/TransformPanel";
-import { SpaceDesignCenter } from "@/components/SpaceDesignCenter";
-import { UnifiedMapEditor } from "@/components/admin/UnifiedMapEditor";
-import { AssetUploadCenter } from "@/components/ui-builder/AssetUploadCenter";
 import { MemoryPointModal } from "@/components/MemoryPointModal";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
-import { CustomFurniture } from "@/types/furniture";
-import { ThemeDesigner } from "@/components/admin/ThemeDesigner";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { SidebarHistory } from "@/components/sidebar/SidebarHistory";
 
 // Inner component to consume context
-function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
+function MemoryPalaceContent({ }: { onExit?: () => void }) {
   const context = useMemoryPalaceContext();
   const {
     isLoading,
@@ -45,24 +35,9 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     customFloors,
     history: globalHistory,
     restoreHistory,
-    isAdmin,
-    setCustomCatalog,
-    setCustomModels,
-    setCustomWalls,
-    setCustomFloors,
-    setHouseLevel,
-    setInventory,
     // UI State from Context
     uiState,
-    setUiState,
     toggleShop,
-    toggleStudio,
-    toggleEditor,
-    toggleUploader,
-    toggleMapEditor,
-    toggleAssetUpload,
-    toggleSpaceDesign,
-    toggleThemeDesigner,
     toggleFurniturePanel,
     toggleHistoryPanel,
     toggleMemoryPanel,
@@ -72,14 +47,6 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   } = context;
 
   const {
-    showShop,
-    showStudio,
-    showEditor,
-    showUploader,
-    showMapEditor,
-    showAssetUpload,
-    showSpaceDesign,
-    showThemeDesigner,
     showFurniturePanel,
     showHistoryPanel,
     showMemoryPanel,
@@ -92,8 +59,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   const activeFloorObj = customFloors.find((f: any) => f.id === activeFloorId) || null;
 
   const {
-    inventory,
-    buyItem
+    inventory
   } = useInventory();
 
   const {
@@ -124,9 +90,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
   } = useMemoryPoints();
 
   const {
-    dueCount,
     isStudyMode,
-    toggleStudyMode,
     hasDueCard
   } = studySession;
 
@@ -141,11 +105,7 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
     targetInfo: { type: 'tile', id: '', name: '' }
   });
 
-  const [uiAssets, setUiAssets] = useState<any[]>([]);
 
-  // Transform panel state
-  const [showTransformPanel, setShowTransformPanel] = useState(false);
-  const [transformTargetId, setTransformTargetId] = useState<string | null>(null);
 
   // City data
   const { buildings: cityBuildings, decorations: cityDecorations, cityLevel } = useCityLayout();
@@ -308,8 +268,9 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           </div>
           <div className="flex-1 overflow-hidden">
             <SidebarHistory
-              history={globalHistory as any[]}
-              onRestore={restoreHistory as any}
+              isOpen={true}
+              globalHistory={globalHistory as any[]}
+              onRestoreHistory={restoreHistory as any}
             />
           </div>
         </div>
@@ -423,243 +384,6 @@ function MemoryPalaceContent({ onExit }: { onExit?: () => void }) {
           />
         )}
       </div>
-
-      {/* Modals */}
-      {showShop && (
-        <ShopView
-          coins={coins}
-          inventory={inventory}
-          houseLevel={houseLevel}
-          onBuy={buyItem as any}
-          onUpgrade={() => setHouseLevel((h: number) => h + 1)}
-          onClose={toggleShop}
-          isAdmin={isAdmin}
-          customWalls={customWalls as any}
-          customFloors={customFloors as any}
-          activeWallId={activeWallId}
-          activeFloorId={activeFloorId}
-          onSelectWall={setActiveWallId}
-          onSelectFloor={setActiveFloorId}
-          fullCatalog={fullCatalog as any}
-          publishedBlueprints={[]}
-          ownedBlueprints={[]}
-          onBuyBlueprint={() => { }}
-          onApplyBlueprint={() => { }}
-        />
-      )}
-
-      {/* Admin Modals */}
-      {showStudio && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] overflow-hidden">
-            <AssetGenerator
-              onClose={toggleStudio}
-              onSave={(item, model) => {
-                setCustomCatalog((prev: any[]) => [...prev, item]);
-                setCustomModels((prev: any) => ({ ...prev, [item.id]: model }));
-                setInventory((prev: any[]) => [...prev, item.id]);
-                toggleStudio();
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {showUploader && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden">
-            <FurnitureUploader
-              onClose={toggleUploader}
-              onSave={(item) => {
-                setCustomCatalog((prev: any[]) => [...prev, item]);
-                toggleUploader();
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {showEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden">
-            <div className="h-full flex flex-col p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-xl">家具編輯器</h3>
-                <button onClick={toggleEditor} className="p-2 hover:bg-slate-100 rounded-full">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <FurnitureEditor
-                  onClose={toggleEditor}
-                  customCatalog={fullCatalog as any[]}
-                  onUpdate={(item: any) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === item.id ? item : i))}
-                  onDelete={(id: string) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
-                  customWalls={customWalls as any[]}
-                  customFloors={customFloors as any[]}
-                  onUpdateWall={(wall: any) => setCustomWalls((prev: any[]) => prev.map(w => w.id === wall.id ? wall : w))}
-                  onUpdateFloor={(floor: any) => setCustomFloors((prev: any[]) => prev.map(f => f.id === floor.id ? floor : f))}
-                  onDeleteWall={(id: string) => setCustomWalls((prev: any[]) => prev.filter(w => w.id !== id))}
-                  onDeleteFloor={(id: string) => setCustomFloors((prev: any[]) => prev.filter(f => f.id !== id))}
-                  onEnterTransformMode={(id) => {
-                    setTransformTargetId(id);
-                    setShowTransformPanel(true);
-                  }}
-                  customModels={fullModels}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSpaceDesign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full h-full bg-white flex flex-col">
-            <SpaceDesignCenter
-              onClose={toggleSpaceDesign}
-              fullCatalog={fullCatalog as any[]}
-              activeWall={activeWallObj}
-              activeFloor={activeFloorObj}
-              customWalls={customWalls as any[]}
-              customFloors={customFloors as any[]}
-              activeWallId={activeWallId}
-              activeFloorId={activeFloorId}
-              onSelectWall={setActiveWallId}
-              onSelectFloor={setActiveFloorId}
-            />
-          </div>
-        </div>
-      )}
-
-      <UnifiedMapEditor
-        isOpen={showMapEditor}
-        onClose={toggleMapEditor}
-      />
-
-      {showAssetUpload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden">
-            <div className="h-full flex flex-col">
-              <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                <h3 className="font-bold text-xl">素材上傳中心</h3>
-                <button onClick={toggleAssetUpload} className="p-2 hover:bg-slate-200 rounded-full">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-auto">
-                <AssetUploadCenter
-                  assets={uiAssets}
-                  onAddAsset={(asset) => setUiAssets(prev => [...prev, asset])}
-                  onRemoveAsset={(id) => setUiAssets(prev => prev.filter(a => a.id !== id))}
-                  onLinkAssets={(src, tgt) => console.log('Link', src, tgt)}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Theme Designer Modal */}
-      {showThemeDesigner && (
-        <div className="fixed inset-0 z-50 flex">
-          <ThemeProvider>
-            <div className="w-full h-full bg-background flex flex-col">
-              <div className="p-4 border-b flex justify-between items-center bg-card">
-                <h3 className="font-bold text-xl">🎨 主題設計</h3>
-                <button onClick={toggleThemeDesigner} className="p-2 hover:bg-muted rounded-full">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <ThemeDesigner />
-              </div>
-            </div>
-          </ThemeProvider>
-        </div>
-      )}
-
-      {/* Transform Panel Modal */}
-      {showTransformPanel && transformTargetId && (() => {
-        const targetItem = fullCatalog.find((f: any) => f.id === transformTargetId) as CustomFurniture | undefined;
-        if (!targetItem) return null;
-        return (
-          <div className="fixed inset-0 z-[60] flex">
-            <TransformPanel
-              furnitureName={targetItem.name || '未命名家具'}
-              furnitureImage={targetItem.spriteImages?.[0] || undefined}
-              data={{
-                spriteOffsetX: targetItem.spriteOffsetX ?? 0,
-                spriteOffsetY: targetItem.spriteOffsetY ?? 20,
-                spriteScale: targetItem.spriteScale ?? 1,
-                spriteScaleX: targetItem.spriteScaleX ?? 100,
-                spriteScaleY: targetItem.spriteScaleY ?? 100,
-                spriteSkewX: targetItem.spriteSkewX ?? 0,
-                spriteSkewY: targetItem.spriteSkewY ?? 0,
-              }}
-              onChange={(changes) => {
-                setCustomCatalog((prev: any[]) =>
-                  prev.map((item) =>
-                    item.id === transformTargetId ? { ...item, ...changes } : item
-                  )
-                );
-              }}
-              onSave={() => {
-                setShowTransformPanel(false);
-                setTransformTargetId(null);
-              }}
-              onCancel={() => {
-                setShowTransformPanel(false);
-                setTransformTargetId(null);
-              }}
-              onReset={() => {
-                setCustomCatalog((prev: any[]) =>
-                  prev.map((item) =>
-                    item.id === transformTargetId
-                      ? {
-                        ...item,
-                        spriteOffsetX: 0,
-                        spriteOffsetY: 20,
-                        spriteScale: 1,
-                        spriteScaleX: 100,
-                        spriteScaleY: 100,
-                        spriteSkewX: 0,
-                        spriteSkewY: 0,
-                      }
-                      : item
-                  )
-                );
-              }}
-            />
-            {/* Live preview area - takes rest of screen */}
-            <div className="flex-1 bg-slate-900/80 flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-white text-lg mb-2">即時預覽</p>
-                <p className="text-slate-400 text-sm">拖動左側滑桿查看家具變化</p>
-                {targetItem.spriteImages?.[0] && (
-                  <div className="mt-8 inline-block">
-                    <img
-                      src={targetItem.spriteImages[0]}
-                      alt="Preview"
-                      className="max-w-[300px] max-h-[300px] drop-shadow-2xl"
-                      style={{
-                        transform: `
-                          translate(${targetItem.spriteOffsetX ?? 0}px, ${targetItem.spriteOffsetY ?? 20}px)
-                          scale(${targetItem.spriteScale ?? 1})
-                          scaleX(${(targetItem.spriteScaleX ?? 100) / 100})
-                          scaleY(${(targetItem.spriteScaleY ?? 100) / 100})
-                          skewX(${targetItem.spriteSkewX ?? 0}deg)
-                          skewY(${targetItem.spriteSkewY ?? 0}deg)
-                        `,
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }

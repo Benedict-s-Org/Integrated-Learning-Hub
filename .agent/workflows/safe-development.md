@@ -89,6 +89,14 @@ File paths are normalized to relative paths (e.g., `src/components/...`).
 - Make optional fields explicit with `?` in interfaces
 - Use `Partial<T>` or create variants for different use cases
 
+### 5. Nested Router Conflict (Blank Page)
+**Problem**: React application fails to render (blank screen) because a `MemoryRouter` (or other router) is nested inside a top-level `BrowserRouter`.
+
+**Prevention**:
+- Ensure only one top-level Router exists in the application hierarchy.
+- If a sub-page or standalone component needs routing, verify it is not already wrapped in a `<Router>` by the main app.
+- Check browser console logs for errors like: `The above error occurred in the <Router> component`.
+
 ---
 
 ## 🛡️ Protective Measures
@@ -211,15 +219,37 @@ These folders should NEVER be deleted without explicit user confirmation:
 
 ---
 
+## 🌐 Browser Tool Usage Policy
+
+To optimize token usage and ensure accuracy:
+1. **Block Automated DOM Verification**: Do NOT use browser subagents or DOM extraction tools for verifying visual changes or UI updates. Automated DOM inspection is generally a waste of tokens and often inaccurate for complex layouts.
+2. **Prioritize User Verification**: Whenever a UI change is made, document the change clearly and ASK THE USER to "see if it works" or verify the result manually.
+3. **Exploration Only**: Only use browser tools for initial exploration (finding a URL or seeing a basic page structure) if absolutely necessary, but never for verification of your own edits.
+4. **Follow User Guidance**: If the user asks to "check", do not run automated scripts. Instead, provide a specific checklist for the USER to verify.
+
+---
+
 ## ✅ Post-Edit Verification
 
 After making changes:
 
 1. **Check for lint errors**: Look at IDE feedback
 2. **Verify build**: `npm run build` should pass
-3. **Test functionality**: Does the feature still work?
-4. **Review git diff**: `git diff` to see all changes
-5. **Commit incrementally**: Small, focused commits
+3. **Strictly Manual Verification**: Do NOT perform automated browser DOM inspection or subagent tasks to verify UI changes. Instead, inform the user of the changes made and ask them to "see if it works" or verify the results manually. This is the mandatory verification method for all UI-related tasks.
+4. **Test functionality**: Does the feature still work?
+5. **Review git diff**: `git diff` to see all changes
+6. **Commit incrementally**: Small, focused commits
+
+---
+
+## 🛠️ Localhost Connectivity Troubleshooting
+
+If the dev server is running but `localhost` is unreachable:
+
+1. **Check Process**: Run `ps aux | grep vite` to see if the server is actually running.
+2. **Check Port**: Run `lsof -i :8080` to see if a process is listening on the expected port.
+3. **Host Binding**: Ensure `vite.config.ts` uses `server.host: true` (or `0.0.0.0`). Binding only to `::` (IPv6) can sometimes fail if the system expects `127.0.0.1` (IPv4).
+4. **Restart**: If the port is stuck, kill the process with `kill -9 <PID>` and restart `npm run dev`.
 
 ---
 

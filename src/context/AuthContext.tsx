@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { AuthContextType, UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -82,9 +82,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const changePassword = async (
-    currentPassword: string | undefined, // Not used in standard update, but kept for signature compatibility
+    _currentPassword: string | undefined, // Not used in standard update, but kept for signature compatibility
     newPassword: string,
-    verificationCode?: string
+    _verificationCode?: string
   ) => {
     try {
       const { error } = await supabase.auth.updateUser({
@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateAccentPreference = async (accent: string) => {
+  const updateAccentPreference = useCallback(async (accent: string) => {
     if (!user) return;
 
     // Optimistic update
@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed to update accent preference', error);
       // Revert if needed, but keeping simple for now
     }
-  };
+  }, [user]);
 
   const [isUserView, setIsUserView] = useState(false);
   const [testUserId, setTestUserId] = useState<string | null>(null);
@@ -143,35 +143,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const accentPreference = user?.accent_preference || 'en-US';
 
   // Effective user for the rest of the app (allows admin to see test user assignments)
-  const effectiveUser = (user?.role === 'admin' && isUserView && testUserId)
-    ? {
-      ...user,
-      id: testUserId,
-      email: 'benedictcftsang@outlook.com',
-      username: 'test-user',
-      display_name: 'Test Account',
-      role: 'user' as const // Spoof as regular student
-    }
-    : user;
+  const effectiveUser = useMemo(() => {
+    return (user?.role === 'admin' && isUserView && testUserId)
+      ? {
+        ...user!,
+        id: testUserId,
+        email: 'benedictcftsang@outlook.com',
+        username: 'test-user',
+        display_name: 'Test Account',
+        role: 'user' as const // Spoof as regular student
+      }
+      : user;
+  }, [user, isUserView, testUserId]);
 
+  const value = useMemo(() => ({
+    user: effectiveUser,
+    profile: effectiveUser,
+    session,
+    loading,
+    isLoading: loading,
+    signIn,
+    signOut,
+    changePassword,
+    isAdmin,
+    isUserView,
+    toggleViewMode,
+    accentPreference,
+    updateAccentPreference,
+  }), [
+    effectiveUser,
+    session,
+    loading,
+    isAdmin,
+    isUserView,
+    accentPreference,
+    updateAccentPreference,
+  ]);
   return (
-    <AuthContext.Provider
-      value={{
-        user: effectiveUser,
-        profile: effectiveUser,
-        session,
-        loading,
-        isLoading: loading,
-        signIn,
-        signOut,
-        changePassword,
-        isAdmin,
-        isUserView,
-        toggleViewMode,
-        accentPreference,
-        updateAccentPreference,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

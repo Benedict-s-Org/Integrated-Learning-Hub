@@ -30,48 +30,52 @@ const COLOR_VAR_MAP: Record<keyof ThemeColors, string> = {
     ring: '--ring',
     destructive: '--destructive',
     destructiveForeground: '--destructive-foreground',
+    panelBg: '--panel-bg',
+    panelBorder: '--panel-border',
 };
 
 /**
- * Apply theme colors to CSS variables
+ * Apply theme colors to CSS variables using a dynamic style tag
  */
-function applyColorsToDOM(colors: ThemeColors): void {
-    const root = document.documentElement;
+function applyColorsToDOM(colors: ThemeColors, styles: ThemeStyles, isDark: boolean): void {
+    let styleTag = document.getElementById('theme-overrides');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'theme-overrides';
+        document.head.appendChild(styleTag);
+    }
 
-    Object.entries(colors).forEach(([key, value]) => {
-        const cssVar = COLOR_VAR_MAP[key as keyof ThemeColors];
-        if (cssVar && value) {
-            root.style.setProperty(cssVar, value);
+    const colorVars = Object.entries(colors)
+        .map(([key, value]) => {
+            const cssVar = COLOR_VAR_MAP[key as keyof ThemeColors];
+            return cssVar && value ? `${cssVar}: ${value} !important;` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+
+    const radiusVar = styles.borderRadius ? `--radius: ${styles.borderRadius} !important;` : '';
+    const fontVar = styles.fontFamily ? `--font-family: '${styles.fontFamily}', sans-serif !important;` : '';
+
+    styleTag.innerHTML = `
+        :root, .dark, [data-theme] {
+            ${colorVars}
+            ${radiusVar}
+            ${fontVar}
         }
-    });
-}
+        body {
+            font-family: ${styles.fontFamily ? `'${styles.fontFamily}', sans-serif` : 'inherit'} !important;
+        }
+    `;
 
-/**
- * Apply theme styles to CSS variables
- */
-function applyStylesToDOM(styles: ThemeStyles): void {
-    const root = document.documentElement;
-
-    if (styles.borderRadius) {
-        root.style.setProperty('--radius', styles.borderRadius);
-    }
-
-    if (styles.fontFamily) {
-        root.style.setProperty('--font-family', styles.fontFamily);
-        document.body.style.fontFamily = `'${styles.fontFamily}', sans-serif`;
-    }
-}
-
-/**
- * Apply dark mode class
- */
-function applyDarkMode(isDark: boolean): void {
     if (isDark) {
         document.documentElement.classList.add('dark');
     } else {
         document.documentElement.classList.remove('dark');
     }
+
+    console.log('🚀 Global styles injected via <style#theme-overrides>');
 }
+
 
 /**
  * Load theme from localStorage
@@ -140,12 +144,16 @@ export function useTheme() {
 
     const [isLoading] = useState(false);
 
-    // Apply theme to DOM whenever it changes
+    // Apply theme to DOM
+    const applyToPlatform = useCallback((theme: Theme = currentTheme) => {
+        applyColorsToDOM(theme.colors, theme.styles, theme.isDark || false);
+        saveThemeToStorage(theme);
+        console.log('🚀 Theme explicitly applied to platform');
+    }, [currentTheme]);
+
+    // Apply theme to DOM whenever currentTheme changes (for live preview)
     useEffect(() => {
-        applyColorsToDOM(currentTheme.colors);
-        applyStylesToDOM(currentTheme.styles);
-        applyDarkMode(currentTheme.isDark || false);
-        saveThemeToStorage(currentTheme);
+        applyColorsToDOM(currentTheme.colors, currentTheme.styles, currentTheme.isDark || false);
     }, [currentTheme]);
 
     // Set entire theme
@@ -270,6 +278,7 @@ export function useTheme() {
         isLoading,
         exportTheme,
         importTheme,
+        applyToPlatform,
     };
 }
 

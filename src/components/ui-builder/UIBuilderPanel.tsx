@@ -1,6 +1,6 @@
 // UI Builder Panel - Refactored with top toolbar, left sidebar, and main canvas
-import React, { useState, useCallback, useEffect } from 'react';
-import { Layout } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { X } from 'lucide-react';
 import type { UIElement, Asset, UITemplate } from '@/types/ui-builder';
 import { createDefaultElement } from './ElementToolbar';
 import { TopToolbar } from './TopToolbar';
@@ -8,6 +8,7 @@ import { EditorSidebar } from './EditorSidebar';
 import { MainCanvas } from './MainCanvas';
 import { StatusBar } from './StatusBar';
 import { useHistoryState } from '@/hooks/useHistoryState';
+import { AssetUploadCenter } from './AssetUploadCenter';
 
 interface UIBuilderPanelProps {
   onClose?: () => void;
@@ -101,6 +102,17 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [showAssetCenter, setShowAssetCenter] = useState(false);
+
+  // Load persisted assets on mount
+  useEffect(() => {
+    const loadAssets = async () => {
+      const { fetchUIBuilderAssets } = await import('@/utils/assetPersistence');
+      const data = await fetchUIBuilderAssets();
+      setAssets(data);
+    };
+    loadAssets();
+  }, []);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -127,7 +139,6 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
 
   // Find selected element
   const selectedElement = findElement(elements, selectedId);
-  const hasMultiSelection = multiSelectedIds.size > 1;
 
   // Handle selection with multi-select support
   const handleSelect = useCallback((id: string | null, shiftKey: boolean = false) => {
@@ -180,7 +191,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
   // Delete element(s)
   const handleDeleteElement = useCallback((id: string) => {
     const idsToDelete = multiSelectedIds.size > 1 ? [...multiSelectedIds] : [id];
-    
+
     setElements(prev => {
       let result = prev;
       for (const delId of idsToDelete) {
@@ -188,7 +199,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
       }
       return result;
     });
-    
+
     setSelectedId(null);
     setMultiSelectedIds(new Set());
   }, [multiSelectedIds, setElements]);
@@ -196,7 +207,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
   // Delete all selected elements
   const handleDeleteSelected = useCallback(() => {
     if (multiSelectedIds.size === 0) return;
-    
+
     setElements(prev => {
       let result = prev;
       for (const id of multiSelectedIds) {
@@ -204,7 +215,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
       }
       return result;
     });
-    
+
     setSelectedId(null);
     setMultiSelectedIds(new Set());
   }, [multiSelectedIds, setElements]);
@@ -228,7 +239,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
 
     const selectedElements: UIElement[] = [];
     const selectedIdsArray = [...multiSelectedIds];
-    
+
     for (const id of selectedIdsArray) {
       const el = findElement(elements, id);
       if (el) {
@@ -279,7 +290,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
 
     setElements(prev => {
       let result = removeElementFromTree(prev, id);
-      
+
       if (parentId) {
         result = updateElementInTree(result, parentId, (parent) => ({
           ...parent,
@@ -294,7 +305,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
           ...children.map((c, i) => ({ ...c, parentId: undefined, order: result.length + i })),
         ];
       }
-      
+
       return result;
     });
 
@@ -311,7 +322,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
 
       const treeWithoutDragged = removeElementFromTree(prev, dragId);
       const targetParent = findParentElement(treeWithoutDragged, targetId);
-      
+
       if (position === 'inside') {
         return updateElementInTree(treeWithoutDragged, targetId, (el) => ({
           ...el,
@@ -349,9 +360,16 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
     setAssets(prev => [...prev, asset]);
   }, []);
 
-  const handleRemoveAsset = useCallback((id: string) => {
-    setAssets(prev => prev.filter(a => a.id !== id));
-  }, []);
+  const handleRemoveAsset = useCallback(async (id: string) => {
+    const assetToRemove = assets.find(a => a.id === id);
+    if (assetToRemove) {
+      const { deleteUIBuilderAsset } = await import('@/utils/assetPersistence');
+      const success = await deleteUIBuilderAsset(assetToRemove);
+      if (success) {
+        setAssets(prev => prev.filter(a => a.id !== id));
+      }
+    }
+  }, [assets]);
 
   // Save
   const handleSave = useCallback(() => {
@@ -364,22 +382,20 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
   }, [elements, onSave, onClose]);
 
   // Check if selected element can be ungrouped
-  const canUngroup = selectedElement && 
-    (selectedElement.type === 'row' || selectedElement.type === 'column') && 
-    selectedElement.children && 
+  const canUngroup = selectedElement &&
+    (selectedElement.type === 'row' || selectedElement.type === 'column') &&
+    selectedElement.children &&
     selectedElement.children.length > 0;
 
   return (
-    <div 
-      className={`bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-lg shadow-2xl flex flex-col overflow-hidden ${
-        onClose ? 'fixed z-50' : 'h-full'
-      } ${
-        onClose 
-          ? isMaximized 
-            ? 'inset-4' 
+    <div
+      className={`bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-lg shadow-2xl flex flex-col overflow-hidden ${onClose ? 'fixed z-50' : 'h-full'
+        } ${onClose
+          ? isMaximized
+            ? 'inset-4'
             : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-[1400px] h-[90vh]'
           : ''
-      }`}
+        }`}
     >
       {/* Top Toolbar */}
       <TopToolbar
@@ -397,6 +413,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
         canUngroup={canUngroup || false}
         isMaximized={isMaximized}
         onToggleMaximize={() => setIsMaximized(!isMaximized)}
+        onOpenAssets={() => setShowAssetCenter(true)}
         onSave={handleSave}
         onClose={onClose}
         presetTemplates={presetTemplates}
@@ -439,6 +456,39 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
         pastLength={pastLength}
         futureLength={futureLength}
       />
+
+      {/* Assets Modal */}
+      {showAssetCenter && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-8">
+          <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl shadow-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)]">
+              <h3 className="font-bold text-lg">資源管理中心</h3>
+              <button
+                onClick={() => setShowAssetCenter(false)}
+                className="p-2 hover:bg-[hsl(var(--accent))] rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <AssetUploadCenter
+                assets={assets}
+                onAddAsset={handleAddAsset}
+                onRemoveAsset={handleRemoveAsset}
+                onLinkAssets={(srcId: string, targetId: string) => console.log('Link Assets', srcId, targetId)}
+              />
+            </div>
+            <div className="p-4 border-t border-[hsl(var(--border))] flex justify-end">
+              <button
+                onClick={() => setShowAssetCenter(false)}
+                className="px-6 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:bg-[hsl(var(--primary)/0.9)] transition-colors"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -449,7 +499,7 @@ export function UIBuilderPanel({ onClose, onSave }: UIBuilderPanelProps) {
 
 function findElement(elements: UIElement[], id: string | null): UIElement | null {
   if (!id) return null;
-  
+
   for (const element of elements) {
     if (element.id === id) return element;
     if (element.children) {
@@ -461,8 +511,8 @@ function findElement(elements: UIElement[], id: string | null): UIElement | null
 }
 
 function updateElementInTree(
-  elements: UIElement[], 
-  id: string, 
+  elements: UIElement[],
+  id: string,
   updater: (el: UIElement) => UIElement
 ): UIElement[] {
   return elements.map(element => {

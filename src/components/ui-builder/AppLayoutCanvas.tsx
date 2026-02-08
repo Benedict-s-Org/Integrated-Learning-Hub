@@ -1,8 +1,7 @@
-// App Layout Canvas - Full application interface visual editor
-import React, { useState, useCallback } from 'react';
-import { 
-  PanelLeftClose, 
-  PanelLeft, 
+import { useState, useCallback } from 'react';
+import {
+  PanelLeftClose,
+  PanelLeft,
   Monitor,
   Smartphone,
   Tablet,
@@ -12,7 +11,7 @@ import {
   Lock,
   Home,
 } from 'lucide-react';
-import type { AppLayoutConfig, LayoutRegion, UIElement } from '@/types/ui-builder';
+import type { AppLayoutConfig, UIElement } from '@/types/ui-builder';
 import { LayoutRegionRenderer } from './LayoutRegionRenderer';
 
 interface AppLayoutCanvasProps {
@@ -107,11 +106,10 @@ export function AppLayoutCanvas({
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
-              className={`p-1.5 rounded transition-colors ${
-                viewMode === mode
-                  ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'
-              }`}
+              className={`p-1.5 rounded transition-colors ${viewMode === mode
+                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'
+                }`}
               title={label}
             >
               <Icon className="w-4 h-4" />
@@ -160,7 +158,7 @@ export function AppLayoutCanvas({
       </div>
 
       {/* Canvas Area */}
-      <div 
+      <div
         className="flex-1 overflow-auto p-6"
         onClick={handleCanvasClick}
       >
@@ -176,7 +174,7 @@ export function AppLayoutCanvas({
           {/* Simulated App Layout */}
           <div className="flex h-[600px]">
             {/* Sidebar Simulation */}
-            <div 
+            <div
               className={`
                 flex flex-col border-r border-[hsl(var(--border))] bg-[hsl(var(--card))]
                 transition-all duration-300
@@ -185,10 +183,9 @@ export function AppLayoutCanvas({
               `}
             >
               {/* Sidebar Header Region */}
-              <div 
-                className={`p-3 border-b border-[hsl(var(--border))] ${
-                  selectedRegionId === 'sidebar-header' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
-                }`}
+              <div
+                className={`p-3 border-b border-[hsl(var(--border))] ${selectedRegionId === 'sidebar-header' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('sidebar-header'); }}
               >
                 <LayoutRegionRenderer
@@ -204,10 +201,9 @@ export function AppLayoutCanvas({
               </div>
 
               {/* Sidebar Tabs Region - Highlight active tab */}
-              <div 
-                className={`p-2 border-b border-[hsl(var(--border))] ${
-                  selectedRegionId === 'sidebar-tabs' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
-                }`}
+              <div
+                className={`p-2 border-b border-[hsl(var(--border))] ${selectedRegionId === 'sidebar-tabs' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('sidebar-tabs'); }}
               >
                 <div className="text-[10px] text-[hsl(var(--muted-foreground))] mb-1 px-1">
@@ -226,10 +222,9 @@ export function AppLayoutCanvas({
               </div>
 
               {/* Sidebar Content Region */}
-              <div 
-                className={`flex-1 overflow-auto p-3 ${
-                  selectedRegionId === 'sidebar-content' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
-                }`}
+              <div
+                className={`flex-1 overflow-auto p-3 ${selectedRegionId === 'sidebar-content' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('sidebar-content'); }}
               >
                 {sidebarExpanded && (
@@ -246,10 +241,9 @@ export function AppLayoutCanvas({
               </div>
 
               {/* Sidebar Footer Region */}
-              <div 
-                className={`p-3 border-t border-[hsl(var(--border))] ${
-                  selectedRegionId === 'sidebar-footer' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
-                }`}
+              <div
+                className={`p-3 border-t border-[hsl(var(--border))] ${selectedRegionId === 'sidebar-footer' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('sidebar-footer'); }}
               >
                 <LayoutRegionRenderer
@@ -268,10 +262,9 @@ export function AppLayoutCanvas({
             {/* Main Area Simulation */}
             <div className="flex-1 flex flex-col relative">
               {/* Main Header Region */}
-              <div 
-                className={`p-4 border-b border-[hsl(var(--border))] ${
-                  selectedRegionId === 'main-header' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
-                }`}
+              <div
+                className={`p-4 border-b border-[hsl(var(--border))] ${selectedRegionId === 'main-header' ? 'bg-[hsl(var(--primary)/0.1)]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('main-header'); }}
               >
                 <LayoutRegionRenderer
@@ -286,10 +279,9 @@ export function AppLayoutCanvas({
               </div>
 
               {/* Main Content Region (Fixed/Read-only) */}
-              <div 
-                className={`flex-1 relative ${
-                  selectedRegionId === 'main-content' ? 'ring-2 ring-[hsl(var(--muted-foreground))]' : ''
-                }`}
+              <div
+                className={`flex-1 relative ${selectedRegionId === 'main-content' ? 'ring-2 ring-[hsl(var(--muted-foreground))]' : ''
+                  }`}
                 onClick={(e) => { e.stopPropagation(); onSelectRegion('main-content'); }}
               >
                 {/* Isometric Room Placeholder */}
@@ -305,18 +297,17 @@ export function AppLayoutCanvas({
                 </div>
 
                 {/* Floating Elements Overlay */}
-                <div 
-                  className={`absolute inset-0 pointer-events-none ${
-                    selectedRegionId === 'floating-elements' ? 'bg-[hsl(var(--primary)/0.05)]' : ''
-                  }`}
+                <div
+                  className={`absolute inset-0 pointer-events-none ${selectedRegionId === 'main-floatingElements' ? 'bg-[hsl(var(--primary)/0.05)]' : ''
+                    }`}
                 >
-                  <div 
+                  <div
                     className="absolute top-4 right-4 pointer-events-auto"
-                    onClick={(e) => { e.stopPropagation(); onSelectRegion('floating-elements'); }}
+                    onClick={(e) => { e.stopPropagation(); onSelectRegion('main-floatingElements'); }}
                   >
                     <LayoutRegionRenderer
                       region={layout.regions.main.floatingElements}
-                      isSelected={selectedRegionId === 'floating-elements'}
+                      isSelected={selectedRegionId === 'main-floatingElements'}
                       selectedElementId={selectedElementId}
                       onSelectRegion={onSelectRegion}
                       onSelectElement={onSelectElement}

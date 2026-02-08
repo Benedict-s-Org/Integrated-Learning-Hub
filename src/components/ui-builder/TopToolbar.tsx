@@ -1,12 +1,12 @@
 // Top Toolbar - Consolidated toolbar with dropdowns for all UI Builder actions
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Plus, 
-  Undo2, 
-  Redo2, 
-  Maximize2, 
-  Minimize2, 
-  Save, 
+import {
+  Plus,
+  Undo2,
+  Redo2,
+  Maximize2,
+  Minimize2,
+  Save,
   X,
   ChevronDown,
   Rows,
@@ -14,7 +14,7 @@ import {
   Ungroup,
   Trash2,
   BookTemplate,
-  Upload,
+  Folder,
   Square,
   Type,
   MousePointer,
@@ -27,34 +27,35 @@ import type { UIElementType, UIElement, Asset, UITemplate } from '@/types/ui-bui
 interface TopToolbarProps {
   // Element actions
   onAddElement: (type: UIElementType) => void;
-  
+
   // Group actions
   onGroupAsRow: () => void;
   onGroupAsColumn: () => void;
   onUngroup: (id: string) => void;
   onDeleteSelected: () => void;
-  
+
   // History actions
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  
+
   // Selection state
   selectedId: string | null;
   multiSelectedIds: Set<string>;
   canUngroup: boolean;
-  
+
   // Panel actions
   isMaximized: boolean;
   onToggleMaximize: () => void;
+  onOpenAssets: () => void;
   onSave: () => void;
   onClose?: () => void;
-  
+
   // Templates
   presetTemplates: UITemplate[];
   onApplyTemplate: (elements: UIElement[]) => void;
-  
+
   // Assets
   assets: Asset[];
   onAddAsset: (asset: Asset) => void;
@@ -89,6 +90,7 @@ export function TopToolbar({
   canUngroup,
   isMaximized,
   onToggleMaximize,
+  onOpenAssets,
   onSave,
   onClose,
   presetTemplates,
@@ -129,7 +131,7 @@ export function TopToolbar({
   };
 
   return (
-    <div 
+    <div
       ref={dropdownRef}
       className="flex items-center justify-between px-3 py-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)]"
     >
@@ -139,17 +141,16 @@ export function TopToolbar({
         <div className="relative">
           <button
             onClick={() => toggleDropdown('elements')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
-              openDropdown === 'elements' 
-                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' 
-                : 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${openDropdown === 'elements'
+              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+              : 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
+              }`}
           >
             <Plus className="w-4 h-4" />
             新增元素
             <ChevronDown className="w-3 h-3" />
           </button>
-          
+
           {openDropdown === 'elements' && (
             <div className="absolute top-full left-0 mt-1 w-48 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 py-1">
               {ELEMENT_ITEMS.map(item => (
@@ -170,13 +171,12 @@ export function TopToolbar({
         <div className="relative">
           <button
             onClick={() => toggleDropdown('group')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
-              openDropdown === 'group' 
-                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' 
-                : hasMultiSelection || canUngroup
-                  ? 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
-                  : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${openDropdown === 'group'
+              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+              : hasMultiSelection || canUngroup
+                ? 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
+                : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'
+              }`}
           >
             <Rows className="w-4 h-4" />
             群組
@@ -187,17 +187,16 @@ export function TopToolbar({
             )}
             <ChevronDown className="w-3 h-3" />
           </button>
-          
+
           {openDropdown === 'group' && (
             <div className="absolute top-full left-0 mt-1 w-48 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 py-1">
               <button
                 onClick={() => { onGroupAsRow(); setOpenDropdown(null); }}
                 disabled={!hasMultiSelection}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  hasMultiSelection 
-                    ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]' 
-                    : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${hasMultiSelection
+                  ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+                  : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
+                  }`}
               >
                 <Columns className="w-4 h-4" />
                 合併為列
@@ -205,44 +204,41 @@ export function TopToolbar({
               <button
                 onClick={() => { onGroupAsColumn(); setOpenDropdown(null); }}
                 disabled={!hasMultiSelection}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  hasMultiSelection 
-                    ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]' 
-                    : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${hasMultiSelection
+                  ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+                  : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
+                  }`}
               >
                 <Rows className="w-4 h-4" />
                 合併為欄
               </button>
-              
+
               <div className="h-px bg-[hsl(var(--border))] my-1" />
-              
+
               <button
-                onClick={() => { 
-                  if (selectedId) onUngroup(selectedId); 
-                  setOpenDropdown(null); 
+                onClick={() => {
+                  if (selectedId) onUngroup(selectedId);
+                  setOpenDropdown(null);
                 }}
                 disabled={!canUngroup}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  canUngroup 
-                    ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]' 
-                    : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${canUngroup
+                  ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+                  : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
+                  }`}
               >
                 <Ungroup className="w-4 h-4" />
                 解除群組
               </button>
-              
+
               <div className="h-px bg-[hsl(var(--border))] my-1" />
-              
+
               <button
                 onClick={() => { onDeleteSelected(); setOpenDropdown(null); }}
                 disabled={multiSelectedIds.size === 0}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  multiSelectedIds.size > 0 
-                    ? 'text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/0.1)]' 
-                    : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${multiSelectedIds.size > 0
+                  ? 'text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/0.1)]'
+                  : 'text-[hsl(var(--muted-foreground))] cursor-not-allowed'
+                  }`}
               >
                 <Trash2 className="w-4 h-4" />
                 刪除選中
@@ -259,11 +255,10 @@ export function TopToolbar({
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            className={`p-2 rounded-md transition-colors ${
-              canUndo
-                ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
-                : 'text-[hsl(var(--muted-foreground)/0.4)] cursor-not-allowed'
-            }`}
+            className={`p-2 rounded-md transition-colors ${canUndo
+              ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+              : 'text-[hsl(var(--muted-foreground)/0.4)] cursor-not-allowed'
+              }`}
             title="復原"
           >
             <Undo2 className="w-4 h-4" />
@@ -271,11 +266,10 @@ export function TopToolbar({
           <button
             onClick={onRedo}
             disabled={!canRedo}
-            className={`p-2 rounded-md transition-colors ${
-              canRedo
-                ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
-                : 'text-[hsl(var(--muted-foreground)/0.4)] cursor-not-allowed'
-            }`}
+            className={`p-2 rounded-md transition-colors ${canRedo
+              ? 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+              : 'text-[hsl(var(--muted-foreground)/0.4)] cursor-not-allowed'
+              }`}
             title="重做"
           >
             <Redo2 className="w-4 h-4" />
@@ -289,17 +283,16 @@ export function TopToolbar({
         <div className="relative">
           <button
             onClick={() => toggleDropdown('templates')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
-              openDropdown === 'templates' 
-                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' 
-                : 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${openDropdown === 'templates'
+              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+              : 'bg-[hsl(var(--background))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
+              }`}
           >
             <BookTemplate className="w-4 h-4" />
             模板
             <ChevronDown className="w-3 h-3" />
           </button>
-          
+
           {openDropdown === 'templates' && (
             <div className="absolute top-full left-0 mt-1 w-64 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg z-50 py-1 max-h-80 overflow-y-auto">
               <div className="px-3 py-1.5 text-xs text-[hsl(var(--muted-foreground))] font-medium">
@@ -325,13 +318,22 @@ export function TopToolbar({
       {/* Right: Panel Actions */}
       <div className="flex items-center gap-1">
         <button
+          onClick={onOpenAssets}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] text-[hsl(var(--foreground))] rounded-md hover:bg-[hsl(var(--accent))] transition-colors"
+          title="資源管理"
+        >
+          <Folder className="w-4 h-4" />
+          資源
+        </button>
+
+        <button
           onClick={onSave}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-md hover:bg-[hsl(var(--primary)/0.9)] transition-colors"
         >
           <Save className="w-4 h-4" />
           儲存
         </button>
-        
+
         {onClose && (
           <>
             <button

@@ -1,42 +1,22 @@
-import { useState, useEffect } from 'react';
-import { AppProvider } from './context/AppContext';
-import { AuthProvider } from './context/AuthContext';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AppProvider, useAppContext } from './context/AppContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
-import { useAppContext } from './context/AppContext';
-import { useAuth } from './context/AuthContext';
-import { UnifiedNavigation } from './components/UnifiedNavigation';
-import TextInput from './components/TextInput/TextInput';
-import WordSelection from './components/WordSelection/WordSelection';
-import MemorizationView from './components/MemorizationView/MemorizationView';
-import SavedContent from './components/SavedContent/SavedContent';
-import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
-import ProofreadingAnswerSetting from './components/ProofreadingAnswerSetting/ProofreadingAnswerSetting';
-import ProofreadingPreview from './components/ProofreadingPreview/ProofreadingPreview';
-import ProofreadingPracticeComponent from './components/ProofreadingPractice/ProofreadingPractice';
-import SpellingInput from './components/SpellingInput/SpellingInput';
-import SpellingPreview from './components/SpellingPreview/SpellingPreview';
-import SpellingPractice from './components/SpellingPractice/SpellingPractice';
-import SavedPractices from './components/SavedPractices/SavedPractices';
-import SavedProofreadingPractices from './components/SavedProofreadingPractices/SavedProofreadingPractices';
-import ProofreadingAssignment from './components/ProofreadingAssignment/ProofreadingAssignment';
-import AssignedProofreadingPractices from './components/AssignedProofreadingPractices/AssignedProofreadingPractices';
+import { MemoryPalaceProvider, useMemoryPalaceContext } from './contexts/MemoryPalaceContext';
+import { useInventory } from './hooks/useInventory';
 import SourceInspector from './components/SourceInspector/SourceInspector';
-import AdminPanel from './components/AdminPanel/AdminPanel';
-import ContentDatabase from './components/ContentDatabase/ContentDatabase';
-import StudentProgress from './components/StudentProgress/StudentProgress';
-import UserAnalytics from './components/UserAnalytics/UserAnalytics';
-import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
+import { UnifiedNavigation } from './components/UnifiedNavigation/UnifiedNavigation';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
 import { Login } from './components/Auth/Login';
-import { MemoryRouter } from 'react-router-dom';
-import { MemoryPalacePage } from './pages/MemoryPalacePage';
-import { FlowithTestPage } from './pages/FlowithTestPage';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
+import { MemoryPalacePage } from './pages/MemoryPalacePage';
+import { FlowithTestPage } from './pages/FlowithTestPage';
 import { WordSnakeGame } from './pages/WordSnakeGame';
-import { MemoryPalaceProvider, useMemoryPalaceContext } from './contexts/MemoryPalaceContext';
 import { ClassDashboardPage } from './pages/ClassDashboardPage';
 import {
   Word,
@@ -46,8 +26,37 @@ import {
   AssignedProofreadingPracticeContent
 } from './types';
 
+// Regular Component Imports (not lazy)
+import TextInput from './components/TextInput/TextInput';
+import WordSelection from './components/WordSelection/WordSelection';
+import MemorizationView from './components/MemorizationView/MemorizationView';
+import SavedContent from './components/SavedContent/SavedContent';
+import AdminPanel from './components/AdminPanel/AdminPanel';
+import ContentDatabase from './components/ContentDatabase/ContentDatabase';
+import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
+import ProofreadingAnswerSetting from './components/ProofreadingAnswerSetting/ProofreadingAnswerSetting';
+import ProofreadingPreview from './components/ProofreadingPreview/ProofreadingPreview';
+import ProofreadingPracticeComponent from './components/ProofreadingPractice/ProofreadingPractice';
+import SavedProofreadingPractices from './components/SavedProofreadingPractices/SavedProofreadingPractices';
+import ProofreadingAssignment from './components/ProofreadingAssignment/ProofreadingAssignment';
+import AssignedProofreadingPractices from './components/AssignedProofreadingPractices/AssignedProofreadingPractices';
+import SpellingInput from './components/SpellingInput/SpellingInput';
+import SpellingPreview from './components/SpellingPreview/SpellingPreview';
+import SpellingPractice from './components/SpellingPractice/SpellingPractice';
+import SavedPractices from './components/SavedPractices/SavedPractices';
+import StudentProgress from './components/StudentProgress/StudentProgress';
+import UserAnalytics from './components/UserAnalytics/UserAnalytics';
+import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
 import { AssetGenerator } from './components/admin/AssetGenerator';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
+import { ShopView } from './components/shop/ShopView';
+import { SpaceDesignCenter } from './components/SpaceDesignCenter';
+import { FurnitureUploader } from './components/furniture/FurnitureUploader';
+import { FurnitureEditor } from './components/editor/FurnitureEditor';
+import { AssetUploadCenter } from './components/ui-builder/AssetUploadCenter';
+import { ThemeDesigner } from './components/admin/ThemeDesigner';
+import { TransformPanel } from './components/TransformPanel';
+import { X } from 'lucide-react';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -83,7 +92,7 @@ type AppState =
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
-  const [showMapEditor, setShowMapEditor] = useState(false);
+
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
@@ -102,8 +111,26 @@ function AppContent() {
     toggleFurniturePanel,
     toggleHistoryPanel,
     toggleMemoryPanel,
-    setView
+    toggleTransformPanel,
+    setView,
+    uiState,
+    uiAssets,
+    setUiAssets,
+    coins,
+    houseLevel,
+    setHouseLevel,
+    inventory,
+    customWalls,
+    customFloors,
+    activeWallId,
+    activeFloorId,
+    setActiveWallId,
+    setActiveFloorId,
+    fullCatalog,
+    setCustomCatalog,
+    fullModels,
   } = useMemoryPalaceContext();
+  const { buyItem } = useInventory();
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
@@ -184,6 +211,31 @@ function AppContent() {
     };
   }, [fetchPublicContent]);
 
+  // Handle permissions and conditional state updates
+  useEffect(() => {
+    if (!user || user.role === 'admin') return;
+
+    // Check permissions for proofreading
+    if (appState.page === 'proofreading' && !user.can_access_proofreading) {
+      setAppState({ page: 'new', step: 'input' });
+    }
+
+    // Check permissions for spelling
+    if (appState.page === 'spelling' && !user.can_access_spelling) {
+      setAppState({ page: 'new', step: 'input' });
+    }
+
+    // Check permissions for learning hub
+    if (appState.page === 'learningHub' && !user.can_access_learning_hub) {
+      setAppState({ page: 'new', step: 'input' });
+    }
+
+    // Ensure students land on saved practices view when accessing spelling
+    if (appState.page === 'spelling' && (appState as any).step === 'input') {
+      setAppState({ page: 'spelling', step: 'saved' });
+    }
+  }, [appState, user]);
+
   // Conditional rendering after all hooks
   if (loading) {
     return (
@@ -211,25 +263,7 @@ function AppContent() {
     return <Login />;
   }
 
-  // Check permissions for proofreading (admins have automatic access)
-  if (appState.page === 'proofreading' && user && !user.can_access_proofreading && user.role !== 'admin') {
-    setAppState({ page: 'new', step: 'input' });
-  }
 
-  // Check permissions for spelling (admins have automatic access)
-  if (appState.page === 'spelling' && user && !user.can_access_spelling && user.role !== 'admin') {
-    setAppState({ page: 'new', step: 'input' });
-  }
-
-  // Check permissions for learning hub (admins have automatic access)
-  if (appState.page === 'learningHub' && user && !user.can_access_learning_hub && user.role !== 'admin') {
-    setAppState({ page: 'new', step: 'input' });
-  }
-
-  // Ensure students land on saved practices view when accessing spelling
-  if (appState.page === 'spelling' && appState.step === 'input' && user && user.role !== 'admin') {
-    setAppState({ page: 'spelling', step: 'saved' });
-  }
 
   if (user?.force_password_change) {
     return <ChangePasswordModal isForced={true} />;
@@ -509,7 +543,7 @@ function AppContent() {
       case 'admin':
         return <AdminPanel
           onNavigateToAssets={() => setAppState({ page: 'assetGenerator' })}
-          onOpenMapEditor={() => setShowMapEditor(true)}
+          onOpenMapEditor={toggleMapEditor}
         />;
       case 'assetGenerator':
         return <AssetGenerator />;
@@ -696,9 +730,7 @@ function AppContent() {
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
       case 'learningHub':
         return (
-          <MemoryRouter>
-            <MemoryPalacePage onExit={() => setAppState({ page: 'new', step: 'input' })} />
-          </MemoryRouter>
+          <MemoryPalacePage onExit={() => setAppState({ page: 'new', step: 'input' })} />
         );
       case 'spacedRepetition':
         return <SpacedRepetitionPage />;
@@ -822,18 +854,241 @@ function AppContent() {
       <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
       <ComponentInspector enabled={showComponentInspector} />
       <UnifiedMapEditor
-        isOpen={showMapEditor}
-        onClose={() => setShowMapEditor(false)}
+        isOpen={uiState.showMapEditor}
+        onClose={toggleMapEditor}
       />
+
+      {uiState.showShop && (
+        <ShopView
+          coins={coins}
+          inventory={inventory}
+          houseLevel={houseLevel}
+          onBuy={buyItem as any}
+          onUpgrade={() => setHouseLevel((h: number) => h + 1)}
+          onClose={toggleShop}
+          isAdmin={isAdmin}
+          customWalls={customWalls as any}
+          customFloors={customFloors as any}
+          activeWallId={activeWallId}
+          activeFloorId={activeFloorId}
+          onSelectWall={setActiveWallId}
+          onSelectFloor={setActiveFloorId}
+          fullCatalog={fullCatalog as any}
+          publishedBlueprints={[]}
+          ownedBlueprints={[]}
+          onBuyBlueprint={() => { }}
+          onApplyBlueprint={() => { }}
+        />
+      )}
+
+      {uiState.showSpaceDesign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full h-full bg-white flex flex-col">
+            <SpaceDesignCenter
+              onClose={toggleSpaceDesign}
+              fullCatalog={fullCatalog as any[]}
+              activeWall={customWalls.find((w: any) => w.id === activeWallId) || null}
+              activeFloor={customFloors.find((f: any) => f.id === activeFloorId) || null}
+              customWalls={customWalls as any[]}
+              customFloors={customFloors as any[]}
+              activeWallId={activeWallId}
+              activeFloorId={activeFloorId}
+              onSelectWall={setActiveWallId}
+              onSelectFloor={setActiveFloorId}
+            />
+          </div>
+        </div>
+      )}
+
+      {uiState.showAssetUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden">
+            <div className="h-full flex flex-col">
+              <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-xl">素材上傳中心</h3>
+                <button onClick={toggleAssetUpload} className="p-2 hover:bg-slate-200 rounded-full">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <AssetUploadCenter
+                  assets={uiAssets}
+                  onAddAsset={(asset) => setUiAssets(prev => [...prev, asset])}
+                  onRemoveAsset={(id) => setUiAssets(prev => prev.filter(a => a.id !== id))}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uiState.showThemeDesigner && (
+        <div className="fixed inset-0 z-50 flex bg-background/80 backdrop-blur-sm">
+          <div className="flex-1 flex flex-col h-screen overflow-hidden">
+            <ThemeDesigner onClose={toggleThemeDesigner} />
+          </div>
+        </div>
+      )}
+
+      {uiState.showUploader && (
+        <FurnitureUploader
+          onClose={toggleUploader}
+          onSave={() => toggleUploader()}
+        />
+      )}
+
+      {uiState.showEditor && (
+        <FurnitureEditor
+          onClose={toggleEditor}
+          customCatalog={fullCatalog as any[]}
+          onUpdate={(updated) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === updated.id ? updated : i))}
+          onDelete={(id) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
+          customWalls={customWalls as any[]}
+          customFloors={customFloors as any[]}
+          onUpdateWall={() => { }}
+          onUpdateFloor={() => { }}
+          onDeleteWall={() => { }}
+          onDeleteFloor={() => { }}
+          onEnterTransformMode={(id) => toggleTransformPanel(id)}
+          customModels={fullModels}
+        />
+      )}
+
+      {uiState.showTransformPanel && uiState.transformTargetId && (() => {
+        const targetItem = fullCatalog.find((f: any) => f.id === uiState.transformTargetId);
+        if (!targetItem) return null;
+        return (
+          <div className="fixed inset-0 z-[60] flex">
+            <TransformPanel
+              furnitureName={targetItem.name || '未命名家具'}
+              furnitureImage={targetItem.spriteImages?.[0] || undefined}
+              data={{
+                spriteOffsetX: targetItem.spriteOffsetX ?? 0,
+                spriteOffsetY: targetItem.spriteOffsetY ?? 20,
+                spriteScale: targetItem.spriteScale ?? 1,
+                spriteScaleX: targetItem.spriteScaleX ?? 100,
+                spriteScaleY: targetItem.spriteScaleY ?? 100,
+                spriteSkewX: targetItem.spriteSkewX ?? 0,
+                spriteSkewY: targetItem.spriteSkewY ?? 0,
+              }}
+              onChange={(changes) => {
+                setCustomCatalog((prev: any[]) =>
+                  prev.map((item) =>
+                    item.id === uiState.transformTargetId ? { ...item, ...changes } : item
+                  )
+                );
+              }}
+              onSave={() => toggleTransformPanel(null)}
+              onCancel={() => toggleTransformPanel(null)}
+              onReset={() => { }}
+            />
+          </div>
+        );
+      })()}
     </>
+  );
+}
+
+// Lazy load standalone pages
+const RewardPage = lazy(() => import('./pages/RewardPage.tsx'));
+const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
+const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
+const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
+const AdminCityEditorPage = lazy(() => import('./pages/AdminCityEditorPage.tsx'));
+const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
+const PhonicsSoundWall = lazy(() => import('./pages/PhonicsSoundWall.tsx').then(m => ({ default: m.PhonicsSoundWall })));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="text-gray-600 text-lg">Loading...</div>
+    </div>
   );
 }
 
 function App() {
   return (
     <AuthProvider>
-      <AppProviderWrapper />
+      <ThemeProvider>
+        <AppRoutes />
+      </ThemeProvider>
     </AuthProvider>
+  );
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Standalone pages inside Auth/Theme context */}
+      <Route
+        path="/reward/:qrToken"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <RewardPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/ui-builder"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminUIBuilderPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminUsersPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/scanner"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <QRScannerPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/progress"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminProgressPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/city-editor"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminCityEditorPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/region"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <RegionPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/phonics"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <PhonicsSoundWall />
+          </Suspense>
+        }
+      />
+
+      {/* Legacy app logic for all other routes */}
+      <Route path="*" element={<AppProviderWrapper />} />
+    </Routes>
   );
 }
 

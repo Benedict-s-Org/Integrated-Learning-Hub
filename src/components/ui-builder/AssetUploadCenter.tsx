@@ -1,48 +1,37 @@
 // Asset Upload Center - Multi-format file management
 import React, { useState, useCallback } from 'react';
-import { 
-  Upload, 
-  Image, 
-  FileText, 
-  Database, 
-  X, 
-  Check,
-  File,
+import {
+  Upload,
+  Image,
+  FileText,
+  Database,
+  X,
   Folder,
   Grid,
   List,
   Search,
   Trash2,
   Eye,
-  Link2,
-  Download
 } from 'lucide-react';
 import { parseDocument, getFileCategory, formatFileSize, getSupportedExtensions } from '@/utils/documentParser';
-import type { 
-  Asset, 
-  ImageAsset, 
-  ParsedDocument, 
-  DataAsset,
-  DirectionalImages,
-  ConditionalImages 
+import type {
+  Asset,
 } from '@/types/ui-builder';
 
 interface AssetUploadCenterProps {
   assets: Asset[];
   onAddAsset: (asset: Asset) => void;
   onRemoveAsset: (id: string) => void;
-  onLinkAssets: (sourceId: string, targetId: string) => void;
 }
 
 type TabType = 'images' | 'documents' | 'data';
 type ViewMode = 'grid' | 'list';
 type ImageUploadType = 'single' | 'directional' | 'conditional';
 
-export function AssetUploadCenter({ 
-  assets, 
-  onAddAsset, 
+export function AssetUploadCenter({
+  assets,
+  onAddAsset,
   onRemoveAsset,
-  onLinkAssets 
 }: AssetUploadCenterProps) {
   const [activeTab, setActiveTab] = useState<TabType>('images');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -54,9 +43,9 @@ export function AssetUploadCenter({
 
   // Filter assets by tab and search
   const filteredAssets = assets.filter(asset => {
-    const matchesTab = activeTab === 'images' ? asset.type === 'image' 
+    const matchesTab = activeTab === 'images' ? asset.type === 'image'
       : activeTab === 'documents' ? asset.type === 'document'
-      : asset.type === 'data';
+        : asset.type === 'data';
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
@@ -70,73 +59,50 @@ export function AssetUploadCenter({
     setUploadError(null);
 
     try {
+      const { uploadAssetPersistently } = await import('@/utils/assetPersistence');
+      const { compressImage } = await import('@/utils/imageOptimizer');
+
       for (const file of Array.from(files)) {
         const category = getFileCategory(file.name);
-        
+
         if (category === 'image') {
-          // Create image asset
-          const url = URL.createObjectURL(file);
-          const imageAsset: ImageAsset = {
-            id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: file.name,
-            type: 'single',
-            url,
-            createdAt: new Date().toISOString(),
-          };
-          
-          onAddAsset({
-            id: imageAsset.id,
-            name: file.name,
-            type: 'image',
-            image: imageAsset,
-            createdAt: imageAsset.createdAt,
+          // Compress image before upload
+          const compressedFile = await compressImage(file, {
+            maxWidth: 1600,
+            maxHeight: 1200,
+            quality: 0.85
           });
+
+          const asset = await uploadAssetPersistently(compressedFile, 'image');
+          if (asset) onAddAsset(asset);
         } else if (category === 'document') {
-          // Parse document
+          // Parse document for metadata before persistent upload
           const parsed = await parseDocument(file);
-          const docAsset: ParsedDocument = {
-            id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            fileName: file.name,
-            fileType: file.name.split('.').pop()?.toLowerCase() as any,
-            fileSize: file.size,
+          const metadata = {
             text: parsed.text,
             html: parsed.html,
-            pages: parsed.pages,
-            parsedAt: new Date().toISOString(),
+            pages: parsed.pages
           };
-          
-          onAddAsset({
-            id: docAsset.id,
-            name: file.name,
-            type: 'document',
-            document: docAsset,
-            createdAt: docAsset.parsedAt,
-          });
+
+          const asset = await uploadAssetPersistently(file, 'document', metadata);
+          if (asset) onAddAsset(asset);
         } else if (category === 'data') {
-          // Parse data file
+          // Parse data file for metadata
           const parsed = await parseDocument(file);
-          const dataAsset: DataAsset = {
-            id: `data-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            fileName: file.name,
-            fileType: file.name.split('.').pop()?.toLowerCase() as any,
+          const metadata = {
             data: parsed.data || [],
             columns: parsed.columns,
-            rowCount: parsed.data?.length || 0,
-            parsedAt: new Date().toISOString(),
+            rowCount: parsed.data?.length || 0
           };
-          
-          onAddAsset({
-            id: dataAsset.id,
-            name: file.name,
-            type: 'data',
-            data: dataAsset,
-            createdAt: dataAsset.parsedAt,
-          });
+
+          const asset = await uploadAssetPersistently(file, 'data', metadata);
+          if (asset) onAddAsset(asset);
         } else {
           setUploadError(`不支援的檔案格式: ${file.name}`);
         }
       }
     } catch (error) {
+      console.error('Upload failed:', error);
       setUploadError(error instanceof Error ? error.message : '上傳失敗');
     } finally {
       setIsUploading(false);
@@ -152,17 +118,15 @@ export function AssetUploadCenter({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-            }`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
+              }`}
           >
             <Grid className="w-4 h-4" />
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-            }`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
+              }`}
           >
             <List className="w-4 h-4" />
           </button>
@@ -179,11 +143,10 @@ export function AssetUploadCenter({
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === key
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === key
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             {icon}
             {label}
@@ -228,11 +191,10 @@ export function AssetUploadCenter({
             <button
               key={type}
               onClick={() => setImageUploadType(type)}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                imageUploadType === type
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${imageUploadType === type
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent'
+                }`}
             >
               {label}
             </button>
@@ -270,9 +232,9 @@ export function AssetUploadCenter({
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-3 gap-4">
             {filteredAssets.map((asset) => (
-              <AssetGridItem 
-                key={asset.id} 
-                asset={asset} 
+              <AssetGridItem
+                key={asset.id}
+                asset={asset}
                 onRemove={() => onRemoveAsset(asset.id)}
                 onSelect={() => setSelectedAsset(asset)}
                 isSelected={selectedAsset?.id === asset.id}
@@ -282,9 +244,9 @@ export function AssetUploadCenter({
         ) : (
           <div className="space-y-2">
             {filteredAssets.map((asset) => (
-              <AssetListItem 
-                key={asset.id} 
-                asset={asset} 
+              <AssetListItem
+                key={asset.id}
+                asset={asset}
                 onRemove={() => onRemoveAsset(asset.id)}
                 onSelect={() => setSelectedAsset(asset)}
                 isSelected={selectedAsset?.id === asset.id}
@@ -296,8 +258,8 @@ export function AssetUploadCenter({
 
       {/* Selected Asset Detail */}
       {selectedAsset && (
-        <AssetDetailPanel 
-          asset={selectedAsset} 
+        <AssetDetailPanel
+          asset={selectedAsset}
           onClose={() => setSelectedAsset(null)}
         />
       )}
@@ -309,32 +271,31 @@ export function AssetUploadCenter({
 // ASSET GRID ITEM
 // =============================================================================
 
-function AssetGridItem({ 
-  asset, 
-  onRemove, 
+function AssetGridItem({
+  asset,
+  onRemove,
   onSelect,
-  isSelected 
-}: { 
-  asset: Asset; 
+  isSelected
+}: {
+  asset: Asset;
   onRemove: () => void;
   onSelect: () => void;
   isSelected: boolean;
 }) {
   return (
-    <div 
-      className={`relative group rounded-lg border overflow-hidden cursor-pointer transition-all ${
-        isSelected 
-          ? 'border-primary ring-2 ring-primary/20' 
-          : 'border-border hover:border-primary/50'
-      }`}
+    <div
+      className={`relative group rounded-lg border overflow-hidden cursor-pointer transition-all ${isSelected
+        ? 'border-primary ring-2 ring-primary/20'
+        : 'border-border hover:border-primary/50'
+        }`}
       onClick={onSelect}
     >
       {/* Thumbnail */}
       <div className="aspect-square bg-muted flex items-center justify-center">
         {asset.type === 'image' && asset.image?.url ? (
-          <img 
-            src={asset.image.url} 
-            alt={asset.name} 
+          <img
+            src={asset.image.url}
+            alt={asset.name}
             className="w-full h-full object-cover"
           />
         ) : asset.type === 'document' ? (
@@ -343,22 +304,22 @@ function AssetGridItem({
           <Database className="w-8 h-8 text-muted-foreground" />
         )}
       </div>
-      
+
       {/* Name */}
       <div className="p-2">
         <p className="text-xs text-foreground truncate">{asset.name}</p>
         <p className="text-xs text-muted-foreground">
-          {asset.type === 'document' && asset.document 
+          {asset.type === 'document' && asset.document
             ? formatFileSize(asset.document.fileSize)
             : asset.type === 'data' && asset.data
-            ? `${asset.data.rowCount} 筆資料`
-            : '圖像'}
+              ? `${asset.data.rowCount} 筆資料`
+              : '圖像'}
         </p>
       </div>
-      
+
       {/* Actions */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="p-1.5 bg-destructive text-destructive-foreground rounded-md"
         >
@@ -373,32 +334,31 @@ function AssetGridItem({
 // ASSET LIST ITEM
 // =============================================================================
 
-function AssetListItem({ 
-  asset, 
-  onRemove, 
+function AssetListItem({
+  asset,
+  onRemove,
   onSelect,
-  isSelected 
-}: { 
-  asset: Asset; 
+  isSelected
+}: {
+  asset: Asset;
   onRemove: () => void;
   onSelect: () => void;
   isSelected: boolean;
 }) {
   return (
-    <div 
-      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-        isSelected 
-          ? 'border-primary bg-primary/5' 
-          : 'border-border hover:border-primary/50 hover:bg-muted/50'
-      }`}
+    <div
+      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isSelected
+        ? 'border-primary bg-primary/5'
+        : 'border-border hover:border-primary/50 hover:bg-muted/50'
+        }`}
       onClick={onSelect}
     >
       {/* Icon */}
       <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
         {asset.type === 'image' && asset.image?.url ? (
-          <img 
-            src={asset.image.url} 
-            alt={asset.name} 
+          <img
+            src={asset.image.url}
+            alt={asset.name}
             className="w-full h-full object-cover rounded-lg"
           />
         ) : asset.type === 'document' ? (
@@ -407,28 +367,28 @@ function AssetListItem({
           <Database className="w-5 h-5 text-muted-foreground" />
         )}
       </div>
-      
+
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground truncate">{asset.name}</p>
         <p className="text-xs text-muted-foreground">
-          {asset.type === 'document' && asset.document 
+          {asset.type === 'document' && asset.document
             ? `${asset.document.fileType.toUpperCase()} · ${formatFileSize(asset.document.fileSize)}`
             : asset.type === 'data' && asset.data
-            ? `${asset.data.fileType.toUpperCase()} · ${asset.data.rowCount} 筆`
-            : asset.image?.type === 'directional' ? '方向圖組' : '圖像'}
+              ? `${asset.data.fileType.toUpperCase()} · ${asset.data.rowCount} 筆`
+              : asset.image?.type === 'directional' ? '方向圖組' : '圖像'}
         </p>
       </div>
-      
+
       {/* Actions */}
       <div className="flex items-center gap-1">
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onSelect(); }}
           className="p-2 text-muted-foreground hover:text-foreground transition-colors"
         >
           <Eye className="w-4 h-4" />
         </button>
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="p-2 text-muted-foreground hover:text-destructive transition-colors"
         >
@@ -443,11 +403,11 @@ function AssetListItem({
 // ASSET DETAIL PANEL
 // =============================================================================
 
-function AssetDetailPanel({ 
-  asset, 
-  onClose 
-}: { 
-  asset: Asset; 
+function AssetDetailPanel({
+  asset,
+  onClose
+}: {
+  asset: Asset;
   onClose: () => void;
 }) {
   return (
@@ -458,12 +418,12 @@ function AssetDetailPanel({
           <X className="w-4 h-4" />
         </button>
       </div>
-      
+
       {asset.type === 'image' && asset.image?.url && (
         <div className="flex gap-4">
-          <img 
-            src={asset.image.url} 
-            alt={asset.name} 
+          <img
+            src={asset.image.url}
+            alt={asset.name}
             className="w-24 h-24 object-cover rounded-lg"
           />
           <div className="text-sm text-muted-foreground space-y-1">
@@ -472,7 +432,7 @@ function AssetDetailPanel({
           </div>
         </div>
       )}
-      
+
       {asset.type === 'document' && asset.document && (
         <div className="space-y-2">
           <div className="text-sm text-muted-foreground space-y-1">
@@ -490,7 +450,7 @@ function AssetDetailPanel({
           )}
         </div>
       )}
-      
+
       {asset.type === 'data' && asset.data && (
         <div className="space-y-2">
           <div className="text-sm text-muted-foreground space-y-1">

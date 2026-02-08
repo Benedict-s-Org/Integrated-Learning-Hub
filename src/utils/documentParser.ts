@@ -6,7 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import Papa from 'papaparse';
 
 // Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 export interface ParsedContent {
   type: 'text' | 'html' | 'data';
@@ -33,7 +33,7 @@ export interface ParseOptions {
 // =============================================================================
 
 export async function parseDocument(
-  file: File, 
+  file: File,
   options: ParseOptions = {}
 ): Promise<ParsedContent> {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -72,7 +72,7 @@ export async function parseDocument(
 // =============================================================================
 
 async function parseTextFile(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata']
 ): Promise<ParsedContent> {
   const text = await file.text();
@@ -88,7 +88,7 @@ async function parseTextFile(
 // =============================================================================
 
 async function parseMarkdownFile(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata']
 ): Promise<ParsedContent> {
   const text = await file.text();
@@ -104,32 +104,32 @@ async function parseMarkdownFile(
 
 function simpleMarkdownToHtml(markdown: string): string {
   let html = markdown;
-  
+
   // Headers
   html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-  
+
   // Bold and italic
   html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  
+
   // Code blocks
   html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
   html = html.replace(/`(.*?)`/g, '<code>$1</code>');
-  
+
   // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-  
+
   // Lists
   html = html.replace(/^\- (.*$)/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-  
+
   // Paragraphs
   html = html.replace(/\n\n/g, '</p><p>');
   html = '<p>' + html + '</p>';
-  
+
   return html;
 }
 
@@ -138,15 +138,15 @@ function simpleMarkdownToHtml(markdown: string): string {
 // =============================================================================
 
 async function parseWordDocument(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata']
 ): Promise<ParsedContent> {
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.convertToHtml({ arrayBuffer });
-  
+
   // Extract plain text as well
   const textResult = await mammoth.extractRawText({ arrayBuffer });
-  
+
   return {
     type: 'html',
     text: textResult.value,
@@ -160,18 +160,18 @@ async function parseWordDocument(
 // =============================================================================
 
 async function parsePDFDocument(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata'],
   options: ParseOptions = {}
 ): Promise<ParsedContent> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
+
   const maxPages = options.maxPages || pdf.numPages;
   const pagesToParse = Math.min(maxPages, pdf.numPages);
-  
+
   let fullText = '';
-  
+
   for (let i = 1; i <= pagesToParse; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
@@ -180,7 +180,7 @@ async function parsePDFDocument(
       .join(' ');
     fullText += pageText + '\n\n';
   }
-  
+
   return {
     type: 'text',
     text: fullText.trim(),
@@ -194,18 +194,18 @@ async function parsePDFDocument(
 // =============================================================================
 
 async function parseJSONFile(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata']
 ): Promise<ParsedContent> {
   const text = await file.text();
   const parsed = JSON.parse(text);
-  
+
   // Convert to array if single object
   const data = Array.isArray(parsed) ? parsed : [parsed];
-  
+
   // Extract columns from first item
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
-  
+
   return {
     type: 'data',
     data,
@@ -219,7 +219,7 @@ async function parseJSONFile(
 // =============================================================================
 
 async function parseCSVFile(
-  file: File, 
+  file: File,
   metadata: ParsedContent['metadata']
 ): Promise<ParsedContent> {
   return new Promise((resolve, reject) => {
@@ -247,11 +247,11 @@ async function parseCSVFile(
 
 export function getFileCategory(fileName: string): 'image' | 'document' | 'data' | 'unknown' {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  
+
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
   const documentExts = ['txt', 'md', 'docx', 'pdf'];
   const dataExts = ['json', 'csv'];
-  
+
   if (imageExts.includes(ext)) return 'image';
   if (documentExts.includes(ext)) return 'document';
   if (dataExts.includes(ext)) return 'data';

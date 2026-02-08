@@ -4,7 +4,7 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ mode }) => {
-  const plugins = [react()];
+  const plugins: any[] = [react()];
 
   if (mode === 'development') {
     try {
@@ -31,7 +31,7 @@ export default defineConfig(async ({ mode }) => {
       setupFiles: './src/test/setup.ts',
     },
     server: {
-      host: '::',
+      host: true,
       port: 8080,
     }
   };

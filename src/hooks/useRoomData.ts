@@ -241,19 +241,37 @@ export const useRoomData = () => {
           }
 
           // Only update if change came from elsewhere (e.g., another tab)
-          setData({
-            placements: newData.placements || [],
-            wallPlacements: newData.wall_placements || [],
-            inventory: newData.inventory || DEFAULT_ROOM_DATA.inventory,
-            customCatalog: parsedCatalog,
-            customModels: newData.custom_models || {},
-            customWalls: Array.isArray(newData.custom_walls) ? (newData.custom_walls as CustomWall[]) : [],
-            customFloors: Array.isArray(newData.custom_floors) ? (newData.custom_floors as CustomFloor[]) : [],
-            activeWallId: newData.active_wall_id,
-            activeFloorId: newData.active_floor_id,
-            houseLevel: newData.house_level || 0,
-            coins: isAdmin ? ADMIN_FUNDS : (newData.coins || 0),
-            history: [],
+          setData((prev) => {
+            const nextCoins = isAdmin ? ADMIN_FUNDS : (newData.coins || 0);
+            const nextHouseLevel = newData.house_level || 0;
+
+            // Deep compare key fields to avoid loop with saveData
+            // We use JSON.stringify for complex objects as a shortcut for now
+            if (
+              prev.coins === nextCoins &&
+              prev.houseLevel === nextHouseLevel &&
+              prev.activeWallId === newData.active_wall_id &&
+              prev.activeFloorId === newData.active_floor_id &&
+              JSON.stringify(prev.placements) === JSON.stringify(newData.placements || []) &&
+              JSON.stringify(prev.inventory) === JSON.stringify(newData.inventory || DEFAULT_ROOM_DATA.inventory)
+            ) {
+              return prev;
+            }
+
+            return {
+              placements: newData.placements || [],
+              wallPlacements: newData.wall_placements || [],
+              inventory: newData.inventory || DEFAULT_ROOM_DATA.inventory,
+              customCatalog: parsedCatalog,
+              customModels: newData.custom_models || {},
+              customWalls: Array.isArray(newData.custom_walls) ? (newData.custom_walls as CustomWall[]) : [],
+              customFloors: Array.isArray(newData.custom_floors) ? (newData.custom_floors as CustomFloor[]) : [],
+              activeWallId: newData.active_wall_id,
+              activeFloorId: newData.active_floor_id,
+              houseLevel: nextHouseLevel,
+              coins: nextCoins,
+              history: [],
+            };
           });
         }
       )

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
-import { Loader2 } from 'lucide-react';
+import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
 
 interface UserWithCoins {
     id: string;
@@ -19,6 +19,7 @@ export function ClassDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
+    const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
     // Keep track of all users for searching/lookup if needed, though strictly we use groupedUsers for display
     const [allUsers, setAllUsers] = useState<UserWithCoins[]>([]);
 
@@ -83,11 +84,11 @@ export function ClassDashboardPage() {
         }
     }, [isAdmin, currentUser]);
 
-    const handleAwardCoins = async (userIds: string[], amount: number, reason: string) => {
+    const handleAwardCoins = async (userIds: string[], amount: number) => {
         try {
             for (const userId of userIds) {
                 // Use the new RPC for room coins
-                const { error } = await supabase.rpc('increment_room_coins', {
+                const { error } = await supabase.rpc('increment_room_coins' as any, {
                     target_user_id: userId,
                     amount: amount
                 });
@@ -111,6 +112,14 @@ export function ClassDashboardPage() {
             console.error('Error awarding coins:', err);
             alert('Failed to award coins');
         }
+    };
+
+    const handleStudentClick = (student: UserWithCoins) => {
+        setSelectedStudent(student);
+    };
+
+    const handleCloseProfile = () => {
+        setSelectedStudent(null);
     };
 
     if (!isAdmin) {
@@ -141,6 +150,7 @@ export function ClassDashboardPage() {
                                         setSelectedForAward(ids);
                                         setShowAwardModal(true);
                                     }}
+                                    onStudentClick={handleStudentClick}
                                 />
                             </div>
                         ))
@@ -152,7 +162,14 @@ export function ClassDashboardPage() {
                 isOpen={showAwardModal}
                 onClose={() => setShowAwardModal(false)}
                 selectedCount={selectedForAward.length}
-                onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
+                onAward={(amount) => handleAwardCoins(selectedForAward, amount)}
+            />
+
+            <StudentProfileModal
+                isOpen={!!selectedStudent}
+                onClose={handleCloseProfile}
+                student={selectedStudent}
+                onUpdateCoins={fetchUsers}
             />
         </div>
     );

@@ -1,9 +1,10 @@
-import React, { createContext, useContext, ReactNode, useMemo, useState } from "react";
-import { useRoomData, RoomData } from "../hooks/useRoomData";
-import { useAuth } from "@/context/AuthContext";
+import React, { createContext, useContext, ReactNode, useMemo, useState, useCallback, useEffect } from "react";
+import { useRoomData } from "../hooks/useRoomData";
 import { FURNITURE_CATALOG, FURNITURE_MODELS } from "@/constants/furnitureCatalog";
 
 import { useStudySession } from "@/hooks/useStudySession";
+import { fetchUIBuilderAssets } from "@/utils/assetPersistence";
+import { Asset } from "@/types/ui-builder";
 
 interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
     fullCatalog: any[];
@@ -22,25 +23,16 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
         showMemoryPanel: boolean;
         isMemoryMode: boolean;
         view: "room" | "map" | "region";
+        showTransformPanel: boolean;
+        transformTargetId: string | null;
+        showThemeDesigner: boolean;
     };
+    uiAssets: Asset[];
+    setUiAssets: React.Dispatch<React.SetStateAction<Asset[]>>;
     // Study Session
     studySession: ReturnType<typeof useStudySession>;
     // UI Setters
-    setUiState: React.Dispatch<React.SetStateAction<{
-        showShop: boolean;
-        showStudio: boolean;
-        showEditor: boolean;
-        showUploader: boolean;
-        showMapEditor: boolean;
-        showAssetUpload: boolean;
-        showSpaceDesign: boolean;
-        showThemeDesigner: boolean;
-        showFurniturePanel: boolean;
-        showHistoryPanel: boolean;
-        showMemoryPanel: boolean;
-        isMemoryMode: boolean;
-        view: "room" | "map" | "region";
-    }>>;
+    setUiState: React.Dispatch<React.SetStateAction<MemoryPalaceContextType["uiState"]>>;
     toggleShop: () => void;
     toggleStudio: () => void;
     toggleEditor: () => void;
@@ -53,6 +45,7 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
     toggleHistoryPanel: () => void;
     toggleMemoryPanel: () => void;
     toggleMemoryMode: () => void;
+    toggleTransformPanel: (id: string | null) => void;
     setView: (view: "room" | "map" | "region") => void;
 }
 
@@ -62,7 +55,6 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
     const roomData = useRoomData();
     const studySession = useStudySession();
 
-    // UI State
     const [uiState, setUiState] = useState({
         showShop: false,
         showStudio: false,
@@ -77,7 +69,18 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         showMemoryPanel: false,
         isMemoryMode: false,
         view: "room" as "room" | "map" | "region",
+        showTransformPanel: false,
+        transformTargetId: null as string | null,
     });
+    const [uiAssets, setUiAssets] = useState<Asset[]>([]);
+
+    useEffect(() => {
+        const loadAssets = async () => {
+            const assets = await fetchUIBuilderAssets();
+            setUiAssets(assets);
+        };
+        loadAssets();
+    }, []);
 
     const fullCatalog = useMemo(() => {
         return [...FURNITURE_CATALOG, ...roomData.customCatalog];
@@ -87,21 +90,26 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         return { ...FURNITURE_MODELS, ...roomData.customModels };
     }, [roomData.customModels]);
 
-    const toggleShop = () => setUiState(prev => ({ ...prev, showShop: !prev.showShop }));
-    const toggleStudio = () => setUiState(prev => ({ ...prev, showStudio: !prev.showStudio }));
-    const toggleEditor = () => setUiState(prev => ({ ...prev, showEditor: !prev.showEditor }));
-    const toggleUploader = () => setUiState(prev => ({ ...prev, showUploader: !prev.showUploader }));
-    const toggleMapEditor = () => setUiState(prev => ({ ...prev, showMapEditor: !prev.showMapEditor }));
-    const toggleAssetUpload = () => setUiState(prev => ({ ...prev, showAssetUpload: !prev.showAssetUpload }));
-    const toggleSpaceDesign = () => setUiState(prev => ({ ...prev, showSpaceDesign: !prev.showSpaceDesign }));
-    const toggleThemeDesigner = () => setUiState(prev => ({ ...prev, showThemeDesigner: !prev.showThemeDesigner }));
-    const toggleFurniturePanel = () => setUiState(prev => ({ ...prev, showFurniturePanel: !prev.showFurniturePanel }));
-    const toggleHistoryPanel = () => setUiState(prev => ({ ...prev, showHistoryPanel: !prev.showHistoryPanel }));
-    const toggleMemoryPanel = () => setUiState(prev => ({ ...prev, showMemoryPanel: !prev.showMemoryPanel }));
-    const toggleMemoryMode = () => setUiState(prev => ({ ...prev, isMemoryMode: !prev.isMemoryMode }));
-    const setView = (view: "room" | "map" | "region") => setUiState(prev => ({ ...prev, view }));
+    const toggleShop = useCallback(() => setUiState(prev => ({ ...prev, showShop: !prev.showShop })), []);
+    const toggleStudio = useCallback(() => setUiState(prev => ({ ...prev, showStudio: !prev.showStudio })), []);
+    const toggleEditor = useCallback(() => setUiState(prev => ({ ...prev, showEditor: !prev.showEditor })), []);
+    const toggleUploader = useCallback(() => setUiState(prev => ({ ...prev, showUploader: !prev.showUploader })), []);
+    const toggleMapEditor = useCallback(() => setUiState(prev => ({ ...prev, showMapEditor: !prev.showMapEditor })), []);
+    const toggleAssetUpload = useCallback(() => setUiState(prev => ({ ...prev, showAssetUpload: !prev.showAssetUpload })), []);
+    const toggleSpaceDesign = useCallback(() => setUiState(prev => ({ ...prev, showSpaceDesign: !prev.showSpaceDesign })), []);
+    const toggleThemeDesigner = useCallback(() => setUiState(prev => ({ ...prev, showThemeDesigner: !prev.showThemeDesigner })), []);
+    const toggleFurniturePanel = useCallback(() => setUiState(prev => ({ ...prev, showFurniturePanel: !prev.showFurniturePanel })), []);
+    const toggleHistoryPanel = useCallback(() => setUiState(prev => ({ ...prev, showHistoryPanel: !prev.showHistoryPanel })), []);
+    const toggleMemoryPanel = useCallback(() => setUiState(prev => ({ ...prev, showMemoryPanel: !prev.showMemoryPanel })), []);
+    const toggleMemoryMode = useCallback(() => setUiState(prev => ({ ...prev, isMemoryMode: !prev.isMemoryMode })), []);
+    const toggleTransformPanel = useCallback((id: string | null) => setUiState(prev => ({
+        ...prev,
+        showTransformPanel: id !== null,
+        transformTargetId: id
+    })), []);
+    const setView = useCallback((view: "room" | "map" | "region") => setUiState(prev => ({ ...prev, view })), []);
 
-    const value = {
+    const value = useMemo(() => ({
         ...roomData,
         fullCatalog,
         fullModels,
@@ -120,8 +128,32 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         toggleHistoryPanel,
         toggleMemoryPanel,
         toggleMemoryMode,
-        setView
-    };
+        toggleTransformPanel,
+        setView,
+        uiAssets,
+        setUiAssets
+    }), [
+        roomData,
+        fullCatalog,
+        fullModels,
+        uiState,
+        studySession,
+        toggleShop,
+        toggleStudio,
+        toggleEditor,
+        toggleUploader,
+        toggleMapEditor,
+        toggleAssetUpload,
+        toggleSpaceDesign,
+        toggleThemeDesigner,
+        toggleFurniturePanel,
+        toggleHistoryPanel,
+        toggleMemoryPanel,
+        toggleMemoryMode,
+        toggleTransformPanel,
+        setView,
+        uiAssets
+    ]);
 
     return (
         <MemoryPalaceContext.Provider value={value}>

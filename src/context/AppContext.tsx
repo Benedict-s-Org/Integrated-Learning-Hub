@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList, ProofreadingPractice, ProofreadingAnswer } from '../types';
 import { supabase } from '../lib/supabase';
 import { processText } from '../utils/textProcessor';
@@ -134,7 +134,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     fetchProofreadingPractices();
   }, [userId]);
 
-  const addSavedContent = async (content: Omit<SavedContent, 'id' | 'createdAt'>): Promise<boolean> => {
+  const addSavedContent = useCallback(async (content: Omit<SavedContent, 'id' | 'createdAt'>): Promise<boolean> => {
     if (!userId) {
       console.error('User not authenticated');
       return false;
@@ -176,9 +176,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       console.error('Failed to add saved content:', error);
       return false;
     }
-  };
+  }, [userId]);
 
-  const deleteSavedContent = async (id: string): Promise<void> => {
+  const deleteSavedContent = useCallback(async (id: string): Promise<void> => {
     if (!userId) {
       console.error('User not authenticated');
       return;
@@ -201,9 +201,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     } catch (error) {
       console.error('Failed to delete saved content:', error);
     }
-  };
+  }, [userId]);
 
-  const publishSavedContent = async (id: string): Promise<string | null> => {
+  const publishSavedContent = useCallback(async (id: string): Promise<string | null> => {
     if (!userId) {
       console.error('User not authenticated');
       return null;
@@ -240,7 +240,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       console.error('Failed to publish content:', error);
       return null;
     }
-  };
+  }, [userId]);
 
   const fetchPublicContent = async (publicId: string): Promise<MemorizationState | null> => {
     try {
@@ -380,14 +380,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   };
 
-  const deleteProofreadingPractice = async (id: string): Promise<void> => {
+  const deleteProofreadingPractice = useCallback(async (id: string): Promise<void> => {
     if (!userId) {
       console.error('User not authenticated');
       return;
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('proofreading-practices/delete', {
+      const { error } = await supabase.functions.invoke('proofreading-practices/delete', {
         body: {
           practiceId: id,
           userId,
@@ -403,9 +403,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     } catch (error) {
       console.error('Failed to delete proofreading practice:', error);
     }
-  };
+  }, [userId]);
 
-  const value: AppContextType = {
+  const value: AppContextType = useMemo(() => ({
     savedContents,
     addSavedContent,
     deleteSavedContent,
@@ -423,7 +423,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     addProofreadingPractice,
     deleteProofreadingPractice,
     refreshSavedContents,
-  };
+  }), [
+    savedContents,
+    addSavedContent,
+    deleteSavedContent,
+    publishSavedContent,
+    fetchPublicContent,
+    currentContent,
+    loading,
+    spellingLists,
+    addSpellingList,
+    deleteSpellingList,
+    saveLimit,
+    currentSaveCount,
+    proofreadingPractices,
+    addProofreadingPractice,
+    deleteProofreadingPractice,
+    refreshSavedContents,
+  ]);
 
   return (
     <AppContext.Provider value={value}>

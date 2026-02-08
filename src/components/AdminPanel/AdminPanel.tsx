@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { StudentQRCodeModal } from '../admin/StudentQRCodeModal';
 
 interface User {
   id: string;
@@ -12,6 +13,7 @@ interface User {
   can_access_spelling?: boolean;
   display_name?: string;
   class?: string | null;
+  qr_token?: string;
 }
 
 interface PendingPermissions {
@@ -66,6 +68,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
 
   // Sorting and Filtering States
   const [sortBy, setSortBy] = useState<'created_at' | 'username' | 'class'>('created_at');
@@ -105,10 +108,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       if (error) throw error;
       if (!data) throw new Error('No data returned');
 
-      setUsers(data.users);
-    } catch (err: any) {
-      console.error('Error fetching users:', err);
-      setError(err.message);
+
+      // Fetch QR tokens for users
+      const { data: usersWithQr } = await (supabase
+        .from('users')
+        .select('id, qr_token') as any);
+
+      const qrTokenMap: Record<string, string> = {};
+      (usersWithQr || []).forEach((u: any) => {
+        if (u.id && u.qr_token) qrTokenMap[u.id] = u.qr_token;
+      });
+
+      setUsers(data.users.map((u: any) => ({
+        ...u,
+        qr_token: qrTokenMap[u.id]
+      })));
     } finally {
       setLoading(false);
     }
@@ -741,6 +755,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                         >
                           <Key size={18} />
                         </button>
+                        <button
+                          onClick={() => user.qr_token && setQrUser({
+                            id: user.id,
+                            name: user.display_name || user.username,
+                            qrToken: user.qr_token
+                          })}
+                          disabled={!user.qr_token}
+                          className={`p-2 rounded-lg transition ${user.qr_token ? 'text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50' : 'text-slate-300 cursor-not-allowed'}`}
+                          title="Print QR Code"
+                        >
+                          <QrCode size={18} />
+                        </button>
                         {isSuperAdmin && user.id !== currentUser?.id && (
                           <button
                             onClick={() => handleDeleteUser(user.id, user.username)}
@@ -1126,7 +1152,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       {isBatchMode && selectedUserIds.size > 0 && <div className="h-24"></div>}
 
       {/* Removed old showClassModal */}
-    </div >
+      {qrUser && (
+        <StudentQRCodeModal
+          isOpen={!!qrUser}
+          onClose={() => setQrUser(null)}
+          student={qrUser}
+        />
+      )}
+    </div>
   );
 };
 

@@ -1,21 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 import {
   Loader2,
   UserPlus,
   Users,
-  ArrowLeft,
   AlertCircle,
   CheckCircle,
   Mail,
   Lock,
   User,
   Shield,
-  BarChart3,
-  MapPin,
   Pencil,
   Settings,
+  QrCode,
+  ScanLine,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -24,6 +23,7 @@ import { DefaultUserSettingsModal } from '@/components/admin/DefaultUserSettings
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
+import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
 import { LayoutGrid, List } from 'lucide-react';
 
 const createUserSchema = z.object({
@@ -41,11 +41,13 @@ interface UserWithProfile {
   created_at: string;
   is_admin: boolean;
   coins: number;
+  seat_number: number | null;
+  qr_token?: string;
 }
 
 export function AdminUsersPage() {
-  const navigate = useNavigate();
   const { isAdmin, user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'classroom'>('list');
 
   const [users, setUsers] = useState<UserWithProfile[]>([]);
@@ -65,17 +67,27 @@ export function AdminUsersPage() {
   const [showDefaultSettings, setShowDefaultSettings] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
+  const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
 
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
     try {
       // Fetch user profiles
-      const { data: profiles, error } = await supabase
+      // Using any cast because some columns were recently added via migration
+      const { data: profiles, error } = await (supabase
         .from('user_profiles')
-        .select('id, display_name, avatar_url, created_at')
-        .order('created_at', { ascending: false });
+        .select('id, display_name, avatar_url, created_at, seat_number')
+        .order('seat_number', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false }) as any);
 
       if (error) throw error;
+
+      // Fetch QR tokens from users table
+      const { data: usersWithQr } = await (supabase
+        .from('users')
+        .select('id, qr_token') as any);
+
+      const qrTokenMap = new Map((usersWithQr || []).map((u: any) => [u.id, u.qr_token]));
 
       // Fetch room data for coins
       const { data: roomData, error: roomError } = await supabase
@@ -90,7 +102,7 @@ export function AdminUsersPage() {
 
       // Check admin status for each user
       const usersWithRoles = await Promise.all(
-        (profiles || []).map(async (profile) => {
+        ((profiles as any[]) || []).map(async (profile) => {
           const { data: isAdminData } = await supabase
             .rpc('has_role', { _user_id: profile.id, _role: 'admin' });
 
@@ -102,6 +114,8 @@ export function AdminUsersPage() {
             created_at: profile.created_at ?? '',
             is_admin: isAdminData === true,
             coins: roomDataMap.get(profile.id) || 0,
+            seat_number: profile.seat_number,
+            qr_token: qrTokenMap.get(profile.id) as string | undefined,
           };
         })
       );
@@ -135,7 +149,7 @@ export function AdminUsersPage() {
     setIsCreating(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auth/create-user', {
+      const { error } = await supabase.functions.invoke('auth/create-user', {
         body: {
           email: result.data.email,
           username: result.data.email.split('@')[0],
@@ -202,8 +216,17 @@ export function AdminUsersPage() {
     <AdminLayout title="用戶管理" icon={<Users className="w-5 h-5" />}>
       <div className="p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
-          {/* View Toggle */}
-          <div className="flex justify-end mb-6">
+          {/* Header Actions */}
+          <div className="flex justify-between mb-6">
+            {/* Scan QR Button */}
+            <button
+              onClick={() => navigate('/admin/scanner')}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+            >
+              <ScanLine size={20} />
+              Scan QR
+            </button>
+            {/* View Toggle */}
             <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
               <button
                 onClick={() => setViewMode('list')}
@@ -230,6 +253,25 @@ export function AdminUsersPage() {
                 onAwardCoins={async (ids) => {
                   setSelectedForAward(ids);
                   setShowAwardModal(true);
+                }}
+                onStudentClick={(student) => setEditingUser(student)}
+                onReorder={async (newOrder) => {
+                  try {
+                    // Update seat_number for each user in the new order
+                    for (let i = 0; i < newOrder.length; i++) {
+                      const { error } = await supabase
+                        .from('user_profiles')
+                        .update({ seat_number: i + 1 } as any)
+                        .eq('id', newOrder[i].id);
+
+                      if (error) throw error;
+                    }
+                    // Refresh data to ensure everything is in sync
+                    await fetchUsers();
+                  } catch (err) {
+                    console.error('Failed to update seat numbers:', err);
+                    throw err;
+                  }
                 }}
               />
             </div>
@@ -411,11 +453,18 @@ export function AdminUsersPage() {
                         className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
-                            {user.avatar_url ? (
-                              <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                            ) : (
-                              <User className="w-5 h-5 text-[hsl(var(--primary))]" />
+                          <div className="relative shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
+                              {user.avatar_url ? (
+                                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                              ) : (
+                                <User className="w-5 h-5 text-[hsl(var(--primary))]" />
+                              )}
+                            </div>
+                            {user.seat_number && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-slate-800 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white">
+                                {user.seat_number}
+                              </div>
                             )}
                           </div>
                           <div className="min-w-0">
@@ -434,6 +483,18 @@ export function AdminUsersPage() {
                               管理員
                             </div>
                           )}
+                          <button
+                            onClick={() => user.qr_token && setQrUser({
+                              id: user.id,
+                              name: user.display_name || '未命名',
+                              qrToken: user.qr_token
+                            })}
+                            className="p-1.5 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+                            title="顯示 QR Code"
+                            disabled={!user.qr_token}
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => setEditingUser(user)}
                             className="p-1.5 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
@@ -474,6 +535,13 @@ export function AdminUsersPage() {
       <DefaultUserSettingsModal
         isOpen={showDefaultSettings}
         onClose={() => setShowDefaultSettings(false)}
+      />
+
+      {/* QR Code Modal */}
+      <StudentQRCodeModal
+        isOpen={!!qrUser}
+        onClose={() => setQrUser(null)}
+        student={qrUser}
       />
     </AdminLayout>
   );

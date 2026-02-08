@@ -26,6 +26,8 @@ export interface ThemeColors {
     ring: HSLColor;
     destructive: HSLColor;
     destructiveForeground: HSLColor;
+    panelBg?: HSLColor;
+    panelBorder?: HSLColor;
 }
 
 // Style settings beyond colors

@@ -33,37 +33,37 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
   const NAV_ITEMS: NavItem[] = [
     {
       path: "/admin/users",
-      label: "用戶管理",
+      label: "User Management",
       icon: <Users className="w-4 h-4" />,
     },
     {
       path: "/admin/progress",
-      label: "進度總覽",
+      label: "Progress Overview",
       icon: <BarChart3 className="w-4 h-4" />,
     },
     {
       path: "/design",
-      label: "空間設計中心",
+      label: "Space Design",
       icon: <Palette className="w-4 h-4" />,
     },
     {
-      label: "地圖編輯器",
+      label: "Map Editor",
       icon: <MapIcon className="w-4 h-4" />,
       onClick: () => setShowMapEditor(true),
     },
     {
       path: "/admin/ui-builder",
-      label: "介面功能板",
+      label: "UI Builder",
       icon: <Layout className="w-4 h-4" />,
     },
     {
       path: "/admin/errors",
-      label: "錯誤知識庫",
+      label: "Diagnostic Errors",
       icon: <AlertTriangle className="w-4 h-4" />,
     },
     {
       path: "/admin/theme",
-      label: "主題設計",
+      label: "Theme Design",
       icon: <Paintbrush className="w-4 h-4" />,
     },
   ];
@@ -85,7 +85,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
             <div className="p-2 rounded-full bg-white group-hover:scale-110 transition-transform shadow-sm">
               <ArrowLeft className="w-5 h-5" />
             </div>
-            返回主頁
+            Back to Home
           </button>
         </div>
 
@@ -118,7 +118,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
               ⚙️
             </div>
             <div>
-              <p className="text-xs font-black text-primary uppercase tracking-widest">系統管理</p>
+              <p className="text-xs font-black text-primary uppercase tracking-widest">System Admin</p>
               <p className="text-[10px] text-primary/40 font-bold">Admin Console v2.0</p>
             </div>
           </div>
