@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, GripVertical, Save, Loader2 } from 'lucide-react';
+import { User, GripVertical, Save, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -27,6 +27,7 @@ interface UserWithCoins {
     email: string;
     created_at: string;
     is_admin: boolean;
+    class_name?: string | null;
 }
 
 interface ClassDistributorProps {
@@ -41,11 +42,14 @@ interface SortableUserItemProps {
     user: UserWithCoins;
     isSelected: boolean;
     index: number;
+    total: number;
+    isRearranging: boolean;
     onToggle: (e: React.MouseEvent, id: string) => void;
     onClick: () => void;
+    onMove: (index: number, direction: 'forward' | 'backward') => void;
 }
 
-function SortableUserItem({ user, isSelected, index, onToggle, onClick }: SortableUserItemProps) {
+function SortableUserItem({ user, isSelected, index, total, isRearranging, onToggle, onClick, onMove }: SortableUserItemProps) {
     const {
         attributes,
         listeners,
@@ -53,7 +57,7 @@ function SortableUserItem({ user, isSelected, index, onToggle, onClick }: Sortab
         transform,
         transition,
         isDragging,
-    } = useSortable({ id: user.id });
+    } = useSortable({ id: user.id, disabled: !isRearranging });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -66,61 +70,92 @@ function SortableUserItem({ user, isSelected, index, onToggle, onClick }: Sortab
         <div
             ref={setNodeRef}
             style={style}
-            onClick={onClick}
             className={`
-                relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 flex flex-col items-center gap-3 group
+                relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-3 group bg-white
                 ${isSelected
                     ? 'border-blue-500 bg-blue-50 shadow-md transform scale-[1.02]'
-                    : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-lg hover:-translate-y-1'
+                    : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'
                 }
             `}
         >
-            {/* Drag Handle */}
-            <div
-                {...attributes}
-                {...listeners}
-                className="absolute top-2 left-2 p-1 text-gray-400 hover:text-blue-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Drag to reorder"
-            >
-                <GripVertical size={16} />
-            </div>
+            {/* Drag Handle - Active only when rearranging */}
+            {isRearranging && (
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="absolute inset-0 cursor-grab active:cursor-grabbing z-0"
+                    title="Drag to reorder"
+                />
+            )}
 
-            {/* Class Number Tag (formerly Seat Number) */}
-            <div className="absolute top-2 left-2 w-6 h-6 rounded-md bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center shadow-sm opacity-100 group-hover:opacity-0 transition-opacity">
-                {index + 1}
-            </div>
+            {/* Clickable Content Container (Sitting above drag layer) */}
+            <div className="relative z-10 w-full flex flex-col items-center pointer-events-none">
 
-            {/* Selection Checkbox (Top Right) */}
-            <div
-                onClick={(e) => onToggle(e, user.id)}
-                className={`
-                    absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs shadow-sm transition-colors z-10
-                    ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
-                `}
-            >
-                {isSelected && '✓'}
-            </div>
+                {/* Header Controls */}
+                <div className="w-full flex justify-between items-start pointer-events-auto">
+                    {/* Class Number Tag */}
+                    <div className={`w-6 h-6 rounded-md text-white text-[10px] font-bold flex items-center justify-center shadow-sm transition-colors ${isRearranging ? 'bg-orange-500' : 'bg-slate-800'}`}>
+                        {index + 1}
+                    </div>
 
-            {/* Avatar */}
-            <div className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden shadow-inner mt-2">
-                {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300">
-                        <User size={40} />
+                    {/* Selection Checkbox */}
+                    <div
+                        onClick={(e) => onToggle(e, user.id)}
+                        className={`
+                            w-6 h-6 rounded-full flex items-center justify-center text-white text-xs shadow-sm transition-colors cursor-pointer
+                            ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
+                        `}
+                    >
+                        {isSelected && '✓'}
+                    </div>
+                </div>
+
+                {/* Avatar with Click Handler */}
+                <div
+                    onClick={onClick}
+                    className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden shadow-inner mt-2 cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto"
+                >
+                    {user.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                            <User size={40} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Name */}
+                <span className="font-bold text-gray-700 text-center truncate w-full px-2 mt-2">
+                    {user.display_name || 'Unnamed Student'}
+                </span>
+
+                {/* Coin Bubble */}
+                <div className="mt-1 px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-sm flex items-center gap-1 border border-green-200">
+                    <span className="text-lg">🪙</span>
+                    {user.coins}
+                </div>
+
+                {/* Navigation Buttons - Only Visible when Rearranging */}
+                {isRearranging && (
+                    <div className="flex gap-2 mt-3 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onMove(index, 'forward'); }}
+                            disabled={index === 0}
+                            className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                            title="Move Forward (Lower Number)"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onMove(index, 'backward'); }}
+                            disabled={index === total - 1}
+                            className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                            title="Move Backward (Higher Number)"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
                 )}
-            </div>
-
-            {/* Name */}
-            <span className="font-bold text-gray-700 text-center truncate w-full px-2">
-                {user.display_name || 'Unnamed Student'}
-            </span>
-
-            {/* Coin Bubble */}
-            <div className="px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-sm flex items-center gap-1 border border-green-200">
-                <span className="text-lg">🪙</span>
-                {user.coins}
             </div>
         </div>
     );
@@ -131,6 +166,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+    const [isRearranging, setIsRearranging] = useState(false);
 
     useEffect(() => {
         setLocalUsers(initialUsers);
@@ -167,6 +203,16 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
         }
     };
 
+    const handleMove = (index: number, direction: 'forward' | 'backward') => {
+        if (direction === 'forward' && index > 0) {
+            setLocalUsers(prev => arrayMove(prev, index, index - 1));
+            setHasChanges(true);
+        } else if (direction === 'backward' && index < localUsers.length - 1) {
+            setLocalUsers(prev => arrayMove(prev, index, index + 1));
+            setHasChanges(true);
+        }
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -186,6 +232,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
         try {
             await onReorder(localUsers);
             setHasChanges(false);
+            setIsRearranging(false);
         } catch (error) {
             console.error('Failed to save order:', error);
             alert('Failed to save class numbers');
@@ -199,7 +246,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Classroom</h2>
-                    <p className="text-gray-500">Drag items to rearrange class numbers. Click to view profile.</p>
+                    <p className="text-gray-500">Drag items or use arrow buttons to rearrange class numbers.</p>
                 </div>
                 <div className="flex gap-2">
                     {hasChanges && (
@@ -212,6 +259,19 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                             Save Order
                         </button>
                     )}
+                    {/* Rearrange Mode Toggle - Placed to the left of Select All */}
+                    <button
+                        onClick={() => setIsRearranging(!isRearranging)}
+                        className={`
+                            flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all
+                            ${isRearranging
+                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }
+                        `}
+                    >
+                        {isRearranging ? 'Done Rearranging' : 'Edit Order'}
+                    </button>
                     <button
                         onClick={handleSelectAll}
                         className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -249,9 +309,12 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                                     key={user.id}
                                     user={user}
                                     index={index}
+                                    total={localUsers.length}
+                                    isRearranging={isRearranging}
                                     isSelected={selectedUserIds.has(user.id)}
                                     onToggle={toggleUser}
                                     onClick={() => onStudentClick(user)}
+                                    onMove={handleMove}
                                 />
                             ))}
                         </div>

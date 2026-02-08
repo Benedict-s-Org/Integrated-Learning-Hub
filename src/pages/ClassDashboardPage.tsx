@@ -111,23 +111,33 @@ export function ClassDashboardPage() {
 
     const handleReorder = async (newOrder: UserWithCoins[]) => {
         try {
-            // Update seat numbers in the database
-            for (let i = 0; i < newOrder.length; i++) {
-                const student = newOrder[i];
-                const newSeatNumber = i + 1;
+            console.log('Starting reorder for', newOrder.length, 'students');
 
-                // Use the auth Edge Function or a direct RPC to update seat number
-                await supabase.functions.invoke('auth/update-user', {
-                    body: {
-                        adminUserId: currentUser?.id,
-                        userId: student.id,
-                        classNumber: newSeatNumber
-                    }
-                });
+            const updates = newOrder.map((student, index) => ({
+                userId: student.id,
+                classNumber: index + 1,
+                class: student.class // Maintain existing class name
+            }));
+
+            const { data, error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+                body: {
+                    adminUserId: currentUser?.id,
+                    updates: updates,
+                    syncAuthMetadata: false // Skip slow sync
+                }
+            });
+
+            if (error) throw error;
+
+            if (data?.errors && data.errors.length > 0) {
+                console.warn('Some reorder updates failed:', data.errors);
             }
+
+            console.log('Bulk update successful, refreshing users...');
             await fetchUsers();
         } catch (err) {
             console.error('Failed to reorder students:', err);
+            alert('Failed to save order. Please check console.');
             throw err;
         }
     };

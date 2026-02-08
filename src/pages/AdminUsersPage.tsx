@@ -86,7 +86,11 @@ export function AdminUsersPage() {
         .from('user_profiles')
         .select('id, avatar_url, seat_number') as any);
 
-      if (profilesError) console.warn('Error fetching profiles:', profilesError);
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+      } else {
+        console.log(`Fetched ${profiles?.length} profiles. Sample:`, profiles?.slice(0, 3));
+      }
 
       const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
@@ -272,23 +276,34 @@ export function AdminUsersPage() {
                 onStudentClick={(student) => setEditingUser(student)}
                 onReorder={async (newOrder) => {
                   try {
-                    // Update seat_number for each user in the new order
-                    for (let i = 0; i < newOrder.length; i++) {
-                      // Use auth/update-user to ensure metadata and profile are synced
-                      const { error } = await supabase.functions.invoke('auth/update-user', {
-                        body: {
-                          adminUserId: currentUser?.id,
-                          userId: newOrder[i].id,
-                          classNumber: i + 1
-                        }
-                      });
+                    console.log('Starting reorder for users:', newOrder.map(u => u.display_name));
+                    const updates = newOrder.map((user, index) => ({
+                      userId: user.id,
+                      classNumber: index + 1,
+                      class: user.class_name
+                    }));
 
-                      if (error) throw error;
+                    const { data, error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+                      body: {
+                        adminUserId: currentUser?.id,
+                        updates: updates,
+                        syncAuthMetadata: false // Skip for speed, DB is truth
+                      }
+                    });
+
+                    console.log('Reorder function response:', { data, error });
+
+                    if (error) throw error;
+                    if (data?.errors && data.errors.length > 0) {
+                      console.warn('Some reorder updates failed:', data.errors);
                     }
+
                     // Refresh data to ensure everything is in sync
                     await fetchUsers();
+                    console.log('Refetched users after reorder');
                   } catch (err) {
                     console.error('Failed to update seat numbers:', err);
+                    alert('Failed to save order. Please check console.');
                     throw err;
                   }
                 }}

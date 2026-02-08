@@ -68,6 +68,16 @@ interface AdminResetPasswordRequest {
   newPassword: string;
 }
 
+interface BulkUpdateClassNumbersRequest {
+  adminUserId: string;
+  syncAuthMetadata?: boolean;
+  updates: Array<{
+    userId: string;
+    classNumber: number;
+    class?: string;
+  }>;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -101,6 +111,63 @@ Deno.serve(async (req: Request) => {
 
     const url = new URL(req.url);
     const path = url.pathname;
+
+    // Helper to ensure admin role is synced
+    const ensureAdminRole = async (adminUserId: string) => {
+      // 1. Check if admin in public.users
+      const { data: publicAdmin } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", adminUserId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (publicAdmin) return true;
+
+      // 2. If not, check auth.users (via admin API)
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(adminUserId);
+
+      if (authError || !authUser.user) {
+        console.error("Auth user check failed:", authError);
+        return false;
+      }
+
+      const metadata = authUser.user.user_metadata || {};
+      const appMetadata = authUser.user.app_metadata || {};
+
+      // Check if they have admin role in metadata
+      if (metadata.role === 'admin' || appMetadata.role === 'admin' || appMetadata.claims_admin === true) {
+        console.log("Syncing admin role to public.users for:", adminUserId);
+
+        // 3. Sync to public.users
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({ role: 'admin' })
+          .eq("id", adminUserId);
+
+        if (updateError) {
+          console.error("Failed to sync admin role:", updateError);
+          // Try insert if not exists (fallback)
+          const { error: insertError } = await supabase
+            .from("users")
+            .upsert({
+              id: adminUserId,
+              role: 'admin',
+              username: authUser.user.email,
+              display_name: metadata.display_name || authUser.user.email?.split('@')[0]
+            })
+            .select();
+
+          if (insertError) {
+            console.error("Failed to insert admin user:", insertError);
+            return false;
+          }
+        }
+        return true;
+      }
+
+      return false;
+    };
 
     if (path.endsWith("/login")) {
       console.log("Processing login request...");
@@ -161,15 +228,8 @@ Deno.serve(async (req: Request) => {
       const { email, password, role, adminUserId, display_name, gender }: CreateUserRequest & { email: string, gender?: string } = await req.json();
 
       // Check Authorization
-      const { data: adminUser } = await supabase.auth.admin.getUserById(adminUserId);
-      const { data: publicAdmin } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!adminUser || !publicAdmin) {
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -221,14 +281,8 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/bulk-create-users")) {
       const { users, adminUserId }: BulkCreateUsersRequest = await req.json();
 
-      const { data: admin } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!admin) {
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -428,14 +482,8 @@ Deno.serve(async (req: Request) => {
       console.log("Processing list-users request...");
       const { adminUserId } = await req.json();
 
-      const { data: admin } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!admin) {
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -445,12 +493,13 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { data: users, error } = await supabase
+      // 1. Fetch users from public.users
+      const { data: users, error: usersError } = await supabase
         .from("users")
-        .select("id, username, role, created_at, can_access_proofreading, can_access_spelling, display_name, class")
+        .select("id, username, role, created_at, display_name, class")
         .order("created_at", { ascending: false });
 
-      if (error) {
+      if (usersError) {
         return new Response(
           JSON.stringify({ error: "Failed to fetch users" }),
           {
@@ -460,8 +509,29 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // 2. Fetch profiles for seat_number and avatar
+      const { data: profiles, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("id, seat_number, avatar_url");
+
+      if (profilesError) {
+        console.warn("list-users: profiles fetch failed:", profilesError);
+      }
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+      // 3. Merge data
+      const mergedUsers = (users || []).map((u: any) => {
+        const profile = profileMap.get(u.id);
+        return {
+          ...u,
+          seat_number: profile?.seat_number || null,
+          avatar_url: profile?.avatar_url || null
+        };
+      });
+
       return new Response(
-        JSON.stringify({ users }),
+        JSON.stringify({ users: mergedUsers }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -546,6 +616,19 @@ Deno.serve(async (req: Request) => {
       const body = await req.json();
       console.log("Update user request body:", JSON.stringify(body));
       const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber }: UpdateUserRequest = body;
+
+      // Ensure admin role is synced before proceeding
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized: Admin role missing or invalid" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
       const finalClass = classInput || classNameInput;
 
       try {
@@ -645,14 +728,8 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/update-permissions")) {
       const { adminUserId, userId, can_access_proofreading, can_access_spelling }: UpdatePermissionsRequest = await req.json();
 
-      const { data: admin } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!admin) {
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -683,6 +760,88 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ success: true }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/bulk-update-class-numbers")) {
+      const { adminUserId, updates, syncAuthMetadata = false }: BulkUpdateClassNumbersRequest = await req.json();
+
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (!updates || !Array.isArray(updates)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid updates format" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      console.log(`Processing bulk update for ${updates.length} users (SyncAuth: ${syncAuthMetadata})`);
+
+      const results = [];
+      const errors = [];
+
+      for (const update of updates) {
+        try {
+          // 1. Update DB via RPC 
+          const { error: dbError } = await supabase.rpc("update_user_info", {
+            caller_user_id: adminUserId,
+            target_user_id: update.userId,
+            new_username: null,
+            new_display_name: null,
+            new_role: null,
+            new_class: update.class || null,
+            new_seat_number: update.classNumber,
+          });
+
+          if (dbError) {
+            throw dbError;
+          }
+
+          // 2. Sync Auth Metadata ONLY if explicitly requested
+          if (syncAuthMetadata) {
+            const { error: authError } = await supabase.auth.admin.updateUserById(update.userId, {
+              user_metadata: {
+                seat_number: update.classNumber,
+                ...(update.class ? { class: update.class } : {})
+              }
+            });
+
+            if (authError) {
+              console.error(`Auth sync failed for ${update.userId}:`, authError);
+            }
+          }
+
+          results.push({ userId: update.userId, success: true });
+
+        } catch (err: any) {
+          console.error(`Failed to update user ${update.userId}:`, err);
+          errors.push({ userId: update.userId, error: err.message });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: errors.length === 0,
+          message: `Processed ${updates.length} users. ${results.length} success, ${errors.length} failed.`,
+          results,
+          errors
+        }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
