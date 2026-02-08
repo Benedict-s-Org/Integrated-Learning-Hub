@@ -23,7 +23,8 @@ export type PageType =
   | 'memorization-assignment'
   | 'practice'
   | 'assignedPractice'
-  | 'quickReward';
+  | 'quickReward'
+  | 'scanner';
 
 interface DiagnosticContextType {
   isEnabled: boolean;

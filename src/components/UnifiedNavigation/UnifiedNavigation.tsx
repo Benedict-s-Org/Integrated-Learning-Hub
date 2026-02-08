@@ -43,7 +43,7 @@ export type PageType =
     | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
     | 'proofreading' | 'spelling' | 'progress' | 'assignments'
     | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward';
+    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;

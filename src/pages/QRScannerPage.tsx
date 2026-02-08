@@ -19,6 +19,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
+const SCANNER_EMAIL = 'scanner@system.local';
+
 // Skill buttons for awarding coins (same as RewardPage)
 const SKILLS = [
     { id: 'helping', name: 'Helping Others', amount: 1, icon: Heart, color: 'text-pink-500', bg: 'bg-pink-100' },
@@ -38,7 +40,7 @@ interface ScannedStudent {
 
 export function QRScannerPage() {
     const navigate = useNavigate();
-    const { isAdmin, user } = useAuth();
+    const { user, signIn } = useAuth(); // Removed unused isAdmin
 
     const [scannerState, setScannerState] = useState<'scanning' | 'found' | 'awarding' | 'error'>('scanning');
     const [student, setStudent] = useState<ScannedStudent | null>(null);
@@ -46,12 +48,17 @@ export function QRScannerPage() {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
 
+    // Login State
+    const [accessCode, setAccessCode] = useState('');
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
+
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const scannerContainerId = 'qr-scanner-container';
 
     // Initialize scanner
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!user) return; // Only start if logged in
 
         const html5QrCode = new Html5Qrcode(scannerContainerId);
         scannerRef.current = html5QrCode;
@@ -81,7 +88,31 @@ export function QRScannerPage() {
                 scannerRef.current.stop().catch(console.error);
             }
         };
-    }, [isAdmin]);
+    }, [user]); // Changed dependency from isAdmin to user
+
+    // Handle Scanner Login
+    const handleScannerLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsAuthenticating(true);
+        setAuthError(null);
+
+        try {
+            // Use the signIn function from AuthContext
+            const { error } = await signIn(SCANNER_EMAIL, accessCode);
+
+            if (error) {
+                console.error('Login failed:', error);
+                setAuthError('Invalid Access Code');
+            } else {
+                // Login success, useEffect will trigger and start scanner automatically
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            setAuthError('Authentication failed');
+        } finally {
+            setIsAuthenticating(false);
+        }
+    };
 
     // Handle successful QR scan
     const handleScanSuccess = useCallback(async (decodedText: string) => {
@@ -194,20 +225,47 @@ export function QRScannerPage() {
         }
     };
 
-    // Non-admin guard
-    if (!isAdmin) {
+    // Not Authenticated -> Show Login
+    if (!user) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-                    <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                    <h1 className="text-xl font-bold text-gray-800 mb-2">Access Denied</h1>
-                    <p className="text-gray-600 mb-6">Only administrators can use the QR scanner.</p>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors"
-                    >
-                        Go Home
-                    </button>
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Camera size={32} />
+                        </div>
+                        <h1 className="text-xl font-bold text-gray-800">Scanner Access</h1>
+                        <p className="text-sm text-gray-500 mt-2">Enter code to unlock camera.</p>
+                    </div>
+
+                    <form onSubmit={handleScannerLogin} className="space-y-4">
+                        <div>
+                            <input
+                                type="password"
+                                value={accessCode}
+                                onChange={(e) => setAccessCode(e.target.value)}
+                                placeholder="Access Code"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-lg tracking-widest"
+                                autoFocus
+                            />
+                        </div>
+
+                        {authError && (
+                            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 justify-center">
+                                <AlertCircle size={16} />
+                                {authError}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={isAuthenticating || !accessCode}
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isAuthenticating ? <Loader2 className="animate-spin" /> : <ScanLine size={20} />}
+                            Unlock Scanner
+                        </button>
+                    </form>
                 </div>
             </div>
         );
@@ -219,7 +277,7 @@ export function QRScannerPage() {
             <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10">
                 <div className="flex items-center justify-between px-4 py-3">
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => navigate('/')} // Changed from -1 to home, more safe
                         className="flex items-center gap-2 text-white/70 hover:text-white transition-colors"
                     >
                         <ArrowLeft size={20} />

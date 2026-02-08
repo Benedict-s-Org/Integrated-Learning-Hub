@@ -93,7 +93,8 @@ type AppState =
   | { page: 'flowithTest' }
   | { page: 'wordSnake' }
   | { page: 'classDashboard' }
-  | { page: 'quickReward'; qrToken: string };
+  | { page: 'quickReward'; qrToken: string }
+  | { page: 'scanner' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
@@ -190,6 +191,7 @@ function AppContent() {
     const path = window.location.pathname;
     const quickRewardMatch = path.match(/^\/quick-reward\/([^\/]+)$/);
     const legacyRewardMatch = path.match(/^\/reward\/([^\/]+)$/);
+    const scannerMatch = path.match(/^\/scanner$/);
 
     if (quickRewardMatch) {
       setAppState({ page: 'quickReward', qrToken: quickRewardMatch[1] });
@@ -198,6 +200,11 @@ function AppContent() {
 
     if (legacyRewardMatch) {
       setAppState({ page: 'quickReward', qrToken: legacyRewardMatch[1] });
+      return;
+    }
+
+    if (scannerMatch) {
+      setAppState({ page: 'scanner' });
       return;
     }
 
@@ -289,9 +296,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner')) {
       setShowLoginModal(true);
       return;
     }
@@ -360,6 +367,8 @@ function AppContent() {
       setAppState({ page: 'classDashboard' });
     } else if (page === 'quickReward') {
       setAppState({ page: 'quickReward', qrToken: '' }); // Default or empty, will be picked up by URL usually
+    } else if (page === 'scanner') {
+      setAppState({ page: 'scanner' });
     }
   };
 
@@ -809,6 +818,8 @@ function AppContent() {
         return <ClassDashboardPage />;
       case 'quickReward':
         return <QuickRewardPage />;
+      case 'scanner':
+        return <QRScannerPage />;
     }
   };
 
