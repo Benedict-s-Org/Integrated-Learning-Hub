@@ -53,8 +53,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
 
     // Edit Mode State
     const [isEditMode, setIsEditMode] = useState(false);
+    const [isCustomMode, setIsCustomMode] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<Partial<ClassReward>>({});
+    const [customValues, setCustomValues] = useState<Record<string, number>>({});
 
     useEffect(() => {
         if (isOpen) {
@@ -172,14 +174,30 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
                     </div>
                     <div className="flex items-center gap-2">
                         {isAdmin && (
-                            <button
-                                onClick={() => setIsEditMode(!isEditMode)}
-                                className={`p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
-                                    ${isEditMode ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                            >
-                                <Edit2 size={16} />
-                                {isEditMode ? 'Done' : 'Edit'}
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setIsCustomMode(!isCustomMode);
+                                        if (isEditMode) setIsEditMode(false);
+                                    }}
+                                    className={`p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
+                                        ${isCustomMode ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                >
+                                    <Plus size={16} />
+                                    {isCustomMode ? 'Custom: ON' : 'Custom Rewards'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsEditMode(!isEditMode);
+                                        if (isCustomMode) setIsCustomMode(false);
+                                    }}
+                                    className={`p-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
+                                        ${isEditMode ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                >
+                                    <Edit2 size={16} />
+                                    {isEditMode ? 'Done' : 'Edit'}
+                                </button>
+                            </>
                         )}
                         <button
                             onClick={onClose}
@@ -245,20 +263,50 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
                                         </div>
                                     ) : (
                                         <button
-                                            onClick={() => !isEditMode && selectedCount > 0 && onAward(item.coins, item.title)}
-                                            disabled={isEditMode || (selectedCount === 0 && !isEditMode)}
+                                            onClick={() => !isEditMode && !isCustomMode && selectedCount > 0 && onAward(item.coins, item.title)}
+                                            disabled={isEditMode || (selectedCount === 0 && !isEditMode && !isCustomMode)}
                                             className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl transition-all duration-200 
-                                                ${(isEditMode || (selectedCount === 0 && !isEditMode)) ? 'opacity-50 cursor-default' : 'hover:bg-gray-50 hover:-translate-y-1'}`}
+                                                ${(isEditMode || (selectedCount === 0 && !isEditMode && !isCustomMode)) ? 'opacity-50 cursor-default' : 'hover:bg-gray-50 hover:-translate-y-1'}
+                                                ${isCustomMode ? 'bg-orange-50/50 border-orange-100' : ''}`}
                                         >
                                             <div className={`w-16 h-16 rounded-2xl ${item.color} flex items-center justify-center text-3xl shadow-sm`}>
                                                 {React.createElement(ICON_MAP[item.icon] || Star, { size: 32 })}
                                             </div>
-                                            <div className="text-center">
-                                                <div className="font-bold text-gray-700">{item.title}</div>
-                                                <div className={`text-xs font-bold inline-block px-2 py-0.5 rounded-full mt-1
-                                                    ${item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
-                                                    {item.coins > 0 ? '+' : ''}{item.coins}
-                                                </div>
+                                            <div className="text-center w-full">
+                                                <div className="font-bold text-gray-700 truncate px-1">{item.title}</div>
+
+                                                {isCustomMode ? (
+                                                    <div className="mt-2 flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                                                        <input
+                                                            type="number"
+                                                            value={customValues[item.id] ?? item.coins}
+                                                            onChange={(e) => setCustomValues({
+                                                                ...customValues,
+                                                                [item.id]: parseInt(e.target.value) || 0
+                                                            })}
+                                                            className="w-16 px-1 py-0.5 text-xs border rounded text-center font-bold focus:ring-1 focus:ring-orange-300 outline-none"
+                                                        />
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (selectedCount > 0) {
+                                                                    onAward(customValues[item.id] ?? item.coins, item.title);
+                                                                } else {
+                                                                    alert('Please select students first');
+                                                                }
+                                                            }}
+                                                            className="p-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                                                            title="Award custom amount"
+                                                        >
+                                                            <Check size={12} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className={`text-xs font-bold inline-block px-2 py-0.5 rounded-full mt-1
+                                                        ${item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+                                                        {item.coins > 0 ? '+' : ''}{item.coins}
+                                                    </div>
+                                                )}
                                             </div>
                                         </button>
                                     )}
