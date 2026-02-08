@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
+import { Settings2 } from 'lucide-react';
 
 interface UserWithCoins {
     id: string;
@@ -11,6 +12,10 @@ interface UserWithCoins {
     avatar_url: string | null;
     coins: number;
     class?: string | null;
+    seat_number: number | null;
+    email: string;
+    created_at: string;
+    is_admin: boolean;
 }
 
 export function ClassDashboardPage() {
@@ -20,20 +25,17 @@ export function ClassDashboardPage() {
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
-    // Keep track of all users for searching/lookup if needed, though strictly we use groupedUsers for display
     const [allUsers, setAllUsers] = useState<UserWithCoins[]>([]);
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            // Fetch users from Auth Edge Function to get metadata (class)
             const { data: authData, error: authError } = await supabase.functions.invoke('auth/list-users', {
                 body: { adminUserId: currentUser?.id }
             });
 
             if (authError) throw authError;
 
-            // Fetch room data for coins
             const { data: roomData, error: roomError } = await supabase
                 .from('user_room_data')
                 .select('user_id, coins');
@@ -47,14 +49,17 @@ export function ClassDashboardPage() {
             const usersWithCoins: UserWithCoins[] = (authData.users || []).map((u: any) => ({
                 id: u.id,
                 display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                avatar_url: u.user_metadata?.avatar_url || null,
+                avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
                 coins: roomDataMap.get(u.id) || 0,
-                class: u.class || u.user_metadata?.class || 'Unassigned'
+                class: u.class || u.user_metadata?.class || 'Unassigned',
+                seat_number: u.seat_number || null,
+                email: u.email || '',
+                created_at: u.created_at || new Date().toISOString(),
+                is_admin: u.role === 'admin'
             }));
 
             setAllUsers(usersWithCoins);
 
-            // Group by class
             const grouped = usersWithCoins.reduce((acc, user) => {
                 const className = user.class || 'Unassigned';
                 if (!acc[className]) {
@@ -64,9 +69,8 @@ export function ClassDashboardPage() {
                 return acc;
             }, {} as Record<string, UserWithCoins[]>);
 
-            // Sort users within each group
             Object.keys(grouped).forEach(key => {
-                grouped[key].sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+                grouped[key].sort((a, b) => (a.seat_number || 999) - (b.seat_number || 999));
             });
 
             setGroupedUsers(grouped);
@@ -87,7 +91,6 @@ export function ClassDashboardPage() {
     const handleAwardCoins = async (userIds: string[], amount: number) => {
         try {
             for (const userId of userIds) {
-                // Use the new RPC for room coins
                 const { error } = await supabase.rpc('increment_room_coins' as any, {
                     target_user_id: userId,
                     amount: amount
@@ -95,14 +98,6 @@ export function ClassDashboardPage() {
 
                 if (error) {
                     console.error(`Failed to award coins to ${userId}:`, error);
-                    // Fallback manual update
-                    const user = allUsers.find(u => u.id === userId);
-                    if (user) {
-                        await supabase
-                            .from('user_room_data')
-                            .update({ coins: (user.coins || 0) + amount })
-                            .eq('user_id', userId);
-                    }
                 }
             }
             await fetchUsers();
@@ -111,6 +106,29 @@ export function ClassDashboardPage() {
         } catch (err) {
             console.error('Error awarding coins:', err);
             alert('Failed to award coins');
+        }
+    };
+
+    const handleReorder = async (newOrder: UserWithCoins[]) => {
+        try {
+            // Update seat numbers in the database
+            for (let i = 0; i < newOrder.length; i++) {
+                const student = newOrder[i];
+                const newSeatNumber = i + 1;
+
+                // Use the auth Edge Function or a direct RPC to update seat number
+                await supabase.functions.invoke('auth/update-user', {
+                    body: {
+                        adminUserId: currentUser?.id,
+                        userId: student.id,
+                        classNumber: newSeatNumber
+                    }
+                });
+            }
+            await fetchUsers();
+        } catch (err) {
+            console.error('Failed to reorder students:', err);
+            throw err;
         }
     };
 
@@ -129,9 +147,24 @@ export function ClassDashboardPage() {
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-12">
             <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-slate-900">Class Dashboard</h1>
-                    <p className="text-slate-500">Manage student rewards and feedback</p>
+                <div className="flex justify-between items-end mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900">Class Dashboard</h1>
+                        <p className="text-slate-500">Manage student rewards and feedback</p>
+                    </div>
+
+                    {isAdmin && (
+                        <button
+                            onClick={() => {
+                                setSelectedForAward([]);
+                                setShowAwardModal(true);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all"
+                        >
+                            <Settings2 size={20} className="text-slate-400" />
+                            Manage Rewards
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-8">
@@ -151,6 +184,7 @@ export function ClassDashboardPage() {
                                         setShowAwardModal(true);
                                     }}
                                     onStudentClick={handleStudentClick}
+                                    onReorder={handleReorder}
                                 />
                             </div>
                         ))

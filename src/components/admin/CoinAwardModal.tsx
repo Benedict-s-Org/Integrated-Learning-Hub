@@ -164,7 +164,9 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
                         <p className="text-sm text-gray-500">
                             {isEditMode
                                 ? 'Add, edit, or remove items'
-                                : `Awarding ${selectedCount} student${selectedCount !== 1 ? 's' : ''}`
+                                : selectedCount > 0
+                                    ? `Awarding ${selectedCount} student${selectedCount !== 1 ? 's' : ''}`
+                                    : 'Select a reward category'
                             }
                         </p>
                     </div>
@@ -243,10 +245,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
                                         </div>
                                     ) : (
                                         <button
-                                            onClick={() => !isEditMode && onAward(item.coins, item.title)}
-                                            disabled={isEditMode}
+                                            onClick={() => !isEditMode && selectedCount > 0 && onAward(item.coins, item.title)}
+                                            disabled={isEditMode || (selectedCount === 0 && !isEditMode)}
                                             className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl transition-all duration-200 
-                                                ${isEditMode ? 'opacity-50 cursor-default' : 'hover:bg-gray-50 hover:-translate-y-1'}`}
+                                                ${(isEditMode || (selectedCount === 0 && !isEditMode)) ? 'opacity-50 cursor-default' : 'hover:bg-gray-50 hover:-translate-y-1'}`}
                                         >
                                             <div className={`w-16 h-16 rounded-2xl ${item.color} flex items-center justify-center text-3xl shadow-sm`}>
                                                 {React.createElement(ICON_MAP[item.icon] || Star, { size: 32 })}
