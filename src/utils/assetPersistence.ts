@@ -40,6 +40,8 @@ export const uploadAssetPersistently = async (
                 name: file.name,
                 type,
                 metadata,
+                category: metadata.category || 'general',
+                context: metadata.context || 'general',
                 storage_path: uploadData.path,
                 public_url: publicUrl,
                 created_by: user.id
@@ -92,12 +94,16 @@ export const fetchUIBuilderAssets = async (): Promise<Asset[]> => {
                 id: item.id,
                 name: item.name,
                 type: item.type,
+                category: item.category,
+                context: item.context,
                 createdAt: item.created_at,
                 ...(item.type === 'image' ? {
                     image: {
                         id: item.id,
                         name: item.name,
                         url: item.public_url,
+                        category: item.category,
+                        context: item.context,
                         type: 'single',
                         createdAt: item.created_at
                     }
@@ -141,10 +147,57 @@ export const deleteUIBuilderAsset = async (asset: Asset): Promise<boolean> => {
             .eq('id', asset.id);
 
         if (dbError) throw dbError;
-
         return true;
     } catch (error) {
         console.error('Failed to delete asset:', error);
         return false;
+    }
+};
+
+/**
+ * Updates an asset's category and context
+ */
+export const updateAssetCategorization = async (
+    assetId: string,
+    category: string,
+    context: string
+): Promise<Asset | null> => {
+    try {
+        const { data, error } = await (supabase
+            .from('ui_builder_assets' as any)
+            .update({ category, context })
+            .eq('id', assetId)
+            .select()
+            .single() as any);
+
+        if (error) throw error;
+
+        // Map back to UI Builder Asset type
+        const asset: Asset = {
+            id: data.id,
+            name: data.name,
+            type: data.type,
+            category: data.category,
+            context: data.context,
+            createdAt: data.created_at,
+            ...(data.type === 'image' ? {
+                image: {
+                    id: data.id,
+                    name: data.name,
+                    url: data.public_url,
+                    category: data.category,
+                    context: data.context,
+                    type: 'single',
+                    createdAt: data.created_at
+                }
+            } : {}),
+            ...(data.type === 'document' ? { document: { ...(data.metadata as any), id: data.id, fileName: data.name, url: data.public_url } } : {}),
+            ...(data.type === 'data' ? { data: { ...(data.metadata as any), id: data.id, fileName: data.name } } : {}),
+        };
+
+        return asset;
+    } catch (error) {
+        console.error('Failed to update asset categorization:', error);
+        return null;
     }
 };

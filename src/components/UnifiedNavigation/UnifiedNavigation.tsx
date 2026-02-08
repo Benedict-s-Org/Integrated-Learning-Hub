@@ -40,10 +40,10 @@ import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
 
 export type PageType =
-    | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database'
+    | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
     | 'proofreading' | 'spelling' | 'progress' | 'assignments'
     | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard';
+    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;

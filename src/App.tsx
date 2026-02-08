@@ -18,6 +18,7 @@ import { MemoryPalacePage } from './pages/MemoryPalacePage';
 import { FlowithTestPage } from './pages/FlowithTestPage';
 import { WordSnakeGame } from './pages/WordSnakeGame';
 import { ClassDashboardPage } from './pages/ClassDashboardPage';
+import { QuickRewardPage } from './pages/QuickRewardPage';
 import {
   Word,
   MemorizationState,
@@ -64,7 +65,10 @@ type AppState =
   | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
+  | { page: 'admin' }
   | { page: 'assetGenerator' }
+  | { page: 'assetUpload' }
+  | { page: 'database' }
   | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
   | { page: 'publicPractice'; memorizationState: MemorizationState }
@@ -88,7 +92,8 @@ type AppState =
   | { page: 'spacedRepetition' }
   | { page: 'flowithTest' }
   | { page: 'wordSnake' }
-  | { page: 'classDashboard' };
+  | { page: 'classDashboard' }
+  | { page: 'quickReward'; qrToken: string };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
@@ -181,6 +186,14 @@ function AppContent() {
 
   // Handle hash-based routing for public links - MUST be before any conditional returns
   useEffect(() => {
+    // Check if we're on the quick-reward route from URL (for initial load)
+    const path = window.location.pathname;
+    const quickRewardMatch = path.match(/^\/quick-reward\/([^\/]+)$/);
+    if (quickRewardMatch) {
+      setAppState({ page: 'quickReward', qrToken: quickRewardMatch[1] });
+      return;
+    }
+
     const handleHashChange = async () => {
       const hash = window.location.hash;
       const publicMatch = hash.match(/^#\/public\/(.+)$/);
@@ -257,7 +270,8 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
-    appState.page === 'classDashboard';
+    appState.page === 'classDashboard' ||
+    appState.page === 'quickReward';
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -269,9 +283,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward')) {
       setShowLoginModal(true);
       return;
     }
@@ -302,6 +316,8 @@ function AppContent() {
       setAppState({ page: 'saved' });
     } else if (page === 'admin') {
       setAppState({ page: 'admin' });
+    } else if (page === 'assetUpload') {
+      setAppState({ page: 'assetUpload' });
     } else if (page === 'database') {
       setAppState({ page: 'database' });
     } else if (page === 'proofreading') {
@@ -336,6 +352,8 @@ function AppContent() {
       setAppState({ page: 'wordSnake' });
     } else if (page === 'classDashboard') {
       setAppState({ page: 'classDashboard' });
+    } else if (page === 'quickReward') {
+      setAppState({ page: 'quickReward', qrToken: '' }); // Default or empty, will be picked up by URL usually
     }
   };
 
@@ -542,9 +560,40 @@ function AppContent() {
         return <SavedContent onLoadContent={handleLoadContent} onCreateNew={handleCreateNewMemorization} />;
       case 'admin':
         return <AdminPanel
-          onNavigateToAssets={() => setAppState({ page: 'assetGenerator' })}
+          onNavigateToAssets={() => setAppState({ page: 'assetUpload' })}
           onOpenMapEditor={toggleMapEditor}
         />;
+      case 'assetUpload':
+        return (
+          <div className="h-full bg-background p-4 md:p-8 flex flex-col overflow-hidden">
+            <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4">
+              <div className="flex items-center justify-between shrink-0">
+                <h1 className="text-2xl font-bold">Asset Management Center</h1>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAppState({ page: 'assetGenerator' })}
+                    className="px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                  >
+                    Switch to AI Generator
+                  </button>
+                  <button
+                    onClick={() => setAppState({ page: 'admin' })}
+                    className="px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+                  >
+                    Back to Admin
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 border rounded-lg shadow-sm overflow-hidden bg-white">
+                <AssetUploadCenter
+                  assets={uiAssets}
+                  onAddAsset={(asset) => setUiAssets(prev => [...prev, asset])}
+                  onRemoveAsset={(id) => setUiAssets(prev => prev.filter(a => a.id !== id))}
+                />
+              </div>
+            </div>
+          </div>
+        );
       case 'assetGenerator':
         return <AssetGenerator />;
       case 'database':
@@ -752,15 +801,20 @@ function AppContent() {
         return <WordSnakeGame />;
       case 'classDashboard':
         return <ClassDashboardPage />;
+      case 'quickReward':
+        return <QuickRewardPage />;
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'assetGenerator' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' => {
+  const getCurrentPage = () => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
     if (appState.page === 'proofreading') {
       return 'proofreading';
+    }
+    if (appState.page === 'quickReward') {
+      return 'quickReward';
     }
     if (appState.page === 'proofreadingAssignments') {
       return 'proofreadingAssignments';
@@ -779,6 +833,9 @@ function AppContent() {
     }
     if (appState.page === 'assetGenerator') {
       return 'assetGenerator';
+    }
+    if (appState.page === 'assetUpload') {
+      return 'assetUpload';
     }
     if (appState.page === 'database') {
       return 'database';
@@ -931,27 +988,51 @@ function AppContent() {
       )}
 
       {uiState.showUploader && (
-        <FurnitureUploader
-          onClose={toggleUploader}
-          onSave={() => toggleUploader()}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-xl">家具上傳中心</h3>
+              <button onClick={toggleUploader} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <FurnitureUploader
+                onClose={toggleUploader}
+                onSave={() => toggleUploader()}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {uiState.showEditor && (
-        <FurnitureEditor
-          onClose={toggleEditor}
-          customCatalog={fullCatalog as any[]}
-          onUpdate={(updated) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === updated.id ? updated : i))}
-          onDelete={(id) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
-          customWalls={customWalls as any[]}
-          customFloors={customFloors as any[]}
-          onUpdateWall={() => { }}
-          onUpdateFloor={() => { }}
-          onDeleteWall={() => { }}
-          onDeleteFloor={() => { }}
-          onEnterTransformMode={(id) => toggleTransformPanel(id)}
-          customModels={fullModels}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-xl">資產編輯器</h3>
+              <button onClick={toggleEditor} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <FurnitureEditor
+                onClose={toggleEditor}
+                customCatalog={fullCatalog as any[]}
+                onUpdate={(updated) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === updated.id ? updated : i))}
+                onDelete={(id) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
+                customWalls={customWalls as any[]}
+                customFloors={customFloors as any[]}
+                onUpdateWall={() => { }}
+                onUpdateFloor={() => { }}
+                onDeleteWall={() => { }}
+                onDeleteFloor={() => { }}
+                onEnterTransformMode={(id) => toggleTransformPanel(id)}
+                customModels={fullModels}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {uiState.showTransformPanel && uiState.transformTargetId && (() => {

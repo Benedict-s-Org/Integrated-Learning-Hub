@@ -11,8 +11,19 @@ export default defineConfig(async ({ mode }) => {
       const { componentTagger } = await import('lovable-tagger');
       plugins.push(componentTagger());
     } catch (e) {
-      console.warn('lovable-tagger not found, skipping...');
+      // console.warn('lovable-tagger not found, skipping...');
     }
+
+    /* 
+    // Add source info plugin for debug mode
+    try {
+      // @ts-ignore
+      const sourceInfoPlugin = (await import('./vite-plugin-source-info')).default;
+      plugins.push(sourceInfoPlugin());
+    } catch (e) {
+      console.error('Failed to load source info plugin:', e);
+    }
+    */
   }
 
   return {

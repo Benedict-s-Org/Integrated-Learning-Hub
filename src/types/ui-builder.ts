@@ -4,13 +4,13 @@
 // ELEMENT TYPES
 // =============================================================================
 
-export type UIElementType = 
-  | 'button' 
-  | 'text' 
-  | 'icon' 
-  | 'row' 
-  | 'column' 
-  | 'divider' 
+export type UIElementType =
+  | 'button'
+  | 'text'
+  | 'icon'
+  | 'row'
+  | 'column'
+  | 'divider'
   | 'spacer'
   | 'image';
 
@@ -42,7 +42,7 @@ export interface BaseElementProps {
   borderWidth?: number;
   borderColor?: string;
   opacity?: number;
-  
+
   // Size
   width?: number | 'auto' | 'full';
   height?: number | 'auto';
@@ -71,11 +71,11 @@ export interface TextProps extends BaseElementProps {
   textAlign?: 'left' | 'center' | 'right';
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   textDecoration?: 'none' | 'underline' | 'line-through';
-  
+
   // Canva-style text effects
   shape?: TextShape;
   curve?: number; // -100 to 100
-  
+
   // Text shadow
   textShadow?: {
     enabled: boolean;
@@ -97,28 +97,28 @@ export interface ContainerProps extends BaseElementProps {
   alignItems?: AlignItems;
   justifyContent?: JustifyContent;
   wrap?: boolean;
-  
+
   // Advanced display modes
   displayMode?: DisplayMode;
-  
+
   // Hidden mode
   isHidden?: boolean;
   hiddenCondition?: string;
-  
+
   // Floating mode
   floatPosition?: 'left' | 'right' | 'center';
   floatOffset?: { x: number; y: number };
   isSticky?: boolean;
   stickyTop?: number;
   zIndex?: number;
-  
+
   // Dropdown mode
   dropdownTrigger?: 'click' | 'hover';
   dropdownDirection?: 'down' | 'up' | 'left' | 'right';
   dropdownLabel?: string;
   dropdownIcon?: string;
   autoClose?: boolean;
-  
+
   // Collapsible mode
   defaultCollapsed?: boolean;
   collapseIcon?: 'chevron' | 'plus' | 'arrow';
@@ -143,7 +143,7 @@ export interface ImageProps extends BaseElementProps {
   objectFit?: 'contain' | 'cover' | 'fill' | 'none';
 }
 
-export type ElementProps = 
+export type ElementProps =
   | ({ type: 'button' } & ButtonProps)
   | ({ type: 'text' } & TextProps)
   | ({ type: 'icon' } & IconProps)
@@ -272,6 +272,8 @@ export interface ImageAsset {
   conditionalImages?: ConditionalImages;
   spriteSheet?: SpriteSheet;
   tags?: string[];
+  category?: string;
+  context?: string;
   createdAt: string;
 }
 
@@ -304,6 +306,8 @@ export interface Asset {
   document?: ParsedDocument;
   data?: DataAsset;
   linkedAssets?: string[];
+  category?: string;
+  context?: string;
   createdAt: string;
 }
 
