@@ -894,28 +894,30 @@ function AppContent() {
 
   return (
     <>
-      <UnifiedNavigation
-        currentPage={getCurrentPage()}
-        onPageChange={handlePageChange}
-        onLogin={handleLogin}
-        isNavOpen={isNavOpen}
-        onToggle={() => setIsNavOpen(!isNavOpen)}
-        // Memory Palace Handlers
-        onShop={toggleShop}
-        onCity={() => setView('map')}
-        onRegion={() => setView('region')}
-        onOpenStudio={toggleStudio}
-        onOpenUploader={toggleUploader}
-        onOpenEditor={toggleEditor}
-        onOpenSpaceDesign={toggleSpaceDesign}
-        onOpenThemeDesigner={toggleThemeDesigner}
-        onOpenMapEditor={toggleMapEditor}
-        onOpenAssetUpload={toggleAssetUpload}
-        onOpenFurniture={toggleFurniturePanel}
-        onOpenHistory={toggleHistoryPanel}
-        onOpenMemory={toggleMemoryPanel}
-      />
-      <main className={`h-screen overflow-y-auto transition-all duration-300 ${isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20"}`}>
+      {!['scanner', 'quickReward'].includes(appState.page) && (
+        <UnifiedNavigation
+          currentPage={getCurrentPage()}
+          onPageChange={handlePageChange}
+          onLogin={handleLogin}
+          isNavOpen={isNavOpen}
+          onToggle={() => setIsNavOpen(!isNavOpen)}
+          // Memory Palace Handlers
+          onShop={toggleShop}
+          onCity={() => setView('map')}
+          onRegion={() => setView('region')}
+          onOpenStudio={toggleStudio}
+          onOpenUploader={toggleUploader}
+          onOpenEditor={toggleEditor}
+          onOpenSpaceDesign={toggleSpaceDesign}
+          onOpenThemeDesigner={toggleThemeDesigner}
+          onOpenMapEditor={toggleMapEditor}
+          onOpenAssetUpload={toggleAssetUpload}
+          onOpenFurniture={toggleFurniturePanel}
+          onOpenHistory={toggleHistoryPanel}
+          onOpenMemory={toggleMemoryPanel}
+        />
+      )}
+      <main className={`h-screen overflow-y-auto transition-all duration-300 ${['scanner', 'quickReward'].includes(appState.page) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
         {renderCurrentView()}
       </main>
       {showLoginModal && (

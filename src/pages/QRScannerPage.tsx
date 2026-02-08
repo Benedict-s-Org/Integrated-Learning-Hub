@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import {
     Camera,
@@ -57,6 +57,39 @@ export function QRScannerPage() {
     const scannerContainerId = 'qr-scanner-container';
 
     // Initialize scanner
+    const [searchParams] = useSearchParams();
+
+    // Reusable login function
+    const performLogin = useCallback(async (code: string) => {
+        setIsAuthenticating(true);
+        setAuthError(null);
+
+        try {
+            const { error } = await signIn(SCANNER_EMAIL, code);
+
+            if (error) {
+                console.error('Login failed:', error);
+                setAuthError('Invalid Access Code');
+            } else {
+                // Login success
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            setAuthError('Authentication failed');
+        } finally {
+            setIsAuthenticating(false);
+        }
+    }, [signIn]);
+
+    // Check for magic link login
+    useEffect(() => {
+        const code = searchParams.get('code');
+        if (code && !user && !isAuthenticating) {
+            setAccessCode(code);
+            performLogin(code);
+        }
+    }, [searchParams, user, performLogin, isAuthenticating]);
+
     useEffect(() => {
         if (!user) return; // Only start if logged in
 
@@ -93,25 +126,7 @@ export function QRScannerPage() {
     // Handle Scanner Login
     const handleScannerLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsAuthenticating(true);
-        setAuthError(null);
-
-        try {
-            // Use the signIn function from AuthContext
-            const { error } = await signIn(SCANNER_EMAIL, accessCode);
-
-            if (error) {
-                console.error('Login failed:', error);
-                setAuthError('Invalid Access Code');
-            } else {
-                // Login success, useEffect will trigger and start scanner automatically
-            }
-        } catch (err) {
-            console.error('Login error:', err);
-            setAuthError('Authentication failed');
-        } finally {
-            setIsAuthenticating(false);
-        }
+        await performLogin(accessCode);
     };
 
     // Handle successful QR scan
