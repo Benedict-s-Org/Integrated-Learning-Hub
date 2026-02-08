@@ -33,16 +33,17 @@ const createUserSchema = z.object({
   gender: z.enum(['male', 'female', 'unspecified']),
 });
 
-id: string;
-email: string;
-display_name: string | null;
-avatar_url: string | null;
-created_at: string;
-is_admin: boolean;
-coins: number;
-seat_number: number | null; // Now referred to as "Class Number" in UI
-class_name ?: string | null; // Mapped from 'class' column in users table
-qr_token ?: string;
+interface UserWithProfile {
+  id: string;
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  is_admin: boolean;
+  coins: number;
+  seat_number: number | null; // Now referred to as "Class Number" in UI
+  class_name?: string | null; // Mapped from 'class' column in users table
+  qr_token?: string;
 }
 
 export function AdminUsersPage() {
