@@ -49,7 +49,7 @@ const ICON_MAP: Record<string, any> = {
     // Animals
     Cat, Dog, Rabbit,
     // Neutral / Tools
-    Search, Bell, Mail, Link, Clipboard, Calendar, Briefcase, Key, Hammer, Wrench, Glasses, Ear, Eye,
+    Search, Bell, Mail, Link, Clipboard, Calendar, Briefcase, Key, Hammer, Wrench, Glasses, Ear, Eye, Anchor,
     // Community / Relationship
     HeartHandshake, HandMetal, MessageSquare, Send, Share2,
     // Consequences / Negative
