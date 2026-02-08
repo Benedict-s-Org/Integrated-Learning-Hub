@@ -22,7 +22,7 @@ export function QRCodeGenerator({
     studentName
 }: QRCodeGeneratorProps) {
     // Generate the reward URL based on current origin
-    const rewardUrl = `${window.location.origin}/reward/${qrToken}`;
+    const rewardUrl = `${window.location.origin}/quick-reward/${qrToken}`;
 
     return (
         <div

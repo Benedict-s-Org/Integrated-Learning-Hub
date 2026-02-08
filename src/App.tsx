@@ -189,8 +189,15 @@ function AppContent() {
     // Check if we're on the quick-reward route from URL (for initial load)
     const path = window.location.pathname;
     const quickRewardMatch = path.match(/^\/quick-reward\/([^\/]+)$/);
+    const legacyRewardMatch = path.match(/^\/reward\/([^\/]+)$/);
+
     if (quickRewardMatch) {
       setAppState({ page: 'quickReward', qrToken: quickRewardMatch[1] });
+      return;
+    }
+
+    if (legacyRewardMatch) {
+      setAppState({ page: 'quickReward', qrToken: legacyRewardMatch[1] });
       return;
     }
 

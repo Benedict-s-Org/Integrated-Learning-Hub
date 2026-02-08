@@ -22,7 +22,7 @@ export function StudentQRCodeModal({ isOpen, onClose, student }: StudentQRCodeMo
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const rewardUrl = `${window.location.origin}/reward/${student.qrToken}`;
+    const rewardUrl = `${window.location.origin}/quick-reward/${student.qrToken}`;
 
     printWindow.document.write(`
       <!DOCTYPE html>
