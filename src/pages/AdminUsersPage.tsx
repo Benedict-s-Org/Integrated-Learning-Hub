@@ -74,71 +74,61 @@ export function AdminUsersPage() {
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      // Fetch user profiles
-      // Using any cast because some columns were recently added via migration
-      const { data: profiles, error } = await (supabase
-        .from('user_profiles')
-        .select('id, display_name, avatar_url, created_at, seat_number')
-        .order('seat_number', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: false }) as any);
-
-      if (error) throw error;
-
-      // Fetch QR tokens and Class from users table
-      const { data: usersData } = await (supabase
+      // 1. Fetch ALL users from public 'users' table (Source of Truth)
+      const { data: publicUsers, error: usersError } = await (supabase
         .from('users')
-        .select('id, qr_token, class') as any);
+        .select('id, email, display_name, class, qr_token, role, created_at') as any);
 
-      const userExtraMap = new Map((usersData || []).map((u: any) => [u.id, { qrToken: u.qr_token, className: u.class }]));
+      if (usersError) throw usersError;
 
-      // Fetch room data for coins
+      // 2. Fetch profiles for auxiliary data (avatar, seat_number)
+      const { data: profiles, error: profilesError } = await (supabase
+        .from('user_profiles')
+        .select('id, avatar_url, seat_number') as any);
+
+      if (profilesError) console.warn('Error fetching profiles:', profilesError);
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+      // 3. Fetch room data for coins
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
         .select('user_id, coins');
 
-      if (roomError) {
-        console.warn('Error fetching room data:', roomError);
-      }
+      if (roomError) console.warn('Error fetching room data:', roomError);
 
       const roomDataMap = new Map((roomData || []).map(r => [r.user_id, r.coins]));
 
-      // Check admin status for each user
-      const usersWithRoles = await Promise.all(
-        ((profiles as any[]) || []).map(async (profile) => {
-          const { data: isAdminData } = await supabase
-            .rpc('has_role', { _user_id: profile.id, _role: 'admin' });
+      // 4. Merge Data
+      const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
+        const profile: any = profileMap.get(u.id) || {};
+        return {
+          id: u.id,
+          email: u.email || '', // public.users might not have email depending on RLS/Schema, but let's try
+          display_name: u.display_name || 'Unnamed',
+          avatar_url: profile.avatar_url || null,
+          created_at: u.created_at || new Date().toISOString(),
+          is_admin: u.role === 'admin',
+          coins: roomDataMap.get(u.id) || 0,
+          seat_number: profile.seat_number || null,
+          class_name: u.class || null,
+          qr_token: u.qr_token || null
+        };
+      });
 
-          const extraData = userExtraMap.get(profile.id) || { qrToken: undefined, className: undefined };
-          return {
-            id: profile.id,
-            email: '', // We don't have access to emails from profiles
-            display_name: profile.display_name,
-            avatar_url: profile.avatar_url,
-            created_at: profile.created_at ?? '',
-            is_admin: isAdminData === true,
-            coins: roomDataMap.get(profile.id) || 0,
-            seat_number: profile.seat_number,
-            qr_token: extraData.qrToken,
-            class_name: extraData.className,
-          };
-        })
-      );
-
-      // Client-side sorting: Class (asc) -> Class Number (asc)
-      const sortedUsers = usersWithRoles.sort((a, b) => {
-        // 1. Sort by Class
+      // 5. Sort
+      const sortedUsers = mergedUsers.sort((a, b) => {
+        // Sort by Class
         const classA = a.class_name || '';
         const classB = b.class_name || '';
 
-        // If one has class and other doesn't, put one with class first? Or empty last?
-        // Usually we want empty classes at the bottom or top. Let's put empty at bottom.
         if (classA && !classB) return -1;
         if (!classA && classB) return 1;
 
         const classCompare = classA.localeCompare(classB, 'zh-HK', { numeric: true });
         if (classCompare !== 0) return classCompare;
 
-        // 2. Sort by Class Number (seat_number)
+        // Sort by Class Number
         const seatA = a.seat_number || Number.MAX_SAFE_INTEGER;
         const seatB = b.seat_number || Number.MAX_SAFE_INTEGER;
         return seatA - seatB;
@@ -284,10 +274,14 @@ export function AdminUsersPage() {
                   try {
                     // Update seat_number for each user in the new order
                     for (let i = 0; i < newOrder.length; i++) {
-                      const { error } = await supabase
-                        .from('user_profiles')
-                        .update({ seat_number: i + 1 } as any)
-                        .eq('id', newOrder[i].id);
+                      // Use auth/update-user to ensure metadata and profile are synced
+                      const { error } = await supabase.functions.invoke('auth/update-user', {
+                        body: {
+                          adminUserId: currentUser?.id,
+                          userId: newOrder[i].id,
+                          classNumber: i + 1
+                        }
+                      });
 
                       if (error) throw error;
                     }
