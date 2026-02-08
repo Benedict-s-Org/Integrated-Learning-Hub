@@ -33,16 +33,16 @@ const createUserSchema = z.object({
   gender: z.enum(['male', 'female', 'unspecified']),
 });
 
-interface UserWithProfile {
-  id: string;
-  email: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  created_at: string;
-  is_admin: boolean;
-  coins: number;
-  seat_number: number | null;
-  qr_token?: string;
+id: string;
+email: string;
+display_name: string | null;
+avatar_url: string | null;
+created_at: string;
+is_admin: boolean;
+coins: number;
+seat_number: number | null; // Now referred to as "Class Number" in UI
+class_name ?: string | null; // Mapped from 'class' column in users table
+qr_token ?: string;
 }
 
 export function AdminUsersPage() {
@@ -82,12 +82,12 @@ export function AdminUsersPage() {
 
       if (error) throw error;
 
-      // Fetch QR tokens from users table
-      const { data: usersWithQr } = await (supabase
+      // Fetch QR tokens and Class from users table
+      const { data: usersData } = await (supabase
         .from('users')
-        .select('id, qr_token') as any);
+        .select('id, qr_token, class') as any);
 
-      const qrTokenMap = new Map((usersWithQr || []).map((u: any) => [u.id, u.qr_token]));
+      const userExtraMap = new Map((usersData || []).map((u: any) => [u.id, { qrToken: u.qr_token, className: u.class }]));
 
       // Fetch room data for coins
       const { data: roomData, error: roomError } = await supabase
@@ -106,6 +106,7 @@ export function AdminUsersPage() {
           const { data: isAdminData } = await supabase
             .rpc('has_role', { _user_id: profile.id, _role: 'admin' });
 
+          const extraData = userExtraMap.get(profile.id) || { qrToken: undefined, className: undefined };
           return {
             id: profile.id,
             email: '', // We don't have access to emails from profiles
@@ -115,12 +116,33 @@ export function AdminUsersPage() {
             is_admin: isAdminData === true,
             coins: roomDataMap.get(profile.id) || 0,
             seat_number: profile.seat_number,
-            qr_token: qrTokenMap.get(profile.id) as string | undefined,
+            qr_token: extraData.qrToken,
+            class_name: extraData.className,
           };
         })
       );
 
-      setUsers(usersWithRoles);
+      // Client-side sorting: Class (asc) -> Class Number (asc)
+      const sortedUsers = usersWithRoles.sort((a, b) => {
+        // 1. Sort by Class
+        const classA = a.class_name || '';
+        const classB = b.class_name || '';
+
+        // If one has class and other doesn't, put one with class first? Or empty last?
+        // Usually we want empty classes at the bottom or top. Let's put empty at bottom.
+        if (classA && !classB) return -1;
+        if (!classA && classB) return 1;
+
+        const classCompare = classA.localeCompare(classB, 'zh-HK', { numeric: true });
+        if (classCompare !== 0) return classCompare;
+
+        // 2. Sort by Class Number (seat_number)
+        const seatA = a.seat_number || Number.MAX_SAFE_INTEGER;
+        const seatB = b.seat_number || Number.MAX_SAFE_INTEGER;
+        return seatA - seatB;
+      });
+
+      setUsers(sortedUsers);
     } catch (err) {
       console.error('Error in fetchUsers:', err);
     } finally {
@@ -471,9 +493,21 @@ export function AdminUsersPage() {
                             <p className="font-medium text-[hsl(var(--foreground))] truncate">
                               {user.display_name || '未設定名稱'}
                             </p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                              {new Date(user.created_at).toLocaleDateString('zh-HK')}
-                            </p>
+                            <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                              {user.class_name && (
+                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                                  {user.class_name}
+                                </span>
+                              )}
+                              {user.seat_number && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                  #{user.seat_number}
+                                </span>
+                              )}
+                              <span>
+                                {new Date(user.created_at).toLocaleDateString('zh-HK')}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

@@ -85,7 +85,7 @@ function SortableUserItem({ user, isSelected, index, onToggle, onClick }: Sortab
                 <GripVertical size={16} />
             </div>
 
-            {/* Seat Number Tag */}
+            {/* Class Number Tag (formerly Seat Number) */}
             <div className="absolute top-2 left-2 w-6 h-6 rounded-md bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center shadow-sm opacity-100 group-hover:opacity-0 transition-opacity">
                 {index + 1}
             </div>
@@ -188,7 +188,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
             setHasChanges(false);
         } catch (error) {
             console.error('Failed to save order:', error);
-            alert('Failed to save seat numbers');
+            alert('Failed to save class numbers');
         } finally {
             setIsSaving(false);
         }
@@ -199,7 +199,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Classroom</h2>
-                    <p className="text-gray-500">Drag items to rearrange seat numbers. Click to view profile.</p>
+                    <p className="text-gray-500">Drag items to rearrange class numbers. Click to view profile.</p>
                 </div>
                 <div className="flex gap-2">
                     {hasChanges && (

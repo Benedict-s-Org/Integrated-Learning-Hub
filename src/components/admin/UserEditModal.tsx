@@ -11,6 +11,8 @@ interface UserWithProfile {
   avatar_url?: string | null;
   created_at: string;
   is_admin: boolean;
+  seat_number: number | null;
+  class_name?: string | null;
 }
 
 interface UserEditModalProps {
@@ -28,6 +30,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_url || null);
   const [role, setRole] = useState<'admin' | 'user'>(user.is_admin ? 'admin' : 'user');
+  const [className, setClassName] = useState(user.class_name || "");
+  const [classNumber, setClassNumber] = useState<string>(user.seat_number?.toString() || "");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +193,12 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         updateData.role = role;
       }
 
-      const { data, error: fnError } = await supabase.functions.invoke("update-user", {
+      // Add Class and Class Number to update data
+      // Note: We need to pass these to the edge function
+      (updateData as any).className = className;
+      (updateData as any).classNumber = classNumber ? parseInt(classNumber) : null;
+
+      const { data, error: fnError } = await supabase.functions.invoke("auth/update-user", {
         body: updateData,
       });
 
@@ -348,50 +357,82 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             />
           </div>
 
-          {/* Role Selection */}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Class Name */}
           <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-              <Shield className="w-4 h-4" />
-              用戶權限 (Role)
+            <label className="text-sm font-medium text-[hsl(var(--foreground))]">
+              班級 (Class)
             </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+            <input
+              type="text"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g. 1A"
               className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-            >
-              <option value="user">一般用戶 (User)</option>
-              <option value="admin">管理員 (Admin)</option>
-            </select>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              管理員可以訪問後台管理界面並更新其他用戶。
-            </p>
+            />
+          </div>
+
+          {/* Class Number */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[hsl(var(--foreground))]">
+              學號 (Class No.)
+            </label>
+            <input
+              type="number"
+              value={classNumber}
+              onChange={(e) => setClassNumber(e.target.value)}
+              placeholder="#"
+              className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+            />
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-[hsl(var(--border))]">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition-colors"
+        {/* Role Selection */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+            <Shield className="w-4 h-4" />
+            用戶權限 (Role)
+          </label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+            className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
           >
-            取消
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50 transition-all"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                儲存中...
-              </>
-            ) : (
-              "儲存變更"
-            )}
-          </button>
+            <option value="user">一般用戶 (User)</option>
+            <option value="admin">管理員 (Admin)</option>
+          </select>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            管理員可以訪問後台管理界面並更新其他用戶。
+          </p>
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-3 p-4 border-t border-[hsl(var(--border))]">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition-colors"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-50 transition-all"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              儲存中...
+            </>
+          ) : (
+            "儲存變更"
+          )}
+        </button>
+      </div>
     </div>
+    </div >
   );
 }

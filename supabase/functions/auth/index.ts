@@ -541,7 +541,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/update-user")) {
-      const { adminUserId, userId, username, display_name, role, class: className }: UpdateUserRequest = await req.json();
+      const { adminUserId, userId, username, display_name, role, class: className, classNumber }: UpdateUserRequest = await req.json();
 
       try {
         const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
@@ -551,6 +551,7 @@ Deno.serve(async (req: Request) => {
           new_display_name: display_name || null,
           new_role: role || null,
           new_class: className || null,
+          new_seat_number: classNumber || null,
         });
 
         if (error) {

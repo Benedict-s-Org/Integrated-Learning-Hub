@@ -13,6 +13,7 @@ interface User {
   can_access_spelling?: boolean;
   display_name?: string;
   class?: string | null;
+  seat_number?: number | null;
   qr_token?: string;
 }
 
@@ -52,6 +53,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
   const [editClass, setEditClass] = useState('');
+  const [editClassNumber, setEditClassNumber] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
 
@@ -109,7 +111,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       if (!data) throw new Error('No data returned');
 
 
-      // Fetch QR tokens for users
+      // Fetch QR tokens and seat numbers for users
+      const { data: profiles } = await (supabase
+        .from('user_profiles')
+        .select('id, seat_number') as any);
+
+      const profileMap: Record<string, number | null> = {};
+      (profiles || []).forEach((p: any) => {
+        if (p.id) profileMap[p.id] = p.seat_number;
+      });
+
       const { data: usersWithQr } = await (supabase
         .from('users')
         .select('id, qr_token') as any);
@@ -121,6 +132,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
 
       setUsers(data.users.map((u: any) => ({
         ...u,
+        seat_number: profileMap[u.id],
         qr_token: qrTokenMap[u.id]
       })));
     } finally {
@@ -275,6 +287,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setEditDisplayName(user.display_name || '');
     setEditRole(user.role);
     setEditClass(user.class || '');
+    // @ts-ignore
+    setEditClassNumber(user.seat_number?.toString() || '');
     setEditPassword('');
     setShowEditModal(true);
   };
@@ -295,6 +309,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
           display_name: editDisplayName,
           role: editRole,
           class: editClass,
+          // @ts-ignore
+          classNumber: editClassNumber ? parseInt(editClassNumber) : null,
         },
       });
 
@@ -462,6 +478,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
         comparison = a.username.localeCompare(b.username);
       } else if (sortBy === 'class') {
         comparison = (a.class || '').localeCompare(b.class || '');
+        if (comparison === 0) {
+          comparison = (a.seat_number || 0) - (b.seat_number || 0);
+        }
       } else {
         comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       }
@@ -633,6 +652,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">No.</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Role</th>
                 <th className="text-center px-6 py-4 text-sm font-semibold text-slate-700">Permissions</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Created</th>
@@ -667,6 +687,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                     <td className="px-6 py-4">
                       <div className={`text-sm font-medium ${user.class ? 'text-blue-600' : 'text-slate-400 italic'}`}>
                         {user.class || 'No Class'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-slate-600">
+                        {user.seat_number ? `#${user.seat_number}` : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">

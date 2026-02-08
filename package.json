@@ -17,6 +17,7 @@
     "update-all": "npx supabase db push --include-all && npm run build && npm run deploy",
     "sync": "git pull origin main && npx supabase db push --include-all && npm run deploy",
     "deploy": "git add . && git commit -m \"Auto-deploy: Update online version\" && git push origin main",
+    "deploy:full": "git add . && git commit -m \"feat: admin class number updates\" && git push origin main && npx supabase functions deploy auth && npx supabase db push --include-all",
     "process-images": "node scripts/process-uploads.js",
     "process-images:watch": "node scripts/process-uploads.js --watch"
   },
