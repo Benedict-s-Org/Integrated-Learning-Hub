@@ -206,14 +206,14 @@ export function ClassDashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-12">
+        <div className="min-h-screen bg-slate-50 p-2 md:p-12">
             <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+                        <h1 className="text-xl md:text-3xl font-bold text-slate-900">
                             {isGuestMode ? 'Class View (Guest)' : 'Class Dashboard'}
                         </h1>
-                        <p className="text-sm md:text-base text-slate-500">
+                        <p className="text-[10px] md:text-base text-slate-500">
                             {isGuestMode ? 'Request rewards for students' : 'Manage student rewards and feedback'}
                         </p>
                     </div>
@@ -224,21 +224,21 @@ export function ClassDashboardPage() {
                                 setSelectedForAward([]);
                                 setShowAwardModal(true);
                             }}
-                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-4 py-3 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all"
+                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
                         >
-                            <Settings2 size={20} className="text-slate-400" />
+                            <Settings2 size={18} className="text-slate-400" />
                             {isGuestMode ? 'Request Reward' : 'Manage Rewards'}
                         </button>
                     </div>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-4 md:space-y-8">
                     {isLoading ? (
                         <div className="p-8 text-center">Loading users...</div>
                     ) : (
                         Object.entries(groupedUsers).sort(([a], [b]) => a.localeCompare(b)).map(([className, classUsers]) => (
-                            <div key={className} className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
-                                <h2 className="text-xl font-bold text-slate-800 mb-4 px-2 border-l-4 border-blue-500 pl-3">
+                            <div key={className} className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8">
+                                <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3">
                                     {className === 'Unassigned' ? 'No Class Assigned' : className}
                                 </h2>
                                 <ClassDistributor

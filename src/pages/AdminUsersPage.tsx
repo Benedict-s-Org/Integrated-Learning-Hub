@@ -250,11 +250,11 @@ export function AdminUsersPage() {
   // Let's adjust ClassDistributor usage below.
 
   return (
-    <AdminLayout title="用戶管理" icon={<Users className="w-5 h-5" />}>
-      <div className="p-4 md:p-8">
+    <AdminLayout title="用戶管理" icon={<Users className="w-6 h-6" />}>
+      <div className="p-3 md:p-8">
         <div className="max-w-6xl mx-auto">
           {/* Header Actions */}
-          <div className="flex justify-between mb-6">
+          <div className="flex justify-between mb-4">
             {/* Scan QR Button */}
             <button
               onClick={() => navigate('/admin/scanner')}
@@ -369,9 +369,9 @@ export function AdminUsersPage() {
               />
             </div>
           ) : (
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
               {/* Create User Form */}
-              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 md:p-6 shadow-sm order-2 md:order-1">
+              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 shadow-sm order-2 md:order-1">
                 <div className="flex items-center gap-2 mb-4">
                   <UserPlus className="w-5 h-5 text-[hsl(var(--primary))]" />
                   <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
@@ -525,7 +525,7 @@ export function AdminUsersPage() {
               <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 md:p-6 shadow-sm order-1 md:order-2 h-fit">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-5 h-5 text-[hsl(var(--primary))]" />
-                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
+                  <h2 className="text-base md:text-lg font-semibold text-[hsl(var(--foreground))]">
                     用戶列表
                   </h2>
                 </div>

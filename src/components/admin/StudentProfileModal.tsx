@@ -68,29 +68,29 @@ export function StudentProfileModal({
                 `}
             >
                 {/* Horizontal Top Header & Navigation */}
-                <div className="bg-white border-b border-slate-100 px-6 py-4 flex flex-col gap-4">
+                <div className="bg-white border-b border-slate-100 px-4 py-3 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                             <div className="relative">
-                                <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100">
+                                <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100">
                                     {student.avatar_url ? (
                                         <img src={student.avatar_url} alt={student.display_name || ''} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                            <UserIcon size={24} />
+                                            <UserIcon size={18} />
                                         </div>
                                     )}
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 text-[10px] font-black px-1.5 py-0.5 rounded-lg shadow-sm border-2 border-white flex items-center gap-0.5">
+                                <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 text-[8px] font-black px-1 py-0.5 rounded-md shadow-sm border border-white flex items-center gap-0.5">
                                     <span>🪙</span>
                                     <span>{student.coins}</span>
                                 </div>
                             </div>
                             <div>
-                                <h3 className="font-black text-slate-900 leading-tight">
+                                <h3 className="font-black text-slate-900 text-sm leading-tight">
                                     {student.display_name || 'Student'}
                                 </h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
                                     {student.class || 'No Class'}
                                 </p>
                             </div>
@@ -100,12 +100,12 @@ export function StudentProfileModal({
                             onClick={handleClose}
                             className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
                         >
-                            <X size={20} />
+                            <X size={18} />
                         </button>
                     </div>
 
                     {/* Horizontal Chips Navigation */}
-                    <nav className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <nav className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                         <NavChip
                             icon={Activity}
                             label="Overview"

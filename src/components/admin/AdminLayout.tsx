@@ -147,14 +147,14 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Header */}
-        <header className="h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-6 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4">
-          <div className="flex items-center gap-5">
+        <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4">
+          <div className="flex items-center gap-3 md:gap-5">
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-3 rounded-2xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all"
+              className="md:hidden p-2 rounded-xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             </button>
 
             {icon && (
@@ -162,7 +162,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
                 {icon}
               </div>
             )}
-            <h1 className="text-2xl md:text-3xl font-black text-primary tracking-tight truncate">
+            <h1 className="text-lg md:text-3xl font-black text-primary tracking-tight truncate">
               {title}
             </h1>
           </div>
