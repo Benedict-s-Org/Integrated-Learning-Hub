@@ -75,19 +75,23 @@ export function QuickRewardPage() {
                     return;
                 }
 
-                // Fetch display name from profiles
+                // Fetch- [x] Allow Warning Consequence (-0) for consequences
+                // - [x] Update `CoinAwardModal.tsx` validation and display logic
+                // - [x] Update `QuickRewardPage.tsx` display logic
+                // - [x] Update `QRScannerPage.tsx` display logic
+                // - [x] Update `RewardPage.tsx` display logic
+                // - [x] Update `StudentOverview.tsx` display logic
                 const { data: profile } = await supabase
                     .from('user_profiles')
                     .select('display_name')
                     .eq('id', studentData.id)
                     .single();
 
-                // Fetch room data for coins
-                const { data: roomData } = await supabase
-                    .from('user_room_data')
-                    .select('coins, virtual_coins, daily_counts')
+                const { data: roomData } = await (supabase
+                    .from('user_room_data' as any)
+                    .select('user_id, coins, virtual_coins, daily_counts')
                     .eq('user_id', studentData.id)
-                    .single();
+                    .single() as any);
 
                 const today = new Date().toISOString().split('T')[0];
                 const dailyRealEarned = (roomData as any)?.daily_counts?.date === today ? ((roomData as any)?.daily_counts?.real_earned || 0) : 0;
@@ -108,7 +112,7 @@ export function QuickRewardPage() {
 
                 const allItems = (rewardsData || []) as any[];
                 setRewards(allItems.filter(i => i.coins >= 0));
-                setConsequences(allItems.filter(i => i.coins < 0));
+                setConsequences(allItems.filter(i => i.coins <= 0));
 
             } catch (err) {
                 console.error('Error fetching data:', err);
@@ -364,7 +368,7 @@ export function QuickRewardPage() {
                                 </div>
                                 <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{reward.title}</span>
                                 <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-green-600 bg-green-50">
-                                    +{reward.coins}
+                                    {reward.coins > 0 ? `+${reward.coins}` : reward.coins}
                                 </div>
                             </button>
                         ))}
@@ -395,7 +399,7 @@ export function QuickRewardPage() {
                                     </div>
                                     <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{item.title}</span>
                                     <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-red-600 bg-red-50">
-                                        {item.coins}
+                                        {item.coins === 0 ? '-0' : item.coins}
                                     </div>
                                 </button>
                             ))}

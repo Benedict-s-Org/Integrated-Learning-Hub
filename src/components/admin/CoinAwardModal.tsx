@@ -132,7 +132,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     };
 
     const handleSave = async () => {
-        if (!editForm.title || !editForm.coins) return;
+        if (!editForm.title || editForm.coins === undefined || editForm.coins === null) return;
 
         try {
             const rewardData = {
@@ -409,7 +409,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                                                     : 'bg-green-100 text-green-700'
                                                             : item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
                                                         }`}>
-                                                        {item.coins > 0 ? '+' : ''}{item.coins}
+                                                        {item.coins > 0 ? `+${item.coins}` : item.coins === 0 && item.type === 'consequence' ? '-0' : item.coins}
                                                     </div>
                                                 )}
                                             </div>
@@ -524,7 +524,7 @@ function RewardEditor({ form, onChange, onSave, onCancel }: any) {
                 </button>
                 <button
                     onClick={onSave}
-                    disabled={!form.title || !form.coins}
+                    disabled={!form.title || (form.coins === undefined || form.coins === null || form.coins === '')}
                     className="px-6 py-2 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                 >
                     <Check size={16} />

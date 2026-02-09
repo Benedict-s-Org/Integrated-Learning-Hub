@@ -101,7 +101,7 @@ export function QRScannerPage() {
 
             const allItems: ClassReward[] = data || [];
             setRewards(allItems.filter(i => i.coins >= 0));
-            setConsequences(allItems.filter(i => i.coins < 0));
+            setConsequences(allItems.filter(i => i.coins <= 0));
         };
         if (user) fetchRewards();
     }, [user]);
@@ -471,7 +471,9 @@ export function QRScannerPage() {
                                         <button key={reward.id} onClick={() => handleRewardClick(reward)} disabled={awarding} className={`flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-200 ${awarding ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                             <div className={`w-12 h-12 rounded-xl ${reward.color} flex items-center justify-center`}>{React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 24 })}</div>
                                             <span className="font-semibold text-sm truncate w-full px-1 text-center">{reward.title}</span>
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-green-500/20 text-green-400">+{reward.coins}</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-green-500/20 text-green-400">
+                                                {reward.coins > 0 ? `+${reward.coins}` : reward.coins}
+                                            </span>
                                         </button>
                                     ))}
                                 </div>
@@ -484,7 +486,9 @@ export function QRScannerPage() {
                                             <button key={item.id} onClick={() => handleRewardClick(item)} disabled={awarding} className={`flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-200 ${awarding ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                                 <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center`}>{React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 24 })}</div>
                                                 <span className="font-semibold text-sm truncate w-full px-1 text-center">{item.title}</span>
-                                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400">{item.coins}</span>
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400">
+                                                    {item.coins === 0 ? '-0' : item.coins}
+                                                </span>
                                             </button>
                                         ))}
                                     </div>

@@ -90,9 +90,9 @@ export function RewardPage() {
             .select('*')
             .order('title', { ascending: true }) as any);
 
-        const allItems = data || [];
-        setRewards(allItems.filter(i => i.coins >= 0));
-        setConsequences(allItems.filter(i => i.coins < 0));
+        const allItems = (data || []) as any[];
+        setRewards(allItems.filter((i: any) => i.coins >= 0));
+        setConsequences(allItems.filter((i: any) => i.coins <= 0));
     };
 
     // Sub-option handlers
@@ -302,7 +302,7 @@ export function RewardPage() {
                                 <div className="text-center w-full">
                                     <div className="font-bold text-gray-700 truncate px-1 text-sm">{reward.title}</div>
                                     <div className="text-[10px] font-black inline-block px-2 py-0.5 rounded-full mt-1 text-green-600 bg-green-50">
-                                        +{reward.coins}
+                                        {reward.coins > 0 ? `+${reward.coins}` : reward.coins}
                                     </div>
                                 </div>
                             </button>
@@ -335,7 +335,7 @@ export function RewardPage() {
                                     <div className="text-center w-full">
                                         <div className="font-bold text-gray-700 truncate px-1 text-sm">{item.title}</div>
                                         <div className="text-[10px] font-black inline-block px-2 py-0.5 rounded-full mt-1 text-red-600 bg-red-50">
-                                            {item.coins}
+                                            {item.coins === 0 ? '-0' : item.coins}
                                         </div>
                                     </div>
                                 </button>

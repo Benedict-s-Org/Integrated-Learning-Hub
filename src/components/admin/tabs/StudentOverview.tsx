@@ -71,7 +71,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
             const allItems: ClassReward[] = rewardsData || [];
             setRewards(allItems.filter(item => item.coins >= 0));
-            setConsequences(allItems.filter(item => item.coins < 0));
+            setConsequences(allItems.filter(item => item.coins <= 0));
 
             setTransactions(txData || []);
         } catch (err) {
@@ -303,9 +303,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                     <span className="text-[9px] font-black text-slate-700 block w-full truncate uppercase tracking-tighter mb-0.5">
                                         {item.title}
                                     </span>
-                                    <span className="text-[10px] font-black text-green-600">
-                                        +{item.coins}
-                                    </span>
+                                    {item.coins > 0 ? `+${item.coins}` : item.coins}
                                 </button>
                             ))}
                         </div>
@@ -331,9 +329,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                     <span className="text-[9px] font-black text-slate-700 block w-full truncate uppercase tracking-tighter mb-0.5">
                                         {item.title}
                                     </span>
-                                    <span className="text-[10px] font-black text-red-600">
-                                        {item.coins}
-                                    </span>
+                                    {item.coins === 0 ? '-0' : item.coins}
                                 </button>
                             ))}
                         </div>
