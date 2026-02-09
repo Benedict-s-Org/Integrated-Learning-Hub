@@ -369,9 +369,9 @@ export function AdminUsersPage() {
               />
             </div>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
               {/* Create User Form */}
-              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-6 shadow-sm">
+              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 md:p-6 shadow-sm order-2 md:order-1">
                 <div className="flex items-center gap-2 mb-4">
                   <UserPlus className="w-5 h-5 text-[hsl(var(--primary))]" />
                   <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
@@ -522,7 +522,7 @@ export function AdminUsersPage() {
               </div>
 
               {/* Users List */}
-              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-6 shadow-sm">
+              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 md:p-6 shadow-sm order-1 md:order-2 h-fit">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-5 h-5 text-[hsl(var(--primary))]" />
                   <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
@@ -539,13 +539,13 @@ export function AdminUsersPage() {
                     暫無用戶
                   </p>
                 ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
                     {users.map((user) => (
                       <div
                         key={user.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all"
+                        className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all active:scale-[0.99]"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 overflow-hidden">
                           <div className="relative shrink-0">
                             <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
                               {user.avatar_url ? (
@@ -560,32 +560,32 @@ export function AdminUsersPage() {
                               </div>
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-[hsl(var(--foreground))] truncate">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-[hsl(var(--foreground))] truncate text-sm md:text-base">
                               {user.display_name || '未設定名稱'}
                             </p>
-                            <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
                               {user.class_name && (
-                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium whitespace-nowrap">
                                   {user.class_name}
                                 </span>
                               )}
                               {user.seat_number && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
                                   #{user.seat_number}
                                 </span>
                               )}
-                              <span>
+                              <span className="hidden sm:inline">
                                 {new Date(user.created_at).toLocaleDateString('zh-HK')}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
                           {user.is_admin && (
-                            <div className="flex items-center gap-1 px-2 py-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-[10px] font-bold uppercase tracking-wider">
+                            <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-[10px] font-bold uppercase tracking-wider">
                               <Shield className="w-3 h-3" />
-                              管理員
+                              <span className="hidden md:inline">管理員</span>
                             </div>
                           )}
                           <button
@@ -594,18 +594,18 @@ export function AdminUsersPage() {
                               name: user.display_name || '未命名',
                               qrToken: user.qr_token
                             })}
-                            className="p-1.5 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+                            className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
                             title="顯示 QR Code"
                             disabled={!user.qr_token}
                           >
-                            <QrCode className="w-4 h-4" />
+                            <QrCode className="w-5 h-5 md:w-4 md:h-4" />
                           </button>
                           <button
                             onClick={() => setEditingUser(user)}
-                            className="p-1.5 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+                            className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
                             title="編輯用戶"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-5 h-5 md:w-4 md:h-4" />
                           </button>
                         </div>
                       </div>
