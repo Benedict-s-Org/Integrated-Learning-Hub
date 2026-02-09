@@ -17,6 +17,9 @@ interface StudentInfo {
     username: string;
     display_name: string | null;
     class: string | null;
+    coins: number;
+    virtual_coins?: number;
+    daily_real_earned?: number; // Add this
 }
 
 export function QuickRewardPage() {
@@ -79,9 +82,22 @@ export function QuickRewardPage() {
                     .eq('id', studentData.id)
                     .single();
 
+                // Fetch room data for coins
+                const { data: roomData } = await supabase
+                    .from('user_room_data')
+                    .select('coins, virtual_coins, daily_counts')
+                    .eq('user_id', studentData.id)
+                    .single();
+
+                const today = new Date().toISOString().split('T')[0];
+                const dailyRealEarned = (roomData as any)?.daily_counts?.date === today ? ((roomData as any)?.daily_counts?.real_earned || 0) : 0;
+
                 setStudent({
                     ...studentData,
                     display_name: profile?.display_name || null,
+                    coins: roomData?.coins || 0,
+                    virtual_coins: roomData?.virtual_coins || 0,
+                    daily_real_earned: dailyRealEarned,
                 });
 
                 // Fetch Rewards from DB
@@ -303,9 +319,16 @@ export function QuickRewardPage() {
                     </span>
                 </div>
                 <h1 className="text-xl font-black text-gray-800 mb-1">{student?.display_name || student?.username}</h1>
-                <p className="text-gray-500 font-medium bg-gray-100 inline-block px-3 py-1 rounded-full text-xs">
-                    {student?.class || 'No Class'}
-                </p>
+                <div className="flex justify-center items-center gap-2">
+                    <p className="text-gray-500 font-medium bg-gray-100 inline-block px-3 py-1 rounded-full text-xs">
+                        {student?.class || 'No Class'}
+                    </p>
+                    <div className="px-3 py-1 bg-yellow-100 text-yellow-700 font-bold rounded-full text-xs flex items-center gap-1">
+                        <span>🪙</span>
+                        <span>{(student?.coins || 0) - (student?.daily_real_earned || 0)}+{student?.daily_real_earned || 0}</span>
+                        <span className="opacity-75">({student?.virtual_coins || 0})</span>
+                    </div>
+                </div>
             </div>
 
             {successMessage && (

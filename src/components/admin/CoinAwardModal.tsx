@@ -11,6 +11,7 @@ interface CoinAwardModalProps {
     onClose: () => void;
     onAward: (amount: number, reason: string) => void;
     selectedCount: number;
+    selectedStudentIds?: string[]; // Add this prop
 }
 
 export interface ClassReward {
@@ -25,7 +26,7 @@ export interface ClassReward {
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
 // Special reward handling is now done via robust string matching
 
-export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: CoinAwardModalProps) {
+export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, selectedStudentIds }: CoinAwardModalProps) {
     const { isAdmin, user, isUserView } = useAuth();
     const [rewards, setRewards] = useState<ClassReward[]>([]);
     const [activeTab, setActiveTab] = useState<'reward' | 'consequence'>('reward');
@@ -40,6 +41,11 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
 
     // Sub-options for specific reward
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    // Daily Count State
+    const [maxDailyCount, setMaxDailyCount] = useState<number>(0);
+
+    /* ... existing code ... */
 
     // Help admins notice why management is hidden
     const showAdminHint = !isAdmin && user?.role === 'admin' && isUserView;
@@ -64,7 +70,37 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
             setRewards(data || []);
         }
         setIsLoading(false);
+        setIsLoading(false);
     };
+
+    // Fetch daily counts for selected students
+    useEffect(() => {
+        const fetchDailyCounts = async () => {
+            if (!isOpen || !selectedCount || !selectedStudentIds?.length) {
+                setMaxDailyCount(0);
+                return;
+            }
+
+            const { data } = await supabase
+                .from('user_room_data')
+                .select('daily_counts')
+                .in('user_id', selectedStudentIds);
+
+            if (data) {
+                const today = new Date().toISOString().split('T')[0];
+                let max = 0;
+                data.forEach((row: any) => {
+                    if (row.daily_counts?.date === today) {
+                        max = Math.max(max, row.daily_counts?.count || 0);
+                    }
+                });
+                setMaxDailyCount(max);
+            }
+        };
+
+        fetchDailyCounts();
+    }, [isOpen, selectedCount, selectedStudentIds]);
+
 
     const handleRewardClick = (item: ClassReward) => {
         if (isEditMode || isCustomMode) return;
@@ -365,7 +401,14 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
                                                     </div>
                                                 ) : (
                                                     <div className={`text-xs font-bold inline-block px-2 py-0.5 rounded-full mt-1
-                                                        ${item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+                                                        ${item.title.includes('回答問題')
+                                                            ? maxDailyCount >= 2
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : maxDailyCount === 1
+                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                    : 'bg-green-100 text-green-700'
+                                                            : item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
+                                                        }`}>
                                                         {item.coins > 0 ? '+' : ''}{item.coins}
                                                     </div>
                                                 )}

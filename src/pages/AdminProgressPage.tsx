@@ -32,6 +32,8 @@ interface UserProgress {
   // Room data
   house_level: number;
   coins: number;
+  virtual_coins: number; // Add this
+  daily_real_earned: number; // Add this
   inventory_count: number;
   placement_count: number;
   updated_at: string | null;
@@ -88,7 +90,7 @@ export function AdminProgressPage() {
       // 2. Fetch room data for all users
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
-        .select('user_id, house_level, coins, inventory, placements, updated_at');
+        .select('user_id, house_level, coins, virtual_coins, daily_counts, inventory, placements, updated_at');
 
       if (roomError) {
         console.error('Error fetching room data:', roomError);
@@ -113,9 +115,11 @@ export function AdminProgressPage() {
       }
 
       // 5. Create lookup maps
-      const roomMap = new Map<string, typeof roomData extends (infer T)[] ? T : never>();
+      const today = new Date().toISOString().split('T')[0];
+      const roomMap = new Map<string, any>();
       (roomData || []).forEach((room) => {
-        roomMap.set(room.user_id, room);
+        const dailyRealEarned = room.daily_counts?.date === today ? (room.daily_counts?.real_earned || 0) : 0;
+        roomMap.set(room.user_id, { ...room, daily_real_earned: dailyRealEarned });
       });
 
       // Aggregate cards by user
@@ -182,6 +186,8 @@ export function AdminProgressPage() {
             // Room
             house_level: room?.house_level ?? 0,
             coins: room?.coins ?? 0,
+            virtual_coins: room?.virtual_coins ?? 0,
+            daily_real_earned: room?.daily_real_earned ?? 0,
             inventory_count: inventoryArray?.length ?? 0,
             placement_count: placementsArray?.length ?? 0,
             updated_at: room?.updated_at ?? null,
@@ -416,10 +422,10 @@ export function AdminProgressPage() {
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">金幣</div>
-                          <div className="flex items-center gap-1 font-semibold text-[hsl(var(--foreground))]">
+                          <div className="flex items-center gap-1 font-semibold text-[hsl(var(--foreground))] whitespace-nowrap">
                             <Coins className="w-4 h-4 text-yellow-500" />
-                            {user.coins}
+                            <span>{user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}</span>
+                            <span className="text-[10px] opacity-75">({user.virtual_coins || 0})</span>
                           </div>
                         </div>
                         <div>

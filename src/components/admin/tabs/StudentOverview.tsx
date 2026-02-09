@@ -12,6 +12,7 @@ interface StudentOverviewProps {
         id: string;
         display_name: string | null;
         coins: number;
+        virtual_coins?: number; // Add virtual_coins to the interface
     };
     onUpdateCoins: () => void;
     onSuccess?: () => void;
@@ -257,9 +258,12 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                         {tx.amount > 0 ? '+' : ''}{tx.amount}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-slate-700 text-xs truncate leading-none mb-1">{tx.reason}</p>
+                                        <p className="font-bold text-slate-700 text-xs truncate leading-none mb-1">{tx.reason.replace(' (Virtual)', '')}</p>
                                         <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
                                             {formatDate(tx.created_at)}
+                                            {tx.reason.includes('(Virtual)') && (
+                                                <span className="text-purple-500 ml-1">VIRTUAL</span>
+                                            )}
                                         </div>
                                     </div>
                                     {!isGuestMode && isAdmin && (

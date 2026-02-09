@@ -44,6 +44,8 @@ interface UserWithProfile {
   created_at: string;
   is_admin: boolean;
   coins: number;
+  virtual_coins?: number;
+  daily_real_earned?: number; // Add this
   seat_number: number | null; // Class Number
   class_name?: string | null; // Mapped from 'class' column in users table
   qr_token?: string;
@@ -99,11 +101,18 @@ export function AdminUsersPage() {
       // 3. Fetch room data for coins
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
-        .select('user_id, coins');
+        .select('user_id, coins, virtual_coins, daily_counts');
 
       if (roomError) console.warn('Error fetching room data:', roomError);
-
-      const roomDataMap = new Map((roomData || []).map(r => [r.user_id, r.coins]));
+      const today = new Date().toISOString().split('T')[0];
+      const roomDataMap = new Map((roomData || []).map(r => {
+        const dailyRealEarned = r.daily_counts?.date === today ? (r.daily_counts?.real_earned || 0) : 0;
+        return [r.user_id, {
+          coins: r.coins,
+          virtual_coins: r.virtual_coins,
+          daily_real_earned: dailyRealEarned
+        }];
+      }));
 
       // 4. Merge Data
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
@@ -115,7 +124,9 @@ export function AdminUsersPage() {
           avatar_url: profile.avatar_url || null,
           created_at: u.created_at || new Date().toISOString(),
           is_admin: u.role === 'admin',
-          coins: roomDataMap.get(u.id) || 0,
+          coins: roomDataMap.get(u.id)?.coins || 0,
+          virtual_coins: roomDataMap.get(u.id)?.virtual_coins || 0,
+          daily_real_earned: roomDataMap.get(u.id)?.daily_real_earned || 0,
           seat_number: profile.seat_number || null,
           class_name: u.class || null,
           qr_token: u.qr_token || null
@@ -578,6 +589,10 @@ export function AdminUsersPage() {
                               <span className="hidden sm:inline">
                                 {new Date(user.created_at).toLocaleDateString('zh-HK')}
                               </span>
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold">
+                                🪙 {user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}
+                                <span className="text-[10px] opacity-75">({user.virtual_coins || 0})</span>
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -622,6 +637,7 @@ export function AdminUsersPage() {
         isOpen={showAwardModal}
         onClose={() => setShowAwardModal(false)}
         selectedCount={selectedForAward.length}
+        selectedStudentIds={selectedForAward}
         onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
       />
 

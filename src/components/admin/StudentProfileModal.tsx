@@ -8,6 +8,8 @@ interface UserWithCoins {
     display_name: string | null;
     avatar_url: string | null;
     coins: number;
+    virtual_coins?: number;
+    daily_real_earned?: number; // Add this
     class?: string | null;
 }
 
@@ -81,9 +83,10 @@ export function StudentProfileModal({
                                         </div>
                                     )}
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 text-[8px] font-black px-1 py-0.5 rounded-md shadow-sm border border-white flex items-center gap-0.5">
-                                    <span>🪙</span>
-                                    <span>{student.coins}</span>
+                                <div className="absolute -bottom-1 -right-1 flex items-center gap-1.5 px-3 py-1 bg-yellow-100 text-yellow-700 font-bold rounded-full text-xs border border-yellow-200 shadow-sm">
+                                    <span className="text-sm">🪙</span>
+                                    <span>{student.coins - (student.daily_real_earned || 0)}+{student.daily_real_earned || 0}</span>
+                                    <span className="text-[10px] opacity-75">({student.virtual_coins || 0})</span>
                                 </div>
                             </div>
                             <div>

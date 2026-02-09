@@ -12,6 +12,8 @@ interface UserWithCoins {
     display_name: string | null;
     avatar_url: string | null;
     coins: number;
+    virtual_coins?: number;
+    daily_real_earned?: number; // Add this
     class?: string | null;
     seat_number: number | null;
     email: string;
@@ -82,16 +84,22 @@ export function ClassDashboardPage() {
             } else {
                 const { data: roomData, error: roomError } = await supabase
                     .from('user_room_data')
-                    .select('user_id, coins');
+                    .select('user_id, coins, virtual_coins, daily_counts');
 
                 if (roomError) console.warn('Error fetching room data:', roomError);
-                const roomDataMap = new Map((roomData || []).map(r => [r.user_id, r.coins]));
+                const today = new Date().toISOString().split('T')[0];
+                const roomDataMap = new Map((roomData || []).map(r => {
+                    const dailyRealEarned = r.daily_counts?.date === today ? (r.daily_counts?.real_earned || 0) : 0;
+                    return [r.user_id, { coins: r.coins, virtual_coins: r.virtual_coins, daily_real_earned: dailyRealEarned }];
+                }));
 
                 finalUsers = usersData.map((u: any) => ({
                     id: u.id,
                     display_name: u.display_name || u.user_metadata?.display_name || u.email,
                     avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                    coins: roomDataMap.get(u.id) || 0,
+                    coins: roomDataMap.get(u.id)?.coins || 0,
+                    virtual_coins: roomDataMap.get(u.id)?.virtual_coins || 0,
+                    daily_real_earned: roomDataMap.get(u.id)?.daily_real_earned || 0,
                     class: u.class || u.user_metadata?.class || 'Unassigned',
                     seat_number: u.seat_number || null,
                     email: u.email || '',
@@ -261,6 +269,7 @@ export function ClassDashboardPage() {
                 isOpen={showAwardModal}
                 onClose={() => setShowAwardModal(false)}
                 selectedCount={selectedForAward.length}
+                selectedStudentIds={selectedForAward}
                 onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
             />
 
