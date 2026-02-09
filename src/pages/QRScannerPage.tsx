@@ -88,12 +88,17 @@ export function QRScannerPage() {
     // Fetch Rewards
     useEffect(() => {
         const fetchRewards = async () => {
-            const { data } = await supabase
-                .from('class_rewards')
+            const { data, error: rError } = await (supabase
+                .from('class_rewards' as any)
                 .select('*')
-                .order('title', { ascending: true });
+                .order('title', { ascending: true }) as any);
 
-            const allItems = data || [];
+            if (rError) {
+                console.error('Error fetching rewards:', rError);
+                return;
+            }
+
+            const allItems: ClassReward[] = data || [];
             setRewards(allItems.filter(i => i.coins >= 0));
             setConsequences(allItems.filter(i => i.coins < 0));
         };
@@ -117,11 +122,11 @@ export function QRScannerPage() {
         const qrToken = match[1];
 
         try {
-            const { data: studentData, error: fetchError } = await supabase
-                .from('users')
+            const { data: studentData, error: fetchError } = await (supabase
+                .from('users' as any)
                 .select('id, username, class')
                 .eq('qr_token', qrToken)
-                .single();
+                .single() as any);
 
             if (fetchError || !studentData) {
                 setError('Student not found. QR code may be invalid.');
@@ -170,8 +175,22 @@ export function QRScannerPage() {
 
             scannerRef.current = new Html5Qrcode(scannerContainerId);
             await scannerRef.current.start(
-                { facingMode: 'environment' },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                {
+                    facingMode: 'environment',
+                    // Request high resolution for better detail with reflective codes
+                    width: { min: 640, ideal: 1280, max: 1920 },
+                    height: { min: 480, ideal: 720, max: 1080 }
+                },
+                {
+                    fps: 15, // Faster capture
+                    qrbox: { width: 300, height: 300 }, // Slightly larger scan box
+                    aspectRatio: 1.0,
+                    // Use experimental native decoder if available (very fast/sensitive on modern OS)
+                    //@ts-ignore - Experimental library feature
+                    experimentalFeatures: {
+                        useBarCodeDetectorIfSupported: true
+                    }
+                },
                 handleScanSuccess,
                 () => { }
             );
@@ -208,8 +227,20 @@ export function QRScannerPage() {
 
                 scannerRef.current = new Html5Qrcode(scannerContainerId);
                 await scannerRef.current.start(
-                    { facingMode: 'environment' },
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    {
+                        facingMode: 'environment',
+                        width: { min: 640, ideal: 1280 },
+                        height: { min: 480, ideal: 720 }
+                    },
+                    {
+                        fps: 15,
+                        qrbox: { width: 300, height: 300 },
+                        aspectRatio: 1.0,
+                        //@ts-ignore
+                        experimentalFeatures: {
+                            useBarCodeDetectorIfSupported: true
+                        }
+                    },
                     handleScanSuccess,
                     () => { }
                 );
@@ -410,7 +441,10 @@ export function QRScannerPage() {
                         </div>
 
                         <div className="mt-8 flex flex-col items-center gap-4">
-                            <p className="text-white/60 text-center text-sm">Point the camera at a student's QR code</p>
+                            <div className="text-center">
+                                <p className="text-white/60 text-sm">Point the camera at a student's QR code</p>
+                                <p className="text-[10px] text-white/30 mt-1 uppercase tracking-widest font-bold">Avoid glare from reflective surfaces</p>
+                            </div>
 
                             <button
                                 onClick={() => {
