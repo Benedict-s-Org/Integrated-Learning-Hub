@@ -266,7 +266,7 @@ export function AdminProgressPage() {
 
   return (
     <AdminLayout title="用戶進度總覽" icon={<BarChart3 className="w-5 h-5" />}>
-      <main className="p-4 md:p-8 overflow-auto">
+      <main className="p-3 md:p-8 overflow-auto">
         <div className="max-w-5xl mx-auto">
           {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -312,22 +312,23 @@ export function AdminProgressPage() {
           </div>
 
           {/* Stats Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
-                <Users className="w-4 h-4" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6 text-center">
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-3 shadow-sm">
+              <div className="flex items-center justify-center gap-2 text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-wider mb-1">
+                <Users className="w-3 h-3" />
                 總用戶數
               </div>
-              <div className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              <div className="text-xl font-black text-[hsl(var(--foreground))]">
                 {users.length}
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
-                <BookOpen className="w-4 h-4" />
-                總卡片數
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-3 shadow-sm">
+              <div className="flex items-center justify-center gap-2 text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-wider mb-1">
+                <BarChart3 className="w-3 h-3" />
+                數據細節
               </div>
-              <div className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              <div className="text-xl font-black text-[hsl(var(--foreground))]">
+                {/* Simplified for mobile */}
                 {users.reduce((sum, u) => sum + u.total_cards, 0)}
               </div>
             </div>
