@@ -99,7 +99,7 @@ type AppState =
   | { page: 'scanner' };
 
 function AppContent() {
-  const [appState, setAppState] = useState<AppState>({ page: 'learningHub' });
+  const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
@@ -293,7 +293,11 @@ function AppContent() {
   useEffect(() => {
     if (!user || user.role === 'admin') return;
 
-    // Check permissions for proofreading
+    // Redirect students away from admin-only dashboard
+    if (appState.page === 'classDashboard' && !new URLSearchParams(window.location.search).get('token')) {
+      setAppState({ page: 'new', step: 'input' });
+      return;
+    }
     if (appState.page === 'proofreading' && !user.can_access_proofreading) {
       setAppState({ page: 'new', step: 'input' });
     }

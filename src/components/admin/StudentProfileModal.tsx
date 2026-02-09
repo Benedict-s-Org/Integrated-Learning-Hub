@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, User as UserIcon, Award, Activity, Settings, TrendingUp } from 'lucide-react';
+import { X, User as UserIcon, Award, Activity, Settings, TrendingUp, Bell } from 'lucide-react';
 import { StudentOverview } from './tabs/StudentOverview';
 import { StudentProgress } from './tabs/StudentProgress';
+import { StudentHistory } from './tabs/StudentHistory';
 
 interface UserWithCoins {
     id: string;
@@ -9,7 +10,7 @@ interface UserWithCoins {
     avatar_url: string | null;
     coins: number;
     virtual_coins?: number;
-    daily_real_earned?: number; // Add this
+    daily_real_earned?: number;
     class?: string | null;
 }
 
@@ -22,7 +23,7 @@ interface StudentProfileModalProps {
     guestToken?: string;
 }
 
-type TabType = 'overview' | 'progress' | 'assignments' | 'settings';
+type TabType = 'overview' | 'progress' | 'notifications' | 'settings';
 
 export function StudentProfileModal({
     isOpen,
@@ -122,10 +123,10 @@ export function StudentProfileModal({
                             onClick={() => setActiveTab('progress')}
                         />
                         <NavChip
-                            icon={Award}
-                            label="History"
-                            active={activeTab === 'assignments'}
-                            onClick={() => setActiveTab('assignments')}
+                            icon={Bell}
+                            label="Notifications"
+                            active={activeTab === 'notifications'}
+                            onClick={() => setActiveTab('notifications')}
                         />
                         <NavChip
                             icon={Settings}
@@ -150,10 +151,8 @@ export function StudentProfileModal({
                     {activeTab === 'progress' && (
                         <StudentProgress studentId={student.id} />
                     )}
-                    {activeTab === 'assignments' && (
-                        <div className="p-8 text-center text-slate-400 font-medium italic">
-                            Assignment history coming soon...
-                        </div>
+                    {activeTab === 'notifications' && (
+                        <StudentHistory studentId={student.id} />
                     )}
                     {activeTab === 'settings' && (
                         <div className="p-8 text-center text-slate-400 font-medium italic">

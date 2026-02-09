@@ -337,6 +337,44 @@ export type Database = {
           },
         ]
       }
+      notification_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          title: string
+          type: "positive" | "neutral" | "negative"
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          title: string
+          type: "positive" | "neutral" | "negative"
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          title?: string
+          type?: "positive" | "neutral" | "negative"
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       phonics_sounds: {
         Row: {
           audio_url: string
@@ -786,6 +824,51 @@ export type Database = {
           },
         ]
       }
+      student_records: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          student_id: string
+          type: "positive" | "neutral" | "negative"
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          student_id: string
+          type: "positive" | "neutral" | "negative"
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          student_id?: string
+          type?: "positive" | "neutral" | "negative"
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       spelling_practices: {
         Row: {
           created_at: string | null
@@ -874,6 +957,8 @@ export type Database = {
           active_floor_id: string | null
           active_wall_id: string | null
           coins: number | null
+          virtual_coins: number | null
+          daily_counts: Json | null
           created_at: string | null
           custom_catalog: Json | null
           custom_floors: Json | null
@@ -892,6 +977,8 @@ export type Database = {
           active_floor_id?: string | null
           active_wall_id?: string | null
           coins?: number | null
+          virtual_coins?: number | null
+          daily_counts?: Json | null
           created_at?: string | null
           custom_catalog?: Json | null
           custom_floors?: Json | null
@@ -910,6 +997,8 @@ export type Database = {
           active_floor_id?: string | null
           active_wall_id?: string | null
           coins?: number | null
+          virtual_coins?: number | null
+          daily_counts?: Json | null
           created_at?: string | null
           custom_catalog?: Json | null
           custom_floors?: Json | null

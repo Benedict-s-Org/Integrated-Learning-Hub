@@ -38,6 +38,8 @@ interface ClassDistributorProps {
     onAwardCoins: (userIds: string[]) => Promise<void>;
     onStudentClick: (student: UserWithCoins) => void;
     onReorder: (newOrder: UserWithCoins[]) => Promise<void>;
+    selectedIds: string[];
+    onSelectionChange: (ids: string[]) => void;
 }
 
 interface SortableUserItemProps {
@@ -164,8 +166,8 @@ function SortableUserItem({ user, isSelected, index, total, isRearranging, onTog
     );
 }
 
-export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins, onStudentClick, onReorder }: ClassDistributorProps) {
-    const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins, onStudentClick, onReorder, selectedIds, onSelectionChange }: ClassDistributorProps) {
+    // const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set()); // REMOVED
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -189,22 +191,32 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
 
     const toggleUser = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        const newSelected = new Set(selectedUserIds);
+        const newSelected = new Set(selectedIds);
         if (newSelected.has(id)) {
             newSelected.delete(id);
         } else {
             newSelected.add(id);
         }
-        setSelectedUserIds(newSelected);
+        onSelectionChange(Array.from(newSelected));
     };
 
     const handleSelectAll = () => {
-        if (selectedUserIds.size === localUsers.length) {
-            setSelectedUserIds(new Set());
+        if (selectedIds.length === localUsers.length) {
+            onSelectionChange([]);
         } else {
-            setSelectedUserIds(new Set(localUsers.map(u => u.id)));
+            onSelectionChange(localUsers.map(u => u.id));
         }
     };
+
+    // ... inside return ...
+    // isSelected={selectedIds.includes(user.id)}
+    // ...
+    // {selectedIds.length === localUsers.length ? 'Deselect All' : 'Select All'}
+    // ...
+    // {selectedIds.length > 0 && (
+    // ...
+    // onClick={() => onAwardCoins(selectedIds)}
+    // Give Feedback ({selectedIds.length})
 
     const handleMove = (index: number, direction: 'forward' | 'backward') => {
         if (direction === 'forward' && index > 0) {
@@ -244,6 +256,12 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
         }
     };
 
+    // Check if all local users are selected for button text
+    const areAllLocalSelected = localUsers.length > 0 && localUsers.every(u => selectedIds.includes(u.id));
+
+    // Calculate selection count for just this group
+    const localSelectionCount = localUsers.filter(u => selectedIds.includes(u.id)).length;
+
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-6">
@@ -275,20 +293,25 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                     >
                         {isRearranging ? 'Done Rearranging' : 'Edit Order'}
                     </button>
-                    <button
-                        onClick={handleSelectAll}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                        {selectedUserIds.size === localUsers.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                    {selectedUserIds.size > 0 && (
-                        <button
-                            onClick={() => onAwardCoins(Array.from(selectedUserIds))}
-                            className="px-6 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg shadow-lg hover:bg-blue-600 hover:scale-105 transition-all animate-in fade-in zoom-in"
-                        >
-                            Give Feedback ({selectedUserIds.size})
-                        </button>
-                    )}
+                    {/* Header Controls */}
+                    <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleSelectAll}
+                                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                                {areAllLocalSelected ? 'Deselect All' : 'Select All'}
+                            </button>
+                            {localSelectionCount > 0 && (
+                                <button
+                                    onClick={() => onAwardCoins(selectedIds)} // Global action, passes all selected
+                                    className="px-6 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg shadow-lg hover:bg-blue-600 hover:scale-105 transition-all animate-in fade-in zoom-in"
+                                >
+                                    Give Feedback ({localSelectionCount})
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -314,7 +337,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                                     index={index}
                                     total={localUsers.length}
                                     isRearranging={isRearranging}
-                                    isSelected={selectedUserIds.has(user.id)}
+                                    isSelected={selectedIds.includes(user.id)}
                                     onToggle={toggleUser}
                                     onClick={() => onStudentClick(user)}
                                     onMove={handleMove}
