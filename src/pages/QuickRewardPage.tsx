@@ -1,20 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Heart, Star, Zap, Trophy, BookOpen, Users, Check, Loader2, AlertCircle, KeyRound, LogIn } from 'lucide-react';
+import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-
-// Skill buttons for awarding coins
-const SKILLS = [
-    { id: 'helping', name: 'Helping Others', amount: 1, icon: Heart, color: 'text-pink-500', bg: 'bg-pink-100' },
-    { id: 'ontask', name: 'On Task', amount: 1, icon: Star, color: 'text-yellow-500', bg: 'bg-yellow-100' },
-    { id: 'participating', name: 'Participating', amount: 1, icon: Zap, color: 'text-purple-500', bg: 'bg-purple-100' },
-    { id: 'teamwork', name: 'Teamwork', amount: 2, icon: Users, color: 'text-blue-500', bg: 'bg-blue-100' },
-    { id: 'persistence', name: 'Working Hard', amount: 2, icon: Trophy, color: 'text-orange-500', bg: 'bg-orange-100' },
-    { id: 'homework', name: 'Homework', amount: 5, icon: BookOpen, color: 'text-green-500', bg: 'bg-green-100' },
-];
+import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
+import { ClassReward } from '@/components/admin/CoinAwardModal';
+import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
+const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
+const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
 
 interface StudentInfo {
     id: string;
@@ -25,19 +20,23 @@ interface StudentInfo {
 
 export function QuickRewardPage() {
     const { qrToken } = useParams<{ qrToken: string }>();
-    const { user } = useAuth(); // We'll use signIn from context if available, or direct supabase
+    const { user } = useAuth();
 
     const [accessCode, setAccessCode] = useState('');
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
 
     const [student, setStudent] = useState<StudentInfo | null>(null);
+    const [rewards, setRewards] = useState<ClassReward[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-    // Initialize: Check Auth & Fetch Student
+    // Sub-options selection
+    const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    // Initialize: Check Auth & Fetch Student & Rewards
     useEffect(() => {
         const init = async () => {
             setLoading(true);
@@ -48,7 +47,7 @@ export function QuickRewardPage() {
 
             if (!session) {
                 setLoading(false);
-                return; // Show Login Screen
+                return;
             }
 
             // 2. Fetch Student (if authenticated)
@@ -59,11 +58,11 @@ export function QuickRewardPage() {
             }
 
             try {
-                const { data: studentData, error: studentError } = await (supabase
+                const { data: studentData, error: studentError } = await supabase
                     .from('users')
                     .select('id, username, class')
                     .eq('qr_token', qrToken)
-                    .single() as any);
+                    .single();
 
                 if (studentError || !studentData) {
                     setError('Student not found. The QR code may be invalid.');
@@ -72,26 +71,35 @@ export function QuickRewardPage() {
                 }
 
                 // Fetch display name from profiles
-                const { data: profile } = await (supabase
+                const { data: profile } = await supabase
                     .from('user_profiles')
                     .select('display_name')
                     .eq('id', studentData.id)
-                    .single() as any);
+                    .single();
 
                 setStudent({
                     ...studentData,
                     display_name: profile?.display_name || null,
                 });
+
+                // Fetch Rewards from DB
+                const { data: rewardsData } = await supabase
+                    .from('class_rewards')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+
+                setRewards(rewardsData || []);
+
             } catch (err) {
-                console.error('Error fetching student:', err);
-                setError('Failed to load student data.');
+                console.error('Error fetching data:', err);
+                setError('Failed to load required data.');
             } finally {
                 setLoading(false);
             }
         };
 
         init();
-    }, [qrToken, user]); // Re-run when user changes (i.e. after login)
+    }, [qrToken, user]);
 
     // Handle Scanner Login
     const handleScannerLogin = async (e: React.FormEvent) => {
@@ -107,13 +115,36 @@ export function QuickRewardPage() {
 
             if (error) {
                 setAuthError('Invalid Access Code');
-            } else {
-                // Login success, useEffect will trigger and load student
             }
         } catch (err) {
             setAuthError('Authentication failed');
         } finally {
             setIsAuthenticating(false);
+        }
+    };
+
+    // Sub-option handlers
+    const handleSubOptionToggle = (option: string) => {
+        if (!pendingSubOptions) return;
+        const selected = pendingSubOptions.selected.includes(option)
+            ? pendingSubOptions.selected.filter(o => o !== option)
+            : [...pendingSubOptions.selected, option];
+        setPendingSubOptions({ ...pendingSubOptions, selected });
+    };
+
+    const handleSubOptionSubmit = () => {
+        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
+        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
+        handleAward(pendingSubOptions.reward.coins, reason);
+        setPendingSubOptions(null);
+    };
+
+    const handleRewardClick = (item: ClassReward) => {
+        if (awarding) return;
+        if (item.title === SPECIAL_REWARD_TITLE) {
+            setPendingSubOptions({ reward: item, selected: [] });
+        } else {
+            handleAward(item.coins, item.title);
         }
     };
 
@@ -127,7 +158,6 @@ export function QuickRewardPage() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
-                // Session expired?
                 window.location.reload();
                 return;
             }
@@ -135,22 +165,14 @@ export function QuickRewardPage() {
             // 1. Update student's coins using RPC
             const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
                 target_user_id: student.id,
-                amount: amount
+                amount: amount,
+                log_reason: reason,
+                log_admin_id: user.id
             });
 
             if (rpcError) throw rpcError;
 
-            // 2. Log the transaction
-            await (supabase
-                .from('coin_transactions' as any)
-                .insert({
-                    user_id: student.id,
-                    amount: amount,
-                    reason: reason,
-                    created_by: user.id
-                }) as any);
-
-            setSuccessMessage(`+${amount} coins for ${reason}!`);
+            setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
             setTimeout(() => setSuccessMessage(null), 2000);
         } catch (err) {
             console.error('Failed to award coins:', err);
@@ -160,9 +182,6 @@ export function QuickRewardPage() {
         }
     };
 
-    // --- RENDER STATES ---
-
-    // 1. Loading
     if (loading && user) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -171,11 +190,10 @@ export function QuickRewardPage() {
         );
     }
 
-    // 2. Not Authenticated (Scanner Login)
     if (!user) {
         return (
             <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-sm w-full">
                     <div className="text-center mb-6">
                         <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                             <KeyRound size={32} />
@@ -185,24 +203,20 @@ export function QuickRewardPage() {
                     </div>
 
                     <form onSubmit={handleScannerLogin} className="space-y-4">
-                        <div>
-                            <input
-                                type="password"
-                                value={accessCode}
-                                onChange={(e) => setAccessCode(e.target.value)}
-                                placeholder="Access Code"
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-lg tracking-widest"
-                                autoFocus
-                            />
-                        </div>
-
+                        <input
+                            type="password"
+                            value={accessCode}
+                            onChange={(e) => setAccessCode(e.target.value)}
+                            placeholder="Access Code"
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-lg tracking-widest"
+                            autoFocus
+                        />
                         {authError && (
                             <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 justify-center">
                                 <AlertCircle size={16} />
                                 {authError}
                             </div>
                         )}
-
                         <button
                             type="submit"
                             disabled={isAuthenticating || !accessCode}
@@ -217,7 +231,6 @@ export function QuickRewardPage() {
         );
     }
 
-    // 3. Authenticated but Error (Invalid User/Token)
     if (error) {
         return (
             <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
@@ -231,11 +244,49 @@ export function QuickRewardPage() {
         );
     }
 
-    // 4. Main Interface (Student Found)
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 relative">
+            {/* Sub-option Selection Overlay */}
+            {pendingSubOptions && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
+                        <h3 className="text-xl font-bold text-gray-800 mb-1 text-center">{pendingSubOptions.reward.title}</h3>
+                        <p className="text-[10px] text-gray-400 mb-6 text-center uppercase tracking-widest font-bold">Total 10 Coins</p>
 
-            {/* Student Card */}
+                        <div className="grid grid-cols-2 gap-2 mb-8">
+                            {SUB_OPTIONS.map(opt => (
+                                <button
+                                    key={opt}
+                                    onClick={() => handleSubOptionToggle(opt)}
+                                    className={`px-3 py-3 rounded-2xl border-2 font-bold transition-all text-sm
+                                        ${pendingSubOptions.selected.includes(opt)
+                                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                                            : 'border-gray-50 bg-gray-50/50 text-gray-400 hover:border-gray-100'}`}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setPendingSubOptions(null)}
+                                className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-colors text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubOptionSubmit}
+                                disabled={pendingSubOptions.selected.length === 0}
+                                className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95 text-sm"
+                            >
+                                Award Coins
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="w-full max-w-md bg-white rounded-3xl shadow-lg p-6 text-center mt-4 border border-gray-100">
                 <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-md">
                     <span className="text-4xl font-bold text-white">
@@ -246,11 +297,9 @@ export function QuickRewardPage() {
                 <p className="text-gray-500 font-medium bg-gray-100 inline-block px-3 py-1 rounded-full text-sm">
                     {student?.class || 'No Class'}
                 </p>
-                {/* Visual feedback for 'You are logged in as Scanner' */}
                 <p className="text-[10px] text-gray-300 mt-4 uppercase tracking-widest">Scanner Active</p>
             </div>
 
-            {/* Success Toast */}
             {successMessage && (
                 <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300">
                     <div className="bg-emerald-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 font-bold">
@@ -260,12 +309,11 @@ export function QuickRewardPage() {
                 </div>
             )}
 
-            {/* Actions Grid */}
             <div className="w-full max-w-md mt-6 grid grid-cols-2 gap-4">
-                {SKILLS.map(skill => (
+                {rewards.map(reward => (
                     <button
-                        key={skill.id}
-                        onClick={() => handleAward(skill.amount, skill.name)}
+                        key={reward.id}
+                        onClick={() => handleRewardClick(reward)}
                         disabled={awarding}
                         className={`
                             relative flex flex-col items-center gap-2 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm
@@ -273,12 +321,13 @@ export function QuickRewardPage() {
                             ${awarding ? 'opacity-50' : 'hover:shadow-md hover:border-blue-200'}
                         `}
                     >
-                        <div className={`w-14 h-14 rounded-2xl ${skill.bg} ${skill.color} flex items-center justify-center mb-1`}>
-                            <skill.icon size={28} strokeWidth={2.5} />
+                        <div className={`w-14 h-14 rounded-2xl ${reward.color} flex items-center justify-center mb-1`}>
+                            {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 28, strokeWidth: 2.5 })}
                         </div>
-                        <span className="font-bold text-gray-700 text-sm leading-tight">{skill.name}</span>
-                        <div className="absolute top-3 right-3 bg-gray-900/5 text-gray-600 text-xs font-black px-2 py-1 rounded-md">
-                            +{skill.amount}
+                        <span className="font-bold text-gray-700 text-sm leading-tight text-center truncate w-full px-1">{reward.title}</span>
+                        <div className={`absolute top-3 right-3 text-xs font-black px-2 py-1 rounded-md
+                            ${reward.coins > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                            {reward.coins > 0 ? '+' : ''}{reward.coins}
                         </div>
                     </button>
                 ))}
