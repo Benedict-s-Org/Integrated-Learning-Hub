@@ -22,6 +22,47 @@ This workflow documents common errors encountered during development and best pr
 - After a failed edit, re-read the file before retrying
 - Don't assume line numbers are stable after edits
 
+### 2. Accidental Data Wipe in Migrations
+**Problem**: Including immediate execution commands (like `SELECT reset_function();`) in migration files causes them to run automatically during deployment, potentially wiping data or triggering unintended side effects.
+
+**Prevention**:
+- **Definition Only**: Migration files should primary contain **definitions** (`CREATE TABLE`, `CREATE FUNCTION`, `ALTER TABLE`), not **executions**.
+- **Avoid Immediate SELECT**: Never include `SELECT function_name();` at the end of a migration unless it is a mandatory, one-time data transformation that has been thoroughly tested.
+- **Manual Triggering**: Significant actions (like resetting coins or clearing history) should be triggered manually from the Admin UI via an RPC call, not automatically by the database migration system.
+- **Dry Run Verification**: Before pushing a migration that modifies data, verify the impact on a local or staging database.
+
+### 3. Missing Import Statements
+**Problem**: After editing component JSX, imports like `useState`, `useEffect`, `Package`, `Grid` were missing.
+
+**Prevention**:
+- When adding new components/icons, always check the import block first
+- When refactoring, verify all used symbols are still imported
+- Keep imports organized: React hooks → External libs → Internal components → Types
+
+### 4. Unused Variable Warnings
+**Problem**: Lint errors for declared but unused variables (`apiStatus`, `handleRefine`, `refinementPrompt`).
+
+**Prevention**:
+- When removing UI elements, also remove their associated state/handlers
+- Use IDE lint feedback to clean up unused code immediately
+- Before committing, run `npm run lint` to catch warnings
+
+### 5. Type Mismatches
+**Problem**: `FurnitureItem` required `icon` but catalog items didn't provide it.
+
+**Prevention**:
+- When adding new data sources, check the type definition first
+- Make optional fields explicit with `?` in interfaces
+- Use `Partial<T>` or create variants for different use cases
+
+### 6. Nested Router Conflict (Blank Page)
+**Problem**: React application fails to render (blank screen) because a `MemoryRouter` (or other router) is nested inside a top-level `BrowserRouter`.
+
+**Prevention**:
+- Ensure only one top-level Router exists in the application hierarchy.
+- If a sub-page or standalone component needs routing, verify it is not already wrapped in a `<Router>` by the main app.
+- Check browser console logs for errors like: `The above error occurred in the <Router> component`.
+
 ---
 
 ## 📊 Automatic Error Logging
@@ -64,40 +105,6 @@ The logger automatically redacts:
 
 File paths are normalized to relative paths (e.g., `src/components/...`).
 
-
-### 2. Missing Import Statements
-**Problem**: After editing component JSX, imports like `useState`, `useEffect`, `Package`, `Grid` were missing.
-
-**Prevention**:
-- When adding new components/icons, always check the import block first
-- When refactoring, verify all used symbols are still imported
-- Keep imports organized: React hooks → External libs → Internal components → Types
-
-### 3. Unused Variable Warnings
-**Problem**: Lint errors for declared but unused variables (`apiStatus`, `handleRefine`, `refinementPrompt`).
-
-**Prevention**:
-- When removing UI elements, also remove their associated state/handlers
-- Use IDE lint feedback to clean up unused code immediately
-- Before committing, run `npm run lint` to catch warnings
-
-### 4. Type Mismatches
-**Problem**: `FurnitureItem` required `icon` but catalog items didn't provide it.
-
-**Prevention**:
-- When adding new data sources, check the type definition first
-- Make optional fields explicit with `?` in interfaces
-- Use `Partial<T>` or create variants for different use cases
-
-### 5. Nested Router Conflict (Blank Page)
-**Problem**: React application fails to render (blank screen) because a `MemoryRouter` (or other router) is nested inside a top-level `BrowserRouter`.
-
-**Prevention**:
-- Ensure only one top-level Router exists in the application hierarchy.
-- If a sub-page or standalone component needs routing, verify it is not already wrapped in a `<Router>` by the main app.
-- Check browser console logs for errors like: `The above error occurred in the <Router> component`.
-
----
 
 ## 🛡️ Protective Measures
 
