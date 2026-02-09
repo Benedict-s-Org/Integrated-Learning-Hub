@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, GripVertical, Save, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, GripVertical, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { AdminMessageModal } from './notifications/AdminMessageModal';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import {
     DndContext,
     closestCenter,
@@ -167,11 +170,14 @@ function SortableUserItem({ user, isSelected, index, total, isRearranging, onTog
 }
 
 export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins, onStudentClick, onReorder, selectedIds, onSelectionChange }: ClassDistributorProps) {
-    // const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set()); // REMOVED
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [isRearranging, setIsRearranging] = useState(false);
+
+    // Admin Message Modal State
+    const [showAdminMessageModal, setShowAdminMessageModal] = useState(false);
+    const { user } = useAuth();
 
     useEffect(() => {
         setLocalUsers(initialUsers);
@@ -207,16 +213,6 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
             onSelectionChange(localUsers.map(u => u.id));
         }
     };
-
-    // ... inside return ...
-    // isSelected={selectedIds.includes(user.id)}
-    // ...
-    // {selectedIds.length === localUsers.length ? 'Deselect All' : 'Select All'}
-    // ...
-    // {selectedIds.length > 0 && (
-    // ...
-    // onClick={() => onAwardCoins(selectedIds)}
-    // Give Feedback ({selectedIds.length})
 
     const handleMove = (index: number, direction: 'forward' | 'backward') => {
         if (direction === 'forward' && index > 0) {
@@ -256,6 +252,47 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
         }
     };
 
+    const handleAdminMessageSend = async (message: string, type: any, studentIds?: string[]) => {
+        try {
+            const records = [];
+
+            if (studentIds && studentIds.length > 0) {
+                studentIds.forEach(id => {
+                    records.push({
+                        student_id: id,
+                        message,
+                        type,
+                        created_by: user?.id,
+                        is_internal: true,
+                        is_read: false
+                    });
+                });
+            } else {
+                records.push({
+                    student_id: null,
+                    message,
+                    type,
+                    created_by: user?.id,
+                    is_internal: true,
+                    is_read: false
+                });
+            }
+
+            const { error } = await supabase
+                .from('student_records')
+                .insert(records as any);
+
+            if (error) throw error;
+
+            setShowAdminMessageModal(false);
+            // alert('Message logged.'); // Optional feedback
+
+        } catch (error) {
+            console.error('Error sending admin message:', error);
+            alert('Failed to log message');
+        }
+    };
+
     // Check if all local users are selected for button text
     const areAllLocalSelected = localUsers.length > 0 && localUsers.every(u => selectedIds.includes(u.id));
 
@@ -280,6 +317,16 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                             Save Order
                         </button>
                     )}
+
+                    {/* Admin Message Button */}
+                    <button
+                        onClick={() => setShowAdminMessageModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                    >
+                        <MessageSquare size={16} />
+                        Message
+                    </button>
+
                     {/* Rearrange Mode Toggle - Placed to the left of Select All */}
                     <button
                         onClick={() => setIsRearranging(!isRearranging)}
@@ -347,6 +394,13 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                     </SortableContext>
                 </DndContext>
             )}
+
+            <AdminMessageModal
+                isOpen={showAdminMessageModal}
+                onClose={() => setShowAdminMessageModal(false)}
+                onSend={handleAdminMessageSend}
+                students={localUsers.map(u => ({ id: u.id, display_name: u.display_name || 'Unknown' }))}
+            />
         </div>
     );
 }

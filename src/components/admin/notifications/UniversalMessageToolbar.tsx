@@ -17,9 +17,25 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [showSendModal, setShowSendModal] = useState(false);
     const [activeTemplate, setActiveTemplate] = useState<NotificationTemplate | null>(null);
+    const [recentLogs, setRecentLogs] = useState<any[]>([]);
 
     useEffect(() => {
         fetchTemplates();
+        fetchRecentLogs();
+
+        // Subscribe to new logs
+        const subscription = supabase
+            .channel('student_records_changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'student_records' }, (payload) => {
+                if (payload.new.is_internal) {
+                    fetchRecentLogs(); // Refresh on new internal message
+                }
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, [showTemplateModal]); // Refresh when modal closes
 
     const fetchTemplates = async () => {
@@ -30,6 +46,18 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
             .limit(5); // Show top 5 most recent/pinned?
 
         if (data) setTemplates(data as NotificationTemplate[]);
+    };
+
+    const fetchRecentLogs = async () => {
+        // Fetch last 5 internal messages
+        const { data } = await supabase
+            .from('student_records')
+            .select('*, student:student_id(display_name)') // Assuming relation
+            .eq('is_internal', true)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (data) setRecentLogs(data);
     };
 
     const handleQuickSend = (template: NotificationTemplate) => {
@@ -43,6 +71,29 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
     return (
         <>
             <div className="fixed top-0 left-0 right-0 z-40 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)] transition-transform duration-300">
+
+                {/* Ticker for Recent Admin Messages */}
+                {recentLogs.length > 0 && isExpanded && (
+                    <div className="bg-yellow-50 border-b border-yellow-100 py-1 px-4 text-xs flex justify-center items-center overflow-hidden">
+                        <div className="flex gap-8 animate-carousel whitespace-nowrap">
+                            {recentLogs.map((log) => (
+                                <span key={log.id} className="inline-flex items-center gap-2 text-yellow-800">
+                                    <span className="font-bold border border-yellow-600/20 px-1 rounded bg-yellow-100 text-[10px] uppercase">
+                                        Log
+                                    </span>
+                                    <span>
+                                        {/* If specific student, show name. Else 'General' */}
+                                        {log.student?.display_name ? `[${log.student.display_name}] ` : ''}
+                                        {log.message}
+                                    </span>
+                                    <span className="text-yellow-600/50 text-[10px]">
+                                        {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Toggle Handle */}
                 <div
