@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Activity, Star, AlertTriangle } from 'lucide-react';
+import { Activity, Star, AlertTriangle, Trash2 } from 'lucide-react';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
+import { useAuth } from '@/context/AuthContext';
 import React from 'react';
 
 interface StudentOverviewProps {
@@ -24,9 +25,9 @@ interface Transaction {
 }
 
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
 
 export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, guestToken }: StudentOverviewProps) {
+    const { isAdmin } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
     const [consequences, setConsequences] = useState<ClassReward[]>([]);
@@ -94,10 +95,36 @@ export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, g
 
     const handleItemClick = (item: ClassReward) => {
         if (isSubmitting) return;
-        if (item.title === SPECIAL_REWARD_TITLE) {
+
+        // Robust title matching for "完成班務（欠功課）"
+        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+
+        if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAwardCoins(item.coins, item.title);
+        }
+    };
+
+    const handleRevertTransaction = async (transactionId: string) => {
+        if (!confirm('Are you sure you want to revert this transaction? The coins will be deducted from the student.')) return;
+
+        setIsSubmitting(true);
+        try {
+            const { error } = await (supabase.rpc as any)('revert_coin_transaction', {
+                transaction_id: transactionId
+            });
+
+            if (error) throw error;
+
+            // Refresh UI
+            await fetchData();
+            onUpdateCoins();
+        } catch (error) {
+            console.error('Error reverting transaction:', error);
+            alert('Failed to revert transaction');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -225,10 +252,18 @@ export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, g
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-slate-700 text-xs truncate leading-none mb-1">{tx.reason}</p>
                                         <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                            <Calendar size={10} />
                                             {formatDate(tx.created_at)}
                                         </div>
                                     </div>
+                                    {!isGuestMode && isAdmin && (
+                                        <button
+                                            onClick={() => handleRevertTransaction(tx.id)}
+                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                            title="Revert transaction"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             ))
                         )}

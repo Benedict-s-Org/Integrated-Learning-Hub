@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-    X, Plus, Trash2, Edit2, Check, Star, AlertCircle
+    X, Plus, Trash2, Edit2, Check, Star
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -23,7 +23,7 @@ export interface ClassReward {
 }
 
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
+// Special reward handling is now done via robust string matching
 
 export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: CoinAwardModalProps) {
     const { isAdmin, user, isUserView } = useAuth();
@@ -53,10 +53,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
 
     const fetchRewards = async () => {
         setIsLoading(true);
-        const { data, error } = await supabase
-            .from('class_rewards')
+        const { data, error } = await (supabase
+            .from('class_rewards' as any)
             .select('*')
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true }) as any);
 
         if (error) {
             console.error('Error fetching rewards:', error);
@@ -70,7 +70,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
         if (isEditMode || isCustomMode) return;
         if (selectedCount === 0) return;
 
-        if (item.title === SPECIAL_REWARD_TITLE) {
+        // Robust title matching for "完成班務（欠功課）"
+        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+
+        if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             onAward(item.coins, item.title);
@@ -105,15 +108,15 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
             };
 
             if (editingId && editingId !== 'new') {
-                const { error } = await supabase
-                    .from('class_rewards')
+                const { error } = await (supabase
+                    .from('class_rewards' as any)
                     .update(rewardData)
-                    .eq('id', editingId);
+                    .eq('id', editingId) as any);
                 if (error) throw error;
             } else {
-                const { error } = await supabase
-                    .from('class_rewards')
-                    .insert([rewardData]);
+                const { error } = await (supabase
+                    .from('class_rewards' as any)
+                    .insert([rewardData]) as any);
                 if (error) throw error;
             }
 
@@ -130,10 +133,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount }: Coin
         if (!confirm('Are you sure you want to delete this item?')) return;
 
         try {
-            const { error } = await supabase
-                .from('class_rewards')
+            const { error } = await (supabase
+                .from('class_rewards' as any)
                 .delete()
-                .eq('id', id);
+                .eq('id', id) as any);
 
             if (error) throw error;
             fetchRewards();

@@ -15,6 +15,9 @@ import {
   Settings,
   QrCode,
   ScanLine,
+  RotateCcw,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -25,7 +28,6 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
 import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
-import { LayoutGrid, List } from 'lucide-react';
 
 const createUserSchema = z.object({
   email: z.string().trim().email({ message: '請輸入有效的電郵地址' }),
@@ -201,12 +203,15 @@ export function AdminUsersPage() {
   const handleAwardCoins = async (userIds: string[], amount: number, reason: string) => {
     try {
       console.log(`Awarding ${amount} coins to ${userIds.length} users for ${reason}`);
+      const { data: { user } } = await supabase.auth.getUser();
 
-      // Use RPC if available
+      // Use RPC
       for (const userId of userIds) {
         const { error } = await (supabase.rpc as any)('increment_room_coins', {
-          _user_id: userId,
-          _amount: amount
+          target_user_id: userId,
+          amount: amount,
+          log_reason: reason,
+          log_admin_id: user?.id
         });
 
         if (error) {
@@ -221,6 +226,20 @@ export function AdminUsersPage() {
     } catch (err) {
       console.error('Error in handleAwardCoins:', err);
       alert('Failed to award coins');
+    }
+  };
+
+  const handleResetAllCoins = async () => {
+    if (!confirm('Are you sure you want to RESET ALL COINS for all students? This cannot be undone.')) return;
+
+    try {
+      const { error } = await (supabase.rpc as any)('reset_all_coins');
+      if (error) throw error;
+      alert('All coins have been reset to 0.');
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to reset coins:', err);
+      alert('Failed to reset coins');
     }
   };
 
@@ -243,6 +262,14 @@ export function AdminUsersPage() {
             >
               <ScanLine size={20} />
               Scan QR
+            </button>
+            <button
+              onClick={handleResetAllCoins}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl font-semibold hover:bg-red-100 transition-all shadow-sm"
+              title="Reset all students coins to 0"
+            >
+              <RotateCcw size={18} />
+              Reset All Coins
             </button>
             <div className="flex gap-2">
               {/* Share Link Button */}

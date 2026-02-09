@@ -24,7 +24,7 @@ import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
+// Special reward handling is now done via robust string matching
 
 interface ScannedStudent {
     id: string;
@@ -112,7 +112,7 @@ export function QRScannerPage() {
             await scannerRef.current.stop();
         }
 
-        const match = decodedText.match(/\/(?:quick-reward|reward)\/([a-f0-9-]{36})$/i);
+        const match = decodedText.match(/\/(?:quick-reward|reward)\/([a-f0-9-]{36})(?:\/|\?|$)/i);
         if (!match) {
             setError('Invalid QR code format.');
             setScannerState('error');
@@ -216,7 +216,7 @@ export function QRScannerPage() {
             await scannerRef.current.start(
                 { facingMode: 'environment', width: { min: 640, ideal: 1280 }, height: { min: 480, ideal: 720 } },
                 {
-                    fps: 15, qrbox: { width: 300, height: 300 }, aspectRatio: 1.0,
+                    fps: 15, qrbox: { width: 450, height: 450 }, aspectRatio: 1.0,
                     //@ts-ignore 
                     experimentalFeatures: { useBarCodeDetectorIfSupported: true }
                 },
@@ -259,7 +259,7 @@ export function QRScannerPage() {
                 await scannerRef.current.start(
                     { facingMode: 'environment', width: { min: 640, ideal: 1280 }, height: { min: 480, ideal: 720 } },
                     {
-                        fps: 15, qrbox: { width: 300, height: 300 }, aspectRatio: 1.0,
+                        fps: 15, qrbox: { width: 450, height: 450 }, aspectRatio: 1.0,
                         //@ts-ignore
                         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
                     },
@@ -306,7 +306,12 @@ export function QRScannerPage() {
 
     const handleRewardClick = (item: ClassReward) => {
         if (awarding) return;
-        if (item.title === SPECIAL_REWARD_TITLE) {
+
+        // Robust title matching for "完成班務（欠功課）"
+        // This handles potential variations in whitespace or localization
+        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+
+        if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAward(item.coins, item.title);
@@ -319,7 +324,7 @@ export function QRScannerPage() {
         try {
             const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
                 target_user_id: student.id,
-                amount,
+                amount: amount,
                 log_reason: reason,
                 log_admin_id: user?.id
             });
@@ -327,6 +332,7 @@ export function QRScannerPage() {
             setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
             setTimeout(() => resetScanner(), 1500);
         } catch (err) {
+            console.error('RPC Error:', err);
             setError('Failed to award coins.');
             setScannerState('error');
         } finally {
@@ -493,7 +499,10 @@ export function QRScannerPage() {
                     <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md">
                         <div className="bg-red-500/20 backdrop-blur-lg rounded-3xl p-8 text-center border border-red-500/30">
                             <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" /><h2 className="text-xl font-bold mb-2">Error</h2><p className="text-white/70 mb-6">{error}</p>
-                            <button onClick={resetScanner} className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-colors">Try Again</button>
+                            <div className="flex flex-col gap-3">
+                                <button onClick={resetScanner} className="w-full px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"><RotateCcw size={18} />Try Again</button>
+                                <button onClick={() => { startCameraManually(); setScanTrigger(prev => prev + 1); }} className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black transition-all active:scale-95 uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"><Zap size={14} fill="currentColor" />Enable Camera</button>
+                            </div>
                         </div>
                     </div>
                 )}

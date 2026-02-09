@@ -9,7 +9,7 @@ import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
+// Special reward handling is now done via robust string matching
 
 interface StudentInfo {
     id: string;
@@ -84,12 +84,12 @@ export function QuickRewardPage() {
                 });
 
                 // Fetch Rewards from DB
-                const { data: rewardsData } = await supabase
-                    .from('class_rewards')
+                const { data: rewardsData } = await (supabase
+                    .from('class_rewards' as any)
                     .select('*')
-                    .order('created_at', { ascending: true });
+                    .order('created_at', { ascending: true }) as any);
 
-                const allItems = rewardsData || [];
+                const allItems = (rewardsData || []) as any[];
                 setRewards(allItems.filter(i => i.coins >= 0));
                 setConsequences(allItems.filter(i => i.coins < 0));
 
@@ -144,7 +144,11 @@ export function QuickRewardPage() {
 
     const handleRewardClick = (item: ClassReward) => {
         if (awarding) return;
-        if (item.title === SPECIAL_REWARD_TITLE) {
+
+        // Robust title matching for "完成班務（欠功課）"
+        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+
+        if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAward(item.coins, item.title);
