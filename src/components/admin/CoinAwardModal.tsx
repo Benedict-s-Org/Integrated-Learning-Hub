@@ -107,7 +107,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         if (selectedCount === 0) return;
 
         // Robust title matching for "完成班務（欠功課）"
-        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
 
         if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });

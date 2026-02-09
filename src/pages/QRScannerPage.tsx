@@ -308,8 +308,7 @@ export function QRScannerPage() {
         if (awarding) return;
 
         // Robust title matching for "完成班務（欠功課）"
-        // This handles potential variations in whitespace or localization
-        const isSpecialReward = item.title.trim().includes("完成班務") && item.title.includes("欠功課");
+        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
 
         if (isSpecialReward) {
             setPendingSubOptions({ reward: item, selected: [] });

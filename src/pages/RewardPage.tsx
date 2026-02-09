@@ -7,7 +7,7 @@ import { CoinAwardModal, ClassReward } from '@/components/admin/CoinAwardModal';
 import React from 'react';
 
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-const SPECIAL_REWARD_TITLE = "完成班務（欠功課）";
+// Special reward handling is now done via robust string matching
 
 export function RewardPage() {
     const { qrToken } = useParams<{ qrToken: string }>();
@@ -39,11 +39,11 @@ export function RewardPage() {
                 }
 
                 // Check if user is admin
-                const { data: profile } = await supabase
+                const { data: profile } = await (supabase
                     .from('user_profiles')
                     .select('role')
                     .eq('id', user.id)
-                    .single();
+                    .single() as any);
 
                 if (!profile || profile.role !== 'admin') {
                     setError('Only administrators can award coins.');
@@ -85,10 +85,10 @@ export function RewardPage() {
     }, [qrToken]);
 
     const fetchRewards = async () => {
-        const { data } = await supabase
-            .from('class_rewards')
+        const { data } = await (supabase
+            .from('class_rewards' as any)
             .select('*')
-            .order('title', { ascending: true });
+            .order('title', { ascending: true }) as any);
 
         const allItems = data || [];
         setRewards(allItems.filter(i => i.coins >= 0));
@@ -147,7 +147,8 @@ export function RewardPage() {
 
     const onRewardClick = (reward: ClassReward) => {
         if (awarding) return;
-        if (reward.title === SPECIAL_REWARD_TITLE) {
+        const isSpecialReward = reward.title.includes("完成班務") && reward.title.includes("欠功課");
+        if (isSpecialReward) {
             setPendingSubOptions({ reward, selected: [] });
         } else {
             handleAward(reward.coins, reward.title);
