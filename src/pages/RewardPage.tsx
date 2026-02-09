@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Check, ArrowLeft, Loader2, AlertCircle, Settings2, Star } from 'lucide-react';
+import { Check, ArrowLeft, Loader2, AlertCircle, Settings2, Star, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { CoinAwardModal, ClassReward } from '@/components/admin/CoinAwardModal';
@@ -15,6 +15,7 @@ export function RewardPage() {
 
     const [student, setStudent] = useState<any | null>(null);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
+    const [consequences, setConsequences] = useState<ClassReward[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -71,14 +72,7 @@ export function RewardPage() {
                 }
 
                 setStudent(studentData);
-
-                // Fetch Rewards from DB
-                const { data: rewardsData } = await supabase
-                    .from('class_rewards')
-                    .select('*')
-                    .order('created_at', { ascending: true });
-
-                setRewards(rewardsData || []);
+                await fetchRewards();
                 setLoading(false);
             } catch (err) {
                 console.error('Error initializing reward page:', err);
@@ -94,8 +88,11 @@ export function RewardPage() {
         const { data } = await supabase
             .from('class_rewards')
             .select('*')
-            .order('created_at', { ascending: true });
-        setRewards(data || []);
+            .order('title', { ascending: true });
+
+        const allItems = data || [];
+        setRewards(allItems.filter(i => i.coins >= 0));
+        setConsequences(allItems.filter(i => i.coins < 0));
     };
 
     // Sub-option handlers
@@ -279,35 +276,72 @@ export function RewardPage() {
             )}
 
             {/* Skills Grid */}
-            <div className="max-w-2xl mx-auto">
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 text-center">
-                    Tap to Award
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {rewards.map(reward => (
-                        <button
-                            key={reward.id}
-                            onClick={() => onRewardClick(reward)}
-                            disabled={awarding}
-                            className={`
-                                group flex flex-col items-center gap-3 p-5 rounded-2xl bg-white shadow-sm border border-gray-100
-                                hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 transition-all duration-200
-                                ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
-                            `}
-                        >
-                            <div className={`w-16 h-16 rounded-2xl ${reward.color} flex items-center justify-center text-3xl shadow-sm group-hover:shadow-md transition-shadow`}>
-                                {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 32 })}
-                            </div>
-                            <div className="text-center w-full">
-                                <div className="font-bold text-gray-700 truncate px-1">{reward.title}</div>
-                                <div className={`text-xs font-bold inline-block px-2 py-0.5 rounded-full mt-1
-                                    ${reward.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
-                                    {reward.coins > 0 ? '+' : ''}{reward.coins}
+            <div className="max-w-2xl mx-auto space-y-10">
+                {/* Rewards Section */}
+                <div>
+                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 text-center flex items-center justify-center gap-2">
+                        <Star size={14} className="text-yellow-500" />
+                        Quick Rewards
+                    </h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {rewards.map(reward => (
+                            <button
+                                key={reward.id}
+                                onClick={() => onRewardClick(reward)}
+                                disabled={awarding}
+                                className={`
+                                    group flex flex-col items-center gap-3 p-5 rounded-2xl bg-white shadow-sm border border-gray-100
+                                    hover:shadow-xl hover:-translate-y-1 hover:border-blue-200 transition-all duration-200
+                                    ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
+                                `}
+                            >
+                                <div className={`w-14 h-14 rounded-2xl ${reward.color} flex items-center justify-center text-3xl shadow-sm group-hover:shadow-md transition-shadow`}>
+                                    {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 28 })}
                                 </div>
-                            </div>
-                        </button>
-                    ))}
+                                <div className="text-center w-full">
+                                    <div className="font-bold text-gray-700 truncate px-1 text-sm">{reward.title}</div>
+                                    <div className="text-[10px] font-black inline-block px-2 py-0.5 rounded-full mt-1 text-green-600 bg-green-50">
+                                        +{reward.coins}
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Consequences Section */}
+                {consequences.length > 0 && (
+                    <div>
+                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 text-center flex items-center justify-center gap-2">
+                            <AlertTriangle size={14} className="text-red-500" />
+                            Consequences
+                        </h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {consequences.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => onRewardClick(item)}
+                                    disabled={awarding}
+                                    className={`
+                                        group flex flex-col items-center gap-3 p-5 rounded-2xl bg-white shadow-sm border border-gray-100
+                                        hover:shadow-xl hover:-translate-y-1 hover:border-red-200 transition-all duration-200
+                                        ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                >
+                                    <div className={`w-14 h-14 rounded-2xl ${item.color} flex items-center justify-center text-3xl shadow-sm group-hover:shadow-md transition-shadow`}>
+                                        {React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 28 })}
+                                    </div>
+                                    <div className="text-center w-full">
+                                        <div className="font-bold text-gray-700 truncate px-1 text-sm">{item.title}</div>
+                                        <div className="text-[10px] font-black inline-block px-2 py-0.5 rounded-full mt-1 text-red-600 bg-red-50">
+                                            {item.coins}
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Footer hint */}

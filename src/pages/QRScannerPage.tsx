@@ -10,7 +10,8 @@ import {
     ScanLine,
     RotateCcw,
     Star,
-    Zap
+    Zap,
+    AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -38,6 +39,7 @@ export function QRScannerPage() {
 
     const [student, setStudent] = useState<ScannedStudent | null>(null);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
+    const [consequences, setConsequences] = useState<ClassReward[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
@@ -89,8 +91,11 @@ export function QRScannerPage() {
             const { data } = await supabase
                 .from('class_rewards')
                 .select('*')
-                .order('created_at', { ascending: true });
-            setRewards(data || []);
+                .order('title', { ascending: true });
+
+            const allItems = data || [];
+            setRewards(allItems.filter(i => i.coins >= 0));
+            setConsequences(allItems.filter(i => i.coins < 0));
         };
         if (user) fetchRewards();
     }, [user]);
@@ -442,39 +447,74 @@ export function QRScannerPage() {
                             </div>
                         )}
 
-                        <div className="w-full mt-6">
-                            <p className="text-[10px] text-white/40 uppercase tracking-widest text-center mb-4 font-bold">
-                                Tap to Award
-                            </p>
-                            <div className="grid grid-cols-2 gap-3">
-                                {rewards.map((reward) => (
-                                    <button
-                                        key={reward.id}
-                                        onClick={() => handleRewardClick(reward)}
-                                        disabled={awarding}
-                                        className={`
-                                            flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10
-                                            hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-200
-                                            ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
-                                        `}
-                                    >
-                                        <div className={`w-12 h-12 rounded-xl ${reward.color} flex items-center justify-center`}>
-                                            {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 24 })}
-                                        </div>
-                                        <span className="font-semibold text-sm truncate w-full px-1 text-center">{reward.title}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold
-                                            ${reward.coins > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                            {reward.coins > 0 ? '+' : ''}{reward.coins}
-                                        </span>
-                                    </button>
-                                ))}
+                        <div className="w-full mt-6 space-y-10">
+                            {/* Rewards Section */}
+                            <div>
+                                <p className="text-[10px] text-white/40 uppercase tracking-widest text-center mb-4 font-bold flex items-center justify-center gap-2">
+                                    <Star size={14} className="text-yellow-500" />
+                                    Rewards
+                                </p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {rewards.map((reward) => (
+                                        <button
+                                            key={reward.id}
+                                            onClick={() => handleRewardClick(reward)}
+                                            disabled={awarding}
+                                            className={`
+                                                flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10
+                                                hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-200
+                                                ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
+                                            `}
+                                        >
+                                            <div className={`w-12 h-12 rounded-xl ${reward.color} flex items-center justify-center`}>
+                                                {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 24 })}
+                                            </div>
+                                            <span className="font-semibold text-sm truncate w-full px-1 text-center">{reward.title}</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-green-500/20 text-green-400">
+                                                +{reward.coins}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* Consequences Section */}
+                            {consequences.length > 0 && (
+                                <div>
+                                    <p className="text-[10px] text-white/40 uppercase tracking-widest text-center mb-4 font-bold flex items-center justify-center gap-2">
+                                        <AlertTriangle size={14} className="text-red-500" />
+                                        Consequences
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {consequences.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => handleRewardClick(item)}
+                                                disabled={awarding}
+                                                className={`
+                                                    flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10
+                                                    hover:bg-white/20 hover:border-white/30 active:scale-95 transition-all duration-200
+                                                    ${awarding ? 'opacity-50 cursor-not-allowed' : ''}
+                                                `}
+                                            >
+                                                <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center`}>
+                                                    {React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 24 })}
+                                                </div>
+                                                <span className="font-semibold text-sm truncate w-full px-1 text-center">{item.title}</span>
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400">
+                                                    {item.coins}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <button
                             onClick={resetScanner}
                             disabled={awarding}
-                            className="mt-8 flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-full font-semibold transition-colors"
+                            className="mt-12 flex items-center gap-2 px-8 py-3 bg-white/10 hover:bg-white/20 rounded-full font-semibold transition-colors border border-white/10"
                         >
                             <RotateCcw size={18} />
                             Scan Another Student

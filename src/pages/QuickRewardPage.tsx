@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star } from 'lucide-react';
+import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
@@ -28,6 +28,7 @@ export function QuickRewardPage() {
 
     const [student, setStudent] = useState<StudentInfo | null>(null);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
+    const [consequences, setConsequences] = useState<ClassReward[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
@@ -58,11 +59,11 @@ export function QuickRewardPage() {
             }
 
             try {
-                const { data: studentData, error: studentError } = await supabase
+                const { data: studentData, studentError } = (await supabase
                     .from('users')
                     .select('id, username, class')
                     .eq('qr_token', qrToken)
-                    .single();
+                    .single() as any);
 
                 if (studentError || !studentData) {
                     setError('Student not found. The QR code may be invalid.');
@@ -88,7 +89,9 @@ export function QuickRewardPage() {
                     .select('*')
                     .order('created_at', { ascending: true });
 
-                setRewards(rewardsData || []);
+                const allItems = rewardsData || [];
+                setRewards(allItems.filter(i => i.coins >= 0));
+                setConsequences(allItems.filter(i => i.coins < 0));
 
             } catch (err) {
                 console.error('Error fetching data:', err);
@@ -193,7 +196,7 @@ export function QuickRewardPage() {
     if (!user) {
         return (
             <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 max-sm w-full">
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full">
                     <div className="text-center mb-6">
                         <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                             <KeyRound size={32} />
@@ -288,16 +291,15 @@ export function QuickRewardPage() {
             )}
 
             <div className="w-full max-w-md bg-white rounded-3xl shadow-lg p-6 text-center mt-4 border border-gray-100">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-md">
-                    <span className="text-4xl font-bold text-white">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-md">
+                    <span className="text-3xl font-bold text-white">
                         {(student?.display_name || student?.username)?.charAt(0).toUpperCase()}
                     </span>
                 </div>
-                <h1 className="text-2xl font-black text-gray-800 mb-1">{student?.display_name || student?.username}</h1>
-                <p className="text-gray-500 font-medium bg-gray-100 inline-block px-3 py-1 rounded-full text-sm">
+                <h1 className="text-xl font-black text-gray-800 mb-1">{student?.display_name || student?.username}</h1>
+                <p className="text-gray-500 font-medium bg-gray-100 inline-block px-3 py-1 rounded-full text-xs">
                     {student?.class || 'No Class'}
                 </p>
-                <p className="text-[10px] text-gray-300 mt-4 uppercase tracking-widest">Scanner Active</p>
             </div>
 
             {successMessage && (
@@ -309,34 +311,72 @@ export function QuickRewardPage() {
                 </div>
             )}
 
-            <div className="w-full max-w-md mt-6 grid grid-cols-2 gap-4">
-                {rewards.map(reward => (
-                    <button
-                        key={reward.id}
-                        onClick={() => handleRewardClick(reward)}
-                        disabled={awarding}
-                        className={`
-                            relative flex flex-col items-center gap-2 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm
-                            active:scale-95 transition-all duration-100 touch-manipulation
-                            ${awarding ? 'opacity-50' : 'hover:shadow-md hover:border-blue-200'}
-                        `}
-                    >
-                        <div className={`w-14 h-14 rounded-2xl ${reward.color} flex items-center justify-center mb-1`}>
-                            {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 28, strokeWidth: 2.5 })}
+            <div className="w-full max-w-md mt-6 space-y-6">
+                {/* Rewards Section */}
+                <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2 flex items-center gap-2">
+                        <Star size={14} className="text-yellow-500" />
+                        Rewards
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        {rewards.map(reward => (
+                            <button
+                                key={reward.id}
+                                onClick={() => handleRewardClick(reward)}
+                                disabled={awarding}
+                                className={`
+                                    relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm
+                                    active:scale-95 transition-all duration-100 touch-manipulation
+                                    ${awarding ? 'opacity-50' : 'hover:shadow-md hover:border-blue-200'}
+                                `}
+                            >
+                                <div className={`w-12 h-12 rounded-xl ${reward.color} flex items-center justify-center mb-1`}>
+                                    {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 24, strokeWidth: 2.5 })}
+                                </div>
+                                <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{reward.title}</span>
+                                <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-green-600 bg-green-50">
+                                    +{reward.coins}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Consequences Section */}
+                {consequences.length > 0 && (
+                    <div>
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2 flex items-center gap-2">
+                            <AlertTriangle size={14} className="text-red-500" />
+                            Consequences
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            {consequences.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => handleRewardClick(item)}
+                                    disabled={awarding}
+                                    className={`
+                                        relative flex flex-col items-center gap-2 p-4 rounded-2xl bg-white border border-gray-100 shadow-sm
+                                        active:scale-95 transition-all duration-100 touch-manipulation
+                                        ${awarding ? 'opacity-50' : 'hover:shadow-md hover:border-red-200'}
+                                    `}
+                                >
+                                    <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center mb-1`}>
+                                        {React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 24, strokeWidth: 2.5 })}
+                                    </div>
+                                    <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{item.title}</span>
+                                    <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-red-600 bg-red-50">
+                                        {item.coins}
+                                    </div>
+                                </button>
+                            ))}
                         </div>
-                        <span className="font-bold text-gray-700 text-sm leading-tight text-center truncate w-full px-1">{reward.title}</span>
-                        <div className={`absolute top-3 right-3 text-xs font-black px-2 py-1 rounded-md
-                            ${reward.coins > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
-                            {reward.coins > 0 ? '+' : ''}{reward.coins}
-                        </div>
-                    </button>
-                ))}
+                    </div>
+                )}
             </div>
 
-            <p className="mt-8 text-xs text-center text-gray-400 max-w-xs">
-                Tap button to instantly award coins.
-                <br />
-                User: {user?.email}
+            <p className="mt-8 text-[10px] text-center text-gray-300 max-w-xs uppercase tracking-widest font-bold">
+                Tap button to instantly award
             </p>
         </div>
     );
