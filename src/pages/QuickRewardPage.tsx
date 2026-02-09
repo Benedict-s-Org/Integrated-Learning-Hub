@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { ClassReward } from '@/components/admin/CoinAwardModal';
+import { playSuccessSound } from '@/utils/audio';
 import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
@@ -179,6 +180,7 @@ export function QuickRewardPage() {
 
             if (rpcError) throw rpcError;
 
+            playSuccessSound();
             setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
             setTimeout(() => setSuccessMessage(null), 2000);
         } catch (err) {

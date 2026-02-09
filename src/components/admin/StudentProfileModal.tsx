@@ -139,6 +139,7 @@ export function StudentProfileModal({
                         <StudentOverview
                             student={student}
                             onUpdateCoins={onUpdateCoins}
+                            onSuccess={handleClose}
                             isGuestMode={isGuestMode}
                             guestToken={guestToken}
                         />

@@ -4,6 +4,7 @@ import { Activity, Star, AlertTriangle, Trash2 } from 'lucide-react';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
 import { useAuth } from '@/context/AuthContext';
+import { playSuccessSound } from '@/utils/audio';
 import React from 'react';
 
 interface StudentOverviewProps {
@@ -13,6 +14,7 @@ interface StudentOverviewProps {
         coins: number;
     };
     onUpdateCoins: () => void;
+    onSuccess?: () => void;
     isGuestMode?: boolean;
     guestToken?: string;
 }
@@ -26,7 +28,7 @@ interface Transaction {
 
 const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
 
-export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, guestToken }: StudentOverviewProps) {
+export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode = false, guestToken }: StudentOverviewProps) {
     const { isAdmin } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
@@ -143,7 +145,9 @@ export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, g
                 });
 
                 if (error) throw error;
-                // No alert, just UI feedback if possible
+
+                playSuccessSound();
+                if (onSuccess) onSuccess();
             } else {
                 const { data: { user } } = await supabase.auth.getUser();
 
@@ -156,6 +160,9 @@ export function StudentOverview({ student, onUpdateCoins, isGuestMode = false, g
                 });
 
                 if (roomError) throw roomError;
+
+                playSuccessSound();
+                if (onSuccess) onSuccess();
 
                 // Refresh UI
                 await fetchData();

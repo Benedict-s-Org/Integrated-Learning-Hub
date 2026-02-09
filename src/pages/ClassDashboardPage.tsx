@@ -5,6 +5,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
 import { Settings2 } from 'lucide-react';
+import { playSuccessSound } from '@/utils/audio';
 
 interface UserWithCoins {
     id: string;
@@ -142,6 +143,7 @@ export function ClassDashboardPage() {
                 });
 
                 if (error) throw error;
+                playSuccessSound();
                 alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
             } else {
                 for (const userId of userIds) {
@@ -153,6 +155,7 @@ export function ClassDashboardPage() {
                     });
                     if (error) console.error(`Failed to award coins to ${userId}:`, error);
                 }
+                playSuccessSound();
                 await fetchUsers();
             }
             setShowAwardModal(false);
