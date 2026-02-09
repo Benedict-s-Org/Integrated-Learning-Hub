@@ -14,5 +14,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- One-time execution to clear mistaken records immediately
-SELECT public.reset_all_coins();
+-- Function defined above. Use via RPC or button click, not automatically in migration.
