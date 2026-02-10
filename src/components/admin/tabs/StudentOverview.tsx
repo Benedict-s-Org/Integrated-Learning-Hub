@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Activity, Star, AlertTriangle, Trash2 } from 'lucide-react';
+import { Activity, Star, AlertTriangle, Trash2, Plus, Check } from 'lucide-react';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
 import { useAuth } from '@/context/AuthContext';
@@ -38,6 +38,10 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
     const [manualAmount, setManualAmount] = useState<string>('0');
     const [manualReason, setManualReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Custom amount state
+    const [isCustomMode, setIsCustomMode] = useState(false);
+    const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
@@ -98,6 +102,9 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
     const handleItemClick = (item: ClassReward) => {
         if (isSubmitting) return;
+
+        // In custom mode, clicking the item itself does nothing unless it's a special reward
+        if (isCustomMode) return;
 
         // Robust title matching for "完成班務（欠功課）"
         const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
@@ -292,10 +299,21 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                 <div className="bg-white p-5 rounded-[2rem] border border-slate-200/40 shadow-sm space-y-6 order-2">
                     {/* Positive Rewards */}
                     <div>
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <Star className="text-yellow-500" size={14} />
-                            Quick Rewards
-                        </h3>
+                        <div className="flex justify-between items-center mb-3 px-2">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <Star className="text-yellow-500" size={14} />
+                                Quick Rewards
+                            </h3>
+                            <button
+                                onClick={() => setIsCustomMode(!isCustomMode)}
+                                className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider
+                                    ${isCustomMode ? 'bg-orange-100 border-orange-200 text-orange-600' : 'bg-slate-50 border-slate-100 text-slate-400 hover:text-orange-500'}
+                                `}
+                            >
+                                <Plus size={10} strokeWidth={3} />
+                                {isCustomMode ? 'Custom: ON' : 'Custom'}
+                            </button>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {rewards.map(item => (
                                 <button
@@ -310,7 +328,34 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                     <span className="text-[9px] font-black text-slate-700 block w-full truncate uppercase tracking-tighter mb-0.5">
                                         {item.title}
                                     </span>
-                                    {item.coins > 0 ? `+${item.coins}` : item.coins}
+                                    <div className="text-[10px] font-bold">
+                                        {item.coins > 0 ? `+${item.coins}` : item.coins}
+                                    </div>
+
+                                    {isCustomMode && (
+                                        <div className="mt-2 flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                                            <input
+                                                type="number"
+                                                value={customValues[item.id] ?? item.coins}
+                                                onChange={(e) => setCustomValues({
+                                                    ...customValues,
+                                                    [item.id]: e.target.value
+                                                })}
+                                                className="flex-1 min-w-0 px-1 py-0.5 text-[10px] border rounded-md text-center font-bold focus:ring-1 focus:ring-orange-300 outline-none"
+                                                onClick={e => e.stopPropagation()}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const amount = parseInt(customValues[item.id]);
+                                                    handleAwardCoins(isNaN(amount) ? item.coins : amount, item.title);
+                                                }}
+                                                className="p-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                                            >
+                                                <Check size={10} strokeWidth={3} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -336,7 +381,34 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                     <span className="text-[9px] font-black text-slate-700 block w-full truncate uppercase tracking-tighter mb-0.5">
                                         {item.title}
                                     </span>
-                                    {item.coins > 0 ? `+${item.coins}` : item.coins}
+                                    <div className="text-[10px] font-bold">
+                                        {item.coins === 0 ? '-0' : item.coins}
+                                    </div>
+
+                                    {isCustomMode && (
+                                        <div className="mt-2 flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                                            <input
+                                                type="number"
+                                                value={customValues[item.id] ?? item.coins}
+                                                onChange={(e) => setCustomValues({
+                                                    ...customValues,
+                                                    [item.id]: e.target.value
+                                                })}
+                                                className="flex-1 min-w-0 px-1 py-0.5 text-[10px] border rounded-md text-center font-bold focus:ring-1 focus:ring-red-300 outline-none"
+                                                onClick={e => e.stopPropagation()}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const amount = parseInt(customValues[item.id]);
+                                                    handleAwardCoins(isNaN(amount) ? item.coins : amount, item.title);
+                                                }}
+                                                className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                                            >
+                                                <Check size={10} strokeWidth={3} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
