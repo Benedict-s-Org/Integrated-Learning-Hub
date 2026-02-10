@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Check, X } from 'lucide-react';
+import { ArrowLeft, Check, X, Lightbulb } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -30,7 +33,8 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
   const [showResults, setShowResults] = useState(isPreview);
-  const [correctAnswers, setCorrectAnswers] = useState<Map<number, { wordIndex: number; correction: string }>>(new Map());
+  const [correctAnswers, setCorrectAnswers] = useState<Map<number, { wordIndex: number; correction: string; tip?: string }>>(new Map());
+  const [revealedTips, setRevealedTips] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const parsed = sentences.map((sentence, lineNumber) => {
@@ -72,6 +76,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       answerMap.set(answer.lineNumber, {
         wordIndex: answer.wordIndex,
         correction: answer.correction,
+        tip: answer.tip,
       });
     });
     setCorrectAnswers(answerMap);
@@ -133,6 +138,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
         total_count: totalQuestions,
         accuracy_percentage: percentage,
         time_spent_seconds: timeSpentSeconds,
+        tips_used: Array.from(revealedTips),
         completed_at: new Date().toISOString(),
       };
 
@@ -144,7 +150,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
         insertData.assignment_id = assignmentId;
       }
 
-      await supabase.from('proofreading_practice_results').insert(insertData);
+      await (supabase.from('proofreading_practice_results' as any) as any).insert(insertData);
 
       if (assignmentId) {
         await supabase
@@ -165,6 +171,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       setSelectedWords(new Map());
       setCorrections(new Map());
       setShowResults(false);
+      setRevealedTips(new Set());
       startTimeRef.current = Date.now();
     }
   };
@@ -216,20 +223,19 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
         />
       )}
       <div
-        className="pt-20 min-h-full bg-gray-50 pr-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="min-h-screen bg-background"
         data-source-tsx="ProofreadingPractice|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
       >
         <div className="max-w-[95%] mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <Card className="p-8">
             <h1
-              className="text-3xl font-bold text-gray-800 mb-6 text-center"
+              className="text-3xl font-bold text-foreground mb-6 text-center"
               data-source-tsx="ProofreadingPractice Title|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
             >
               Find and Correct Mistakes
             </h1>
 
-            <div className="mb-6 text-center text-gray-600">
+            <div className="mb-6 text-center text-muted-foreground">
               <p>Click on the word that contains a mistake in each sentence, then enter the correction.</p>
             </div>
 
@@ -262,15 +268,34 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                       <tr
                         key={sentence.lineNumber}
                         className={`hover:bg-gray-50 ${showResults && isCorrect === true
-                            ? 'bg-green-50'
-                            : showResults && isCorrect === false
-                              ? 'bg-red-50'
-                              : ''
+                          ? 'bg-green-50'
+                          : showResults && isCorrect === false
+                            ? 'bg-red-50'
+                            : ''
                           }`}
                         data-source-tsx="ProofreadingPractice Table Row|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
                       >
-                        <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700">
-                          {sentence.lineNumber + 1}
+                        <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 relative group">
+                          <div className="flex flex-col items-center justify-center space-y-1">
+                            <span>{sentence.lineNumber + 1}</span>
+                            {correctAnswer?.tip && !showResults && !isPreview && (
+                              <button
+                                onClick={() => setRevealedTips(prev => new Set(prev).add(sentence.lineNumber))}
+                                className={`p-1 rounded-full transition-colors ${revealedTips.has(sentence.lineNumber)
+                                  ? 'text-yellow-600 bg-yellow-100'
+                                  : 'text-blue-500 hover:bg-blue-50'
+                                  }`}
+                                title="Show Tip"
+                              >
+                                <Lightbulb size={16} />
+                              </button>
+                            )}
+                          </div>
+                          {revealedTips.has(sentence.lineNumber) && correctAnswer?.tip && !showResults && (
+                            <div className="absolute left-full top-0 ml-2 z-10 w-48 p-2 bg-yellow-50 border border-yellow-200 rounded shadow-sm text-xs text-yellow-800 italic text-left">
+                              Tip: {correctAnswer.tip}
+                            </div>
+                          )}
                         </td>
                         <td className="border border-gray-300 px-4 py-3">
                           <div className="text-lg leading-relaxed">
@@ -292,10 +317,10 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                                   onClick={() => !word.isPunctuation && handleWordClick(sentence.lineNumber, word.index)}
                                   disabled={!isClickable}
                                   className={`inline-block px-1 py-1 rounded transition-colors ${isSelected
-                                      ? 'bg-red-200 text-gray-800'
-                                      : isClickable
-                                        ? 'hover:bg-blue-100 cursor-pointer text-gray-800'
-                                        : 'text-gray-800 cursor-default'
+                                    ? 'bg-red-200 text-gray-800'
+                                    : isClickable
+                                      ? 'hover:bg-blue-100 cursor-pointer text-gray-800'
+                                      : 'text-gray-800 cursor-default'
                                     }`}
                                   data-source-tsx="ProofreadingPractice Word Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
                                 >
@@ -307,13 +332,13 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                         </td>
                         <td className="border border-gray-300 px-4 py-3">
                           <div className="flex items-center space-x-2">
-                            <input
+                            <Input
                               type="text"
                               value={correction}
                               onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
                               disabled={showResults || isPreview}
                               placeholder="Type correction"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              className="flex-1"
                               data-source-tsx="ProofreadingPractice Answer Input|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
                             />
                             {showResults && correctAnswer && (
@@ -343,37 +368,34 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
               </table>
             </div>
 
-            <div className="flex justify-between items-center">
-              <button
+            <div className="flex justify-between items-center mt-6">
+              <Button
                 onClick={onBack}
-                className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                data-source-tsx="ProofreadingPractice Back Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                variant="secondary"
+                icon={ArrowLeft}
               >
-                <ArrowLeft size={20} />
-                <span>Back</span>
-              </button>
+                Back
+              </Button>
 
               <div className="flex space-x-4">
                 {showResults && !isPreview && (
-                  <button
+                  <Button
                     onClick={handleReset}
-                    className="flex items-center space-x-2 px-8 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-                    data-source-tsx="ProofreadingPractice Reset Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                    variant="gold"
                   >
-                    <span>Try Again</span>
-                  </button>
+                    Try Again
+                  </Button>
                 )}
 
                 {!showResults && !isPreview && (
-                  <button
+                  <Button
                     onClick={handleCheckAnswers}
                     disabled={!hasAllAnswers()}
-                    className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    data-source-tsx="ProofreadingPractice Check Button|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
+                    variant="success"
+                    icon={Check}
                   >
-                    <Check size={20} />
-                    <span>Check Answers</span>
-                  </button>
+                    Check Answers
+                  </Button>
                 )}
               </div>
             </div>
@@ -391,7 +413,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                 </div>
               );
             })()}
-          </div>
+          </Card>
         </div>
       </div>
     </>

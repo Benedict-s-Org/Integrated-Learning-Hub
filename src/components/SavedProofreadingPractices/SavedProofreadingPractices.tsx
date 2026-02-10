@@ -135,7 +135,6 @@ const SavedProofreadingPractices: React.FC<SavedProofreadingPracticesProps> = ({
       />
       <div
         className="pt-20 min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
       >
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">

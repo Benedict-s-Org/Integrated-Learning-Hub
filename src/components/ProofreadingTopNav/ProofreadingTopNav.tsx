@@ -13,24 +13,20 @@ const ProofreadingTopNav: React.FC<ProofreadingTopNavProps> = ({ onCreateNew, on
       <div className="flex justify-center gap-4 px-8 py-4">
         <button
           onClick={onCreateNew}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${
-            currentView === 'create'
+          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${currentView === 'create'
               ? 'bg-green-600 text-white'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-          style={{ fontFamily: 'Times New Roman, serif' }}
+            }`}
         >
           <Plus size={20} />
           <span>New Practice</span>
         </button>
         <button
           onClick={onViewSaved}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${
-            currentView === 'saved'
+          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${currentView === 'saved'
               ? 'bg-blue-600 text-white'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-          style={{ fontFamily: 'Times New Roman, serif' }}
+            }`}
         >
           <BookOpen size={20} />
           <span>Saved Practices</span>

@@ -1,15 +1,9 @@
 import React from "react";
 import { LucideIcon } from "lucide-react";
 
-interface ButtonProps {
-  onClick?: () => void;
-  onMouseDown?: (e: React.MouseEvent) => void;
-  children: React.ReactNode;
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "success" | "danger" | "ghost" | "gold";
-  className?: string;
-  disabled?: boolean;
   icon?: LucideIcon;
-  type?: "button" | "submit" | "reset";
 }
 
 const variants = {
@@ -22,22 +16,16 @@ const variants = {
 };
 
 export const Button: React.FC<ButtonProps> = ({
-  onClick,
-  onMouseDown,
   children,
   variant = "primary",
   className = "",
-  disabled = false,
   icon: Icon,
-  type = "button",
+  ...props
 }) => {
   return (
     <button
-      type={type}
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      disabled={disabled}
       className={`px-6 py-2.5 rounded-full font-bold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 ${variants[variant]} ${className}`}
+      {...props}
     >
       {Icon && <Icon size={20} />}
       {children}

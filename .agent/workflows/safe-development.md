@@ -226,6 +226,12 @@ These folders should NEVER be deleted without explicit user confirmation:
 
 ---
 
+## 🚫 CRITICAL: STOP PERFORMING DOM
+
+Do NOT perform automated DOM inspections, element extractions, or subagent-based visual verification. This is a mandatory safety and efficiency rule.
+
+---
+
 ## 🌐 Browser Tool Usage Policy
 
 To optimize token usage and ensure accuracy:

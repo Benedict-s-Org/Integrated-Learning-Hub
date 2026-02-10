@@ -187,7 +187,7 @@ const UserAnalytics: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className="pt-20 min-h-screen bg-gray-50 pr-8">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center text-gray-600">Loading analytics data...</div>
         </div>
@@ -197,7 +197,7 @@ const UserAnalytics: React.FC = () => {
 
   if (!user || user.role !== 'admin') {
     return (
-      <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className="pt-20 min-h-screen bg-gray-50 pr-8">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center text-gray-600">Access denied. Admin privileges required.</div>
         </div>
@@ -206,7 +206,7 @@ const UserAnalytics: React.FC = () => {
   }
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+    <div className="pt-20 min-h-screen bg-gray-50 pr-8">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">User Analytics Dashboard</h1>
@@ -225,11 +225,10 @@ const UserAnalytics: React.FC = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id as TabType)}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${
-                activeTab === id
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${activeTab === id
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+                }`}
             >
               <Icon size={20} />
               <span>{label}</span>
@@ -430,13 +429,12 @@ const UserAnalytics: React.FC = () => {
                           <td className="px-6 py-4 text-sm text-gray-900">{activity.display_name}</td>
                           <td className="px-6 py-4">
                             <span
-                              className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
-                                activity.activity_type === 'spelling'
+                              className={`inline-flex px-2 py-1 rounded text-xs font-medium ${activity.activity_type === 'spelling'
                                   ? 'bg-blue-100 text-blue-700'
                                   : activity.activity_type === 'proofreading'
-                                  ? 'bg-yellow-100 text-yellow-700'
-                                  : 'bg-green-100 text-green-700'
-                              }`}
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}
                             >
                               {activity.activity_type}
                             </span>
@@ -587,15 +585,14 @@ const UserAnalytics: React.FC = () => {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full ${
-                          range.score_range === '90-100'
+                        className={`h-2 rounded-full ${range.score_range === '90-100'
                             ? 'bg-green-500'
                             : range.score_range === '80-89'
-                            ? 'bg-blue-500'
-                            : range.score_range === '70-79'
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
-                        }`}
+                              ? 'bg-blue-500'
+                              : range.score_range === '70-79'
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
+                          }`}
                         style={{ width: `${range.percentage}%` }}
                       />
                     </div>
@@ -642,15 +639,14 @@ const UserAnalytics: React.FC = () => {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full ${
-                          range.score_range === '90-100'
+                        className={`h-2 rounded-full ${range.score_range === '90-100'
                             ? 'bg-green-500'
                             : range.score_range === '80-89'
-                            ? 'bg-blue-500'
-                            : range.score_range === '70-79'
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
-                        }`}
+                              ? 'bg-blue-500'
+                              : range.score_range === '70-79'
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
+                          }`}
                         style={{ width: `${range.percentage}%` }}
                       />
                     </div>

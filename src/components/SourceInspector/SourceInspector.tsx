@@ -64,7 +64,7 @@ const SourceInspector: React.FC = () => {
   useEffect(() => {
     const handleResize = () => {
       setButtonPosition(prev => ({
-        x: Math.min(prev.x, window.innerWidth - BUTTON_SIZE.width),
+        x: window.innerWidth - BUTTON_SIZE.width,
         y: Math.min(prev.y, window.innerHeight - BUTTON_SIZE.height)
       }));
     };
@@ -72,8 +72,8 @@ const SourceInspector: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const constrainPosition = useCallback((x: number, y: number): ButtonPosition => ({
-    x: Math.min(Math.max(0, x), window.innerWidth - BUTTON_SIZE.width),
+  const constrainPosition = useCallback((_x: number, y: number): ButtonPosition => ({
+    x: window.innerWidth - BUTTON_SIZE.width,
     y: Math.min(Math.max(0, y), window.innerHeight - BUTTON_SIZE.height)
   }), []);
 
@@ -360,7 +360,6 @@ const SourceInspector: React.FC = () => {
           left: buttonPosition.x,
           top: buttonPosition.y,
           touchAction: 'none',
-          fontFamily: 'Times New Roman, serif',
           transition: isDragging ? 'none' : 'transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease'
         }}
         title={isDetectionMode ? 'Drag to move, click to exit Detection Mode' : 'Drag to move, click to enter Detection Mode'}
@@ -374,7 +373,6 @@ const SourceInspector: React.FC = () => {
           style={{
             left: Math.min(currentSource.x + 10, window.innerWidth - 420),
             top: Math.max(currentSource.y - 80, 10),
-            fontFamily: 'Times New Roman, serif',
             maxHeight: 'calc(100vh - 100px)',
             overflowY: 'auto',
           }}

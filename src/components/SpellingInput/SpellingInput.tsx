@@ -70,7 +70,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
       )}
       <div
         className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
-        style={{ fontFamily: 'Times New Roman, serif', paddingTop: onViewSaved ? '100px' : '32px' }}
+        style={{ paddingTop: onViewSaved ? '100px' : '32px' }}
       >
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl shadow-xl p-8">

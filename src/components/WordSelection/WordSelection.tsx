@@ -153,7 +153,7 @@ const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNex
           currentView="create"
         />
       )}
-      <div className={`min-h-full bg-gray-50 pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`} style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className={`min-h-full bg-gray-50 pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}>
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="mb-6">

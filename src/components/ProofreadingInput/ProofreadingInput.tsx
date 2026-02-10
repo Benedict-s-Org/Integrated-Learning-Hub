@@ -140,7 +140,6 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
       )}
       <div
         className="pt-20 min-h-full bg-gray-50 pr-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
         data-source-tsx="ProofreadingInput|src/components/ProofreadingInput/ProofreadingInput.tsx"
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
@@ -226,7 +225,6 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
                   onChange={(e) => setText(e.target.value)}
                   className="w-full h-96 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
                   placeholder="Enter your sentences here, one per line...&#10;&#10;Example:&#10;She don't like apples.&#10;He go to school everyday.&#10;They was playing football."
-                  style={{ fontFamily: 'Times New Roman, serif' }}
                   data-source-tsx="ProofreadingInput Textarea|src/components/ProofreadingInput/ProofreadingInput.tsx"
                 />
                 <p className="mt-2 text-sm text-gray-600">

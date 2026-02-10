@@ -69,6 +69,7 @@ export interface ProofreadingAnswer {
   lineNumber: number;
   wordIndex: number;
   correction: string;
+  tip?: string;
 }
 
 import { Session } from '@supabase/supabase-js';
@@ -166,6 +167,7 @@ export interface ProofreadingPracticeResult {
   total_count: number;
   accuracy_percentage: number;
   time_spent_seconds: number;
+  tips_used: number[];
   completed_at: string;
   created_at: string;
 }
@@ -258,6 +260,8 @@ export interface AssignedProofreadingPracticeContent {
   completed: boolean;
   completed_at?: string;
   assigned_by_username: string;
+  result_id?: string;
+  accuracy_percentage?: number;
 }
 
 export interface LearningActivity {

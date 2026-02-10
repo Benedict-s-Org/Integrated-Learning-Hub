@@ -185,7 +185,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8">
       <div className="max-w-4xl mx-auto">
         <div className="fixed top-4 left-0 right-0 z-40 flex justify-center gap-4 px-8">
           <button
@@ -265,13 +265,12 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
                       <div
                         key={user.id}
                         onClick={() => toggleUserSelection(user.id)}
-                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                          isAssigned
-                            ? 'bg-green-50 border-green-300'
-                            : isSelected
+                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${isAssigned
+                          ? 'bg-green-50 border-green-300'
+                          : isSelected
                             ? 'bg-blue-50 border-blue-300'
                             : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"

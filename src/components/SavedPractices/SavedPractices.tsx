@@ -244,163 +244,163 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
       {isAdmin && (
         <SpellingTopNav
           onCreateNew={onCreateNew}
-          onViewSaved={() => {}}
+          onViewSaved={() => { }}
           currentView="saved"
         />
       )}
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8" style={{ fontFamily: 'Times New Roman, serif', paddingTop: isAdmin ? '100px' : '32px' }}>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8" style={{ paddingTop: isAdmin ? '100px' : '32px' }}>
         <div className="max-w-6xl mx-auto">
 
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              {isAdmin ? 'Manage Spelling Practices' : 'My Assigned Practices'}
-            </h1>
-            <p className="text-gray-600">
-              {isAdmin
-                ? 'Create and manage spelling practices for your students'
-                : 'View practices assigned to you by your teacher'
-              }
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <p className="text-red-700">{error}</p>
-            </div>
-          )}
-
-          {practices.length === 0 ? (
-            <div className="text-center py-12">
-              <BookOpen size={64} className="mx-auto text-gray-400 mb-4" />
-              <p className="text-xl text-gray-600 mb-4">
-                {isAdmin ? 'No practices created yet' : 'No practices assigned yet'}
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                {isAdmin ? 'Manage Spelling Practices' : 'My Assigned Practices'}
+              </h1>
+              <p className="text-gray-600">
+                {isAdmin
+                  ? 'Create and manage spelling practices for your students'
+                  : 'View practices assigned to you by your teacher'
+                }
               </p>
-              {isAdmin && (
-                <button
-                  onClick={onCreateNew}
-                  className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
-                >
-                  <Plus size={20} />
-                  <span>Create Your First Practice</span>
-                </button>
-              )}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Title and Info</th>
-                    {isAdmin && (
-                      <>
-                        <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Manage</th>
-                        <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Assign</th>
-                        <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Practice</th>
-                        <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Delete</th>
-                      </>
-                    )}
-                    {!isAdmin && (
-                      <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Practice</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {practices.map((practice) => (
-                    <tr key={practice.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-4">
-                        <div className="text-left">
-                          <h3 className="text-lg font-bold text-gray-800 mb-1">{practice.title}</h3>
-                          <div className="flex flex-col space-y-1 text-sm text-gray-600">
-                            <span>{practice.words.length} words</span>
-                            {isAdmin && (
-                              <span className="flex items-center space-x-1">
-                                <Users size={14} />
-                                <span>{practice.assignment_count || 0} assigned</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+                <p className="text-red-700">{error}</p>
+              </div>
+            )}
+
+            {practices.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen size={64} className="mx-auto text-gray-400 mb-4" />
+                <p className="text-xl text-gray-600 mb-4">
+                  {isAdmin ? 'No practices created yet' : 'No practices assigned yet'}
+                </p>
+                {isAdmin && (
+                  <button
+                    onClick={onCreateNew}
+                    className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                  >
+                    <Plus size={20} />
+                    <span>Create Your First Practice</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Title and Info</th>
                       {isAdmin && (
                         <>
-                          <td className="px-4 py-4 text-right">
-                            <button
-                              onClick={() => onSelectPractice(practice)}
-                              className="inline-flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
-                            >
-                              <Edit size={16} />
-                              <span>Manage</span>
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <button
-                              onClick={() => openAssignModal(practice)}
-                              className="inline-flex items-center space-x-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
-                            >
-                              <UserPlus size={16} />
-                              <span>Assign</span>
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            {onPractice && (
-                              <button
-                                onClick={() => onPractice(practice)}
-                                className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
-                              >
-                                <PlayCircle size={16} />
-                                <span>Practice</span>
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            {deleteConfirm === practice.id ? (
-                              <div className="inline-flex space-x-2">
-                                <button
-                                  onClick={() => handleDelete(practice.id)}
-                                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors text-sm"
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={() => setDeleteConfirm(null)}
-                                  className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-medium transition-colors text-sm"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setDeleteConfirm(practice.id)}
-                                className="inline-flex items-center space-x-1 px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                              >
-                                <Trash2 size={16} />
-                                <span>Delete</span>
-                              </button>
-                            )}
-                          </td>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Manage</th>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Assign</th>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Practice</th>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Delete</th>
                         </>
                       )}
                       {!isAdmin && (
-                        <td className="px-4 py-4 text-right">
-                          <button
-                            onClick={() => onSelectPractice(practice)}
-                            className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
-                          >
-                            <PlayCircle size={16} />
-                            <span>Start</span>
-                          </button>
-                        </td>
+                        <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Practice</th>
                       )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {practices.map((practice) => (
+                      <tr key={practice.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-4">
+                          <div className="text-left">
+                            <h3 className="text-lg font-bold text-gray-800 mb-1">{practice.title}</h3>
+                            <div className="flex flex-col space-y-1 text-sm text-gray-600">
+                              <span>{practice.words.length} words</span>
+                              {isAdmin && (
+                                <span className="flex items-center space-x-1">
+                                  <Users size={14} />
+                                  <span>{practice.assignment_count || 0} assigned</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {isAdmin && (
+                          <>
+                            <td className="px-4 py-4 text-right">
+                              <button
+                                onClick={() => onSelectPractice(practice)}
+                                className="inline-flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                              >
+                                <Edit size={16} />
+                                <span>Manage</span>
+                              </button>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <button
+                                onClick={() => openAssignModal(practice)}
+                                className="inline-flex items-center space-x-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+                              >
+                                <UserPlus size={16} />
+                                <span>Assign</span>
+                              </button>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {onPractice && (
+                                <button
+                                  onClick={() => onPractice(practice)}
+                                  className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                                >
+                                  <PlayCircle size={16} />
+                                  <span>Practice</span>
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {deleteConfirm === practice.id ? (
+                                <div className="inline-flex space-x-2">
+                                  <button
+                                    onClick={() => handleDelete(practice.id)}
+                                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors text-sm"
+                                  >
+                                    Confirm
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirm(null)}
+                                    className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-medium transition-colors text-sm"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirm(practice.id)}
+                                  className="inline-flex items-center space-x-1 px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                  <span>Delete</span>
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        )}
+                        {!isAdmin && (
+                          <td className="px-4 py-4 text-right">
+                            <button
+                              onClick={() => onSelectPractice(practice)}
+                              className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                            >
+                              <PlayCircle size={16} />
+                              <span>Start</span>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
 
       {showAssignModal && selectedPractice && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -430,11 +430,10 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                     return (
                       <div
                         key={user.id}
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                          isPending
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all cursor-pointer ${isPending
                             ? 'bg-green-50 border-green-300'
                             : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                         onClick={() => togglePendingAssignment(user.id)}
                       >
                         <div className="flex items-center space-x-3">

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, CheckCircle, XCircle, Play, Pause, RotateCcw } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { Word } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -347,14 +349,13 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         />
       )}
       <div
-        className={`min-h-full bg-gray-50 pr-8 ${!isPublicView && user ? 'pt-24' : 'pt-20'}`}
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="min-h-screen bg-background"
         data-source-tsx="MemorizationView|src/components/MemorizationView/MemorizationView.tsx"
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <Card className="p-8">
             <h1
-              className="text-3xl font-bold text-gray-800 mb-6 text-center"
+              className="text-3xl font-bold text-foreground mb-6 text-center"
               data-source-tsx="MemorizationView Title|src/components/MemorizationView/MemorizationView.tsx"
             >
               Practice Memorization
@@ -363,73 +364,70 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
             <div className="mb-6 space-y-4">
               <div className="flex justify-center space-x-3">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-700">Difficulty:</span>
-                  <button
+                  <span className="text-sm font-medium text-muted-foreground">Difficulty:</span>
+                  <Button
                     onClick={() => setDifficultyLevel(1)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 1
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                    variant={difficultyLevel === 1 ? "success" : "secondary"}
+                    className="h-9 px-4"
                   >
                     Level 1 (Easy)
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setDifficultyLevel(2)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 2
-                      ? 'bg-yellow-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                    variant={difficultyLevel === 2 ? "gold" : "secondary"}
+                    className="h-9 px-4"
                   >
                     Level 2 (Medium)
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setDifficultyLevel(3)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${difficultyLevel === 3
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                    variant={difficultyLevel === 3 ? "danger" : "secondary"}
+                    className="h-9 px-4"
                   >
                     Level 3 (Hard)
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {speechSupported && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4">
                   <div className="flex items-center justify-center space-x-6">
                     <div className="flex items-center space-x-3">
-                      <button
+                      <Button
                         onClick={handlePlay}
                         disabled={isPlaying}
-                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        variant="primary"
+                        className="rounded-full w-12 h-12 p-0"
                         title="Play"
                       >
-                        <Play size={20} fill="white" />
-                      </button>
-                      <button
+                        <Play size={20} fill="currentColor" />
+                      </Button>
+                      <Button
                         onClick={handlePause}
                         disabled={!isPlaying || isPaused}
-                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        variant="primary"
+                        className="rounded-full w-12 h-12 p-0"
                         title="Pause"
                       >
-                        <Pause size={20} fill="white" />
-                      </button>
-                      <button
+                        <Pause size={20} fill="currentColor" />
+                      </Button>
+                      <Button
                         onClick={handleReplay}
                         disabled={!isPlaying && !isPaused}
-                        className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        variant="secondary"
+                        className="rounded-full w-12 h-12 p-0"
                         title="Replay"
                       >
                         <RotateCcw size={20} />
-                      </button>
+                      </Button>
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium text-gray-700">Speed:</span>
+                      <span className="text-sm font-medium text-muted-foreground">Speed:</span>
                       <select
                         value={playbackSpeed}
                         onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                        className="px-3 py-2 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                        className="px-3 py-2 bg-white border border-input rounded-xl text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                       >
                         <option value="0.5">0.5x (Slow)</option>
                         <option value="0.75">0.75x (Moderate)</option>
@@ -439,7 +437,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                       </select>
                     </div>
 
-                    <div className="text-sm font-medium text-gray-700">
+                    <div className="text-sm font-medium text-muted-foreground min-w-[60px]">
                       {isPlaying ? 'Playing...' : isPaused ? 'Paused' : 'Ready'}
                     </div>
                   </div>
@@ -447,18 +445,20 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               )}
 
               <div className="flex justify-end space-x-4">
-                <button
+                <Button
                   onClick={revealAllWords}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  variant="success"
+                  className="h-9"
                 >
                   Reveal all Words
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={coverAllWords}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  variant="primary"
+                  className="h-9"
                 >
                   Cover all Words
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -548,31 +548,29 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-between">
-              <button
+            <div className="flex justify-between items-center">
+              <Button
                 onClick={onBack}
-                className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                data-source-tsx="MemorizationView Back Button|src/components/MemorizationView/MemorizationView.tsx"
+                variant="secondary"
+                icon={ArrowLeft}
               >
-                <ArrowLeft size={20} />
-                <span>{isPublicView ? 'Home' : 'Back'}</span>
-              </button>
+                {isPublicView ? 'Home' : 'Back'}
+              </Button>
 
               {!isPublicView && user && (
                 <div className="flex flex-col items-end space-y-2">
-                  <button
+                  <Button
                     onClick={handleSave}
                     disabled={isSaving || saveSuccess || (!isAdmin && saveLimit !== null && currentSaveCount >= saveLimit)}
-                    className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    data-source-tsx="MemorizationView Save Button|src/components/MemorizationView/MemorizationView.tsx"
+                    variant={saveSuccess ? "success" : "primary"}
+                    icon={Save}
                   >
-                    <Save size={20} />
-                    <span>{isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}</span>
-                  </button>
+                    {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+                  </Button>
                   {!isAdmin && saveLimit !== null && (
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-muted-foreground">
                       {currentSaveCount >= saveLimit ? (
-                        <span className="text-red-600 font-medium">Limit reached ({currentSaveCount}/{saveLimit})</span>
+                        <span className="text-destructive font-medium">Limit reached ({currentSaveCount}/{saveLimit})</span>
                       ) : (
                         <span>Saved: {currentSaveCount}/{saveLimit}</span>
                       )}
@@ -598,7 +596,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </>

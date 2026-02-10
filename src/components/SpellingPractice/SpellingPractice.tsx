@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, ArrowLeft, CheckCircle, XCircle, Trophy, Undo2 } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -183,23 +186,21 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   if (!speechSupported) {
     return (
       <div
-        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="min-h-full bg-background p-8"
       >
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">Browser Not Supported</h1>
-            <p className="text-gray-600 mb-4">
+          <Card className="p-8">
+            <h1 className="text-3xl font-bold text-foreground mb-4">Browser Not Supported</h1>
+            <p className="text-muted-foreground mb-4">
               Your browser doesn't support text-to-speech functionality. Please use a modern browser like Chrome, Safari, or Edge.
             </p>
-            <button
+            <Button
               onClick={onBack}
-              className="flex items-center space-x-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
+              icon={ArrowLeft}
             >
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
-          </div>
+              Back
+            </Button>
+          </Card>
         </div>
       </div>
     );
@@ -208,15 +209,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   if (isCompleted) {
     return (
       <div
-        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="min-h-full bg-background p-8"
       >
         <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <Card className="p-8">
             <div className="text-center mb-8">
               <Trophy size={80} className="mx-auto text-yellow-500 mb-4" />
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">Practice Complete!</h1>
-              <p className="text-gray-600 text-lg">Great job working through your spelling words</p>
+              <h1 className="text-4xl font-bold text-foreground mb-2">Practice Complete!</h1>
+              <p className="text-muted-foreground text-lg">Great job working through your spelling words</p>
             </div>
 
             <div className="bg-blue-50 rounded-xl p-6 mb-6">
@@ -241,7 +241,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
             </div>
 
             <div className="mb-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-3">Review</h3>
+              <h3 className="text-xl font-bold text-foreground mb-3">Review</h3>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {results.map((result, index) => (
                   <div
@@ -267,14 +267,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               </div>
             </div>
 
-            <button
+            <Button
               onClick={onBack}
-              className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              className="w-full"
+              icon={ArrowLeft}
             >
-              <ArrowLeft size={20} />
-              <span>Back to Word List</span>
-            </button>
-          </div>
+              Back to Word List
+            </Button>
+          </Card>
         </div>
       </div>
     );
@@ -282,40 +282,33 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
-      style={{ fontFamily: 'Times New Roman, serif' }}
+      className="min-h-screen bg-background p-8"
     >
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <Card className="p-8">
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
-              <span className="text-lg text-gray-600 font-medium">
+              <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+              <span className="text-lg text-muted-foreground font-medium">
                 Word {currentWordIndex + 1} of {words.length}
               </span>
             </div>
 
             <div className="flex justify-center gap-4 mb-4">
-              <button
+              <Button
                 onClick={() => setLevel(1)}
                 disabled={showFeedback}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${level === 1
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                variant={level === 1 ? "primary" : "secondary"}
               >
                 Level 1: Letter Click
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setLevel(2)}
                 disabled={showFeedback}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${level === 2
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                variant={level === 2 ? "primary" : "secondary"}
               >
                 Level 2: Typing
-              </button>
+              </Button>
             </div>
 
             <div className="w-full bg-gray-200 rounded-full h-3">
@@ -328,13 +321,13 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
           <div className="mb-8">
             <div className="flex justify-center mb-6">
-              <button
+              <Button
                 onClick={handlePlayAudio}
-                className="flex items-center space-x-3 px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg"
+                className="px-8 py-4 h-auto text-xl shadow-lg"
+                icon={Volume2}
               >
-                <Volume2 size={32} />
-                <span className="text-xl font-medium">Play Word</span>
-              </button>
+                Play Word
+              </Button>
             </div>
 
             <p className="text-center text-sm text-gray-500 mb-6">
@@ -383,13 +376,13 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
                 {clickedLetters.length > 0 && !showFeedback && (
                   <div className="flex justify-center mb-4">
-                    <button
+                    <Button
                       onClick={handleUndo}
-                      className="flex items-center space-x-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                      variant="secondary"
+                      icon={Undo2}
                     >
-                      <Undo2 size={20} />
-                      <span>Undo</span>
-                    </button>
+                      Undo
+                    </Button>
                   </div>
                 )}
               </div>
@@ -398,14 +391,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                 <label htmlFor="spelling-input" className="block text-lg font-semibold text-gray-700 mb-2">
                   Type the spelling:
                 </label>
-                <input
+                <Input
                   id="spelling-input"
                   type="text"
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   disabled={showFeedback}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-2xl text-center font-mono"
+                  className="w-full text-2xl text-center font-mono py-6"
                   placeholder="Type here..."
                   autoFocus
                 />
@@ -437,29 +430,29 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
           )}
 
           <div className="flex justify-between items-center">
-            <button
+            <Button
               onClick={onBack}
-              className="flex items-center space-x-2 px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+              variant="secondary"
+              icon={ArrowLeft}
             >
-              <ArrowLeft size={20} />
-              <span>Back</span>
-            </button>
+              Back
+            </Button>
 
             {!showFeedback ? (
-              <button
+              <Button
                 onClick={handleCheck}
                 disabled={level === 1 ? clickedLetters.length === 0 : !userInput.trim()}
-                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
+                variant="success"
               >
                 Check Spelling
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={handleNext}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                variant="primary"
               >
                 {currentWordIndex < words.length - 1 ? 'Next Word' : 'Finish'}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -470,7 +463,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               </p>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

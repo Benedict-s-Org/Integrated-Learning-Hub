@@ -12,6 +12,8 @@ import {
   Calendar,
   Filter,
 } from 'lucide-react';
+import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 
 interface UnifiedAssignment {
   assignment_id: string;
@@ -97,7 +99,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       case 'proofreading':
         return 'bg-green-100 text-green-700 border-green-200';
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'secondary';
     }
   };
 
@@ -106,7 +108,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       return {
         icon: <CheckCircle2 size={18} />,
         text: 'Completed',
-        className: 'bg-green-50 text-green-700 border-green-200',
+        variant: 'success' as const,
       };
     }
 
@@ -114,14 +116,14 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       return {
         icon: <AlertCircle size={18} />,
         text: 'Overdue',
-        className: 'bg-red-50 text-red-700 border-red-200',
+        variant: 'destructive' as const,
       };
     }
 
     return {
       icon: <Clock size={18} />,
       text: 'In Progress',
-      className: 'bg-blue-50 text-blue-700 border-blue-200',
+      variant: 'secondary' as const,
     };
   };
 
@@ -207,7 +209,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+    <div className="min-h-screen bg-background p-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">My Assignments</h1>
@@ -221,25 +223,25 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-md p-4 border-l-4 border-blue-600">
-            <p className="text-sm font-semibold text-slate-600 mb-1">Total</p>
-            <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-4 border-l-4 border-green-600">
-            <p className="text-sm font-semibold text-slate-600 mb-1">Completed</p>
+          <Card className="p-4 border-l-4 border-blue-600">
+            <p className="text-sm font-semibold text-muted-foreground mb-1">Total</p>
+            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-green-600">
+            <p className="text-sm font-semibold text-muted-foreground mb-1">Completed</p>
             <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-4 border-l-4 border-yellow-600">
-            <p className="text-sm font-semibold text-slate-600 mb-1">In Progress</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-yellow-600">
+            <p className="text-sm font-semibold text-muted-foreground mb-1">In Progress</p>
             <p className="text-2xl font-bold text-yellow-600">{stats.inProgress}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-4 border-l-4 border-red-600">
-            <p className="text-sm font-semibold text-slate-600 mb-1">Overdue</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-red-600">
+            <p className="text-sm font-semibold text-muted-foreground mb-1">Overdue</p>
             <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
-          </div>
+          </Card>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-8">
+        <Card className="overflow-hidden mb-8">
           <div className="p-6 border-b border-slate-200">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
               <div className="flex items-center space-x-2">
@@ -324,21 +326,16 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                                 <Calendar size={14} />
                                 <span>Due: {formatDate(assignment.due_date)}</span>
                                 {daysUntilDue !== null && !assignment.completed && (
-                                  <span
-                                    className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${
-                                      daysUntilDue < 0
-                                        ? 'bg-red-100 text-red-700'
-                                        : daysUntilDue <= 3
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-slate-100 text-slate-600'
-                                    }`}
+                                  <Badge
+                                    variant={daysUntilDue < 0 ? 'destructive' : daysUntilDue <= 3 ? 'warning' : 'secondary'}
+                                    className="ml-2"
                                   >
                                     {daysUntilDue < 0
                                       ? `${Math.abs(daysUntilDue)}d overdue`
                                       : daysUntilDue === 0
-                                      ? 'Due today'
-                                      : `${daysUntilDue}d left`}
-                                  </span>
+                                        ? 'Due today'
+                                        : `${daysUntilDue}d left`}
+                                  </Badge>
                                 )}
                               </div>
                             )}
@@ -353,17 +350,17 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                         </div>
                       </div>
 
-                      <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${statusInfo.className}`}>
+                      <Badge variant={statusInfo.variant} className="flex items-center space-x-2 px-4 py-2 text-sm">
                         {statusInfo.icon}
-                        <span className="font-medium">{statusInfo.text}</span>
-                      </div>
+                        <span className="font-medium ml-2">{statusInfo.text}</span>
+                      </Badge>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -83,7 +83,7 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
   useEffect(() => {
     const handleResize = () => {
       setButtonPosition(prev => ({
-        x: Math.min(prev.x, window.innerWidth - BUTTON_SIZE.width),
+        x: window.innerWidth - BUTTON_SIZE.width,
         y: Math.min(prev.y, window.innerHeight - BUTTON_SIZE.height)
       }));
     };
@@ -91,8 +91,8 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const constrainPosition = useCallback((x: number, y: number): ButtonPosition => ({
-    x: Math.min(Math.max(0, x), window.innerWidth - BUTTON_SIZE.width),
+  const constrainPosition = useCallback((_x: number, y: number): ButtonPosition => ({
+    x: window.innerWidth - BUTTON_SIZE.width,
     y: Math.min(Math.max(0, y), window.innerHeight - BUTTON_SIZE.height)
   }), []);
 

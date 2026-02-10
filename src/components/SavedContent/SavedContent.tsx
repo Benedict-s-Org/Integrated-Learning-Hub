@@ -93,7 +93,6 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
       />
       <div
         className="pt-24 min-h-full bg-gray-50 pr-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
         data-source-tsx="SavedContent|src/components/SavedContent/SavedContent.tsx"
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
@@ -205,8 +204,8 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
                           onClick={() => handleDelete(content.id)}
                           disabled={deletingId === content.id}
                           className={`flex items-center space-x-1 px-4 py-2 rounded-lg transition-colors ${deleteConfirm === content.id
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             } ${deletingId === content.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                           data-source-tsx="SavedContent Delete Button|src/components/SavedContent/SavedContent.tsx"
                         >

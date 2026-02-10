@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, FileText, AlertCircle } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { AssignedProofreadingPracticeContent } from '../../types';
@@ -67,26 +70,24 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
-          <AlertCircle size={64} className="mx-auto text-red-500 mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <Card className="p-8 text-center max-w-md">
+          <AlertCircle size={64} className="mx-auto text-destructive mb-4" />
+          <h2 className="text-2xl font-bold text-foreground mb-2">Error</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button
             onClick={fetchAssignments}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Try Again
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
-      style={{ fontFamily: 'Times New Roman, serif' }}
+      className="min-h-screen bg-background p-8"
       data-source-tsx="AssignedProofreadingPractices|src/components/AssignedProofreadingPractices/AssignedProofreadingPractices.tsx"
     >
       <div className="max-w-6xl mx-auto">
@@ -96,13 +97,13 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
         </div>
 
         {assignments.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
-            <AlertCircle size={64} className="mx-auto text-gray-400 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">No Assignments Yet</h2>
-            <p className="text-gray-600">
+          <Card className="p-12 text-center">
+            <AlertCircle size={64} className="mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-2xl font-bold text-foreground mb-2">No Assignments Yet</h2>
+            <p className="text-muted-foreground">
               Your teacher hasn't assigned any proofreading practices yet. Check back later!
             </p>
-          </div>
+          </Card>
         ) : (
           <div className="space-y-4">
             {assignments.map((assignment) => {
@@ -112,28 +113,27 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
                 new Date(assignment.due_date) < new Date();
 
               return (
-                <div
+                <Card
                   key={assignment.id}
-                  className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden ${
-                    assignment.completed ? 'border-2 border-green-200' : isOverdue ? 'border-2 border-red-200' : ''
-                  }`}
+                  className={`overflow-hidden transition-all duration-300 hover:shadow-xl ${assignment.completed ? 'border-green-200' : isOverdue ? 'border-red-200' : ''
+                    }`}
                 >
                   <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-2xl font-bold text-gray-800">{assignment.title}</h3>
+                          <h3 className="text-2xl font-bold text-foreground">{assignment.title}</h3>
                           {assignment.completed && (
-                            <span className="flex items-center space-x-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                            <Badge variant="success" className="flex items-center gap-1">
                               <CheckCircle size={16} />
                               <span>Completed</span>
-                            </span>
+                            </Badge>
                           )}
                           {isOverdue && (
-                            <span className="flex items-center space-x-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
+                            <Badge variant="destructive" className="flex items-center gap-1">
                               <Clock size={16} />
                               <span>Overdue</span>
-                            </span>
+                            </Badge>
                           )}
                         </div>
                         <div className="flex items-center space-x-6 text-sm text-gray-600 mb-3">
@@ -168,13 +168,12 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">
                                   <div
-                                    className={`h-2 rounded-full ${
-                                      assignment.accuracy_percentage >= 80
-                                        ? 'bg-green-500'
-                                        : assignment.accuracy_percentage >= 60
+                                    className={`h-2 rounded-full ${assignment.accuracy_percentage >= 80
+                                      ? 'bg-green-500'
+                                      : assignment.accuracy_percentage >= 60
                                         ? 'bg-yellow-500'
                                         : 'bg-red-500'
-                                    }`}
+                                      }`}
                                     style={{ width: `${assignment.accuracy_percentage}%` }}
                                   />
                                 </div>
@@ -191,19 +190,16 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
                     </div>
 
                     <div className="flex space-x-3">
-                      <button
+                      <Button
                         onClick={() => onLoadContent(assignment)}
-                        className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors ${
-                          assignment.completed
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                        }`}
+                        variant={assignment.completed ? "secondary" : "primary"}
+                        className="flex-1"
                       >
                         {assignment.completed ? 'Review Practice' : 'Start Practice'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

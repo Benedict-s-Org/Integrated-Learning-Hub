@@ -41,20 +41,19 @@ const AuthForm: React.FC = () => {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
-      style={{ fontFamily: 'Times New Roman, serif' }}
       data-source-tsx="AuthForm|src/components/Auth/AuthForm.tsx"
     >
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 
+          <h2
             className="mt-6 text-center text-3xl font-bold text-gray-900"
             data-source-tsx="AuthForm Title|src/components/Auth/AuthForm.tsx"
           >
             {isSignUp ? 'Create your account' : 'Sign in to your account'}
           </h2>
-          <p 
+          <p
             className="mt-2 text-center text-sm text-gray-600"
             data-source-tsx="AuthForm Subtitle|src/components/Auth/AuthForm.tsx"
           >
@@ -119,7 +118,7 @@ const AuthForm: React.FC = () => {
           </div>
 
           {error && (
-            <div 
+            <div
               className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg"
               data-source-tsx="AuthForm Error Message|src/components/Auth/AuthForm.tsx"
             >
@@ -129,7 +128,7 @@ const AuthForm: React.FC = () => {
           )}
 
           {message && (
-            <div 
+            <div
               className="flex items-center space-x-2 text-green-600 bg-green-50 p-3 rounded-lg"
               data-source-tsx="AuthForm Success Message|src/components/Auth/AuthForm.tsx"
             >
@@ -160,8 +159,8 @@ const AuthForm: React.FC = () => {
               className="text-blue-600 hover:text-blue-500 text-sm font-medium"
               data-source-tsx="AuthForm Toggle Button|src/components/Auth/AuthForm.tsx"
             >
-              {isSignUp 
-                ? 'Already have an account? Sign in' 
+              {isSignUp
+                ? 'Already have an account? Sign in'
                 : "Don't have an account? Sign up"
               }
             </button>

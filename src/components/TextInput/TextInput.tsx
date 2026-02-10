@@ -35,7 +35,6 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
       )}
       <div
         className={`min-h-full bg-gray-50 pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}
-        style={{ fontFamily: 'Times New Roman, serif' }}
         data-source-tsx="TextInput|src/components/TextInput/TextInput.tsx"
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
@@ -62,7 +61,6 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
                   onChange={(e) => setText(e.target.value)}
                   className="w-full h-64 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
                   placeholder="Enter your paragraph here..."
-                  style={{ fontFamily: 'Times New Roman, serif' }}
                   data-source-tsx="TextInput Textarea|src/components/TextInput/TextInput.tsx"
                 />
               </div>

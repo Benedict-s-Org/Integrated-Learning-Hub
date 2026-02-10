@@ -127,7 +127,6 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div
           className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto"
-          style={{ fontFamily: 'Times New Roman, serif' }}
         >
           <div className="text-center mb-8">
             <Trophy size={80} className="mx-auto text-yellow-500 mb-4" />
@@ -160,9 +159,8 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
               return (
                 <div
                   key={index}
-                  className={`p-4 rounded-lg flex items-start space-x-3 ${
-                    result?.isCorrect ? 'bg-green-50' : 'bg-red-50'
-                  }`}
+                  className={`p-4 rounded-lg flex items-start space-x-3 ${result?.isCorrect ? 'bg-green-50' : 'bg-red-50'
+                    }`}
                 >
                   {result?.isCorrect ? (
                     <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
@@ -205,17 +203,16 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
                 key={index}
                 onClick={() => !showFeedback && setUserAnswer(option)}
                 disabled={showFeedback}
-                className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
-                  userAnswer === option
-                    ? showFeedback
-                      ? option === currentQuestion.correctAnswer
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-red-500 bg-red-50'
-                      : 'border-blue-500 bg-blue-50'
-                    : showFeedback && option === currentQuestion.correctAnswer
+                className={`w-full p-4 text-left rounded-lg border-2 transition-all ${userAnswer === option
+                  ? showFeedback
+                    ? option === currentQuestion.correctAnswer
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-red-500 bg-red-50'
+                    : 'border-blue-500 bg-blue-50'
+                  : showFeedback && option === currentQuestion.correctAnswer
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <span className="font-medium">{option}</span>
               </button>
@@ -229,34 +226,32 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
             <button
               onClick={() => !showFeedback && setUserAnswer(true)}
               disabled={showFeedback}
-              className={`flex-1 p-6 rounded-lg border-2 font-bold text-lg transition-all ${
-                userAnswer === true
-                  ? showFeedback
-                    ? currentQuestion.correctAnswer === true
-                      ? 'border-green-500 bg-green-50 text-green-700'
-                      : 'border-red-500 bg-red-50 text-red-700'
-                    : 'border-blue-500 bg-blue-50 text-blue-700'
-                  : showFeedback && currentQuestion.correctAnswer === true
+              className={`flex-1 p-6 rounded-lg border-2 font-bold text-lg transition-all ${userAnswer === true
+                ? showFeedback
+                  ? currentQuestion.correctAnswer === true
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-red-500 bg-red-50 text-red-700'
+                  : 'border-blue-500 bg-blue-50 text-blue-700'
+                : showFeedback && currentQuestion.correctAnswer === true
                   ? 'border-green-500 bg-green-50 text-green-700'
                   : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >
               True
             </button>
             <button
               onClick={() => !showFeedback && setUserAnswer(false)}
               disabled={showFeedback}
-              className={`flex-1 p-6 rounded-lg border-2 font-bold text-lg transition-all ${
-                userAnswer === false
-                  ? showFeedback
-                    ? currentQuestion.correctAnswer === false
-                      ? 'border-green-500 bg-green-50 text-green-700'
-                      : 'border-red-500 bg-red-50 text-red-700'
-                    : 'border-blue-500 bg-blue-50 text-blue-700'
-                  : showFeedback && currentQuestion.correctAnswer === false
+              className={`flex-1 p-6 rounded-lg border-2 font-bold text-lg transition-all ${userAnswer === false
+                ? showFeedback
+                  ? currentQuestion.correctAnswer === false
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-red-500 bg-red-50 text-red-700'
+                  : 'border-blue-500 bg-blue-50 text-blue-700'
+                : showFeedback && currentQuestion.correctAnswer === false
                   ? 'border-green-500 bg-green-50 text-green-700'
                   : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >
               False
             </button>
@@ -273,13 +268,12 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
               onChange={(e) => setUserAnswer(e.target.value)}
               disabled={showFeedback}
               placeholder="Type your answer..."
-              className={`w-full px-4 py-3 border-2 rounded-lg text-lg focus:outline-none ${
-                showFeedback
-                  ? isCorrect
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-red-500 bg-red-50'
-                  : 'border-gray-300 focus:border-blue-500'
-              }`}
+              className={`w-full px-4 py-3 border-2 rounded-lg text-lg focus:outline-none ${showFeedback
+                ? isCorrect
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-red-500 bg-red-50'
+                : 'border-gray-300 focus:border-blue-500'
+                }`}
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !showFeedback && String(userAnswer).trim()) {
                   checkAnswer();
@@ -304,13 +298,12 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
                     setMatchingPairs({ ...matchingPairs, [pair.left]: e.target.value })
                   }
                   disabled={showFeedback}
-                  className={`flex-1 p-3 border-2 rounded-lg ${
-                    showFeedback
-                      ? matchingPairs[pair.left] === pair.right
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-red-500 bg-red-50'
-                      : 'border-gray-300'
-                  }`}
+                  className={`flex-1 p-3 border-2 rounded-lg ${showFeedback
+                    ? matchingPairs[pair.left] === pair.right
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-red-500 bg-red-50'
+                    : 'border-gray-300'
+                    }`}
                 >
                   <option value="">Select match...</option>
                   {rightOptions.map((opt, i) => (
@@ -333,13 +326,12 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
               onChange={(e) => setUserAnswer(e.target.value)}
               disabled={showFeedback}
               placeholder="Type your answer..."
-              className={`w-full px-4 py-3 border-2 rounded-lg text-lg focus:outline-none ${
-                showFeedback
-                  ? isCorrect
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-red-500 bg-red-50'
-                  : 'border-gray-300 focus:border-blue-500'
-              }`}
+              className={`w-full px-4 py-3 border-2 rounded-lg text-lg focus:outline-none ${showFeedback
+                ? isCorrect
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-red-500 bg-red-50'
+                : 'border-gray-300 focus:border-blue-500'
+                }`}
             />
           </div>
         );
@@ -359,7 +351,6 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
-        style={{ fontFamily: 'Times New Roman, serif' }}
       >
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <div>
@@ -409,9 +400,8 @@ const InteractiveExperience: React.FC<InteractiveExperienceProps> = ({ activity,
 
               {showFeedback && (
                 <div
-                  className={`mt-6 p-4 rounded-lg ${
-                    isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                  }`}
+                  className={`mt-6 p-4 rounded-lg ${isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                    }`}
                 >
                   <div className="flex items-center space-x-2 mb-2">
                     {isCorrect ? (

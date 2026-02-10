@@ -12,21 +12,20 @@ const AuthStatus: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div 
+    <div
       className="fixed top-4 left-4 z-50 flex items-center space-x-3 bg-white px-4 py-2 rounded-lg shadow-lg border"
-      style={{ fontFamily: 'Times New Roman, serif' }}
       data-source-tsx="AuthStatus|src/components/Auth/AuthStatus.tsx"
     >
       <div className="flex items-center space-x-2">
         <User size={16} className="text-gray-600" />
-        <span 
+        <span
           className="text-sm text-gray-700 max-w-32 truncate"
           data-source-tsx="AuthStatus User Email|src/components/Auth/AuthStatus.tsx"
         >
           {user.email}
         </span>
       </div>
-      
+
       <button
         onClick={handleSignOut}
         className="flex items-center space-x-1 text-sm text-red-600 hover:text-red-700 transition-colors"

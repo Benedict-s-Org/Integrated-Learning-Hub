@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { AssignedMemorizationContent, MemorizationState } from '../../types';
@@ -114,7 +117,7 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
 
   if (loading) {
     return (
-      <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className="pt-20 min-h-screen bg-gray-50 pr-8">
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="text-center text-gray-600">Loading assignments...</div>
         </div>
@@ -124,7 +127,7 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
 
   if (error) {
     return (
-      <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className="pt-20 min-h-screen bg-gray-50 pr-8">
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
         </div>
@@ -136,9 +139,9 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
   const completedAssignments = assignments.filter((a) => a.completed);
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+    <div className="pt-20 min-h-screen bg-background pr-8">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <Card className="p-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-6">My Assignments</h1>
 
           {assignments.length === 0 ? (
@@ -161,48 +164,45 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
                       return (
                         <div
                           key={assignment.id}
-                          className={`border rounded-lg p-6 hover:shadow-md transition-shadow ${
-                            overdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                          }`}
+                          className={`border rounded-lg p-6 hover:shadow-md transition-shadow ${overdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                            }`}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <h3 className="text-lg font-semibold text-gray-800 mb-2">{assignment.title}</h3>
                               <p className="text-gray-600 text-sm mb-3 line-clamp-2">{assignment.original_text}</p>
-                              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                                 <span className="flex items-center space-x-1">
                                   <Clock size={14} />
                                   <span>Assigned {formatDate(assignment.assigned_at)}</span>
                                 </span>
                                 {assignment.due_date && (
-                                  <span
-                                    className={`flex items-center space-x-1 ${
-                                      overdue ? 'text-red-600 font-semibold' : daysUntilDue && daysUntilDue <= 3 ? 'text-orange-600 font-semibold' : ''
-                                    }`}
+                                  <Badge
+                                    variant={overdue ? 'destructive' : daysUntilDue && daysUntilDue <= 3 ? 'warning' : 'secondary'}
+                                    className="flex items-center gap-1"
                                   >
-                                    {overdue ? <AlertCircle size={14} /> : <Clock size={14} />}
+                                    {overdue ? <AlertCircle size={12} /> : <Clock size={12} />}
                                     <span>
                                       {overdue
                                         ? 'Overdue'
                                         : daysUntilDue === 0
-                                        ? 'Due today'
-                                        : daysUntilDue === 1
-                                        ? 'Due tomorrow'
-                                        : `Due ${formatDate(assignment.due_date)}`}
+                                          ? 'Due today'
+                                          : daysUntilDue === 1
+                                            ? 'Due tomorrow'
+                                            : `Due ${formatDate(assignment.due_date)}`}
                                     </span>
-                                  </span>
+                                  </Badge>
                                 )}
                                 <span>By {assignment.assigned_by_username}</span>
                                 <span>{assignment.selected_word_indices.length} words</span>
                               </div>
                             </div>
-                            <button
+                            <Button
                               onClick={() => handlePractice(assignment)}
-                              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ml-4"
+                              icon={Play}
                             >
-                              <Play size={18} />
-                              <span>Start</span>
-                            </button>
+                              Start
+                            </Button>
                           </div>
                         </div>
                       );
@@ -235,13 +235,13 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
                               <span>{assignment.selected_word_indices.length} words</span>
                             </div>
                           </div>
-                          <button
+                          <Button
                             onClick={() => handlePractice(assignment)}
-                            className="flex items-center space-x-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors ml-4"
+                            variant="secondary"
+                            icon={Play}
                           >
-                            <Play size={18} />
-                            <span>Practice Again</span>
-                          </button>
+                            Practice Again
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -250,7 +250,7 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
               )}
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

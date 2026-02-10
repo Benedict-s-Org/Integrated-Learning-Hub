@@ -44,7 +44,7 @@ export type PageType =
     | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
     | 'proofreading' | 'spelling' | 'progress' | 'assignments'
     | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner';
+    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;
@@ -189,6 +189,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             onClick={() => onPageChange('learningHub')}
                         />
                     )}
+                    <NavItem
+                        icon={BookOpen}
+                        label="Notion Hub"
+                        isActive={currentPage === 'notionHub'}
+                        onClick={() => onPageChange('notionHub')}
+                    />
                 </NavSection>
 
                 {/* My Learning Community Section - Only visible when in community */}

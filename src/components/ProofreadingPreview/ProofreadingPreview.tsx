@@ -188,8 +188,7 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
         />
       )}
       <div
-        className="pt-20 min-h-screen bg-gray-50 pr-8"
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="min-h-full bg-background p-8"
         data-source-tsx="ProofreadingPreview|src/components/ProofreadingPreview/ProofreadingPreview.tsx"
       >
         <div className="max-w-[95%] mx-auto px-4 py-8">

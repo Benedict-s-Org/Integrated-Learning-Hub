@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname.split("/").pop(); // verify, submit-reward, create-link
 
-    const { token, adminUserId, targetUserIds, amount, reason } = await req.json();
+    const { token, adminUserId, targetUserIds, amount, reason, targetClass } = await req.json();
 
     // 1. Create Link (Admin Only)
     if (path === "create-link") {
@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
       // Create new
       const { data: newLink, error } = await supabase.from("shared_links").insert({
         created_by: adminUserId,
-        type: 'class_dashboard'
+        type: 'class_dashboard',
+        target_class: targetClass
       }).select("token").single();
 
       if (error) throw error;
@@ -57,30 +58,47 @@ Deno.serve(async (req) => {
     if (path === "verify") {
       if (!token) throw new Error("Missing token");
 
-      const { data: link, error } = await supabase.from("shared_links").select("id").eq("token", token).eq("is_active", true).single();
+      const { data: link, error } = await supabase.from("shared_links").select("id, target_class").eq("token", token).eq("is_active", true).single();
 
       if (error || !link) {
         return new Response(JSON.stringify({ valid: false }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      return new Response(JSON.stringify({ valid: true, permissions: ['view', 'request_reward'] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({
+        valid: true,
+        permissions: ['view', 'request_reward'],
+        targetClass: link.target_class
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // 3. List Users (Guest)
     if (path === "list-users") {
       if (!token) throw new Error("Missing token");
 
-      // Verify Token
-      const { data: link } = await supabase.from("shared_links").select("created_by").eq("token", token).eq("is_active", true).single();
+      // Verify Token and get target_class
+      const { data: link } = await supabase.from("shared_links").select("created_by, target_class").eq("token", token).eq("is_active", true).single();
       if (!link) {
         return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
       }
 
       // Fetch Users
-      const { data: users, error: usersError } = await supabase
+      let query = supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class")
+        .select(`
+          id, username, role, created_at, display_name, class,
+          user_room_data (
+            morning_status,
+            last_morning_update,
+            coins
+          )
+        `)
         .order("created_at", { ascending: false });
+
+      if (link.target_class) {
+        query = query.eq("class", link.target_class);
+      }
+
+      const { data: users, error: usersError } = await query;
 
       if (usersError) throw usersError;
 

@@ -175,8 +175,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
-      style={{ fontFamily: 'Times New Roman, serif' }}
+      className="min-h-screen bg-background p-8"
       data-source-tsx="ProofreadingAssignment|src/components/ProofreadingAssignment/ProofreadingAssignment.tsx"
     >
       <div className="max-w-4xl mx-auto">

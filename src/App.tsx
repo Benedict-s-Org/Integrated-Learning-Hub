@@ -12,6 +12,7 @@ import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignmen
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
 import { Login } from './components/Auth/Login';
+import { NotionHub } from './components/NotionHub/NotionHub';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { MemoryPalacePage } from './pages/MemoryPalacePage';
@@ -96,7 +97,8 @@ type AppState =
   | { page: 'wordSnake' }
   | { page: 'classDashboard' }
   | { page: 'quickReward'; qrToken: string }
-  | { page: 'scanner' };
+  | { page: 'scanner' }
+  | { page: 'notionHub' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
@@ -351,9 +353,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub')) {
       setShowLoginModal(true);
       return;
     }
@@ -424,6 +426,8 @@ function AppContent() {
       setAppState({ page: 'quickReward', qrToken: '' }); // Default or empty, will be picked up by URL usually
     } else if (page === 'scanner') {
       setAppState({ page: 'scanner' });
+    } else if (page === 'notionHub') {
+      setAppState({ page: 'notionHub' });
     }
   };
 
@@ -875,6 +879,8 @@ function AppContent() {
         return <QuickRewardPage />;
       case 'scanner':
         return <QRScannerPage />;
+      case 'notionHub':
+        return <NotionHub />;
     }
   };
 

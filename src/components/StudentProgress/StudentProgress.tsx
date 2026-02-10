@@ -146,13 +146,12 @@ const StudentProgress: React.FC = () => {
                 <div key={result.id} className="flex flex-col items-center flex-1 mx-1">
                   <div className="relative w-full">
                     <div
-                      className={`w-full rounded-t transition-all ${
-                        result.accuracy_percentage >= 90
+                      className={`w-full rounded-t transition-all ${result.accuracy_percentage >= 90
                           ? 'bg-green-500'
                           : result.accuracy_percentage >= 70
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
-                      }`}
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
                       style={{ height: `${height * 2}px` }}
                       title={`${result.accuracy_percentage}%`}
                     />
@@ -187,13 +186,12 @@ const StudentProgress: React.FC = () => {
                 <div key={result.id} className="flex flex-col items-center flex-1 mx-1">
                   <div className="relative w-full">
                     <div
-                      className={`w-full rounded-t transition-all ${
-                        result.accuracy_percentage >= 90
+                      className={`w-full rounded-t transition-all ${result.accuracy_percentage >= 90
                           ? 'bg-green-500'
                           : result.accuracy_percentage >= 70
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
-                      }`}
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
                       style={{ height: `${height * 2}px` }}
                       title={`${result.accuracy_percentage}%`}
                     />
@@ -211,7 +209,7 @@ const StudentProgress: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+      <div className="pt-20 min-h-screen bg-gray-50 pr-8">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center text-gray-600">Loading progress data...</div>
         </div>
@@ -220,7 +218,7 @@ const StudentProgress: React.FC = () => {
   }
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50 pr-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+    <div className="pt-20 min-h-screen bg-gray-50 pr-8">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">My Progress</h1>
@@ -238,11 +236,10 @@ const StudentProgress: React.FC = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id as TabType)}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${
-                activeTab === id
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${activeTab === id
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+                }`}
             >
               <Icon size={20} />
               <span>{label}</span>
@@ -525,15 +522,14 @@ const StudentProgress: React.FC = () => {
                           >
                             <td className="px-6 py-4">
                               <span
-                                className={`text-sm font-bold ${
-                                  Number(entry.rank) === 1
+                                className={`text-sm font-bold ${Number(entry.rank) === 1
                                     ? 'text-yellow-600'
                                     : Number(entry.rank) === 2
-                                    ? 'text-gray-500'
-                                    : Number(entry.rank) === 3
-                                    ? 'text-orange-600'
-                                    : 'text-gray-700'
-                                }`}
+                                      ? 'text-gray-500'
+                                      : Number(entry.rank) === 3
+                                        ? 'text-orange-600'
+                                        : 'text-gray-700'
+                                  }`}
                               >
                                 #{entry.rank}
                               </span>
@@ -592,15 +588,14 @@ const StudentProgress: React.FC = () => {
                           >
                             <td className="px-6 py-4">
                               <span
-                                className={`text-sm font-bold ${
-                                  Number(entry.rank) === 1
+                                className={`text-sm font-bold ${Number(entry.rank) === 1
                                     ? 'text-yellow-600'
                                     : Number(entry.rank) === 2
-                                    ? 'text-gray-500'
-                                    : Number(entry.rank) === 3
-                                    ? 'text-orange-600'
-                                    : 'text-gray-700'
-                                }`}
+                                      ? 'text-gray-500'
+                                      : Number(entry.rank) === 3
+                                        ? 'text-orange-600'
+                                        : 'text-gray-700'
+                                  }`}
                               >
                                 #{entry.rank}
                               </span>

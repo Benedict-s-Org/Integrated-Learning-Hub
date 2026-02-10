@@ -74,6 +74,7 @@ export function AdminUsersPage() {
   const [showAwardModal, setShowAwardModal] = useState(false);
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
+  const [filterClass, setFilterClass] = useState<string>('all');
 
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
@@ -106,7 +107,8 @@ export function AdminUsersPage() {
       if (roomError) console.warn('Error fetching room data:', roomError);
       const today = new Date().toISOString().split('T')[0];
       const roomDataMap = new Map((roomData || []).map(r => {
-        const dailyRealEarned = r.daily_counts?.date === today ? (r.daily_counts?.real_earned || 0) : 0;
+        const dailyCounts = r.daily_counts as any;
+        const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
         return [r.user_id, {
           coins: r.coins,
           virtual_coins: r.virtual_coins,
@@ -266,6 +268,18 @@ export function AdminUsersPage() {
         <div className="max-w-6xl mx-auto">
           {/* Header Actions */}
           <div className="flex justify-between mb-4">
+            <div className="flex gap-2">
+              <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm outline-none"
+              >
+                <option value="all">All Classes</option>
+                {Array.from(new Set(users.map(u => u.class_name).filter(Boolean))).sort().map(className => (
+                  <option key={className} value={className!}>{className}</option>
+                ))}
+              </select>
+            </div>
             {/* Scan QR Button */}
             <button
               onClick={() => navigate('/admin/scanner')}
@@ -288,10 +302,15 @@ export function AdminUsersPage() {
                 onClick={async () => {
                   try {
                     console.log('Generating link for admin:', currentUser?.id);
-                    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+
+                    // Determine if we should filter by class
+                    const targetClass = filterClass !== 'all' ? filterClass : undefined;
 
                     const { data, error } = await supabase.functions.invoke('public-access/create-link', {
-                      body: { adminUserId: currentUser?.id }
+                      body: {
+                        adminUserId: currentUser?.id,
+                        targetClass: targetClass
+                      }
                     });
 
                     if (error) {
@@ -301,7 +320,7 @@ export function AdminUsersPage() {
 
                     const url = `${window.location.origin}/class?token=${data.token}`;
                     await navigator.clipboard.writeText(url);
-                    alert('Class Public Link copied to clipboard!');
+                    alert(`Class Public Link ${targetClass ? `for ${targetClass} ` : ''}copied to clipboard!`);
                   } catch (err: any) {
                     console.error('Failed to create link detail:', err);
                     alert('Failed to generate link: ' + (err.message || 'Unknown error'));
@@ -310,7 +329,7 @@ export function AdminUsersPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm"
               >
                 <Users className="w-5 h-5" />
-                Share Link
+                {filterClass !== 'all' ? `Share ${filterClass} Link` : 'Share All Link'}
               </button>
 
               <BulkQRCodeExport students={users} />
@@ -337,7 +356,9 @@ export function AdminUsersPage() {
           {viewMode === 'classroom' ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
               <ClassDistributor
-                users={users}
+                users={filterClass === 'all' ? users : users.filter(u => u.class_name === filterClass)}
+                selectedIds={selectedForAward}
+                onSelectionChange={setSelectedForAward}
                 isLoading={isLoadingUsers}
                 onAwardCoins={async (ids) => {
                   setSelectedForAward(ids);
@@ -551,80 +572,82 @@ export function AdminUsersPage() {
                   </p>
                 ) : (
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
-                    {users.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all active:scale-[0.99]"
-                      >
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          <div className="relative shrink-0">
-                            <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
-                              {user.avatar_url ? (
-                                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                              ) : (
-                                <User className="w-5 h-5 text-[hsl(var(--primary))]" />
+                    {users
+                      .filter(u => filterClass === 'all' || u.class_name === filterClass)
+                      .map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all active:scale-[0.99]"
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="relative shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
+                                {user.avatar_url ? (
+                                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                  <User className="w-5 h-5 text-[hsl(var(--primary))]" />
+                                )}
+                              </div>
+                              {user.seat_number && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-slate-800 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white">
+                                  {user.seat_number}
+                                </div>
                               )}
                             </div>
-                            {user.seat_number && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-slate-800 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white">
-                                {user.seat_number}
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-[hsl(var(--foreground))] truncate text-sm md:text-base">
+                                {user.display_name || '未設定名稱'}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
+                                {user.class_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium whitespace-nowrap">
+                                    {user.class_name}
+                                  </span>
+                                )}
+                                {user.seat_number && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
+                                    #{user.seat_number}
+                                  </span>
+                                )}
+                                <span className="hidden sm:inline">
+                                  {new Date(user.created_at).toLocaleDateString('zh-HK')}
+                                </span>
+                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold">
+                                  🪙 {user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}
+                                  <span className="text-[10px] opacity-75">({user.virtual_coins || 0})</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            {user.is_admin && (
+                              <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-[10px] font-bold uppercase tracking-wider">
+                                <Shield className="w-3 h-3" />
+                                <span className="hidden md:inline">管理員</span>
                               </div>
                             )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-[hsl(var(--foreground))] truncate text-sm md:text-base">
-                              {user.display_name || '未設定名稱'}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
-                              {user.class_name && (
-                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium whitespace-nowrap">
-                                  {user.class_name}
-                                </span>
-                              )}
-                              {user.seat_number && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
-                                  #{user.seat_number}
-                                </span>
-                              )}
-                              <span className="hidden sm:inline">
-                                {new Date(user.created_at).toLocaleDateString('zh-HK')}
-                              </span>
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold">
-                                🪙 {user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}
-                                <span className="text-[10px] opacity-75">({user.virtual_coins || 0})</span>
-                              </span>
-                            </div>
+                            <button
+                              onClick={() => user.qr_token && setQrUser({
+                                id: user.id,
+                                name: user.display_name || '未命名',
+                                qrToken: user.qr_token
+                              })}
+                              className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
+                              title="顯示 QR Code"
+                              disabled={!user.qr_token}
+                            >
+                              <QrCode className="w-5 h-5 md:w-4 md:h-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingUser(user)}
+                              className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
+                              title="編輯用戶"
+                            >
+                              <Pencil className="w-5 h-5 md:w-4 md:h-4" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0 ml-2">
-                          {user.is_admin && (
-                            <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-[10px] font-bold uppercase tracking-wider">
-                              <Shield className="w-3 h-3" />
-                              <span className="hidden md:inline">管理員</span>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => user.qr_token && setQrUser({
-                              id: user.id,
-                              name: user.display_name || '未命名',
-                              qrToken: user.qr_token
-                            })}
-                            className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
-                            title="顯示 QR Code"
-                            disabled={!user.qr_token}
-                          >
-                            <QrCode className="w-5 h-5 md:w-4 md:h-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingUser(user)}
-                            className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
-                            title="編輯用戶"
-                          >
-                            <Pencil className="w-5 h-5 md:w-4 md:h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>

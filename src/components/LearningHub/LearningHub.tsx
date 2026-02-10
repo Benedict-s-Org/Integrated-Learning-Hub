@@ -70,8 +70,7 @@ const LearningHub: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 p-8"
-      style={{ fontFamily: 'Times New Roman, serif' }}
+      className="min-h-screen bg-gray-50 flex flex-col pt-20"
     >
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
