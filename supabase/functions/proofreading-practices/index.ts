@@ -27,6 +27,12 @@ interface ListPracticesRequest {
   userId: string;
 }
 
+interface UpdatePracticeRequest {
+  practiceId: string;
+  title: string;
+  userId: string;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -221,6 +227,65 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ success: true }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/update")) {
+      const { practiceId, title, userId }: UpdatePracticeRequest = await req.json();
+
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (user.role !== "admin") {
+        return new Response(
+          JSON.stringify({ error: "Only admins can update practices" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const { data: practice, error: updateError } = await supabase
+        .from("proofreading_practices")
+        .update({
+          title,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", practiceId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating practice:", updateError);
+        return new Response(
+          JSON.stringify({ error: "Failed to update practice", details: updateError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, practice }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

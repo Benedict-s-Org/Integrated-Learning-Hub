@@ -40,6 +40,7 @@ export interface AppContextType {
   currentSaveCount: number;
   proofreadingPractices: ProofreadingPractice[];
   addProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[]) => Promise<boolean>;
+  updateProofreadingPractice: (id: string, title: string) => Promise<boolean>;
   deleteProofreadingPractice: (id: string) => Promise<void>;
   refreshSavedContents: () => Promise<void>;
 }

@@ -405,6 +405,41 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   }, [userId]);
 
+  const updateProofreadingPractice = useCallback(async (id: string, title: string): Promise<boolean> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('proofreading-practices/update', {
+        body: {
+          practiceId: id,
+          title,
+          userId,
+        },
+      });
+
+      if (error) {
+        console.error('Error updating proofreading practice:', error);
+        return false;
+      }
+
+      if (data.success) {
+        setProofreadingPractices(prev =>
+          prev.map(practice =>
+            practice.id === id ? { ...practice, title, updated_at: new Date().toISOString() } : practice
+          )
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to update proofreading practice:', error);
+      return false;
+    }
+  }, [userId]);
+
   const value: AppContextType = useMemo(() => ({
     savedContents,
     addSavedContent,
@@ -421,6 +456,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     currentSaveCount,
     proofreadingPractices,
     addProofreadingPractice,
+    updateProofreadingPractice,
     deleteProofreadingPractice,
     refreshSavedContents,
   }), [
@@ -438,6 +474,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     currentSaveCount,
     proofreadingPractices,
     addProofreadingPractice,
+    updateProofreadingPractice,
     deleteProofreadingPractice,
     refreshSavedContents,
   ]);
