@@ -21,6 +21,7 @@ export interface StudentRecord {
     created_by: string;
     is_read: boolean;
     is_internal: boolean;
+    coin_amount?: number;
 }
 
 export interface TeacherFeedback {

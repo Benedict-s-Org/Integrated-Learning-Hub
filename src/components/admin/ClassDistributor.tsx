@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, GripVertical, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
 import { AdminMessageModal } from './notifications/AdminMessageModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -306,7 +306,7 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                     <h2 className="text-2xl font-bold text-gray-800">Classroom</h2>
                     <p className="text-gray-500">Drag items or use arrow buttons to rearrange class numbers.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {hasChanges && (
                         <button
                             onClick={handleSaveOrder}
@@ -323,11 +323,11 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                         onClick={() => setShowAdminMessageModal(true)}
                         className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
                     >
-                        <MessageSquare size={16} />
+                        <MessageSquare size={16} className="text-blue-500" />
                         Message
                     </button>
 
-                    {/* Rearrange Mode Toggle - Placed to the left of Select All */}
+                    {/* Rearrange Mode Toggle */}
                     <button
                         onClick={() => setIsRearranging(!isRearranging)}
                         className={`
@@ -340,25 +340,24 @@ export function ClassDistributor({ users: initialUsers, isLoading, onAwardCoins,
                     >
                         {isRearranging ? 'Done Rearranging' : 'Edit Order'}
                     </button>
-                    {/* Header Controls */}
-                    <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleSelectAll}
-                                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                            >
-                                {areAllLocalSelected ? 'Deselect All' : 'Select All'}
-                            </button>
-                            {localSelectionCount > 0 && (
-                                <button
-                                    onClick={() => onAwardCoins(selectedIds)} // Global action, passes all selected
-                                    className="px-6 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg shadow-lg hover:bg-blue-600 hover:scale-105 transition-all animate-in fade-in zoom-in"
-                                >
-                                    Give Feedback ({localSelectionCount})
-                                </button>
-                            )}
-                        </div>
-                    </div>
+
+                    <div className="h-8 w-px bg-gray-200 mx-1 hidden sm:block" />
+
+                    <button
+                        onClick={handleSelectAll}
+                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        {areAllLocalSelected ? 'Deselect All' : 'Select All'}
+                    </button>
+
+                    {localSelectionCount > 0 && (
+                        <button
+                            onClick={() => onAwardCoins(selectedIds)}
+                            className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg shadow-lg hover:bg-blue-700 hover:scale-105 transition-all animate-in fade-in zoom-in"
+                        >
+                            Give Feedback ({localSelectionCount})
+                        </button>
+                    )}
                 </div>
             </div>
 

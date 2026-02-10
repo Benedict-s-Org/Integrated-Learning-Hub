@@ -225,7 +225,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                        {isAdmin && (
+                        {(isAdmin || user?.role === 'admin') && (
                             <>
                                 <button
                                     onClick={() => {
@@ -331,6 +331,22 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {/* Quick Custom card */}
+                            {!isEditMode && (
+                                <button
+                                    onClick={() => setIsCustomMode(!isCustomMode)}
+                                    className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-dashed transition-all duration-200
+                                        ${isCustomMode
+                                            ? 'border-orange-400 bg-orange-50 text-orange-600'
+                                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-orange-100 text-orange-600`}>
+                                        <Plus size={24} />
+                                    </div>
+                                    <div className="font-bold text-xs uppercase tracking-wider">Custom</div>
+                                </button>
+                            )}
+
                             {isEditMode && editingId === 'new' && (
                                 <div className="col-span-full p-4 bg-white rounded-xl border-2 border-dashed border-blue-200 shadow-sm animate-in slide-in-from-top duration-300">
                                     <div className="flex justify-between items-center mb-4">
