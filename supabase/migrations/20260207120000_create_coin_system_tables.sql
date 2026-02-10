@@ -31,8 +31,8 @@ CREATE POLICY "Admins can view all coin transactions"
     FOR SELECT
     USING (
         EXISTS (
-            SELECT 1 FROM public.user_roles
-            WHERE user_id = auth.uid() AND role = 'admin'
+            SELECT 1 FROM public.users
+            WHERE id = auth.uid() AND role = 'admin'
         )
     );
 
@@ -50,8 +50,8 @@ CREATE POLICY "Admins can insert coin transactions"
     FOR INSERT
     WITH CHECK (
         EXISTS (
-            SELECT 1 FROM public.user_roles
-            WHERE user_id = auth.uid() AND role = 'admin'
+            SELECT 1 FROM public.users
+            WHERE id = auth.uid() AND role = 'admin'
         )
     );
 
@@ -70,8 +70,8 @@ CREATE POLICY "Admins can manage target behaviors"
     FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM public.user_roles
-            WHERE user_id = auth.uid() AND role = 'admin'
+            SELECT 1 FROM public.users
+            WHERE id = auth.uid() AND role = 'admin'
         )
     );
 

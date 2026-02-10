@@ -425,7 +425,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                                                     : 'bg-green-100 text-green-700'
                                                             : item.coins > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
                                                         }`}>
-                                                        {item.coins > 0 ? `+${item.coins}` : item.coins === 0 && item.type === 'consequence' ? '-0' : item.coins}
+                                                        {item.coins > 0 ? `+${item.coins}` : item.coins}
                                                     </div>
                                                 )}
                                             </div>

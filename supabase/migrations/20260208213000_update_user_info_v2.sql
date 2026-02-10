@@ -44,24 +44,24 @@ BEGIN
     END
   WHERE id = target_user_id;
 
-  -- Update user_profiles table for seat_number
+  -- Update users table for seat_number
   -- Only update if a new seat number is provided
   IF new_seat_number IS NOT NULL THEN
     -- Try to update existing profile
-    UPDATE user_profiles
+    UPDATE users
     SET seat_number = new_seat_number
     WHERE id = target_user_id;
     
     -- If no profile exists (unlikely given triggers, but possible), insert one
     IF NOT FOUND THEN
-      INSERT INTO user_profiles (id, seat_number, display_name, created_at)
+      INSERT INTO users (id, seat_number, display_name, created_at)
       SELECT id, new_seat_number, display_name, created_at
       FROM users WHERE id = target_user_id;
     END IF;
   END IF;
 
   -- Get current seat number for response
-  SELECT seat_number INTO current_seat_number FROM user_profiles WHERE id = target_user_id;
+  SELECT seat_number INTO current_seat_number FROM users WHERE id = target_user_id;
 
   -- Return updated user info
   SELECT json_build_object(

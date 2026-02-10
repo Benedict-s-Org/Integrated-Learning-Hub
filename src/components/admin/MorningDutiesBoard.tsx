@@ -7,7 +7,7 @@ interface UserWithCoins {
     avatar_url: string | null;
     class?: string | null;
     seat_number: number | null;
-    morning_status?: 'todo' | 'review' | 'completed';
+    morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
 }
 
@@ -17,7 +17,8 @@ interface MorningDutiesBoardProps {
 }
 
 export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, onReviewClick }) => {
-    const today = new Date().toISOString().split('T')[0];
+    // Use HK time to match backend
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
 
     // Categorize users
     const todoUsers = users.filter(u =>
@@ -32,7 +33,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
     );
 
     const completedUsers = users.filter(u =>
-        u.morning_status === 'completed' &&
+        (u.morning_status === 'completed' || u.morning_status === 'absent') &&
         u.last_morning_update === today
     );
 
@@ -42,7 +43,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
     reviewUsers.sort(sortBySeat);
     completedUsers.sort(sortBySeat);
 
-    const renderCard = (user: UserWithCoins, status: 'todo' | 'review' | 'completed') => (
+    const renderCard = (user: UserWithCoins, status: 'todo' | 'review' | 'completed' | 'absent') => (
         <div
             key={user.id}
             onClick={() => onReviewClick(user.id)}
@@ -50,7 +51,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
                 relative p-1.5 px-2 rounded-lg border shadow-sm flex items-center gap-2 w-fit cursor-pointer hover:shadow-md transition-all
                 ${status === 'todo' ? 'bg-white border-slate-200 hover:border-slate-300' : ''}
                 ${status === 'review' ? 'bg-orange-50 border-orange-200 hover:border-orange-300' : ''}
-                ${status === 'completed' ? 'bg-green-50 border-green-200 hover:border-green-300' : ''}
+                ${status === 'completed' || status === 'absent' ? 'bg-green-50 border-green-200 hover:border-green-300' : ''}
             `}
         >
             <div className="flex items-center gap-2 min-w-0">
@@ -59,6 +60,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
                 </span>
                 <p className="font-bold text-xs truncate text-slate-700">
                     {user.display_name || 'Student'}
+                    {status === 'absent' && <span className="ml-1 text-[10px] font-medium text-slate-400 font-normal">(absent)</span>}
                 </p>
             </div>
         </div>
@@ -120,7 +122,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
                     </span>
                 </div>
                 <div className="flex flex-wrap gap-2 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin content-start">
-                    {completedUsers.map(u => renderCard(u, 'completed'))}
+                    {completedUsers.map(u => renderCard(u, u.morning_status || 'completed'))}
                     {completedUsers.length === 0 && (
                         <div className="w-full text-center py-4 text-slate-400 text-[10px] italic">
                             Waiting...

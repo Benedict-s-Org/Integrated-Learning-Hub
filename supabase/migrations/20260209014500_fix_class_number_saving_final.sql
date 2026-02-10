@@ -2,7 +2,7 @@
 
 -- 1. Enable RLS and add policies for Admin access
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- 2. Users Table Policies
 DROP POLICY IF EXISTS "Admins can view users" ON public.users;
@@ -12,12 +12,12 @@ DROP POLICY IF EXISTS "Admins can update users" ON public.users;
 CREATE POLICY "Admins can update users" ON public.users FOR UPDATE TO authenticated USING ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin') WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin');
 
 -- 3. User Profiles Table Policies
-DROP POLICY IF EXISTS "Admins can manage user_profiles" ON public.user_profiles;
-CREATE POLICY "Admins can manage user_profiles" ON public.user_profiles FOR ALL TO authenticated USING ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin') WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin');
+DROP POLICY IF EXISTS "Admins can manage users" ON public.users;
+CREATE POLICY "Admins can manage users" ON public.users FOR ALL TO authenticated USING ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin') WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role')::text = 'admin' OR (auth.jwt() -> 'app_metadata' ->> 'role')::text = 'admin');
 
 -- 4. Grant access to service_role
 GRANT ALL ON TABLE public.users TO service_role;
-GRANT ALL ON TABLE public.user_profiles TO service_role;
+GRANT ALL ON TABLE public.users TO service_role;
 
 -- 5. Update update_user_info RPC to bypass checks for system roles and remove non-existent columns
 CREATE OR REPLACE FUNCTION update_user_info(
@@ -62,14 +62,14 @@ BEGIN
   WHERE id = target_user_id;
 
   IF new_seat_number IS NOT NULL THEN
-    UPDATE user_profiles SET seat_number = new_seat_number WHERE id = target_user_id;
+    UPDATE users SET seat_number = new_seat_number WHERE id = target_user_id;
     IF NOT FOUND THEN
-      INSERT INTO user_profiles (id, seat_number, display_name, created_at)
+      INSERT INTO users (id, seat_number, display_name, created_at)
       SELECT id, new_seat_number, display_name, created_at FROM users WHERE id = target_user_id;
     END IF;
   END IF;
 
-  SELECT seat_number INTO current_seat_number FROM user_profiles WHERE id = target_user_id;
+  SELECT seat_number INTO current_seat_number FROM users WHERE id = target_user_id;
 
   SELECT json_build_object(
     'id', id, 'username', username, 'role', role, 'display_name', display_name, 'class', class, 'seat_number', current_seat_number, 'created_at', created_at

@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION public.increment_room_coins(
 )
 RETURNS VOID AS $$
 DECLARE
-    current_date TEXT;
+    today_date TEXT;
     current_counts JSONB;
     daily_usage INTEGER;
     daily_real_earned INTEGER;
@@ -21,7 +21,7 @@ DECLARE
     is_virtual BOOLEAN;
 BEGIN
     -- Initialize variables
-    current_date := to_char(now() AT TIME ZONE 'Asia/Hong_Kong', 'YYYY-MM-DD'); -- Use HK time for daily resets
+    today_date := to_char(now() AT TIME ZONE 'Asia/Hong_Kong', 'YYYY-MM-DD'); -- Use HK time for daily resets
     is_answering_question := log_reason LIKE '%回答問題%';
     final_amount := amount;
     is_virtual := FALSE;
@@ -37,7 +37,7 @@ BEGIN
     WHERE user_id = target_user_id;
 
     -- Initialize daily real earned tracking
-    IF (current_counts->>'date') = current_date THEN
+    IF (current_counts->>'date') = today_date THEN
         daily_usage := COALESCE((current_counts->>'count')::INTEGER, 0);
         daily_real_earned := COALESCE((current_counts->>'real_earned')::INTEGER, 0);
     ELSE
@@ -53,7 +53,7 @@ BEGIN
             daily_real_earned := daily_real_earned + amount;
             UPDATE public.user_room_data
             SET coins = COALESCE(coins, 0) + final_amount,
-                daily_counts = jsonb_build_object('date', current_date, 'count', daily_usage + 1, 'real_earned', daily_real_earned),
+                daily_counts = jsonb_build_object('date', today_date, 'count', daily_usage + 1, 'real_earned', daily_real_earned),
                 updated_at = NOW()
             WHERE user_id = target_user_id;
         ELSE
@@ -61,7 +61,7 @@ BEGIN
             is_virtual := TRUE;
             UPDATE public.user_room_data
             SET virtual_coins = COALESCE(virtual_coins, 0) + final_amount,
-                daily_counts = jsonb_build_object('date', current_date, 'count', daily_usage + 1, 'real_earned', daily_real_earned),
+                daily_counts = jsonb_build_object('date', today_date, 'count', daily_usage + 1, 'real_earned', daily_real_earned),
                 updated_at = NOW()
             WHERE user_id = target_user_id;
         END IF;
@@ -74,7 +74,7 @@ BEGIN
 
         UPDATE public.user_room_data
         SET coins = COALESCE(coins, 0) + final_amount,
-            daily_counts = jsonb_build_object('date', current_date, 'count', daily_usage, 'real_earned', daily_real_earned),
+            daily_counts = jsonb_build_object('date', today_date, 'count', daily_usage, 'real_earned', daily_real_earned),
             updated_at = NOW()
         WHERE user_id = target_user_id;
     END IF;

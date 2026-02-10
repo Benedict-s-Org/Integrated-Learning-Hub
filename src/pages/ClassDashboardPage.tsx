@@ -4,10 +4,11 @@ import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { Settings2, LayoutGrid, Users } from 'lucide-react';
+import { Settings2, LayoutGrid, Users, Activity } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
+import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 
 interface UserWithCoins {
     id: string;
@@ -21,7 +22,7 @@ interface UserWithCoins {
     email: string;
     created_at: string;
     is_admin: boolean;
-    morning_status?: 'todo' | 'review' | 'completed';
+    morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
 }
 
@@ -45,13 +46,13 @@ export function ClassDashboardPage() {
         const hour = new Date().getHours();
         return hour < 9; // Default true before 9am
     });
+    const [showNameSidebar, setShowNameSidebar] = useState(false);
 
     // Class Tabs State
     const [activeClass, setActiveClass] = useState<string>('all');
 
     // Modals State
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
-
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -100,11 +101,17 @@ export function ClassDashboardPage() {
             } else {
                 const { data: roomData, error: roomError } = await supabase
                     .from('user_room_data')
-                    .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update');
+                    .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update') as any;
 
                 if (roomError) console.warn('Error fetching room data:', roomError);
-                const today = new Date().toISOString().split('T')[0];
-                const roomDataMap = new Map((roomData || []).map(r => {
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+                const roomDataMap = new Map<string, {
+                    coins: number;
+                    virtual_coins: number;
+                    daily_real_earned: number;
+                    morning_status?: 'todo' | 'review' | 'completed' | 'absent';
+                    last_morning_update?: string;
+                }>((roomData || []).map((r: any) => {
                     const dailyCounts = r.daily_counts as any;
                     const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
                     return [r.user_id, {
@@ -162,6 +169,12 @@ export function ClassDashboardPage() {
     }, [isAdmin, currentUser, isGuestMode, guestToken]);
 
     const handleAwardCoins = async (userIds: string[], amount: number, reason?: string) => {
+        // Confirmation for Absent
+        if (reason && (reason.includes('缺席') || reason.toLowerCase().includes('absent'))) {
+            const confirmed = window.confirm(`Confirm moving ${userIds.length} student(s) to Absent? This will move them to 'Done' in morning duties.`);
+            if (!confirmed) return;
+        }
+
         try {
             if (isGuestMode) {
                 const { error } = await supabase.functions.invoke('public-access/submit-reward', {
@@ -191,7 +204,6 @@ export function ClassDashboardPage() {
             }
             setShowAwardModal(false);
             setSelectedForAward([]);
-            // Also clear generic selection if used for award
             if (userIds === selectedStudentIds) {
                 setSelectedStudentIds([]);
             }
@@ -201,11 +213,28 @@ export function ClassDashboardPage() {
         }
     };
 
+    const handleQuickAward = async (userId: string) => {
+        if (isGuestMode) return;
+        const reason = "回答問題";
+        const amount = 10;
+        try {
+            const { error } = await supabase.rpc('increment_room_coins' as any, {
+                target_user_id: userId,
+                amount: amount,
+                log_reason: reason,
+                log_admin_id: currentUser?.id
+            });
+            if (error) throw error;
+            playSuccessSound();
+            await fetchUsers();
+        } catch (err) {
+            console.error('Quick award failed:', err);
+        }
+    };
+
     const handleReorder = async (newOrder: UserWithCoins[]) => {
         if (isGuestMode) return;
         try {
-            console.log('Starting reorder for', newOrder.length, 'students');
-
             const updates = newOrder.map((student, index) => ({
                 userId: student.id,
                 classNumber: index + 1,
@@ -236,7 +265,6 @@ export function ClassDashboardPage() {
         setSelectedStudent(null);
     };
 
-    // Sort class names for tabs
     const sortedClassNames = useMemo(() => {
         return Object.keys(groupedUsers).sort((a, b) => a.localeCompare(b));
     }, [groupedUsers]);
@@ -246,7 +274,7 @@ export function ClassDashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-2 md:p-12 pt-32 pb-12"> {/* Adjusted padding for top toolbar */}
+        <div className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-52' : ''}`}>
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
@@ -262,16 +290,28 @@ export function ClassDashboardPage() {
                         <button
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
-                                ${showMorningDuties
+                            ${showMorningDuties
                                     ? 'bg-orange-100 text-orange-700 border-orange-200'
                                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
-                            `}
+                        `}
                         >
                             {showMorningDuties ? 'Hide Morning Duties' : 'Show Morning Duties'}
                         </button>
                         <button
+                            onClick={() => setShowNameSidebar(!showNameSidebar)}
+                            className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
+                            ${showNameSidebar
+                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                        `}
+                            title="Quick award for answering questions"
+                        >
+                            <Activity size={18} className={showNameSidebar ? 'text-blue-600' : 'text-slate-400'} />
+                            {showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar'}
+                        </button>
+                        <button
                             onClick={() => {
-                                setSelectedForAward([]); // Clear specific selection
+                                setSelectedForAward([]);
                                 setShowAwardModal(true);
                             }}
                             className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
@@ -282,7 +322,6 @@ export function ClassDashboardPage() {
                     </div>
                 </div>
 
-                {/* Morning Duties Board */}
                 {showMorningDuties && !isGuestMode && (
                     <MorningDutiesBoard
                         users={activeClass === 'all'
@@ -290,24 +329,21 @@ export function ClassDashboardPage() {
                             : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
                         }
                         onReviewClick={(id) => {
-                            // Select user and maybe scroll to them or open profile?
-                            // For now, let's just select them in the toolbar context if we want to act on them
                             const student = Object.values(groupedUsers).flat().find(u => u.id === id);
                             if (student) handleStudentClick(student);
                         }}
                     />
                 )}
 
-                {/* Class Tabs */}
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
                     <button
                         onClick={() => setActiveClass('all')}
                         className={`
-                            flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
-                            ${activeClass === 'all'
+                        flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
+                        ${activeClass === 'all'
                                 ? 'bg-slate-900 text-white shadow-md scale-105'
                                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                        `}
+                    `}
                     >
                         <LayoutGrid size={16} />
                         All Classes
@@ -317,11 +353,11 @@ export function ClassDashboardPage() {
                             key={className}
                             onClick={() => setActiveClass(className)}
                             className={`
-                                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap
-                                ${activeClass === className
+                            flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap
+                            ${activeClass === className
                                     ? 'bg-blue-600 text-white shadow-md scale-105'
                                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                            `}
+                        `}
                         >
                             <Users size={16} />
                             {className === 'Unassigned' ? 'Unassigned' : className}
@@ -338,7 +374,6 @@ export function ClassDashboardPage() {
                     ) : (
                         <>
                             {activeClass === 'all' ? (
-                                // Show All Classes
                                 sortedClassNames.map(className => (
                                     <div key={className} className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8">
                                         <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
@@ -360,7 +395,6 @@ export function ClassDashboardPage() {
                                     </div>
                                 ))
                             ) : (
-                                // Show Single Class
                                 <div className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8 animate-in fade-in slide-in-from-bottom-4">
                                     <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
                                         <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
@@ -410,6 +444,16 @@ export function ClassDashboardPage() {
                 />
             )}
 
+            {showNameSidebar && !isGuestMode && (
+                <StudentNameSidebar
+                    users={
+                        activeClass === 'all'
+                            ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
+                            : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
+                    }
+                    onQuickAward={handleQuickAward}
+                />
+            )}
         </div>
     );
 }

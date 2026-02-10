@@ -1,8 +1,8 @@
 -- Create table for storing placed map elements in regions
 CREATE TABLE IF NOT EXISTS region_map_elements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    region_id UUID NOT NULL REFERENCES regions(id) ON DELETE CASCADE,
-    asset_id UUID NOT NULL REFERENCES city_style_assets(id) ON DELETE CASCADE,
+    region_id UUID NOT NULL REFERENCES public.regions(id) ON DELETE CASCADE,
+    asset_id UUID NOT NULL REFERENCES public.city_style_assets(id) ON DELETE CASCADE,
     x INTEGER NOT NULL,
     y INTEGER NOT NULL,
     z_index INTEGER DEFAULT 0,
@@ -23,7 +23,7 @@ CREATE POLICY "Public read access for map elements" ON region_map_elements
 
 DROP POLICY IF EXISTS "Admin write access for map elements" ON region_map_elements;
 CREATE POLICY "Admin write access for map elements" ON region_map_elements
-    FOR ALL USING (auth.role() = 'service_role' OR auth.uid() IN (SELECT id FROM user_profiles WHERE role = 'admin'));
+    FOR ALL USING (auth.role() = 'service_role' OR auth.uid() IN (SELECT id FROM users WHERE role = 'admin'));
 
 -- Update city_asset_type check constraint to include map_element
 DO $$

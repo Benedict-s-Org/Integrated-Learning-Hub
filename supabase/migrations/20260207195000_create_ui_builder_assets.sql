@@ -17,17 +17,17 @@ ALTER TABLE public.ui_builder_assets ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins can view UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can view UI assets" ON public.ui_builder_assets
     FOR SELECT TO authenticated
-    USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));
+    USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
 DROP POLICY IF EXISTS "Admins can insert UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can insert UI assets" ON public.ui_builder_assets
     FOR INSERT TO authenticated
-    WITH CHECK (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));
+    WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
 DROP POLICY IF EXISTS "Admins can delete UI assets" ON public.ui_builder_assets;
 CREATE POLICY "Admins can delete UI assets" ON public.ui_builder_assets
     FOR DELETE TO authenticated
-    USING (EXISTS (SELECT 1 FROM public.user_profiles WHERE id = auth.uid() AND role = 'admin'));
+    USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
 -- Note: Storage bucket creation usually happens via Dashboard or Admin API, 
 -- but we can document the intent here. 

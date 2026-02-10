@@ -133,6 +133,13 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
     const handleAwardCoins = async (amount: number, reason: string) => {
         if (isSubmitting) return;
+
+        // Confirmation for Absent
+        if (reason && (reason.includes('缺席') || reason.toLowerCase().includes('absent'))) {
+            const confirmed = window.confirm(`Confirm moving ${student.display_name} to Absent? This will move them to 'Done' in morning duties.`);
+            if (!confirmed) return;
+        }
+
         setIsSubmitting(true);
         try {
             if (isGuestMode) {
@@ -329,7 +336,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                     <span className="text-[9px] font-black text-slate-700 block w-full truncate uppercase tracking-tighter mb-0.5">
                                         {item.title}
                                     </span>
-                                    {item.coins === 0 ? '-0' : item.coins}
+                                    {item.coins > 0 ? `+${item.coins}` : item.coins}
                                 </button>
                             ))}
                         </div>
