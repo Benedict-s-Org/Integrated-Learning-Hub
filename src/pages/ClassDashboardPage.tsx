@@ -134,7 +134,9 @@ export function ClassDashboardPage() {
                     seat_number: u.seat_number || null,
                     email: u.email || '',
                     created_at: u.created_at || new Date().toISOString(),
-                    is_admin: u.role === 'admin'
+                    is_admin: u.role === 'admin',
+                    morning_status: roomDataMap.get(u.id)?.morning_status,
+                    last_morning_update: roomDataMap.get(u.id)?.last_morning_update
                 }));
             }
 
