@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star, AlertTriangle } from 'lucide-react';
+import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star, AlertTriangle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
@@ -37,6 +37,10 @@ export function QuickRewardPage() {
     const [error, setError] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    // Custom amount state
+    const [isCustomMode, setIsCustomMode] = useState(false);
+    const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
@@ -165,6 +169,10 @@ export function QuickRewardPage() {
 
     const handleRewardClick = (item: ClassReward) => {
         if (awarding) return;
+
+        // In custom mode, clicking the item itself does nothing unless it's a special reward
+        // The confirm button handles awarding for custom amounts
+        if (isCustomMode) return;
 
         // Robust title matching for "完成班務（欠功課）"
         const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
@@ -317,10 +325,19 @@ export function QuickRewardPage() {
             )}
 
             <div className="w-full max-w-md bg-white rounded-3xl shadow-lg p-6 text-center mt-4 border border-gray-100">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-md">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-md relative group">
                     <span className="text-3xl font-bold text-white">
                         {(student?.display_name || student?.username)?.charAt(0).toUpperCase()}
                     </span>
+                    <button
+                        onClick={() => setIsCustomMode(!isCustomMode)}
+                        className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center transition-all scale-100 active:scale-90
+                            ${isCustomMode ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 hover:text-orange-500'}
+                        `}
+                        title="Toggle Custom Reward Amounts"
+                    >
+                        <Plus size={16} strokeWidth={3} />
+                    </button>
                 </div>
                 <h1 className="text-xl font-black text-gray-800 mb-1">{student?.display_name || student?.username}</h1>
                 <div className="flex justify-center items-center gap-2">
@@ -367,9 +384,36 @@ export function QuickRewardPage() {
                                     {React.createElement(REWARD_ICON_MAP[reward.icon] || Star, { size: 24, strokeWidth: 2.5 })}
                                 </div>
                                 <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{reward.title}</span>
-                                <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-green-600 bg-green-50">
-                                    {reward.coins > 0 ? `+${reward.coins}` : reward.coins}
+                                <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                                    <div className="text-[10px] font-black px-1.5 py-0.5 rounded-md text-green-600 bg-green-50">
+                                        {reward.coins > 0 ? `+${reward.coins}` : reward.coins}
+                                    </div>
                                 </div>
+
+                                {isCustomMode && (
+                                    <div className="mt-2 flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                                        <input
+                                            type="number"
+                                            value={customValues[reward.id] ?? reward.coins}
+                                            onChange={(e) => setCustomValues({
+                                                ...customValues,
+                                                [reward.id]: e.target.value
+                                            })}
+                                            className="flex-1 min-w-0 px-2 py-1 text-xs border rounded-lg text-center font-bold focus:ring-1 focus:ring-orange-300 outline-none"
+                                            onClick={e => e.stopPropagation()}
+                                        />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const amount = parseInt(customValues[reward.id]);
+                                                handleAward(isNaN(amount) ? reward.coins : amount, reward.title);
+                                            }}
+                                            className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+                                        >
+                                            <Check size={14} strokeWidth={3} />
+                                        </button>
+                                    </div>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -398,9 +442,36 @@ export function QuickRewardPage() {
                                         {React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 24, strokeWidth: 2.5 })}
                                     </div>
                                     <span className="font-bold text-gray-700 text-xs leading-tight text-center truncate w-full px-1">{item.title}</span>
-                                    <div className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-md text-red-600 bg-red-50">
-                                        {item.coins === 0 ? '-0' : item.coins}
+                                    <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                                        <div className="text-[10px] font-black px-1.5 py-0.5 rounded-md text-red-600 bg-red-50">
+                                            {item.coins === 0 ? '-0' : item.coins}
+                                        </div>
                                     </div>
+
+                                    {isCustomMode && (
+                                        <div className="mt-2 flex items-center gap-1 w-full" onClick={e => e.stopPropagation()}>
+                                            <input
+                                                type="number"
+                                                value={customValues[item.id] ?? item.coins}
+                                                onChange={(e) => setCustomValues({
+                                                    ...customValues,
+                                                    [item.id]: e.target.value
+                                                })}
+                                                className="flex-1 min-w-0 px-2 py-1 text-xs border rounded-lg text-center font-bold focus:ring-1 focus:ring-red-300 outline-none"
+                                                onClick={e => e.stopPropagation()}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const amount = parseInt(customValues[item.id]);
+                                                    handleAward(isNaN(amount) ? item.coins : amount, item.title);
+                                                }}
+                                                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+                                            >
+                                                <Check size={14} strokeWidth={3} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
