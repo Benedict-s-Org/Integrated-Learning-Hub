@@ -162,6 +162,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                 if (error) throw error;
 
                 playSuccessSound();
+                onUpdateCoins(); // Refresh dashboard to show immediate status update
                 if (onSuccess) onSuccess();
             } else {
                 const { data: { user } } = await supabase.auth.getUser();

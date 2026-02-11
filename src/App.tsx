@@ -60,7 +60,7 @@ import { FurnitureEditor } from './components/editor/FurnitureEditor';
 import { AssetUploadCenter } from './components/ui-builder/AssetUploadCenter';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { TransformPanel } from './components/TransformPanel';
-import { X } from 'lucide-react';
+import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -98,6 +98,7 @@ type AppState =
   | { page: 'classDashboard' }
   | { page: 'quickReward'; qrToken: string }
   | { page: 'scanner' }
+  | { page: 'phonics'; section: 'wall' | 'blending' | 'quiz' | 'builder' }
   | { page: 'notionHub' };
 
 function AppContent() {
@@ -353,9 +354,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics')) {
       setShowLoginModal(true);
       return;
     }
@@ -428,6 +429,8 @@ function AppContent() {
       setAppState({ page: 'scanner' });
     } else if (page === 'notionHub') {
       setAppState({ page: 'notionHub' });
+    } else if (page === 'phonics') {
+      setAppState({ page: 'phonics', section: 'wall' });
     }
   };
 
@@ -881,6 +884,49 @@ function AppContent() {
         return <QRScannerPage />;
       case 'notionHub':
         return <NotionHub />;
+      case 'phonics':
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100 font-fredoka">
+              <div className="max-w-7xl mx-auto px-4 py-4">
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl p-2 shadow-sm mb-6 flex flex-wrap gap-2">
+                  {[
+                    { id: 'wall', label: 'Sound Wall', icon: Volume2 },
+                    { id: 'blending', label: 'Blending Board', icon: Layers },
+                    { id: 'quiz', label: 'Quiz & Games', icon: Gamepad2 },
+                    { id: 'builder', label: 'Word Builder', icon: Hammer },
+                  ].map((tab) => {
+                    const isActive = appState.section === tab.id;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setAppState({ page: 'phonics', section: tab.id as any })}
+                        className={`
+                          flex items-center gap-2 px-4 py-3 rounded-xl transition-all duration-200
+                          font-medium text-sm sm:text-base flex-1 sm:flex-none justify-center
+                          ${isActive
+                            ? 'bg-amber-500 text-white shadow-md transform scale-105'
+                            : 'text-amber-700 hover:bg-amber-100'
+                          }
+                        `}
+                      >
+                        <Icon className={`w-5 h-5 ${isActive ? 'animate-bounce' : ''}`} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  {appState.section === 'wall' && <PhonicsSoundWall />}
+                  {appState.section === 'blending' && <BlendingBoard />}
+                  {appState.section === 'quiz' && <PhonicsQuiz />}
+                  {appState.section === 'builder' && <WordBuilder />}
+                </div>
+              </div>
+            </div>
+          </Suspense>
+        );
     }
   };
 
@@ -902,6 +948,9 @@ function AppContent() {
     }
     if (appState.page === 'learningHub') {
       return 'learningHub';
+    }
+    if (appState.page === 'phonics') {
+      return 'phonics';
     }
     if (appState.page === 'spacedRepetition') {
       return 'spacedRepetition';
@@ -1170,7 +1219,11 @@ const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m =>
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
 const AdminCityEditorPage = lazy(() => import('./pages/AdminCityEditorPage.tsx'));
 const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
+const PhonicsLayout = lazy(() => import('./components/phonics/PhonicsLayout.tsx').then(m => ({ default: m.PhonicsLayout })));
 const PhonicsSoundWall = lazy(() => import('./pages/PhonicsSoundWall.tsx').then(m => ({ default: m.PhonicsSoundWall })));
+const BlendingBoard = lazy(() => import('./components/phonics/BlendingBoard.tsx').then(m => ({ default: m.BlendingBoard })));
+const PhonicsQuiz = lazy(() => import('./components/phonics/PhonicsQuiz.tsx').then(m => ({ default: m.PhonicsQuiz })));
+const WordBuilder = lazy(() => import('./components/phonics/WordBuilder.tsx').then(m => ({ default: m.WordBuilder })));
 
 function PageLoader() {
   return (
@@ -1254,10 +1307,16 @@ function AppRoutes() {
         path="/phonics"
         element={
           <Suspense fallback={<PageLoader />}>
-            <PhonicsSoundWall />
+            <PhonicsLayout />
           </Suspense>
         }
-      />
+      >
+        <Route index element={<PhonicsSoundWall />} />
+        <Route path="wall" element={<PhonicsSoundWall />} />
+        <Route path="blending" element={<BlendingBoard />} />
+        <Route path="quiz" element={<PhonicsQuiz />} />
+        <Route path="builder" element={<WordBuilder />} />
+      </Route>
 
       {/* Legacy app logic for all other routes */}
       <Route path="*" element={<AppProviderWrapper />} />

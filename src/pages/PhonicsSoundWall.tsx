@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowUp, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Volume2, VolumeX, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface PhonicsSound {
@@ -8,15 +7,15 @@ interface PhonicsSound {
   sound_code: string;
   display_name: string;
   audio_url: string;
-  category: string;
-  sort_order: number;
+  category: string | null;
+  sort_order: number | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  vowel: "母音 Vowels",
-  consonant: "子音 Consonants",
-  digraph: "雙字母 Digraphs",
-  blend: "混合音 Blends",
+  vowel: "Vowels",
+  consonant: "Consonants",
+  digraph: "Digraphs",
+  blend: "Blends",
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -35,7 +34,7 @@ const SoundCard = ({
   isPlaying: boolean;
   onPlay: () => void;
 }) => {
-  const colorClass = CATEGORY_COLORS[sound.category] || "from-gray-400 to-gray-500";
+  const colorClass = CATEGORY_COLORS[sound.category || "other"] || "from-gray-400 to-gray-500";
 
   return (
     <button
@@ -70,7 +69,6 @@ const SoundCard = ({
 };
 
 export const PhonicsSoundWall = () => {
-  const navigate = useNavigate();
   const [sounds, setSounds] = useState<PhonicsSound[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +87,7 @@ export const PhonicsSoundWall = () => {
         setSounds(data || []);
       } catch (err) {
         console.error("Error fetching phonics sounds:", err);
-        setError("無法載入音檔資料");
+        setError("Unable to load phonics data");
       } finally {
         setLoading(false);
       }
@@ -159,30 +157,15 @@ export const PhonicsSoundWall = () => {
   const orderedCategories = categoryOrder.filter((cat) => groupedSounds[cat]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-full font-medium hover:bg-amber-600 transition-colors shadow-md"
-          >
-            <ArrowUp className="w-4 h-4" />
-            <span>返回房間</span>
-          </button>
-          <h1 className="text-xl sm:text-2xl font-bold text-amber-800">
-            🔤 Phonics Sound Wall
-          </h1>
-          <div className="w-24" /> {/* Spacer for centering */}
-        </div>
-      </header>
+    <div className="min-h-screen">
+      {/* Header removed - handled by layout */}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
         {loading && (
           <div className="flex items-center justify-center min-h-[50vh]">
             <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-            <span className="ml-2 text-amber-700">載入中...</span>
+            <span className="ml-2 text-amber-700">Loading...</span>
           </div>
         )}
 
@@ -193,16 +176,16 @@ export const PhonicsSoundWall = () => {
               onClick={() => window.location.reload()}
               className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
             >
-              重試
+              Retry
             </button>
           </div>
         )}
 
         {!loading && !error && sounds.length === 0 && (
           <div className="text-center text-amber-600 py-12">
-            <p className="text-lg">尚無音檔資料</p>
+            <p className="text-lg">No sounds available</p>
             <p className="text-sm mt-2 opacity-75">
-              請聯繫管理員上傳 phonics 音檔
+              Please contact an admin to upload phonics sounds.
             </p>
           </div>
         )}

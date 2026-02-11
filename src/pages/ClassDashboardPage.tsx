@@ -9,6 +9,8 @@ import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
+import { AvatarConfig } from '@/components/avatar/avatarParts';
+import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 
 interface UserWithCoins {
     id: string;
@@ -24,6 +26,7 @@ interface UserWithCoins {
     is_admin: boolean;
     morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
+    avatar_config?: AvatarConfig;
 }
 
 export function ClassDashboardPage() {
@@ -53,11 +56,12 @@ export function ClassDashboardPage() {
 
     // Modals State
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
+    const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            let usersData = [];
+            let usersData: any[] = [];
 
             if (isGuestMode && guestToken) {
                 const { data: verifyData, error: verifyError } = await supabase.functions.invoke('public-access/verify', {
@@ -87,6 +91,54 @@ export function ClassDashboardPage() {
                 });
                 if (authError) throw authError;
                 usersData = authData.users;
+
+                // Fetch avatar configs
+                const userIds: string[] = usersData?.map((u: any) => u.id) || [];
+                const { data: avatarData } = await supabase
+                    .from('user_avatar_config' as any)
+                    .select('user_id, config')
+                    .in('user_id', userIds);
+
+                const avatarMap = new Map((avatarData as any[])?.map(a => [a.user_id, a.config]) || []);
+
+                // If user is logged in, check their morning status for today
+                let morningStatuses: Record<string, any> = {};
+                if (userIds.length > 0) {
+                    const { data: roomData } = await supabase
+                        .from('user_room_data')
+                        .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update')
+                        .in('user_id', userIds);
+
+                    if (roomData) {
+                        (roomData as any[])?.forEach(d => {
+                            morningStatuses[d.user_id] = d;
+                        });
+                    }
+                }
+
+                usersData = (usersData || []).map((u: any) => {
+                    const roomInfo = morningStatuses[u.id];
+                    const dailyCounts = roomInfo?.daily_counts as any;
+                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+                    const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
+
+                    return {
+                        id: u.id,
+                        display_name: u.display_name || u.user_metadata?.display_name || u.email,
+                        avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
+                        coins: roomInfo?.coins || 0,
+                        virtual_coins: roomInfo?.virtual_coins || 0,
+                        daily_real_earned: dailyRealEarned,
+                        class: u.class || u.user_metadata?.class || 'Unassigned',
+                        seat_number: u.seat_number || null,
+                        email: u.email || '',
+                        created_at: u.created_at || new Date().toISOString(),
+                        is_admin: u.role === 'admin',
+                        morning_status: roomInfo?.morning_status,
+                        last_morning_update: roomInfo?.last_morning_update,
+                        avatar_config: avatarMap.get(u.id) as AvatarConfig | undefined
+                    };
+                });
             }
 
             let finalUsers: UserWithCoins[] = [];
@@ -109,45 +161,7 @@ export function ClassDashboardPage() {
                     };
                 });
             } else {
-                const { data: roomData, error: roomError } = await supabase
-                    .from('user_room_data')
-                    .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update') as any;
-
-                if (roomError) console.warn('Error fetching room data:', roomError);
-                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
-                const roomDataMap = new Map<string, {
-                    coins: number;
-                    virtual_coins: number;
-                    daily_real_earned: number;
-                    morning_status?: 'todo' | 'review' | 'completed' | 'absent';
-                    last_morning_update?: string;
-                }>((roomData || []).map((r: any) => {
-                    const dailyCounts = r.daily_counts as any;
-                    const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
-                    return [r.user_id, {
-                        coins: r.coins,
-                        virtual_coins: r.virtual_coins,
-                        daily_real_earned: dailyRealEarned,
-                        morning_status: r.morning_status,
-                        last_morning_update: r.last_morning_update
-                    }];
-                }));
-
-                finalUsers = usersData.map((u: any) => ({
-                    id: u.id,
-                    display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                    avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                    coins: roomDataMap.get(u.id)?.coins || 0,
-                    virtual_coins: roomDataMap.get(u.id)?.virtual_coins || 0,
-                    daily_real_earned: roomDataMap.get(u.id)?.daily_real_earned || 0,
-                    class: u.class || u.user_metadata?.class || 'Unassigned',
-                    seat_number: u.seat_number || null,
-                    email: u.email || '',
-                    created_at: u.created_at || new Date().toISOString(),
-                    is_admin: u.role === 'admin',
-                    morning_status: roomDataMap.get(u.id)?.morning_status,
-                    last_morning_update: roomDataMap.get(u.id)?.last_morning_update
-                }));
+                finalUsers = usersData as UserWithCoins[];
             }
 
             const grouped = finalUsers.reduce((acc, user) => {
@@ -290,7 +304,7 @@ export function ClassDashboardPage() {
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <h1 className="text-xl md:text-3xl font-bold text-slate-900">
+                        <h1 className="text-xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
                             {isGuestMode ? 'Class View (Guest)' : 'Class Dashboard'}
                         </h1>
                         <p className="text-[10px] md:text-base text-slate-500">
@@ -448,6 +462,7 @@ export function ClassDashboardPage() {
                 onUpdateCoins={fetchUsers}
                 isGuestMode={isGuestMode}
                 guestToken={guestToken || undefined}
+                onCustomizeAvatar={() => setIsAvatarModalOpen(true)}
             />
 
             {
@@ -470,6 +485,15 @@ export function ClassDashboardPage() {
                     onQuickAward={handleQuickAward}
                 />
             )}
+            <AvatarCustomizationModal
+                isOpen={isAvatarModalOpen}
+                onClose={() => setIsAvatarModalOpen(false)}
+                userId={currentUser?.id}
+                onConfigSave={() => {
+                    // Refresh users to update avatar
+                    fetchUsers();
+                }}
+            />
         </div>
     );
 }

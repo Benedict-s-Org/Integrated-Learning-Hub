@@ -20,6 +20,8 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { AvatarRenderer } from '../avatar/AvatarRenderer';
+import { AvatarConfig } from '../avatar/avatarParts';
 
 interface UserWithCoins {
     id: string;
@@ -33,6 +35,7 @@ interface UserWithCoins {
     created_at: string;
     is_admin: boolean;
     class_name?: string | null;
+    avatar_config?: AvatarConfig;
 }
 
 interface ClassDistributorProps {
@@ -120,10 +123,14 @@ function SortableUserItem({ user, isSelected, index, total, isRearranging, onTog
                 {/* Avatar with Click Handler */}
                 <div
                     onClick={onClick}
-                    className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden shadow-inner mt-2 cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto"
+                    className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden shadow-inner mt-2 cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto flex items-center justify-center p-1"
                 >
-                    {user.avatar_url ? (
-                        <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover" />
+                    {user.avatar_config ? (
+                        <div className="w-full h-full transform scale-125 translate-y-2">
+                            <AvatarRenderer config={user.avatar_config} size="100%" showBackground={false} />
+                        </div>
+                    ) : user.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover rounded-xl" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300">
                             <User size={40} />

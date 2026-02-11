@@ -84,14 +84,7 @@ Deno.serve(async (req) => {
       // Fetch Users
       let query = supabase
         .from("users")
-        .select(`
-          id, username, role, created_at, display_name, class,
-          user_room_data (
-            morning_status,
-            last_morning_update,
-            coins
-          )
-        `)
+        .select("id, username, role, created_at, display_name, class")
         .order("created_at", { ascending: false });
 
       if (link.target_class) {
@@ -106,18 +99,21 @@ Deno.serve(async (req) => {
       const { data: profiles } = await supabase.from("user_profiles").select("id, seat_number, avatar_url");
       const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-      // Fetch Coins (Room Data)
-      const { data: roomData } = await supabase.from("user_room_data").select("user_id, coins");
-      const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r.coins]));
+      // Fetch Room Data (Coins and Morning Duties)
+      const { data: roomData } = await supabase.from("user_room_data").select("user_id, coins, morning_status, last_morning_update");
+      const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r]));
 
       // Merge
       const mergedUsers = users.map((u: any) => {
         const profile: any = profileMap.get(u.id) || {};
+        const room: any = roomMap.get(u.id) || {};
         return {
           ...u,
           seat_number: profile.seat_number || null,
           avatar_url: profile.avatar_url || null,
-          coins: roomMap.get(u.id) || 0
+          coins: room.coins || 0,
+          morning_status: room.morning_status || 'todo',
+          last_morning_update: room.last_morning_update || null
         };
       });
 
@@ -145,6 +141,33 @@ Deno.serve(async (req) => {
       const { error } = await supabase.from("pending_rewards").insert(submissions);
 
       if (error) throw error;
+
+      // --- IMMEDIATE STATUS UPDATE LOGIC ---
+      // If the reason matches a morning duty, update the status immediately even if coins are pending.
+      let newMorningStatus: string | null = null;
+      if (reason === '完成班務（交齊功課）') {
+        newMorningStatus = 'completed';
+      } else if (reason === '完成班務（欠功課）') {
+        newMorningStatus = 'review';
+      } else if (reason === '完成班務（寫手冊）') {
+        newMorningStatus = 'completed';
+      } else if (reason && (reason.includes('缺席') || reason.toLowerCase().includes('absent'))) {
+        newMorningStatus = 'absent';
+      }
+
+      if (newMorningStatus) {
+        const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+
+        await supabase
+          .from("user_room_data")
+          .update({
+            morning_status: newMorningStatus,
+            last_morning_update: todayDateStr,
+            updated_at: new Date().toISOString()
+          })
+          .in("user_id", targetUserIds);
+      }
+      // --------------------------------------
 
       return new Response(JSON.stringify({ success: true, count: submissions.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }

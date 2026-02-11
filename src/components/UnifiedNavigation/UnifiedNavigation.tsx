@@ -44,7 +44,7 @@ export type PageType =
     | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
     | 'proofreading' | 'spelling' | 'progress' | 'assignments'
     | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub';
+    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;
@@ -194,6 +194,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                         label="Notion Hub"
                         isActive={currentPage === 'notionHub'}
                         onClick={() => onPageChange('notionHub')}
+                    />
+                    <NavItem
+                        icon={Users}
+                        label="Phonics Sound Wall"
+                        isActive={currentPage === 'phonics'}
+                        onClick={() => onPageChange('phonics')}
                     />
                 </NavSection>
 

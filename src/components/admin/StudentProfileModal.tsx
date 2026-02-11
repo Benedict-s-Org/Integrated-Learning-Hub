@@ -3,6 +3,9 @@ import { X, User as UserIcon, Award, Activity, Settings, TrendingUp, Bell } from
 import { StudentOverview } from './tabs/StudentOverview';
 import { StudentProgress } from './tabs/StudentProgress';
 import { StudentHistory } from './tabs/StudentHistory';
+import { AvatarRenderer } from '../avatar/AvatarRenderer';
+import { AvatarConfig } from '../avatar/avatarParts';
+import { Edit2 } from 'lucide-react';
 
 interface UserWithCoins {
     id: string;
@@ -12,6 +15,7 @@ interface UserWithCoins {
     virtual_coins?: number;
     daily_real_earned?: number;
     class?: string | null;
+    avatar_config?: AvatarConfig;
 }
 
 interface StudentProfileModalProps {
@@ -21,6 +25,7 @@ interface StudentProfileModalProps {
     onUpdateCoins: () => void;
     isGuestMode?: boolean;
     guestToken?: string;
+    onCustomizeAvatar?: () => void;
 }
 
 type TabType = 'overview' | 'progress' | 'notifications' | 'settings';
@@ -31,7 +36,8 @@ export function StudentProfileModal({
     student,
     onUpdateCoins,
     isGuestMode = false,
-    guestToken
+    guestToken,
+    onCustomizeAvatar
 }: StudentProfileModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [isClosing, setIsClosing] = useState(false);
@@ -75,8 +81,12 @@ export function StudentProfileModal({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="relative">
-                                <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100">
-                                    {student.avatar_url ? (
+                                <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100 flex items-center justify-center p-0.5">
+                                    {student.avatar_config ? (
+                                        <div className="w-full h-full transform scale-125 translate-y-1">
+                                            <AvatarRenderer config={student.avatar_config} size="100%" showBackground={false} />
+                                        </div>
+                                    ) : student.avatar_url ? (
                                         <img src={student.avatar_url} alt={student.display_name || ''} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -155,8 +165,23 @@ export function StudentProfileModal({
                         <StudentHistory studentId={student.id} />
                     )}
                     {activeTab === 'settings' && (
-                        <div className="p-8 text-center text-slate-400 font-medium italic">
-                            Individual settings coming soon...
+                        <div className="flex flex-col items-center justify-center py-12 px-4 gap-6">
+                            <div className="text-center space-y-2">
+                                <h4 className="text-lg font-bold text-slate-800">Customize Your Appearance</h4>
+                                <p className="text-sm text-slate-500 max-w-xs">Change your avatar parts and colors to express your unique style!</p>
+                            </div>
+
+                            <button
+                                onClick={onCustomizeAvatar}
+                                className="flex items-center gap-3 px-8 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-3xl transition-all font-black shadow-sm border-4 border-amber-200 active:scale-95"
+                            >
+                                <Edit2 size={24} className="text-amber-600" />
+                                <span className="uppercase tracking-wider">Customize Look</span>
+                            </button>
+
+                            <div className="pt-8 text-slate-300 font-bold uppercase tracking-widest text-[10px] animate-pulse">
+                                MORE SETTINGS COMING SOON
+                            </div>
                         </div>
                     )}
                 </div>
