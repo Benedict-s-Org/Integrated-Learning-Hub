@@ -78,7 +78,7 @@ const LearningHub: React.FC = () => {
             <div>
               <div className="flex items-center space-x-3 mb-2">
                 <Lightbulb size={32} className="text-amber-500" />
-                <h1 className="text-3xl font-bold text-gray-800">Integrated Learning Hub</h1>
+                <h1 className="text-3xl font-bold text-gray-800">Mr Tsang's Learning Hub</h1>
               </div>
               <p className="text-gray-600">
                 Explore interactive learning activities and expand your knowledge

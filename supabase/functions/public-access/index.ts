@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
       // Fetch Room Data (Coins and Morning Duties)
-      const { data: roomData } = await supabase.from("user_room_data").select("user_id, coins, morning_status, last_morning_update");
+      const { data: roomData } = await supabase.from("user_room_data").select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update");
       const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r]));
 
       // Merge
@@ -112,6 +112,8 @@ Deno.serve(async (req) => {
           seat_number: profile.seat_number || null,
           avatar_url: profile.avatar_url || null,
           coins: room.coins || 0,
+          virtual_coins: room.virtual_coins || 0,
+          daily_counts: room.daily_counts || {},
           morning_status: room.morning_status || 'todo',
           last_morning_update: room.last_morning_update || null
         };

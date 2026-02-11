@@ -25,7 +25,7 @@ export const DEFAULT_APP_LAYOUT: AppLayoutConfig = {
                         type: 'text',
                         order: 0,
                         props: {
-                            content: 'ANTIGRAVITY',
+                            content: "MR TSANG'S",
                             fontSize: 20,
                             fontWeight: 700,
                             color: 'hsl(var(--primary))',

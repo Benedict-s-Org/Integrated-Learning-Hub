@@ -145,19 +145,24 @@ export function ClassDashboardPage() {
 
             if (isGuestMode) {
                 finalUsers = usersData.map((u: any) => {
-                    const roomData = u.user_room_data?.[0] || {};
+                    const dailyCounts = u.daily_counts || {};
+                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+                    const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
+
                     return {
                         id: u.id,
                         display_name: u.display_name || u.user_metadata?.display_name || u.email,
                         avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                        coins: roomData.coins || 0,
+                        coins: u.coins || 0,
+                        virtual_coins: u.virtual_coins || 0,
+                        daily_real_earned: dailyRealEarned,
                         class: u.class || u.user_metadata?.class || 'Unassigned',
                         seat_number: u.seat_number || null,
                         email: u.email || '',
                         created_at: u.created_at || new Date().toISOString(),
                         is_admin: u.role === 'admin',
-                        morning_status: roomData.morning_status,
-                        last_morning_update: roomData.last_morning_update
+                        morning_status: u.morning_status || 'todo',
+                        last_morning_update: u.last_morning_update
                     };
                 });
             } else {

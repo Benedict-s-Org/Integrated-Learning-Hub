@@ -121,7 +121,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                         </div>
                         <div>
                             <h1 className="text-lg font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
-                                Memorize
+                                Mr Tsang's
                             </h1>
                             <p className="text-xs text-gray-400">Learning Hub</p>
                         </div>
