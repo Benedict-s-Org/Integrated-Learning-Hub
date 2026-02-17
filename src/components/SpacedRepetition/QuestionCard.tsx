@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, Zap, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronRight, ChevronLeft, Clock } from 'lucide-react';
 import { SpacedRepetitionQuestion } from '../../types';
 
 interface QuestionCardProps {
@@ -25,6 +25,7 @@ export function QuestionCard({
   const [showFeedback, setShowFeedback] = useState(false);
   const [startTime] = useState(Date.now());
   const [responseTime, setResponseTime] = useState(0);
+  const [isImageExpanded, setIsImageExpanded] = useState(false);
 
   const handleSelectAnswer = (index: number) => {
     if (showFeedback) return;
@@ -63,7 +64,30 @@ export function QuestionCard({
             <h2 className="text-2xl font-bold text-gray-900 leading-relaxed">
               {question.question_text}
             </h2>
+            {question.image_url && (
+              <div className="mt-6">
+                <img
+                  src={question.image_url}
+                  alt="Question Attachment"
+                  className="rounded-lg max-h-64 object-contain border border-gray-200 cursor-zoom-in hover:shadow-md transition-shadow"
+                  onClick={() => setIsImageExpanded(true)}
+                />
+              </div>
+            )}
           </div>
+
+          {isImageExpanded && question.image_url && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 cursor-zoom-out"
+              onClick={() => setIsImageExpanded(false)}
+            >
+              <img
+                src={question.image_url}
+                alt="Question Attachment Fullscreen"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          )}
 
           <div className="space-y-3">
             {question.choices.map((choice, idx) => (
@@ -71,38 +95,35 @@ export function QuestionCard({
                 key={idx}
                 onClick={() => handleSelectAnswer(idx)}
                 disabled={showFeedback}
-                className={`w-full p-4 text-left border-2 rounded-lg transition-all duration-200 ${
-                  selectedIndex === idx
-                    ? isCorrect
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-red-500 bg-red-50'
-                    : showFeedback && idx === question.correct_answer_index
+                className={`w-full p-4 text-left border-2 rounded-lg transition-all duration-200 ${selectedIndex === idx
+                  ? isCorrect
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-red-500 bg-red-50'
+                  : showFeedback && idx === question.correct_answer_index
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="flex items-start gap-3">
                   <span
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${
-                      selectedIndex === idx
-                        ? isCorrect
-                          ? 'bg-green-500 text-white'
-                          : 'bg-red-500 text-white'
-                        : showFeedback && idx === question.correct_answer_index
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${selectedIndex === idx
+                      ? isCorrect
+                        ? 'bg-green-500 text-white'
+                        : 'bg-red-500 text-white'
+                      : showFeedback && idx === question.correct_answer_index
                         ? 'bg-green-500 text-white'
                         : 'bg-gray-200 text-gray-700'
-                    }`}
+                      }`}
                   >
                     {String.fromCharCode(65 + idx)}
                   </span>
                   <span
-                    className={`text-lg ${
-                      selectedIndex === idx
-                        ? isCorrect
-                          ? 'text-green-900 font-semibold'
-                          : 'text-red-900 font-semibold'
-                        : 'text-gray-700'
-                    }`}
+                    className={`text-lg ${selectedIndex === idx
+                      ? isCorrect
+                        ? 'text-green-900 font-semibold'
+                        : 'text-red-900 font-semibold'
+                      : 'text-gray-700'
+                      }`}
                   >
                     {choice}
                   </span>
@@ -113,16 +134,14 @@ export function QuestionCard({
 
           {showFeedback && (
             <div
-              className={`mt-6 p-4 rounded-lg ${
-                isCorrect
-                  ? 'bg-green-50 border border-green-200'
-                  : 'bg-red-50 border border-red-200'
-              }`}
+              className={`mt-6 p-4 rounded-lg ${isCorrect
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-red-50 border border-red-200'
+                }`}
             >
               <p
-                className={`font-semibold mb-2 ${
-                  isCorrect ? 'text-green-900' : 'text-red-900'
-                }`}
+                className={`font-semibold mb-2 ${isCorrect ? 'text-green-900' : 'text-red-900'
+                  }`}
               >
                 {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
               </p>
@@ -149,11 +168,10 @@ export function QuestionCard({
           <button
             onClick={onNext}
             disabled={!canGoNext}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-colors ${
-              canGoNext
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-700 cursor-not-allowed'
-            }`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-colors ${canGoNext
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-gray-300 text-gray-700 cursor-not-allowed'
+              }`}
           >
             {questionNumber === totalQuestions ? 'Finish' : 'Next'}
             <ChevronRight className="w-5 h-5" />

@@ -61,7 +61,37 @@ This workflow documents common errors encountered during development and best pr
 **Prevention**:
 - Ensure only one top-level Router exists in the application hierarchy.
 - If a sub-page or standalone component needs routing, verify it is not already wrapped in a `<Router>` by the main app.
-- Check browser console logs for errors like: `The above error occurred in the <Router> component`.
+### 7. Supabase Schema-Type Mismatches
+**Problem**: Auto-generated types in `src/integrations/supabase/types.ts` were out of sync with newly created tables/columns, causing persistent lint errors when using `supabase.from('table')`.
+
+**Prevention**:
+- When the schema is newer than the types, use double-casting: `((supabase as any).from('table')... as any)`
+- Always cast the final result to your app-specific interface: `const data = (res.data || []) as unknown as MyInterface[]`
+- Standardize on one field name (e.g., `question_text` vs `question`) across DB and UI to avoid mapping spaghetti.
+
+### 8. React Context Scoping Errors
+**Problem**: During refactoring, helper functions were moved outside the `Provider` component, causing them to lose access to local state (`useState` setters) and props (`userId`).
+
+**Prevention**:
+- Keep all logic that interacts with component state or props **inside** the component body.
+- If a function is moved out, pass all required state and setters as arguments.
+- Re-verify scope after any large code movement.
+
+### 9. Refactoring-Induced Syntax Bugs
+**Problem**: Large scale `multi_replace_file_content` calls or moving blocks of code often resulted in missing `try` blocks, misplaced `}` or `;`, and broken file structures.
+
+**Prevention**:
+- After moving large blocks, `view_file` the entire file to check for structural integrity.
+- Pay attention to lint errors like `Declaration or statement expected` or `'}' expected`.
+- Break large refactors into smaller, verifiable chunks.
+
+### 10. Lack of Async Feedback (Unresponsive UI)
+**Problem**: Heavy async operations (like importing 50 questions) had no loading state, leading to "unresponsive button" complaints.
+
+**Prevention**:
+- Every async primary action (Save, Delete, Import) **must** have an `isSaving` or `isLoading` state.
+- Disable buttons during these operations to prevent double-submissions.
+- Provide clear visual feedback (spinners, success toasts).
 
 ---
 
@@ -153,8 +183,10 @@ Before making changes, verify:
 
 - [ ] **Read the file** - View the exact lines you're editing
 - [ ] **Check imports** - Will new components need imports?
-- [ ] **Check types** - Does the change match expected types?
+- [ ] **Check types** - Does the change match expected types? (Use `as any` if schema is out of sync)
+- [ ] **Check scoping** - Are you moving functions outside their state/prop scope?
 - [ ] **Check dependencies** - Will removing code break other files?
+- [ ] **Loading States** - If adding an async action, did you add an `isLoading` state?
 - [ ] **Backup if needed** - Is this a critical file?
 
 ---

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Loader2, Image as ImageIcon, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { CityAssetType } from "@/types/city";
+import { ImageGenerationModal } from "../Shared/ImageGenerationModal";
 
 interface AssetUploaderProps {
     onUploadComplete?: (asset: any) => void;
@@ -17,6 +18,9 @@ export function AssetUploader({ onUploadComplete, defaultCategory = "map_element
     // Preview
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    // AI Modal
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -53,6 +57,22 @@ export function AssetUploader({ onUploadComplete, defaultCategory = "map_element
         // Create preview
         const objectUrl = URL.createObjectURL(file);
         setPreviewUrl(objectUrl);
+    };
+
+    const handleAIGenerated = async (url: string) => {
+        try {
+            // Fetch the image and convert to File
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const file = new File([blob], `ai-generated-${Date.now()}.png`, { type: "image/png" });
+
+            handleFileSelect(file);
+            // Pre-fill name if empty
+            if (!name) setName("AI Generated Asset");
+        } catch (error) {
+            console.error("Failed to process AI image:", error);
+            alert("Failed to process AI image");
+        }
     };
 
     const handleUpload = async () => {
@@ -141,10 +161,19 @@ export function AssetUploader({ onUploadComplete, defaultCategory = "map_element
                             <ImageIcon className="w-12 h-12 text-slate-500 mx-auto mb-3" />
                             <p className="text-slate-400 text-sm mb-2">Drag & drop image here</p>
                             <p className="text-slate-600 text-xs mb-4">Supports PNG, JPG, WEBP</p>
-                            <label className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm cursor-pointer transition-colors">
-                                Select File
-                                <input type="file" className="hidden" onChange={handleChange} accept="image/*" />
-                            </label>
+                            <div className="flex gap-2 justify-center">
+                                <label className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm cursor-pointer transition-colors">
+                                    Select File
+                                    <input type="file" className="hidden" onChange={handleChange} accept="image/*" />
+                                </label>
+                                <button
+                                    onClick={() => setIsAIModalOpen(true)}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    Generate AI
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -202,6 +231,13 @@ export function AssetUploader({ onUploadComplete, defaultCategory = "map_element
                     </div>
                 </div>
             </div>
+
+            <ImageGenerationModal
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                onImageSelected={handleAIGenerated}
+                initialPrompt={name || ""}
+            />
         </div>
     );
 }

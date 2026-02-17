@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, SpacedRepetitionAttempt, UserStreak, UserAchievement } from '../types';
+import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, UserStreak, UserAchievement } from '../types';
 import { supabase } from '../lib/supabase';
 import { calculateNextReview, getQualityRatingFromCorrectness, initializeSchedule, getAchievementUnlocked } from '../utils/spacedRepetitionAlgorithm';
 
@@ -18,6 +18,7 @@ interface SpacedRepetitionContextType {
   fetchSet: (setId: string) => Promise<void>;
   fetchCardsDueToday: () => Promise<SpacedRepetitionQuestion[]>;
   recordAttempt: (questionId: string, selectedIndex: number, responseTime: number) => Promise<boolean>;
+  getQuestionsForSet: (setId: string) => Promise<SpacedRepetitionQuestion[]>;
   getStreakData: () => UserStreak | null;
   getAchievements: () => UserAchievement[];
 }
@@ -51,14 +52,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
     try {
       const [setsRes, streakRes, achievementsRes] = await Promise.all([
-        supabase.from('spaced_repetition_sets').select('*').eq('user_id', userId),
-        supabase.from('user_streaks').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('user_achievements').select('*').eq('user_id', userId),
+        ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId),
+        ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
+        ((supabase as any).from('user_achievements').select('*') as any).eq('user_id', userId),
       ]);
 
-      setSets(setsRes.data || []);
-      setStreak(streakRes.data);
-      setAchievements(achievementsRes.data || []);
+      setSets((setsRes.data || []) as unknown as SpacedRepetitionSet[]);
+      setStreak(streakRes.data as unknown as UserStreak | null);
+      setAchievements((achievementsRes.data || []) as unknown as UserAchievement[]);
     } catch (error) {
       console.error('Failed to fetch spaced repetition data:', error);
     } finally {
@@ -70,23 +71,24 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return null;
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await ((supabase as any)
         .from('spaced_repetition_sets')
-        .insert([{
+        .insert({
           user_id: userId,
           title,
           description,
           difficulty,
           total_questions: 0,
           is_published: false,
-        }])
+        } as any) as any)
         .select()
         .single();
 
       if (error) throw error;
 
-      setSets([...sets, data]);
-      return data.id;
+      const newSet = data as unknown as SpacedRepetitionSet;
+      setSets([...sets, newSet]);
+      return newSet.id;
     } catch (error) {
       console.error('Failed to create set:', error);
       return null;
@@ -99,41 +101,43 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     try {
       const questionRecords = questionsData.map(q => ({
         set_id: setId,
-        question_text: q.question,
+        question_text: q.question_text || q.question,
         choices: q.choices,
         correct_answer_index: q.correct_answer_index,
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         tags: q.tags || [],
-      }));
+      })) as any[];
 
-      const { data: insertedQuestions, error: insertError } = await supabase
+      const { data: insertedQuestions, error: insertError } = await ((supabase as any)
         .from('spaced_repetition_questions')
-        .insert(questionRecords)
+        .insert(questionRecords) as any)
         .select();
 
       if (insertError) throw insertError;
 
-      const scheduleRecords = insertedQuestions.map(q => ({
+      const typedQuestions = (insertedQuestions || []) as unknown as SpacedRepetitionQuestion[];
+
+      const scheduleRecords = typedQuestions.map(q => ({
         ...initializeSchedule(q.id, userId),
         user_id: userId,
-      }));
+      })) as any[];
 
-      const { error: scheduleError } = await supabase
+      const { error: scheduleError } = await ((supabase as any)
         .from('spaced_repetition_schedules')
-        .insert(scheduleRecords);
+        .insert(scheduleRecords) as any);
 
       if (scheduleError) throw scheduleError;
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await ((supabase as any)
         .from('spaced_repetition_sets')
-        .update({ total_questions: questionsData.length })
+        .update({ total_questions: questionsData.length } as any) as any)
         .eq('id', setId);
 
       if (updateError) throw updateError;
 
-      setQuestions(insertedQuestions);
-      setSchedules(scheduleRecords);
+      setQuestions(typedQuestions);
+      setSchedules(scheduleRecords as unknown as SpacedRepetitionSchedule[]);
       return true;
     } catch (error) {
       console.error('Failed to add questions:', error);
@@ -143,7 +147,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
   const deleteSet = async (setId: string) => {
     try {
-      await supabase.from('spaced_repetition_sets').delete().eq('id', setId);
+      await (supabase as any).from('spaced_repetition_sets').delete().eq('id', setId);
       setSets(sets.filter(s => s.id !== setId));
     } catch (error) {
       console.error('Failed to delete set:', error);
@@ -153,14 +157,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const fetchSet = async (setId: string) => {
     try {
       const [setRes, questionsRes, schedulesRes] = await Promise.all([
-        supabase.from('spaced_repetition_sets').select('*').eq('id', setId).single(),
-        supabase.from('spaced_repetition_questions').select('*').eq('set_id', setId),
-        supabase.from('spaced_repetition_schedules').select('*').eq('user_id', userId || '').eq('question_id', setId),
+        ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('id', setId).single(),
+        ((supabase as any).from('spaced_repetition_questions').select('*') as any).eq('set_id', setId),
+        ((supabase as any).from('spaced_repetition_schedules').select('*') as any).eq('user_id', userId || '').eq('question_id', setId),
       ]);
 
-      setCurrentSet(setRes.data);
-      setQuestions(questionsRes.data || []);
-      setSchedules(schedulesRes.data || []);
+      setCurrentSet(setRes.data as unknown as SpacedRepetitionSet | null);
+      setQuestions((questionsRes.data || []) as unknown as SpacedRepetitionQuestion[]);
+      setSchedules((schedulesRes.data || []) as unknown as SpacedRepetitionSchedule[]);
     } catch (error) {
       console.error('Failed to fetch set:', error);
     }
@@ -170,15 +174,16 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return [];
 
     try {
-      const { data: schedulesData, error } = await supabase
+      const { data: schedulesData, error } = await ((supabase as any)
         .from('spaced_repetition_schedules')
-        .select('*, spaced_repetition_questions(*)')
+        .select('*, spaced_repetition_questions(*)') as any)
         .eq('user_id', userId)
         .lte('next_review_date', new Date().toISOString());
 
       if (error) throw error;
 
-      return schedulesData?.map(s => s.spaced_repetition_questions).flat().filter(Boolean) || [];
+      const rawSchedules = (schedulesData || []) as any[];
+      return rawSchedules.map(s => s.spaced_repetition_questions).filter(Boolean) as unknown as SpacedRepetitionQuestion[];
     } catch (error) {
       console.error('Failed to fetch cards due today:', error);
       return [];
@@ -190,7 +195,16 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
     try {
       const schedule = schedules.find(s => s.question_id === questionId);
-      if (!schedule) return false;
+      let activeSchedule: SpacedRepetitionSchedule | null | undefined = schedule;
+      if (!activeSchedule) {
+        const { data } = await ((supabase as any)
+          .from('spaced_repetition_schedules')
+          .select('*') as any)
+          .eq('user_id', userId)
+          .eq('question_id', questionId)
+          .maybeSingle();
+        activeSchedule = data as unknown as SpacedRepetitionSchedule | null;
+      }
 
       const question = questions.find(q => q.id === questionId);
       if (!question) return false;
@@ -198,36 +212,35 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
       const isCorrect = selectedIndex === question.correct_answer_index;
       const qualityRating = getQualityRatingFromCorrectness(isCorrect, responseTime);
 
-      const { data: attemptData, error: attemptError } = await supabase
+      const { error: attemptError } = await ((supabase as any)
         .from('spaced_repetition_attempts')
-        .insert([{
+        .insert({
           user_id: userId,
           question_id: questionId,
           selected_answer_index: selectedIndex,
           is_correct: isCorrect,
           response_time_ms: responseTime,
           quality_rating: qualityRating,
-        }])
-        .select()
-        .single();
+        } as any) as any);
 
       if (attemptError) throw attemptError;
 
-      const nextReview = calculateNextReview(schedule, qualityRating);
+      if (activeSchedule) {
+        const nextReview = calculateNextReview(activeSchedule, qualityRating);
+        const { error: updateError } = await ((supabase as any)
+          .from('spaced_repetition_schedules')
+          .update({
+            ease_factor: nextReview.easeFactor,
+            interval_days: nextReview.interval,
+            repetitions: nextReview.repetitions,
+            next_review_date: nextReview.nextReviewDate.toISOString(),
+            last_reviewed_at: new Date().toISOString(),
+            last_quality_rating: qualityRating,
+          } as any) as any)
+          .eq('id', activeSchedule.id);
 
-      const { error: updateError } = await supabase
-        .from('spaced_repetition_schedules')
-        .update({
-          ease_factor: nextReview.easeFactor,
-          interval_days: nextReview.interval,
-          repetitions: nextReview.repetitions,
-          next_review_date: nextReview.nextReviewDate.toISOString(),
-          last_reviewed_at: new Date().toISOString(),
-          last_quality_rating: qualityRating,
-        })
-        .eq('id', schedule.id);
-
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
       updateStreakData(isCorrect);
       checkForAchievements();
@@ -236,6 +249,20 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     } catch (error) {
       console.error('Failed to record attempt:', error);
       return false;
+    }
+  };
+
+  const getQuestionsForSet = async (setId: string): Promise<SpacedRepetitionQuestion[]> => {
+    try {
+      const { data, error } = await ((supabase as any)
+        .from('spaced_repetition_questions')
+        .select('*') as any)
+        .eq('set_id', setId);
+      if (error) throw error;
+      return (data || []) as unknown as SpacedRepetitionQuestion[];
+    } catch (error) {
+      console.error('Failed to get questions for set:', error);
+      return [];
     }
   };
 
@@ -260,21 +287,21 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
       const longest = Math.max(currentStreak, streak?.longest_streak_days || 0);
 
-      const { data, error } = await supabase
+      const { data, error } = await ((supabase as any)
         .from('user_streaks')
-        .upsert([{
+        .upsert({
           user_id: userId,
           current_streak_days: currentStreak,
           longest_streak_days: longest,
           last_practice_date: today,
           total_cards_learned: (streak?.total_cards_learned || 0),
           total_cards_mastered: (streak?.total_cards_mastered || 0),
-        }], { onConflict: 'user_id' })
+        }, { onConflict: 'user_id' }) as any)
         .select()
         .single();
 
       if (!error && data) {
-        setStreak(data);
+        setStreak(data as unknown as UserStreak);
       }
     } catch (error) {
       console.error('Failed to update streak:', error);
@@ -284,38 +311,49 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const checkForAchievements = async () => {
     if (!userId || !streak) return;
 
-    const totalAttempts = await supabase
-      .from('spaced_repetition_attempts')
-      .select('id', { count: 'exact' })
-      .eq('user_id', userId)
-      .then(res => res.count || 0);
+    try {
+      const { count: totalAttempts, error: countError } = await ((supabase as any)
+        .from('spaced_repetition_attempts')
+        .select('id', { count: 'exact' }) as any)
+        .eq('user_id', userId);
 
-    const achievementType = getAchievementUnlocked(
-      streak.total_cards_mastered,
-      streak.current_streak_days,
-      totalAttempts
-    );
+      if (countError) {
+        console.error('Failed to count attempts:', countError);
+        return;
+      }
 
-    if (achievementType && !achievements.find(a => a.achievement_type === achievementType)) {
-      try {
-        const { data, error } = await supabase
+      const attemptsCount = totalAttempts || 0;
+
+      const achievementType = get_achievement_unlocked(attemptsCount);
+
+      if (achievementType && !achievements.find(a => a.achievement_type === achievementType)) {
+        const { data, error } = await ((supabase as any)
           .from('user_achievements')
-          .insert([{
+          .insert({
             user_id: userId,
             achievement_type: achievementType,
             achievement_name: achievementType,
             earned_at: new Date().toISOString(),
-          }])
+          } as any) as any)
           .select()
           .single();
 
-        if (!error) {
-          setAchievements([...achievements, data]);
+        if (!error && data) {
+          setAchievements([...achievements, data as unknown as UserAchievement]);
         }
-      } catch (error) {
-        console.error('Failed to create achievement:', error);
       }
+    } catch (error) {
+      console.error('Failed to check achievements:', error);
     }
+  };
+
+  const get_achievement_unlocked = (attempts: number) => {
+    if (!streak) return null;
+    return getAchievementUnlocked(
+      streak.total_cards_mastered,
+      streak.current_streak_days,
+      attempts
+    );
   };
 
   const getStreakData = () => streak;
@@ -337,6 +375,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         fetchSet,
         fetchCardsDueToday,
         recordAttempt,
+        getQuestionsForSet,
         getStreakData,
         getAchievements,
       }}

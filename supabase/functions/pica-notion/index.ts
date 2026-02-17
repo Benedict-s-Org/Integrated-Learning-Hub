@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
           "x-pica-connection-key": picaNotionConnectionKey,
           "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
           "Content-Type": "application/json",
-          "Notion-Version": "2025-09-03", 
+          "Notion-Version": "2025-09-03",
         },
         body: JSON.stringify({ page_size: 100 }),
       });
@@ -111,12 +111,12 @@ Deno.serve(async (req: Request) => {
       const requestUrl2 = `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`;
       const response2 = await fetch(requestUrl2, {
         method: "POST",
-        headers:  {
+        headers: {
           "x-pica-secret": picaSecretKey,
           "x-pica-connection-key": picaNotionConnectionKey,
           "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
           "Content-Type": "application/json",
-          "Notion-Version": "2025-09-03", 
+          "Notion-Version": "2025-09-03",
         },
         body: JSON.stringify({ page_size: 100 }),
       });
@@ -129,12 +129,12 @@ Deno.serve(async (req: Request) => {
       const response3 = await fetch(requestUrl3, {
         method: "POST",
         headers: {
-        "x-pica-secret": picaSecretKey,
-        "x-pica-connection-key": picaNotionConnectionKey,
-        "x-pica-action-id": dataSourceQueryAction?.key ||      "datasourcepages_query",
-        "Content-Type": "application/json",
-        "Notion-Version": "2025-09-03",  // 
-      },
+          "x-pica-secret": picaSecretKey,
+          "x-pica-connection-key": picaNotionConnectionKey,
+          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
+          "Content-Type": "application/json",
+          "Notion-Version": "2025-09-03",  // 
+        },
         body: JSON.stringify({ page_size: 100 }),
       });
       const text3 = await response3.text();
@@ -151,35 +151,35 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-         if (path.endsWith('list-activities')) {
-              const databaseId = 'a35db621-f94e-4a0b-9f53-6d895d6972d6'; // Your Database ID
+    if (path.endsWith('list-activities')) {
+      const databaseId = 'a35db621-f94e-4a0b-9f53-6d895d6972d6'; // Your Database ID
 
-              // 1. Fetch available actions to get the correct paths
-              const actionsResp = await fetch(
-                `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
-                { headers: { 'x-pica-secret': picaSecretKey } }
-              );
-              const actionsData = await actionsResp.json();
-      
-              // Find the actions we need
-              const retrieveDatabaseAction = actionsData.rows?.find((a: any) => 
+      // 1. Fetch available actions to get the correct paths
+      const actionsResp = await fetch(
+        `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
+        { headers: { 'x-pica-secret': picaSecretKey } }
+      );
+      const actionsData = await actionsResp.json();
+
+      // Find the actions we need
+      const retrieveDatabaseAction = actionsData.rows?.find((a: any) =>
         a.key?.includes('retrievedatabase')
       );
-              const queryDataSourceAction = actionsData.rows?.find((a: any) => 
-                a.key?.includes('querydatasourcepages')
-              );
+      const queryDataSourceAction = actionsData.rows?.find((a: any) =>
+        a.key?.includes('querydatasourcepages')
+      );
 
       // 2. FIRST: Retrieve the Database Metadata to find the Data Source ID
-              const dbResponse = await fetch(
-                `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}`,
-                {
-                  method: 'GET',
-                  headers: {
-                    'x-pica-secret': picaSecretKey,
-                    'x-pica-connection-key': picaNotionConnectionKey,
-                    'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2025-09-03',
+      const dbResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-pica-secret': picaSecretKey,
+            'x-pica-connection-key': picaNotionConnectionKey,
+            'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
+            'Content-Type': 'application/json',
+            'Notion-Version': '2025-09-03',
           },
         }
       );
@@ -188,8 +188,8 @@ Deno.serve(async (req: Request) => {
         const errorText = await dbResponse.text();
         console.error('Failed to retrieve database metadata:', errorText);
         return new Response(
-            JSON.stringify({ error: 'Failed to find database', details: errorText }),
-            { status: dbResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Failed to find database', details: errorText }),
+          { status: dbResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -199,9 +199,9 @@ Deno.serve(async (req: Request) => {
       const realDataSourceId = dbData.data_sources?.[0]?.id;
 
       if (!realDataSourceId) {
-         return new Response(
-            JSON.stringify({ error: 'Database has no data source', details: 'The 2025-09-03 API requires a valid data source.' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        return new Response(
+          JSON.stringify({ error: 'Database has no data source', details: 'The 2025-09-03 API requires a valid data source.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -218,8 +218,8 @@ Deno.serve(async (req: Request) => {
             'Notion-Version': '2025-09-03',
           },
           body: JSON.stringify({
-             // REMOVED THE STATUS FILTER to avoid the other error
-             page_size: 100, 
+            // REMOVED THE STATUS FILTER to avoid the other error
+            page_size: 100,
           }),
         }
       );
@@ -323,13 +323,13 @@ Deno.serve(async (req: Request) => {
         {
           method: "GET",
           headers: {
-          "x-pica-secret": picaSecretKey,
-          "x-pica-connection-key": picaNotionConnectionKey,
-          // CORRECT ACTION ID for "Retrieve a Page by ID"
-          "x-pica-action-id": "api::notion::v1::pages::get_one",
-          "Content-Type": "application/json",
-          "Notion-Version": "2025-09-03", 
-        },
+            "x-pica-secret": picaSecretKey,
+            "x-pica-connection-key": picaNotionConnectionKey,
+            // CORRECT ACTION ID for "Retrieve a Page by ID"
+            "x-pica-action-id": "api::notion::v1::pages::get_one",
+            "Content-Type": "application/json",
+            "Notion-Version": "2025-09-03",
+          },
         }
       );
 
@@ -403,6 +403,92 @@ Deno.serve(async (req: Request) => {
             questionsJson,
           },
         }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/query-mcq-database")) {
+      const { databaseId } = await req.json();
+
+      if (!databaseId) {
+        return new Response(
+          JSON.stringify({ error: "Database ID is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 1. Fetch available actions
+      const actionsResp = await fetch(
+        `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
+        { headers: { 'x-pica-secret': picaSecretKey } }
+      );
+      const actionsData = await actionsResp.json();
+
+      const retrieveDatabaseAction = actionsData.rows?.find((a: any) =>
+        a.key?.includes('retrievedatabase')
+      );
+      const queryDataSourceAction = actionsData.rows?.find((a: any) =>
+        a.key?.includes('querydatasourcepages')
+      );
+
+      // 2. Retrieve Database Metadata to find Data Source ID
+      const dbResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-pica-secret': picaSecretKey,
+            'x-pica-connection-key': picaNotionConnectionKey,
+            'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
+            'Content-Type': 'application/json',
+            'Notion-Version': '2025-09-03',
+          },
+        }
+      );
+
+      if (!dbResponse.ok) {
+        const errorText = await dbResponse.text();
+        return new Response(
+          JSON.stringify({ error: 'Failed to find database', details: errorText }),
+          { status: dbResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const dbData = await dbResponse.json();
+      const realDataSourceId = dbData.data_sources?.[0]?.id;
+
+      if (!realDataSourceId) {
+        return new Response(
+          JSON.stringify({ error: 'Database has no data source', details: 'The 2025-09-03 API requires a valid data source.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 3. Query the Data Source
+      const notionResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/data_sources/${realDataSourceId}/query`,
+        {
+          method: 'POST',
+          headers: {
+            'x-pica-secret': picaSecretKey,
+            'x-pica-connection-key': picaNotionConnectionKey,
+            'x-pica-action-id': queryDataSourceAction?.key || 'datasourcepagesquery',
+            'Content-Type': 'application/json',
+            'Notion-Version': '2025-09-03',
+          },
+          body: JSON.stringify({
+            page_size: 100,
+          }),
+        }
+      );
+
+      const notionData = await notionResponse.json();
+
+      return new Response(
+        JSON.stringify({ results: notionData.results }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

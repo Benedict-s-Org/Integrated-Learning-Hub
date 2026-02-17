@@ -218,6 +218,7 @@ export function ClassDashboardPage() {
                 });
 
                 if (error) throw error;
+                await fetchUsers(); // Refresh data immediately
                 playSuccessSound();
                 alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
             } else {

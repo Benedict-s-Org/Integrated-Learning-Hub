@@ -299,7 +299,8 @@ export interface SpacedRepetitionQuestion {
   id: string;
   set_id: string;
   question_text: string;
-  choices: string[];
+  image_url?: string | null;
+  choices: [string, string, string, string];
   correct_answer_index: number;
   explanation?: string;
   difficulty: 'easy' | 'medium' | 'hard';

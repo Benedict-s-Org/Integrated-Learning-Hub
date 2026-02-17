@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Upload, FileUp, FileJson, BookOpen, Sheet } from 'lucide-react';
+import { PenLine, FileUp, BookOpen } from 'lucide-react';
 
 interface ImportSourceSelectorProps {
-  onSourceSelect: (source: 'manual' | 'csv' | 'notion' | 'anki' | 'google') => void;
+  onSourceSelect: (source: 'manual' | 'file' | 'notion') => void;
 }
 
 export function ImportSourceSelector({ onSourceSelect }: ImportSourceSelectorProps) {
@@ -12,55 +12,75 @@ export function ImportSourceSelector({ onSourceSelect }: ImportSourceSelectorPro
     {
       id: 'manual',
       label: 'Create Manually',
-      icon: Upload,
-      description: 'Add questions one by one',
+      icon: PenLine,
+      description: 'Add questions one by one with full control over each question',
       color: 'blue',
+      gradient: 'from-blue-500 to-blue-600',
     },
     {
-      id: 'csv',
-      label: 'Import CSV',
-      icon: Sheet,
-      description: 'Upload a CSV file with your questions',
-      color: 'green',
+      id: 'file',
+      label: 'Import from File',
+      icon: FileUp,
+      description: 'Upload a CSV or Excel (.xlsx) file with your questions',
+      color: 'emerald',
+      gradient: 'from-emerald-500 to-emerald-600',
     },
     {
       id: 'notion',
       label: 'Import from Notion',
       icon: BookOpen,
-      description: 'Export your Notion database as JSON',
-      color: 'gray',
-    },
-    {
-      id: 'anki',
-      label: 'Import from Anki',
-      icon: FileJson,
-      description: 'Import your Anki deck JSON',
-      color: 'purple',
-    },
-    {
-      id: 'google',
-      label: 'Google Sheets',
-      icon: Sheet,
-      description: 'Import from Google Sheets CSV',
-      color: 'orange',
+      description: 'Connect to a Notion database or upload a Notion CSV export',
+      color: 'violet',
+      gradient: 'from-violet-500 to-violet-600',
     },
   ];
 
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Create New Question Set</h2>
-      <p className="text-gray-600 mb-8">Choose how you'd like to add your questions</p>
+  const colorMap: Record<string, {
+    border: string;
+    bg: string;
+    hoverBg: string;
+    iconBg: string;
+    iconText: string;
+    ring: string;
+  }> = {
+    blue: {
+      border: 'border-blue-200',
+      bg: 'bg-blue-50/50',
+      hoverBg: 'hover:bg-blue-50',
+      iconBg: 'bg-gradient-to-br from-blue-500 to-blue-600',
+      iconText: 'text-white',
+      ring: 'ring-blue-200',
+    },
+    emerald: {
+      border: 'border-emerald-200',
+      bg: 'bg-emerald-50/50',
+      hoverBg: 'hover:bg-emerald-50',
+      iconBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
+      iconText: 'text-white',
+      ring: 'ring-emerald-200',
+    },
+    violet: {
+      border: 'border-violet-200',
+      bg: 'bg-violet-50/50',
+      hoverBg: 'hover:bg-violet-50',
+      iconBg: 'bg-gradient-to-br from-violet-500 to-violet-600',
+      iconText: 'text-white',
+      ring: 'ring-violet-200',
+    },
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="text-center mb-10">
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">Create New Question Set</h2>
+        <p className="text-gray-500 text-lg">Choose how you'd like to add your questions</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {sources.map((source) => {
           const Icon = source.icon;
-          const colorClasses = {
-            blue: 'border-blue-200 bg-blue-50 hover:bg-blue-100',
-            green: 'border-green-200 bg-green-50 hover:bg-green-100',
-            gray: 'border-gray-200 bg-gray-50 hover:bg-gray-100',
-            purple: 'border-purple-200 bg-purple-50 hover:bg-purple-100',
-            orange: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
-          };
+          const colors = colorMap[source.color];
+          const isHovered = hoveredSource === source.id;
 
           return (
             <button
@@ -68,35 +88,47 @@ export function ImportSourceSelector({ onSourceSelect }: ImportSourceSelectorPro
               onClick={() => onSourceSelect(source.id as any)}
               onMouseEnter={() => setHoveredSource(source.id)}
               onMouseLeave={() => setHoveredSource(null)}
-              className={`p-6 border-2 rounded-lg transition-all duration-200 text-center ${
-                hoveredSource === source.id
-                  ? `${colorClasses[source.color as keyof typeof colorClasses]} shadow-lg transform scale-105`
-                  : `border-gray-200 bg-white hover:${colorClasses[source.color as keyof typeof colorClasses]}`
-              }`}
+              className={`
+                relative p-6 border-2 rounded-2xl transition-all duration-300 text-left
+                ${isHovered ? `${colors.border} ${colors.bg} shadow-xl ring-2 ${colors.ring} -translate-y-1` : `border-gray-200 bg-white hover:shadow-md`}
+              `}
             >
-              <Icon className="w-8 h-8 mx-auto mb-3 text-gray-700" />
-              <h3 className="font-semibold text-gray-900 mb-1">{source.label}</h3>
-              <p className="text-xs text-gray-600">{source.description}</p>
+              <div className={`w-14 h-14 rounded-xl ${colors.iconBg} flex items-center justify-center mb-5 shadow-lg transition-transform duration-300 ${isHovered ? 'scale-110' : ''}`}>
+                <Icon className={`w-7 h-7 ${colors.iconText}`} />
+              </div>
+              <h3 className="font-bold text-gray-900 text-lg mb-2">{source.label}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{source.description}</p>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-gray-900 mb-3">CSV Format Guide</h3>
-        <p className="text-sm text-gray-700 mb-3">
-          Your CSV should have these columns (in order):
+      <div className="mt-10 bg-gray-50 border border-gray-200 rounded-xl p-5">
+        <h3 className="font-semibold text-gray-800 mb-3 text-sm uppercase tracking-wide">📋 CSV / Excel Format Guide</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          Your file should have these columns (in order):
         </p>
-        <ul className="text-sm text-gray-700 space-y-1 font-mono bg-white p-3 rounded border border-blue-200">
-          <li>1. Question text</li>
-          <li>2. Choice A</li>
-          <li>3. Choice B</li>
-          <li>4. Choice C</li>
-          <li>5. Choice D</li>
-          <li>6. Correct answer index (0-3)</li>
-          <li>7. Explanation (optional)</li>
-          <li>8. Difficulty (easy/medium/hard, optional)</li>
-        </ul>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+          {[
+            { num: '1', label: 'Question text', required: true },
+            { num: '2', label: 'Choice A', required: true },
+            { num: '3', label: 'Choice B', required: true },
+            { num: '4', label: 'Choice C', required: true },
+            { num: '5', label: 'Choice D', required: true },
+            { num: '6', label: 'Correct index (0-3)', required: true },
+            { num: '7', label: 'Explanation', required: false },
+            { num: '8', label: 'Difficulty', required: false },
+          ].map((col) => (
+            <div
+              key={col.num}
+              className={`px-3 py-2 rounded-lg ${col.required ? 'bg-blue-50 text-blue-800 border border-blue-100' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}
+            >
+              <span className="font-mono font-bold mr-1">{col.num}.</span>
+              {col.label}
+              {!col.required && <span className="text-xs ml-1 opacity-60">(optional)</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
