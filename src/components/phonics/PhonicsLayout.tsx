@@ -8,7 +8,7 @@ export const PhonicsLayout = () => {
     const tabs = [
         { id: 'wall', label: 'Sound Wall', icon: Volume2, path: '/phonics/wall' },
         { id: 'blending', label: 'Blending Board', icon: Layers, path: '/phonics/blending' },
-        { id: 'quiz', label: 'Quiz & Games', icon: Gamepad2, path: '/phonics/quiz' },
+        { id: 'games', label: 'Game Hub', icon: Gamepad2, path: '/phonics/games' },
         { id: 'builder', label: 'Word Builder', icon: Hammer, path: '/phonics/builder' },
     ];
 

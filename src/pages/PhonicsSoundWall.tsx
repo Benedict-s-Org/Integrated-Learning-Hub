@@ -9,7 +9,22 @@ interface PhonicsSound {
   audio_url: string;
   category: string | null;
   sort_order: number | null;
+  level: number;
 }
+
+const LEVELS = [
+  { id: 1, label: 'Level 1' },
+  { id: 2, label: 'Level 2' },
+  { id: 3, label: 'Level 3' },
+  { id: 4, label: 'Level 4' },
+];
+
+const LEVEL_COLORS: Record<number, string> = {
+  1: 'from-emerald-400 to-teal-500',
+  2: 'from-blue-400 to-indigo-500',
+  3: 'from-purple-400 to-violet-500',
+  4: 'from-rose-400 to-red-500',
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   vowel: "Vowels",
@@ -73,6 +88,7 @@ export const PhonicsSoundWall = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -84,7 +100,7 @@ export const PhonicsSoundWall = () => {
           .order("sort_order");
 
         if (fetchError) throw fetchError;
-        setSounds(data || []);
+        setSounds((data as unknown as PhonicsSound[]) || []);
       } catch (err) {
         console.error("Error fetching phonics sounds:", err);
         setError("Unable to load phonics data");
@@ -141,8 +157,11 @@ export const PhonicsSoundWall = () => {
     };
   }, []);
 
-  // Group sounds by category
-  const groupedSounds = sounds.reduce(
+  // Filter sounds by selected level
+  const filteredSounds = sounds.filter((s) => s.level === selectedLevel);
+
+  // Group filtered sounds by category
+  const groupedSounds = filteredSounds.reduce(
     (acc, sound) => {
       const category = sound.category || "other";
       if (!acc[category]) acc[category] = [];
@@ -158,10 +177,32 @@ export const PhonicsSoundWall = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Header removed - handled by layout */}
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
+
+        {/* Level Selection Bar */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+          {LEVELS.map((level) => {
+            const isActive = selectedLevel === level.id;
+            const gradientClass = LEVEL_COLORS[level.id];
+            return (
+              <button
+                key={level.id}
+                onClick={() => setSelectedLevel(level.id)}
+                className={`
+                  flex-shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
+                  ${isActive
+                    ? `bg-gradient-to-r ${gradientClass} text-white shadow-md scale-105`
+                    : 'bg-white/70 text-slate-500 hover:bg-white hover:text-slate-700 border border-slate-200'
+                  }
+                `}
+              >
+                {level.label}
+              </button>
+            );
+          })}
+        </div>
+
         {loading && (
           <div className="flex items-center justify-center min-h-[50vh]">
             <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
@@ -181,16 +222,16 @@ export const PhonicsSoundWall = () => {
           </div>
         )}
 
-        {!loading && !error && sounds.length === 0 && (
+        {!loading && !error && filteredSounds.length === 0 && (
           <div className="text-center text-amber-600 py-12">
-            <p className="text-lg">No sounds available</p>
+            <p className="text-lg">No sounds for this level yet</p>
             <p className="text-sm mt-2 opacity-75">
-              Please contact an admin to upload phonics sounds.
+              Sounds will appear here once they are assigned to this level.
             </p>
           </div>
         )}
 
-        {!loading && !error && sounds.length > 0 && (
+        {!loading && !error && filteredSounds.length > 0 && (
           <div className="space-y-8 sm:space-y-12">
             {orderedCategories.map((category) => (
               <section key={category}>

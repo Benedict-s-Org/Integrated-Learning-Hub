@@ -98,7 +98,7 @@ type AppState =
   | { page: 'classDashboard' }
   | { page: 'quickReward'; qrToken: string }
   | { page: 'scanner' }
-  | { page: 'phonics'; section: 'wall' | 'blending' | 'quiz' | 'builder' }
+  | { page: 'phonics'; section: 'wall' | 'blending' | 'games' | 'quiz' | 'builder' }
   | { page: 'notionHub' };
 
 function AppContent() {
@@ -1222,6 +1222,7 @@ const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
 const PhonicsLayout = lazy(() => import('./components/phonics/PhonicsLayout.tsx').then(m => ({ default: m.PhonicsLayout })));
 const PhonicsSoundWall = lazy(() => import('./pages/PhonicsSoundWall.tsx').then(m => ({ default: m.PhonicsSoundWall })));
 const BlendingBoard = lazy(() => import('./components/phonics/BlendingBoard.tsx').then(m => ({ default: m.BlendingBoard })));
+const PhonicsGameHub = lazy(() => import('./components/phonics/PhonicsGameHub.tsx').then(m => ({ default: m.PhonicsGameHub })));
 const PhonicsQuiz = lazy(() => import('./components/phonics/PhonicsQuiz.tsx').then(m => ({ default: m.PhonicsQuiz })));
 const WordBuilder = lazy(() => import('./components/phonics/WordBuilder.tsx').then(m => ({ default: m.WordBuilder })));
 
@@ -1314,6 +1315,7 @@ function AppRoutes() {
         <Route index element={<PhonicsSoundWall />} />
         <Route path="wall" element={<PhonicsSoundWall />} />
         <Route path="blending" element={<BlendingBoard />} />
+        <Route path="games" element={<PhonicsGameHub />} />
         <Route path="quiz" element={<PhonicsQuiz />} />
         <Route path="builder" element={<WordBuilder />} />
       </Route>

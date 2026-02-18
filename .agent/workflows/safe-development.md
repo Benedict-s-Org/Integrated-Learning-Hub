@@ -341,4 +341,25 @@ If something breaks:
 - [ ] Lint errors resolved
 - [ ] Build passes
 - [ ] Feature tested
+
+---
+
+## ⚡ Token Efficiency & Context Management
+
+To ensure work is fast and cost-effective, follow these rules for context retrieval:
+
+### 1. Artifacts as "Active Memory"
+Before starting any sub-task, read the `.gemini/antigravity/brain/` directory:
+- **`task.md`**: Current checklist and progress.
+- **`implementation_plan.md`**: The approved technical roadmap.
+- **`walkthrough.md`**: History of what has already been built.
+
+### 2. Knowledge Items (KIs) vs. Chat Logs
+- **KIs First**: Always check provided Knowledge Item summaries before researching. They are the distilled "Long-Term Memory" of the project.
+- **Logs Last**: Only read raw chat logs if a KI is missing or ambiguous. Reading logs is token-expensive and prone to noise.
+
+### 3. Targeted Code Reading
+- **Range-Limited**: Use `view_file` with `StartLine` and `EndLine` to read only relevant logic. 
+- **Search First**: Use `grep_search` or `view_file_outline` to locate code rather than scrolling through whole files.
+- **Outline First**: Use `view_file_outline` to understand file structure before reading the content.
 ```
