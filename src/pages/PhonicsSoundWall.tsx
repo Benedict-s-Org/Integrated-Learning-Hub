@@ -1,266 +1,232 @@
-import { useState, useEffect, useRef } from "react";
-import { Volume2, VolumeX, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-
-interface PhonicsSound {
-  id: string;
-  sound_code: string;
-  display_name: string;
-  audio_url: string;
-  category: string | null;
-  sort_order: number | null;
-  level: number;
-}
-
-const LEVELS = [
-  { id: 1, label: 'Level 1' },
-  { id: 2, label: 'Level 2' },
-  { id: 3, label: 'Level 3' },
-  { id: 4, label: 'Level 4' },
-];
-
-const LEVEL_COLORS: Record<number, string> = {
-  1: 'from-emerald-400 to-teal-500',
-  2: 'from-blue-400 to-indigo-500',
-  3: 'from-purple-400 to-violet-500',
-  4: 'from-rose-400 to-red-500',
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  vowel: "Vowels",
-  consonant: "Consonants",
-  digraph: "Digraphs",
-  blend: "Blends",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  vowel: "from-red-400 to-pink-500",
-  consonant: "from-blue-400 to-indigo-500",
-  digraph: "from-green-400 to-emerald-500",
-  blend: "from-amber-400 to-orange-500",
-};
-
-const SoundCard = ({
-  sound,
-  isPlaying,
-  onPlay,
-}: {
-  sound: PhonicsSound;
-  isPlaying: boolean;
-  onPlay: () => void;
-}) => {
-  const colorClass = CATEGORY_COLORS[sound.category || "other"] || "from-gray-400 to-gray-500";
-
-  return (
-    <button
-      onClick={onPlay}
-      className={`
-        relative overflow-hidden rounded-2xl p-4 sm:p-6
-        bg-gradient-to-br ${colorClass}
-        text-white font-bold text-2xl sm:text-3xl
-        shadow-lg hover:shadow-xl
-        transform transition-all duration-200
-        hover:scale-105 active:scale-95
-        ${isPlaying ? "ring-4 ring-white ring-opacity-75 animate-pulse" : ""}
-        focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-50
-      `}
-    >
-      <div className="flex flex-col items-center justify-center gap-1">
-        <span className="drop-shadow-md">{sound.display_name}</span>
-        <span className="text-xs sm:text-sm opacity-75 font-normal">
-          {isPlaying ? (
-            <Volume2 className="w-4 h-4 animate-bounce" />
-          ) : (
-            <VolumeX className="w-4 h-4 opacity-50" />
-          )}
-        </span>
-      </div>
-
-      {/* Decorative elements */}
-      <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl" />
-      <div className="absolute -bottom-2 -left-2 w-12 h-12 bg-black/10 rounded-full blur-lg" />
-    </button>
-  );
-};
+import { useState, useEffect, useMemo } from 'react';
+import { Loader2, LayoutGrid, List, Lock } from 'lucide-react';
+import { usePhonicsMappings } from '@/hooks/usePhonicsMappings';
+import { SoundWallCard } from '@/components/phonics/SoundWallCard';
+import { SoundWallDetailPanel } from '@/components/phonics/SoundWallDetailPanel';
+import { SoundWallChartView } from '@/components/phonics/SoundWallChartView';
+import type { PhonicsMapping, SoundWallCategory, SoundWallView } from '@/types/phonicsSoundWall';
+import {
+  SOUND_WALL_LEVELS,
+  SOUND_WALL_CATEGORIES,
+  CATEGORY_STYLES,
+  VOWEL_GROUPS,
+} from '@/types/phonicsSoundWall';
 
 export const PhonicsSoundWall = () => {
-  const [sounds, setSounds] = useState<PhonicsSound[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState(1);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [activeCategory, setActiveCategory] = useState<SoundWallCategory>('vowel');
+  const [activeView, setActiveView] = useState<SoundWallView>('practice');
+  const [selectedMapping, setSelectedMapping] = useState<PhonicsMapping | null>(null);
 
+  const { mappings, isLoading, error, playingId, fetchMappings, playAudio } = usePhonicsMappings();
+
+  // Fetch when level or category changes (practice view)
   useEffect(() => {
-    const fetchSounds = async () => {
-      try {
-        const { data, error: fetchError } = await supabase
-          .from("phonics_sounds")
-          .select("*")
-          .order("sort_order");
+    if (activeView === 'practice') {
+      fetchMappings({ level: selectedLevel, category: activeCategory });
+    }
+  }, [selectedLevel, activeCategory, activeView, fetchMappings]);
 
-        if (fetchError) throw fetchError;
-        setSounds((data as unknown as PhonicsSound[]) || []);
-      } catch (err) {
-        console.error("Error fetching phonics sounds:", err);
-        setError("Unable to load phonics data");
-      } finally {
-        setLoading(false);
+  // Filter + organize data for practice view
+  const organizedMappings = useMemo(() => {
+    if (activeCategory === 'vowel') {
+      // Sub-group by vowel_group (A, E, I, O, U rows)
+      const groups: Record<string, PhonicsMapping[]> = {};
+      for (const vg of VOWEL_GROUPS) {
+        groups[vg] = [];
       }
-    };
+      groups['other'] = [];
 
-    fetchSounds();
-  }, []);
-
-  const playSound = (sound: PhonicsSound) => {
-    // Stop current audio if playing
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+      for (const m of mappings) {
+        const key = m.vowel_group || 'other';
+        if (groups[key]) {
+          groups[key].push(m);
+        } else {
+          groups['other'].push(m);
+        }
+      }
+      return groups;
     }
+    return { all: mappings };
+  }, [mappings, activeCategory]);
 
-    // If clicking on the same sound that's playing, just stop it
-    if (playingId === sound.id) {
-      setPlayingId(null);
-      return;
-    }
-
-    // Play the new sound
-    const audio = new Audio(sound.audio_url);
-    audioRef.current = audio;
-    setPlayingId(sound.id);
-
-    audio.play().catch((err) => {
-      console.error("Error playing audio:", err);
-      setPlayingId(null);
-    });
-
-    audio.onended = () => {
-      setPlayingId(null);
-      audioRef.current = null;
-    };
-
-    audio.onerror = () => {
-      console.error("Audio error for:", sound.audio_url);
-      setPlayingId(null);
-      audioRef.current = null;
-    };
+  // Level unlock logic (placeholder: all unlocked for now since no progress data yet)
+  const isLevelLocked = (_level: number): boolean => {
+    // L1 always unlocked. L2+ would check 80% completion of previous level.
+    // For now, all levels unlocked since we haven't implemented progress tracking.
+    return false;
   };
 
-  // Cleanup audio on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  // Filter sounds by selected level
-  const filteredSounds = sounds.filter((s) => s.level === selectedLevel);
-
-  // Group filtered sounds by category
-  const groupedSounds = filteredSounds.reduce(
-    (acc, sound) => {
-      const category = sound.category || "other";
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(sound);
-      return acc;
-    },
-    {} as Record<string, PhonicsSound[]>
-  );
-
-  // Order categories
-  const categoryOrder = ["vowel", "consonant", "digraph", "blend"];
-  const orderedCategories = categoryOrder.filter((cat) => groupedSounds[cat]);
-
   return (
-    <div className="min-h-screen">
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
+    <div className="min-h-[50vh]">
+      {/* ─── Level Tabs ─── */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+        {SOUND_WALL_LEVELS.map((level) => {
+          const isActive = selectedLevel === level.id;
+          const locked = isLevelLocked(level.id);
 
-        {/* Level Selection Bar */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
-          {LEVELS.map((level) => {
-            const isActive = selectedLevel === level.id;
-            const gradientClass = LEVEL_COLORS[level.id];
+          return (
+            <button
+              key={level.id}
+              onClick={() => !locked && setSelectedLevel(level.id)}
+              disabled={locked}
+              className={`
+                flex-shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
+                flex items-center gap-1.5
+                ${locked
+                  ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                  : isActive
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-slate-200'
+                }
+              `}
+            >
+              {locked && <Lock size={12} />}
+              {level.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ─── Group Buttons + View Switch ─── */}
+      <div className="flex items-center justify-between gap-2 mb-6 flex-wrap">
+        {/* Category group buttons */}
+        <div className="flex gap-1.5 flex-wrap">
+          {SOUND_WALL_CATEGORIES.map((cat) => {
+            const isActive = activeCategory === cat.value;
+            const catStyle = CATEGORY_STYLES[cat.value];
+
             return (
               <button
-                key={level.id}
-                onClick={() => setSelectedLevel(level.id)}
+                key={cat.value}
+                onClick={() => setActiveCategory(cat.value)}
                 className={`
-                  flex-shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
-                  ${isActive
-                    ? `bg-gradient-to-r ${gradientClass} text-white shadow-md scale-105`
-                    : 'bg-white/70 text-slate-500 hover:bg-white hover:text-slate-700 border border-slate-200'
-                  }
+                  px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
                 `}
+                style={{
+                  border: `2px solid ${isActive ? catStyle.border : 'transparent'}`,
+                  backgroundColor: isActive ? catStyle.bg : 'transparent',
+                  color: isActive ? catStyle.border : '#64748b',
+                }}
               >
-                {level.label}
+                {cat.label}
               </button>
             );
           })}
         </div>
 
-        {loading && (
-          <div className="flex items-center justify-center min-h-[50vh]">
-            <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-            <span className="ml-2 text-amber-700">Loading...</span>
-          </div>
-        )}
+        {/* View switch */}
+        <div className="flex bg-slate-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setActiveView('practice')}
+            className={`
+              flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all
+              ${activeView === 'practice'
+                ? 'bg-white text-slate-700 shadow-sm'
+                : 'text-slate-400 hover:text-slate-500'
+              }
+            `}
+          >
+            <LayoutGrid size={14} />
+            Practice
+          </button>
+          <button
+            onClick={() => setActiveView('chart')}
+            className={`
+              flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all
+              ${activeView === 'chart'
+                ? 'bg-white text-slate-700 shadow-sm'
+                : 'text-slate-400 hover:text-slate-500'
+              }
+            `}
+          >
+            <List size={14} />
+            Chart
+          </button>
+        </div>
+      </div>
 
-        {error && (
-          <div className="text-center text-red-500 py-8">
-            <p>{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-            >
-              Retry
-            </button>
-          </div>
-        )}
+      {/* ─── Content Area ─── */}
+      {activeView === 'chart' ? (
+        <SoundWallChartView activeCategory={activeCategory} />
+      ) : (
+        <>
+          {/* Loading */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              <span className="ml-2 text-slate-400">Loading sounds...</span>
+            </div>
+          )}
 
-        {!loading && !error && filteredSounds.length === 0 && (
-          <div className="text-center text-amber-600 py-12">
-            <p className="text-lg">No sounds for this level yet</p>
-            <p className="text-sm mt-2 opacity-75">
-              Sounds will appear here once they are assigned to this level.
-            </p>
-          </div>
-        )}
+          {/* Error */}
+          {error && (
+            <div className="text-center text-red-500 py-8">
+              <p>{error}</p>
+              <button
+                onClick={() => fetchMappings({ level: selectedLevel, category: activeCategory })}
+                className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
-        {!loading && !error && filteredSounds.length > 0 && (
-          <div className="space-y-8 sm:space-y-12">
-            {orderedCategories.map((category) => (
-              <section key={category}>
-                <h2 className="text-lg sm:text-xl font-bold text-amber-800 mb-4 flex items-center gap-2">
-                  <span
-                    className={`w-4 h-4 rounded-full bg-gradient-to-br ${CATEGORY_COLORS[category]}`}
-                  />
-                  {CATEGORY_LABELS[category] || category}
-                </h2>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3">
-                  {groupedSounds[category].map((sound) => (
-                    <SoundCard
-                      key={sound.id}
-                      sound={sound}
-                      isPlaying={playingId === sound.id}
-                      onPlay={() => playSound(sound)}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </main>
+          {/* Empty state */}
+          {!isLoading && !error && mappings.length === 0 && (
+            <div className="text-center text-slate-400 py-12">
+              <p className="text-lg font-medium">No sounds for this level yet</p>
+              <p className="text-sm mt-1">
+                Sounds will appear here once they are assigned to L{selectedLevel} {activeCategory}.
+              </p>
+            </div>
+          )}
 
-      {/* Footer */}
-      <footer className="mt-12 py-6 text-center text-amber-600 text-sm">
-        <p>點擊卡片聆聽發音 · Click a card to hear the sound</p>
-      </footer>
+          {/* Practice Grid */}
+          {!isLoading && !error && mappings.length > 0 && (
+            <div className="space-y-6">
+              {Object.entries(organizedMappings).map(([groupKey, items]) => {
+                if (items.length === 0) return null;
+
+                // Show vowel group label for vowels
+                const showGroupLabel = activeCategory === 'vowel' && groupKey !== 'all' && groupKey !== 'other';
+
+                return (
+                  <div key={groupKey}>
+                    {showGroupLabel && (
+                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                        {groupKey.toUpperCase()} sounds
+                      </h3>
+                    )}
+                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3">
+                      {items.map((mapping) => (
+                        <SoundWallCard
+                          key={mapping.id}
+                          mapping={mapping}
+                          isPlaying={playingId === mapping.id}
+                          isSelected={selectedMapping?.id === mapping.id}
+                          onPlay={() => playAudio(mapping)}
+                          onClick={() => setSelectedMapping(mapping)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ─── Detail Panel ─── */}
+      {selectedMapping && (
+        <SoundWallDetailPanel
+          mapping={selectedMapping}
+          onClose={() => setSelectedMapping(null)}
+          onPlayAudio={() => playAudio(selectedMapping)}
+          isPlaying={playingId === selectedMapping.id}
+        />
+      )}
     </div>
   );
 };

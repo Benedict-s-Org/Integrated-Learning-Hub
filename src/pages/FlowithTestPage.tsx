@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Send, Image as ImageIcon } from 'lucide-react';
 import { call_flowith_api, get_flowith_models } from '../utils/flowithApi';
+import { FlowithImageGen } from '../components/flowith/FlowithImageGen'; // Import the new component
 import { useAuth } from '../context/AuthContext';
 
 // Saved Prompt Interface
@@ -140,7 +141,11 @@ export const FlowithTestPage: React.FC = () => {
     };
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="p-8 max-w-4xl mx-auto space-y-12">
+            {/* Image Generation Section */}
+            <FlowithImageGen />
+
+            <div className="border-t border-slate-200 my-8"></div>
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">

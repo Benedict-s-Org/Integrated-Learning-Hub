@@ -17,7 +17,7 @@ import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { MemoryPalacePage } from './pages/MemoryPalacePage';
 import { FlowithTestPage } from './pages/FlowithTestPage';
-import { WordSnakeGame } from './pages/WordSnakeGame';
+import { IPadInteractiveZone } from './pages/IPadInteractiveZone';
 import { ClassDashboardPage } from './pages/ClassDashboardPage';
 import { QuickRewardPage } from './pages/QuickRewardPage';
 import { PendingRewardsModal } from './components/admin/PendingRewardsModal';
@@ -875,7 +875,7 @@ function AppContent() {
       case 'flowithTest':
         return <FlowithTestPage />;
       case 'wordSnake':
-        return <WordSnakeGame />;
+        return <IPadInteractiveZone />;
       case 'classDashboard':
         return <ClassDashboardPage />;
       case 'quickReward':

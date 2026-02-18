@@ -4,7 +4,6 @@ import {
     FileEdit,
     Mic,
     Zap,
-    Pencil,
     Bell,
     Home,
     TrendingUp,
@@ -36,6 +35,7 @@ import {
     FolderUp,
     Palette,
     Users,
+    Tablet,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
@@ -175,8 +175,8 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                     )}
                     {user && (
                         <NavItem
-                            icon={Pencil}
-                            label="Word Snake"
+                            icon={Tablet}
+                            label="iPad Interactive Zone"
                             isActive={currentPage === 'wordSnake'}
                             onClick={() => onPageChange('wordSnake')}
                         />
@@ -322,6 +322,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             onClick={onOpenMapEditor}
                         />
                         <NavItem
+                            icon={Sparkles}
+                            label="AI Illustrator (Flowith)"
+                            isActive={currentPage === 'flowithTest'}
+                            onClick={() => onPageChange('flowithTest')}
+                        />
+                        <NavItem
                             icon={FolderUp}
                             label="Multi-format Upload"
                             onClick={onOpenAssetUpload}
@@ -368,12 +374,6 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             label="Database"
                             isActive={currentPage === 'database'}
                             onClick={() => onPageChange('database')}
-                        />
-                        <NavItem
-                            icon={Sparkles}
-                            label="Flowith Center"
-                            isActive={currentPage === 'flowithTest'}
-                            onClick={() => onPageChange('flowithTest')}
                         />
                         <NavItem
                             icon={BarChart3}
