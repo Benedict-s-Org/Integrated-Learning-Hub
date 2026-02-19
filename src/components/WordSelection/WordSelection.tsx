@@ -153,28 +153,28 @@ const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNex
           currentView="create"
         />
       )}
-      <div className={`min-h-full bg-gray-50 pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}>
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className={`min-h-full bg-gray-50 pr-0 md:pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}>
+        <div className="max-w-4xl mx-auto px-4 py-4 md:py-8">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
             <div className="mb-6">
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">Select Words to Memorize</h1>
+              <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-2">Select Words to Memorize</h1>
               <p className="text-gray-600 mb-4">
                 Click and drag to select multiple words to memorize.
                 <br />
                 Selected: {selectedCount} words
               </p>
 
-              <div className="flex justify-end items-center space-x-4">
+              <div className="flex flex-col sm:flex-row justify-end items-center gap-2 sm:space-x-4">
                 <button
                   onClick={handleUndo}
                   disabled={historyStack.length === 0}
-                  className="px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed transition-colors"
+                  className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed transition-colors"
                 >
                   Undo
                 </button>
                 <button
                   onClick={handleSelectAll}
-                  className="px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors"
+                  className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors"
                 >
                   Select All Words
                 </button>
@@ -224,10 +224,10 @@ const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNex
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
               <button
                 onClick={onBack}
-                className="flex items-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
               >
                 <ArrowLeft size={20} />
                 <span>Back</span>
@@ -236,7 +236,7 @@ const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNex
               <button
                 onClick={handleNext}
                 disabled={selectedCount === 0}
-                className="flex items-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
                 <span>Next</span>
                 <ArrowRight size={20} />

@@ -4,11 +4,12 @@ import {
     TrendingUp, LayoutGrid, ClipboardList, BookMarked,
     Shield, PenTool, Upload, Settings, Map, Sparkles, FolderUp,
     Layout, Palette, Bell, Database, FolderKanban,
-    ShoppingBag, Globe, Sofa, MapPin, History,
+    ShoppingBag, Globe, Sofa, MapPin, History, Smartphone,
     LogOut, LogIn, User, X,
     LucideIcon,
 } from 'lucide-react';
 import { PageType } from './UnifiedNavigation';
+import { useAuth } from '@/context/AuthContext';
 
 interface MoreSheetItem {
     icon: LucideIcon;
@@ -49,8 +50,6 @@ interface MobileMoreSheetProps {
     onOpenFurniture?: () => void;
     onOpenHistory?: () => void;
     onOpenMemory?: () => void;
-    isUserView?: boolean;
-    onToggleViewMode?: () => void;
 }
 
 export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
@@ -78,9 +77,8 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     onOpenFurniture,
     onOpenHistory,
     onOpenMemory,
-    isUserView,
-    onToggleViewMode,
 }) => {
+    const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode } = useAuth();
     // Lock body scroll when sheet is open
     useEffect(() => {
         if (isOpen) {
@@ -163,7 +161,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="md:hidden fixed inset-0 z-[60]">
+        <div className={`z-[60] ${isMobileEmulator ? 'absolute inset-0 font-sans' : 'fixed inset-0 md:hidden'}`}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
@@ -240,7 +238,10 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
                 <div className="shrink-0 px-4 py-3 border-t border-gray-100 space-y-2">
                     {isAdmin && (
                         <button
-                            onClick={onToggleViewMode}
+                            onClick={() => {
+                                toggleViewMode();
+                                onClose();
+                            }}
                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isUserView
                                 ? 'bg-purple-50 text-purple-600'
                                 : 'text-gray-600 active:bg-gray-50'
@@ -248,6 +249,21 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
                         >
                             <Settings size={18} />
                             {isUserView ? 'Switch to Admin' : 'Switch to User'}
+                        </button>
+                    )}
+                    {isAdmin && (
+                        <button
+                            onClick={() => {
+                                setIsMobileEmulator(!isMobileEmulator);
+                                onClose();
+                            }}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isMobileEmulator
+                                ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                : 'text-gray-600 active:bg-gray-50 border border-transparent'
+                                }`}
+                        >
+                            <Smartphone size={18} />
+                            {isMobileEmulator ? "Disable Mobile Layout" : "Mobile Test Mode"}
                         </button>
                     )}
                     {userName ? (

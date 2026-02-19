@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Filter,
   Search,
   FileText,
   Mic,
@@ -14,7 +13,6 @@ import {
   Calendar,
   User,
   TrendingUp,
-  XCircle,
 } from 'lucide-react';
 
 interface AssignmentOverview {
@@ -69,7 +67,7 @@ interface Student {
 }
 
 export const AssignmentManagement: React.FC = () => {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -245,7 +243,7 @@ export const AssignmentManagement: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8"
+      className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8"
       data-source-tsx="AssignmentManagement|src/components/AssignmentManagement/AssignmentManagement.tsx"
     >
       <div className="max-w-7xl mx-auto">
@@ -403,7 +401,8 @@ export const AssignmentManagement: React.FC = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              {/* Desktop Table View */}
+              <table className="w-full hidden md:table">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Student</th>
@@ -479,6 +478,48 @@ export const AssignmentManagement: React.FC = () => {
                   })}
                 </tbody>
               </table>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4 p-4">
+                {filteredAssignments.map((assignment) => {
+                  const daysUntilDue = getDaysUntilDue(assignment.due_date);
+                  return (
+                    <div key={assignment.assignment_id} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-medium text-slate-800">{assignment.title}</h3>
+                          <div className="flex items-center space-x-1 text-sm text-slate-500 mt-1">
+                            <User size={14} />
+                            <span>{assignment.student_display_name}</span>
+                          </div>
+                        </div>
+                        {getStatusBadge(assignment)}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600 mb-3">
+                        <div className="flex items-center space-x-2">
+                          {getTypeIcon(assignment.assignment_type)}
+                          <span className="capitalize">{assignment.assignment_type}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Calendar size={14} />
+                          <span>Due: {formatDate(assignment.due_date)}</span>
+                        </div>
+                      </div>
+
+                      {daysUntilDue !== null && !assignment.completed && (
+                        <div className={`text-xs mb-2 ${daysUntilDue < 0 ? 'text-red-600' : daysUntilDue <= 3 ? 'text-orange-600' : 'text-slate-500'}`}>
+                          {daysUntilDue < 0
+                            ? `${Math.abs(daysUntilDue)} days overdue`
+                            : daysUntilDue === 0
+                              ? 'Due today'
+                              : `Due in ${daysUntilDue} days`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

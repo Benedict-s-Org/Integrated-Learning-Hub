@@ -147,10 +147,10 @@ const StudentProgress: React.FC = () => {
                   <div className="relative w-full">
                     <div
                       className={`w-full rounded-t transition-all ${result.accuracy_percentage >= 90
-                          ? 'bg-green-500'
-                          : result.accuracy_percentage >= 70
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
+                        ? 'bg-green-500'
+                        : result.accuracy_percentage >= 70
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
                         }`}
                       style={{ height: `${height * 2}px` }}
                       title={`${result.accuracy_percentage}%`}
@@ -187,10 +187,10 @@ const StudentProgress: React.FC = () => {
                   <div className="relative w-full">
                     <div
                       className={`w-full rounded-t transition-all ${result.accuracy_percentage >= 90
-                          ? 'bg-green-500'
-                          : result.accuracy_percentage >= 70
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
+                        ? 'bg-green-500'
+                        : result.accuracy_percentage >= 70
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
                         }`}
                       style={{ height: `${height * 2}px` }}
                       title={`${result.accuracy_percentage}%`}
@@ -218,14 +218,14 @@ const StudentProgress: React.FC = () => {
   }
 
   return (
-    <div className="pt-20 min-h-screen bg-gray-50 pr-8">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Progress</h1>
+    <div className="pt-20 min-h-screen bg-gray-50 pr-0 md:pr-8">
+      <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">My Progress</h1>
           <p className="text-gray-600">Track your learning journey and achievements</p>
         </div>
 
-        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
             { id: 'spelling', label: 'Spelling', icon: Target },
@@ -236,26 +236,26 @@ const StudentProgress: React.FC = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id as TabType)}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${activeTab === id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              className={`flex-shrink-0 flex items-center space-x-2 px-4 md:px-6 py-2 md:py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${activeTab === id
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
             >
-              <Icon size={20} />
-              <span>{label}</span>
+              <Icon size={18} className="md:w-5 md:h-5" />
+              <span className="text-sm md:text-base">{label}</span>
             </button>
           ))}
         </div>
 
         {activeTab === 'overview' && progressSummary && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Spelling Practice</h3>
-                  <Target className="text-blue-600" size={32} />
+                  <Target className="text-blue-600" size={24} />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Practices:</span>
                     <span className="font-semibold">{progressSummary.spelling.total_practices}</span>
@@ -277,12 +277,12 @@ const StudentProgress: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Proofreading</h3>
-                  <Trophy className="text-yellow-600" size={32} />
+                  <Trophy className="text-yellow-600" size={24} />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Practices:</span>
                     <span className="font-semibold">{progressSummary.proofreading.total_practices}</span>
@@ -304,12 +304,12 @@ const StudentProgress: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Memorization</h3>
-                  <Clock className="text-green-600" size={32} />
+                  <Clock className="text-green-600" size={24} />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Sessions:</span>
                     <span className="font-semibold">{progressSummary.memorization.total_sessions}</span>
@@ -523,12 +523,12 @@ const StudentProgress: React.FC = () => {
                             <td className="px-6 py-4">
                               <span
                                 className={`text-sm font-bold ${Number(entry.rank) === 1
-                                    ? 'text-yellow-600'
-                                    : Number(entry.rank) === 2
-                                      ? 'text-gray-500'
-                                      : Number(entry.rank) === 3
-                                        ? 'text-orange-600'
-                                        : 'text-gray-700'
+                                  ? 'text-yellow-600'
+                                  : Number(entry.rank) === 2
+                                    ? 'text-gray-500'
+                                    : Number(entry.rank) === 3
+                                      ? 'text-orange-600'
+                                      : 'text-gray-700'
                                   }`}
                               >
                                 #{entry.rank}
@@ -589,12 +589,12 @@ const StudentProgress: React.FC = () => {
                             <td className="px-6 py-4">
                               <span
                                 className={`text-sm font-bold ${Number(entry.rank) === 1
-                                    ? 'text-yellow-600'
-                                    : Number(entry.rank) === 2
-                                      ? 'text-gray-500'
-                                      : Number(entry.rank) === 3
-                                        ? 'text-orange-600'
-                                        : 'text-gray-700'
+                                  ? 'text-yellow-600'
+                                  : Number(entry.rank) === 2
+                                    ? 'text-gray-500'
+                                    : Number(entry.rank) === 3
+                                      ? 'text-orange-600'
+                                      : 'text-gray-700'
                                   }`}
                               >
                                 #{entry.rank}

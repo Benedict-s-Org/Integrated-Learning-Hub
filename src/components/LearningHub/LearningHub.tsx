@@ -20,7 +20,7 @@ const LearningHub: React.FC = () => {
     setError(null);
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pica-notion/list-activities`;
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notion-api/list-activities`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',

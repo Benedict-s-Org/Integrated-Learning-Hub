@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { BookOpen, TrendingUp, Shield, Menu, LucideIcon } from 'lucide-react';
 import { MobileMoreSheet } from './MobileMoreSheet';
 import { PageType } from './UnifiedNavigation';
@@ -82,8 +83,6 @@ interface MobileTabBarProps {
     onOpenFurniture?: () => void;
     onOpenHistory?: () => void;
     onOpenMemory?: () => void;
-    isUserView?: boolean;
-    onToggleViewMode?: () => void;
 }
 
 export const MobileTabBar: React.FC<MobileTabBarProps> = ({
@@ -110,13 +109,12 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
     onOpenFurniture,
     onOpenHistory,
     onOpenMemory,
-    isUserView,
-    onToggleViewMode,
 }) => {
+    const { isMobileEmulator, isAdmin: authIsAdmin } = useAuth();
     const [isMoreOpen, setIsMoreOpen] = useState(false);
 
     // Filter tabs based on role
-    const visibleTabs = tabs.filter(tab => !tab.adminOnly || isAdmin);
+    const visibleTabs = tabs.filter(tab => !tab.adminOnly || isAdmin || authIsAdmin);
 
     const isTabActive = (tab: TabConfig): boolean => {
         if (currentPage === tab.page) return true;
@@ -128,7 +126,7 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
         <>
             {/* Bottom Tab Bar */}
             <nav
-                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]"
+                className={`z-50 bg-white/95 backdrop-blur-lg border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] ${isMobileEmulator ? 'absolute bottom-0 left-0 right-0' : 'fixed bottom-0 left-0 right-0 md:hidden'}`}
                 style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
             >
                 <div className="flex items-stretch justify-around">
@@ -207,8 +205,6 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
                 onOpenFurniture={() => { onOpenFurniture?.(); setIsMoreOpen(false); }}
                 onOpenHistory={() => { onOpenHistory?.(); setIsMoreOpen(false); }}
                 onOpenMemory={() => { onOpenMemory?.(); setIsMoreOpen(false); }}
-                isUserView={isUserView}
-                onToggleViewMode={() => { onToggleViewMode?.(); setIsMoreOpen(false); }}
             />
         </>
     );

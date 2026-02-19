@@ -9,13 +9,13 @@ interface MemorizationTopNavProps {
 
 const MemorizationTopNav: React.FC<MemorizationTopNavProps> = ({ onCreateNew, onViewSaved, currentView = 'create' }) => {
   return (
-    <div className="fixed top-0 left-64 right-0 z-40 bg-white border-b-2 border-gray-200 shadow-md">
-      <div className="flex justify-center gap-4 px-8 py-4">
+    <div className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-white border-b-2 border-gray-200 shadow-md">
+      <div className="flex justify-center gap-4 px-4 py-3 md:px-8 md:py-4">
         <button
           onClick={onCreateNew}
           className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${currentView === 'create'
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            ? 'bg-green-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
         >
           <Plus size={20} />
@@ -24,8 +24,8 @@ const MemorizationTopNav: React.FC<MemorizationTopNavProps> = ({ onCreateNew, on
         <button
           onClick={onViewSaved}
           className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg ${currentView === 'saved'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
         >
           <BookOpen size={20} />

@@ -45,7 +45,7 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
         setErrors([]);
 
         try {
-            const { data, error } = await supabase.functions.invoke('pica-notion/query-mcq-database', {
+            const { data, error } = await supabase.functions.invoke('notion-api/query-mcq-database', {
                 body: { databaseId: databaseId.trim() }
             });
 
@@ -288,8 +288,8 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
                                         <div
                                             key={choiceIdx}
                                             className={`text-sm px-3 py-2 rounded-lg ${choiceIdx === q.correct_answer_index
-                                                    ? 'bg-green-50 text-green-800 border border-green-200 font-medium'
-                                                    : 'bg-gray-50 text-gray-700 border border-gray-100'
+                                                ? 'bg-green-50 text-green-800 border border-green-200 font-medium'
+                                                : 'bg-gray-50 text-gray-700 border border-gray-100'
                                                 }`}
                                         >
                                             <span className="font-mono font-bold mr-1.5">{String.fromCharCode(65 + choiceIdx)}.</span>
@@ -303,8 +303,8 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
                                     )}
                                     {q.difficulty && (
                                         <span className={`px-2 py-0.5 rounded-full ${q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
-                                                q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                             }`}>
                                             {q.difficulty}
                                         </span>

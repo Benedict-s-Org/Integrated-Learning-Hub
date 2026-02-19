@@ -1,6 +1,7 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, Play, Square, Save, RotateCcw, Music, Image as ImageIcon, ArrowLeft, Mic } from 'lucide-react';
+import { Mic, Image as ImageIcon, ArrowLeft, Settings, Save } from 'lucide-react';
 
 interface StrokePoint {
     x: number;
@@ -23,6 +24,11 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
+    // Rhythm Config
+    const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
+    const [pressureMin, setPressureMin] = useState(0.10);
+    const [pressureMax, setPressureMax] = useState(0.35);
+
     // Recording State
     const [isRecording, setIsRecording] = useState(false);
     const [steps, setSteps] = useState<StrokePoint[]>([]);
@@ -33,7 +39,6 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const imageRef = useRef<HTMLImageElement | null>(null);
-    const requestRef = useRef<number>();
 
     // Load existing data if editing
     useEffect(() => {
@@ -43,17 +48,26 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
     }, [exerciseId]);
 
     const loadExercise = async (id: string) => {
-        const { data, error } = await supabase
-            .from('cursive_exercises')
+        const { data } = await supabase
+            .from('cursive_exercises' as any)
             .select('*')
             .eq('id', id)
             .single();
 
         if (data) {
-            setTitle(data.title);
-            setImageUrl(data.image_url);
-            setAudioUrl(data.audio_url);
-            if (data.stroke_data) setSteps(data.stroke_data as any);
+            const exercise = data as any;
+            setTitle(exercise.title);
+            setImageUrl(exercise.image_url);
+            setAudioUrl(exercise.audio_url);
+            setSteps(exercise.stroke_data || []);
+            if (exercise.rhythm_config) {
+                const conf = exercise.rhythm_config as any;
+                setDifficulty(conf.difficulty || 'normal');
+                if (conf.pressure) {
+                    setPressureMin(conf.pressure.min || 0.10);
+                    setPressureMax(conf.pressure.max || 0.35);
+                }
+            }
         }
     };
 
@@ -94,6 +108,17 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
                 ctx.lineTo(steps[i].x, steps[i].y);
             }
             ctx.stroke();
+
+            // Draw Start/End points
+            ctx.fillStyle = '#10b981';
+            ctx.beginPath();
+            ctx.arc(steps[0].x, steps[0].y, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(steps[steps.length - 1].x, steps[steps.length - 1].y, 6, 0, Math.PI * 2);
+            ctx.fill();
         }
     };
 
@@ -122,7 +147,6 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
-                // const a = data[i + 3];
 
                 const brightness = r + g + b;
 
@@ -139,20 +163,12 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
                     }
                 }
             }
-
             return foundDark ? { x: bestX, y: bestY } : { x, y };
 
         } catch (e) {
             console.error(e);
             return { x, y };
         }
-    };
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-        if (!isRecording) return;
-        // Start capturing strokes? 
-        // Actually we might want continuous recording even if pen is up?
-        // For now, let's record only when pen is down.
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
@@ -191,11 +207,9 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
 
     const toggleRecording = () => {
         if (isRecording) {
-            // Stop
             setIsRecording(false);
             if (audioRef.current) audioRef.current.pause();
         } else {
-            // Start
             setSteps([]); // Clear previous attempt
             setIsRecording(true);
             setStartTime(Date.now());
@@ -207,21 +221,20 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
         }
     };
 
-    const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'audio') => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Existing upload helper might need update or we make a simple one here
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${type}s/${fileName}`; // images/123.jpg or audios/123.mp3
+        const filePath = `images/${fileName}`;
 
         const { data, error } = await supabase.storage
             .from('cursive-assets')
             .upload(filePath, file);
 
         if (error) {
-            alert('Upload failed: ' + error.message);
+            alert('Image upload failed: ' + error.message);
             return;
         }
 
@@ -229,13 +242,33 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
             .from('cursive-assets')
             .getPublicUrl(filePath);
 
-        if (type === 'image') {
-            setImageUrl(publicUrl);
-            setImageFile(file);
-        } else {
-            setAudioUrl(publicUrl);
-            setAudioFile(file);
+        setImageUrl(publicUrl);
+        setImageFile(file);
+    };
+
+    const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `audios/${fileName}`;
+
+        const { data, error } = await supabase.storage
+            .from('cursive-assets')
+            .upload(filePath, file);
+
+        if (error) {
+            alert('Audio upload failed: ' + error.message);
+            return;
         }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('cursive-assets')
+            .getPublicUrl(filePath);
+
+        setAudioUrl(publicUrl);
+        setAudioFile(file);
     };
 
     const handleSave = async () => {
@@ -249,25 +282,23 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
             image_url: imageUrl,
             audio_url: audioUrl,
             stroke_data: steps,
-            is_published: true
+            is_published: true,
+            rhythm_config: {
+                difficulty,
+                pressure: {
+                    min: pressureMin,
+                    max: pressureMax,
+                    hardThreshold: 0.50
+                }
+            }
         };
 
-        let error;
         if (exerciseId) {
-            const { error: e } = await supabase
-                .from('cursive_exercises')
-                .update(payload)
-                .eq('id', exerciseId);
-            error = e;
+            await supabase.from('cursive_exercises' as any).update(payload).eq('id', exerciseId);
         } else {
-            const { error: e } = await supabase
-                .from('cursive_exercises')
-                .insert([payload]);
-            error = e;
+            await supabase.from('cursive_exercises' as any).insert([payload]);
         }
-
-        if (error) alert('Save failed: ' + error.message);
-        else onSave();
+        onSave();
     };
 
     return (
@@ -290,12 +321,12 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
                     <label className="flex items-center gap-2 cursor-pointer px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">
                         <ImageIcon size={18} />
                         <span>{imageFile ? 'Change Image' : 'Upload Image'}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleAssetUpload(e, 'image')} />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">
-                        <Music size={18} />
+                        <Mic size={18} />
                         <span>{audioFile ? 'Change Audio' : 'Upload Audio'}</span>
-                        <input type="file" accept="audio/*" className="hidden" onChange={e => handleAssetUpload(e, 'audio')} />
+                        <input type="file" accept="audio/*" className="hidden" onChange={handleAudioUpload} />
                     </label>
                     <div className="h-6 w-px bg-slate-200" />
                     <button
@@ -323,77 +354,107 @@ export const ExerciseRecorder: React.FC<ExerciseRecorderProps> = ({ exerciseId, 
                             ref={canvasRef}
                             className="bg-white touch-none cursor-crosshair max-w-full max-h-full"
                             style={{ display: imageUrl ? 'block' : 'none' }}
-                            onPointerDown={handlePointerDown}
                             onPointerMove={handlePointerMove}
                         />
                     </div>
                 </div>
 
                 {/* Sidebar Controls */}
-                <div className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col gap-6">
-                    <div>
+                <div className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col gap-6 overflow-y-auto">
+                    {/* Recording Controls */}
+                    <div className="bg-slate-50 p-4 rounded-xl">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <Mic size={18} className="text-blue-500" />
-                            Recording Controls
+                            Recording
                         </h3>
 
                         <div className="flex items-center gap-2 mb-4">
                             <button
                                 onClick={toggleRecording}
                                 disabled={!imageUrl}
-                                className={`flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-bold transition-all ${isRecording
-                                        ? 'bg-red-50 text-red-600 border border-red-200 animate-pulse'
-                                        : 'bg-slate-900 text-white hover:bg-slate-800'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                className={`flex-1 py-3 rounded-lg flex items-center justify-center gap-2 font-bold transition-all ${isRecording
+                                    ? 'bg-red-50 text-red-600 border border-red-200 animate-pulse'
+                                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                                    } disabled:opacity-50`}
                             >
-                                {isRecording ? (
-                                    <>
-                                        <Square size={20} fill="currentColor" />
-                                        Stop Recording
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-3 h-3 rounded-full bg-red-500" />
-                                        Record Trace
-                                    </>
-                                )}
+                                {isRecording ? 'Stop Recording' : 'Start Recording'}
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+                        <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
                                 id="magnetic"
                                 checked={isMagnetic}
                                 onChange={e => setIsMagnetic(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                className="rounded text-blue-600 focus:ring-blue-500"
                             />
-                            <label htmlFor="magnetic" className="text-sm font-medium text-slate-700 select-none cursor-pointer">
+                            <label htmlFor="magnetic" className="text-sm font-medium text-slate-700 cursor-pointer">
                                 Enable Magnetic Snapping
                             </label>
                         </div>
                     </div>
 
-                    <div className="h-px bg-slate-100" />
+                    {/* Rhythm Config */}
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Settings size={18} className="text-purple-500" />
+                            Configuration
+                        </h3>
 
-                    <div>
-                        <h3 className="font-bold text-slate-800 mb-2">Stats</h3>
-                        <div className="space-y-2 text-sm text-slate-600">
-                            <div className="flex justify-between">
-                                <span>Recorded Points:</span>
-                                <span className="font-mono">{steps.length}</span>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+                                    Difficulty
+                                </label>
+                                <div className="flex gap-2">
+                                    {['easy', 'normal', 'hard'].map(d => (
+                                        <button
+                                            key={d}
+                                            onClick={() => setDifficulty(d as any)}
+                                            className={`flex-1 py-1 text-sm font-bold capitalize rounded border ${difficulty === d
+                                                ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {d}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="flex justify-between">
-                                <span>Duration:</span>
-                                <span className="font-mono">
-                                    {steps.length > 0 ? (steps[steps.length - 1].time / 1000).toFixed(1) : '0.0'}s
-                                </span>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block flex justify-between">
+                                    <span>Gentle Zone</span>
+                                    <span>{pressureMin.toFixed(2)} - {pressureMax.toFixed(2)}</span>
+                                </label>
+                                <div className="h-4 bg-slate-200 rounded-full relative">
+                                    <div
+                                        className="absolute top-0 bottom-0 bg-green-400 rounded-full opacity-50"
+                                        style={{ left: `${pressureMin * 100}%`, width: `${(pressureMax - pressureMin) * 100}%` }}
+                                    ></div>
+                                </div>
+                                <div className="flex gap-2 mt-2">
+                                    <input
+                                        type="range" min="0" max="1" step="0.05"
+                                        value={pressureMin}
+                                        onChange={e => setPressureMin(Number(e.target.value))}
+                                        className="flex-1"
+                                    />
+                                    <input
+                                        type="range" min="0" max="1" step="0.05"
+                                        value={pressureMax}
+                                        onChange={e => setPressureMax(Number(e.target.value))}
+                                        className="flex-1"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
 
+                    {/* Audio Preview */}
                     {audioUrl && (
-                        <div className="mt-auto">
+                        <div className="bg-slate-50 p-4 rounded-xl mt-auto">
                             <audio ref={audioRef} src={audioUrl} controls className="w-full" />
                         </div>
                     )}

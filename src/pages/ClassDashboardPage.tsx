@@ -313,12 +313,12 @@ export function ClassDashboardPage() {
                         <h1 className="text-xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
                             {isGuestMode ? 'Class View (Guest)' : 'Class Dashboard'}
                         </h1>
-                        <p className="text-[10px] md:text-base text-slate-500">
+                        <p className="text-xs md:text-base text-slate-500 mt-1">
                             {isGuestMode ? 'Request rewards for students' : 'Manage student rewards and feedback'}
                         </p>
                     </div>
 
-                    <div className="flex gap-2 w-full md:w-auto">
+                    <div className="grid grid-cols-2 sm:flex gap-2 w-full md:w-auto">
                         <button
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
@@ -409,7 +409,7 @@ export function ClassDashboardPage() {
                         <>
                             {activeClass === 'all' ? (
                                 sortedClassNames.map(className => (
-                                    <div key={className} className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8">
+                                    <div key={className} className="bg-white rounded-xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8">
                                         <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
                                             <span>{className === 'Unassigned' ? 'No Class Assigned' : className}</span>
                                             <span className="text-sm font-normal text-slate-400">{groupedUsers[className]?.length} Students</span>
@@ -429,7 +429,7 @@ export function ClassDashboardPage() {
                                     </div>
                                 ))
                             ) : (
-                                <div className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8 animate-in fade-in slide-in-from-bottom-4">
+                                <div className="bg-white rounded-xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8 animate-in fade-in slide-in-from-bottom-4">
                                     <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
                                         <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
                                         <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length} Students</span>

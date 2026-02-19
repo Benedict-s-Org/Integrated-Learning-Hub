@@ -108,6 +108,8 @@ export interface AuthContextType {
   isAdmin: boolean;
   isUserView: boolean;
   toggleViewMode: () => void;
+  isMobileEmulator: boolean;
+  setIsMobileEmulator: (val: boolean) => void;
   accentPreference: string;
   updateAccentPreference: (accent: string) => Promise<void>;
 }

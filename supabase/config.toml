@@ -15,7 +15,7 @@ verify_jwt = false
 [functions.memorization-content]
 verify_jwt = false
 
-[functions.pica-notion]
+[functions.notion-api]
 verify_jwt = false
 
 [functions.proofreading-assignments]

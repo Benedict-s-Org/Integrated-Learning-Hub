@@ -69,13 +69,13 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
         />
       )}
       <div
-        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8"
+        className="min-h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-4 md:p-8"
         style={{ paddingTop: onViewSaved ? '100px' : '32px' }}
       >
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">Spelling Practice</h1>
+          <div className="bg-white rounded-2xl shadow-xl p-4 md:p-8">
+            <div className="mb-6 md:mb-8">
+              <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2">Spelling Practice</h1>
               <p className="text-gray-600">Create a new word list for spelling practice</p>
             </div>
 
@@ -122,23 +122,23 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
               )}
             </div>
 
-            <div className="flex justify-between items-center mt-8">
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-8 gap-4 sm:gap-0">
               {onBack ? (
                 <button
                   onClick={onBack}
-                  className="flex items-center space-x-2 px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
                 >
                   <ArrowLeft size={20} />
                   <span>Back</span>
                 </button>
               ) : (
-                <div></div>
+                <div className="hidden sm:block"></div>
               )}
 
               <button
                 onClick={handleSubmit}
                 disabled={wordCount === 0}
-                className="flex items-center space-x-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 <span>Next</span>
                 <ArrowRight size={20} />

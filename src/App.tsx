@@ -9,6 +9,7 @@ import { useInventory } from './hooks/useInventory';
 import SourceInspector from './components/SourceInspector/SourceInspector';
 import { UnifiedNavigation } from './components/UnifiedNavigation/UnifiedNavigation';
 import { MobileTabBar } from './components/UnifiedNavigation/MobileTabBar';
+import { MobileTestEmulator } from './components/debug/MobileTestEmulator';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
@@ -108,7 +109,7 @@ function AppContent() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
-  const { user, loading, toggleViewMode, isAdmin, signOut, isUserView } = useAuth();
+  const { user, loading, toggleViewMode, isAdmin, signOut, isMobileEmulator, setIsMobileEmulator } = useAuth();
 
   // Memory Palace Context Handlers
   const {
@@ -1004,239 +1005,239 @@ function AppContent() {
   // State for navigation visibility moved to top to follow Rules of Hooks
 
   return (
-    <>
-      {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
-        <UnifiedNavigation
-          currentPage={getCurrentPage()}
-          onPageChange={handlePageChange}
-          onLogin={handleLogin}
-          isNavOpen={isNavOpen}
-          onToggle={() => setIsNavOpen(!isNavOpen)}
-          pendingCount={pendingCount}
-          onOpenNotifications={() => setShowPendingModal(true)}
-          // Memory Palace Handlers
-          onShop={toggleShop}
-          onCity={() => setView('map')}
-          onRegion={() => setView('region')}
-          onOpenStudio={toggleStudio}
-          onOpenUploader={toggleUploader}
-          onOpenEditor={toggleEditor}
-          onOpenSpaceDesign={toggleSpaceDesign}
-          onOpenThemeDesigner={toggleThemeDesigner}
-          onOpenMapEditor={toggleMapEditor}
-          onOpenAssetUpload={toggleAssetUpload}
-          onOpenFurniture={toggleFurniturePanel}
-          onOpenHistory={toggleHistoryPanel}
-          onOpenMemory={toggleMemoryPanel}
-        />
-      )}
-      {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
-        <MobileTabBar
-          currentPage={getCurrentPage()}
-          onPageChange={handlePageChange}
-          isAdmin={isAdmin}
-          onLogin={handleLogin}
-          onSignOut={signOut}
-          userName={user?.display_name || user?.username}
-          userRole={user?.role}
-          pendingCount={pendingCount}
-          onOpenNotifications={() => setShowPendingModal(true)}
-          onShop={toggleShop}
-          onCity={() => setView('map')}
-          onRegion={() => setView('region')}
-          onOpenStudio={toggleStudio}
-          onOpenUploader={toggleUploader}
-          onOpenEditor={toggleEditor}
-          onOpenSpaceDesign={toggleSpaceDesign}
-          onOpenThemeDesigner={toggleThemeDesigner}
-          onOpenMapEditor={toggleMapEditor}
-          onOpenAssetUpload={toggleAssetUpload}
-          onOpenFurniture={toggleFurniturePanel}
-          onOpenHistory={toggleHistoryPanel}
-          onOpenMemory={toggleMemoryPanel}
-          isUserView={isUserView}
-          onToggleViewMode={toggleViewMode}
-        />
-      )}
-      <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 ${(['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
-        {renderCurrentView()}
-      </main>
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="relative">
-            <Login />
+    <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
+      <div className="flex h-screen overflow-hidden bg-background">
+        {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+          <UnifiedNavigation
+            currentPage={getCurrentPage()}
+            onPageChange={handlePageChange}
+            onLogin={handleLogin}
+            isNavOpen={isNavOpen}
+            onToggle={() => setIsNavOpen(!isNavOpen)}
+            pendingCount={pendingCount}
+            onOpenNotifications={() => setShowPendingModal(true)}
+            // Memory Palace Handlers
+            onShop={toggleShop}
+            onCity={() => setView('map')}
+            onRegion={() => setView('region')}
+            onOpenStudio={toggleStudio}
+            onOpenUploader={toggleUploader}
+            onOpenEditor={toggleEditor}
+            onOpenSpaceDesign={toggleSpaceDesign}
+            onOpenThemeDesigner={toggleThemeDesigner}
+            onOpenMapEditor={toggleMapEditor}
+            onOpenAssetUpload={toggleAssetUpload}
+            onOpenFurniture={toggleFurniturePanel}
+            onOpenHistory={toggleHistoryPanel}
+            onOpenMemory={toggleMemoryPanel}
+          />
+        )}
+        {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+          <MobileTabBar
+            currentPage={getCurrentPage()}
+            onPageChange={handlePageChange}
+            isAdmin={isAdmin}
+            onLogin={handleLogin}
+            onSignOut={signOut}
+            userName={user?.display_name || user?.username}
+            userRole={user?.role}
+            pendingCount={pendingCount}
+            onOpenNotifications={() => setShowPendingModal(true)}
+            onShop={toggleShop}
+            onCity={() => setView('map')}
+            onRegion={() => setView('region')}
+            onOpenStudio={toggleStudio}
+            onOpenUploader={toggleUploader}
+            onOpenEditor={toggleEditor}
+            onOpenSpaceDesign={toggleSpaceDesign}
+            onOpenThemeDesigner={toggleThemeDesigner}
+            onOpenMapEditor={toggleMapEditor}
+            onOpenAssetUpload={toggleAssetUpload}
+            onOpenFurniture={toggleFurniturePanel}
+            onOpenHistory={toggleHistoryPanel}
+            onOpenMemory={toggleMemoryPanel}
+          />
+        )}
+        <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
+          {renderCurrentView()}
+        </main>
+        {showLoginModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="relative">
+              <Login />
+            </div>
           </div>
-        </div>
-      )}
-      <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
-      <ComponentInspector enabled={showComponentInspector} />
-      <UnifiedMapEditor
-        isOpen={uiState.showMapEditor}
-        onClose={toggleMapEditor}
-      />
-
-      {uiState.showShop && (
-        <ShopView
-          coins={coins}
-          inventory={inventory}
-          houseLevel={houseLevel}
-          onBuy={buyItem as any}
-          onUpgrade={() => setHouseLevel((h: number) => h + 1)}
-          onClose={toggleShop}
-          isAdmin={isAdmin}
-          customWalls={customWalls as any}
-          customFloors={customFloors as any}
-          activeWallId={activeWallId}
-          activeFloorId={activeFloorId}
-          onSelectWall={setActiveWallId}
-          onSelectFloor={setActiveFloorId}
-          fullCatalog={fullCatalog as any}
-          publishedBlueprints={[]}
-          ownedBlueprints={[]}
-          onBuyBlueprint={() => { }}
-          onApplyBlueprint={() => { }}
+        )}
+        <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
+        <ComponentInspector enabled={showComponentInspector} />
+        <UnifiedMapEditor
+          isOpen={uiState.showMapEditor}
+          onClose={toggleMapEditor}
         />
-      )}
 
-      {uiState.showSpaceDesign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full h-full bg-white flex flex-col">
-            <SpaceDesignCenter
-              onClose={toggleSpaceDesign}
-              fullCatalog={fullCatalog as any[]}
-              activeWall={customWalls.find((w: any) => w.id === activeWallId) || null}
-              activeFloor={customFloors.find((f: any) => f.id === activeFloorId) || null}
-              customWalls={customWalls as any[]}
-              customFloors={customFloors as any[]}
-              activeWallId={activeWallId}
-              activeFloorId={activeFloorId}
-              onSelectWall={setActiveWallId}
-              onSelectFloor={setActiveFloorId}
-            />
+        {uiState.showShop && (
+          <ShopView
+            coins={coins}
+            inventory={inventory}
+            houseLevel={houseLevel}
+            onBuy={buyItem as any}
+            onUpgrade={() => setHouseLevel((h: number) => h + 1)}
+            onClose={toggleShop}
+            isAdmin={isAdmin}
+            customWalls={customWalls as any}
+            customFloors={customFloors as any}
+            activeWallId={activeWallId}
+            activeFloorId={activeFloorId}
+            onSelectWall={setActiveWallId}
+            onSelectFloor={setActiveFloorId}
+            fullCatalog={fullCatalog as any}
+            publishedBlueprints={[]}
+            ownedBlueprints={[]}
+            onBuyBlueprint={() => { }}
+            onApplyBlueprint={() => { }}
+          />
+        )}
+
+        {uiState.showSpaceDesign && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full h-full bg-white flex flex-col">
+              <SpaceDesignCenter
+                onClose={toggleSpaceDesign}
+                fullCatalog={fullCatalog as any[]}
+                activeWall={customWalls.find((w: any) => w.id === activeWallId) || null}
+                activeFloor={customFloors.find((f: any) => f.id === activeFloorId) || null}
+                customWalls={customWalls as any[]}
+                customFloors={customFloors as any[]}
+                activeWallId={activeWallId}
+                activeFloorId={activeFloorId}
+                onSelectWall={setActiveWallId}
+                onSelectFloor={setActiveFloorId}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {uiState.showAssetUpload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden">
-            <div className="h-full flex flex-col">
+        {uiState.showAssetUpload && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden">
+              <div className="h-full flex flex-col">
+                <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                  <h3 className="font-bold text-xl">素材上傳中心</h3>
+                  <button onClick={toggleAssetUpload} className="p-2 hover:bg-slate-200 rounded-full">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto">
+                  <AssetUploadCenter
+                    assets={uiAssets}
+                    onAddAsset={(asset) => setUiAssets(prev => [...prev, asset])}
+                    onRemoveAsset={(id) => setUiAssets(prev => prev.filter(a => a.id !== id))}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPendingModal && (
+          <PendingRewardsModal
+            isOpen={true}
+            onClose={() => setShowPendingModal(false)}
+            onProcessed={() => {
+              // Count will be updated by Realtime subscription
+            }}
+          />
+        )}
+
+        {uiState.showThemeDesigner && (
+          <div className="fixed inset-0 z-50 flex bg-background/80 backdrop-blur-sm">
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+              <ThemeDesigner onClose={toggleThemeDesigner} />
+            </div>
+          </div>
+        )}
+
+        {uiState.showUploader && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                <h3 className="font-bold text-xl">素材上傳中心</h3>
-                <button onClick={toggleAssetUpload} className="p-2 hover:bg-slate-200 rounded-full">
+                <h3 className="font-bold text-xl">家具上傳中心</h3>
+                <button onClick={toggleUploader} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <div className="flex-1 overflow-auto">
-                <AssetUploadCenter
-                  assets={uiAssets}
-                  onAddAsset={(asset) => setUiAssets(prev => [...prev, asset])}
-                  onRemoveAsset={(id) => setUiAssets(prev => prev.filter(a => a.id !== id))}
+              <div className="flex-1 overflow-hidden">
+                <FurnitureUploader
+                  onClose={toggleUploader}
+                  onSave={() => toggleUploader()}
                 />
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showPendingModal && (
-        <PendingRewardsModal
-          isOpen={true}
-          onClose={() => setShowPendingModal(false)}
-          onProcessed={() => {
-            // Count will be updated by Realtime subscription
-          }}
-        />
-      )}
-
-      {uiState.showThemeDesigner && (
-        <div className="fixed inset-0 z-50 flex bg-background/80 backdrop-blur-sm">
-          <div className="flex-1 flex flex-col h-screen overflow-hidden">
-            <ThemeDesigner onClose={toggleThemeDesigner} />
-          </div>
-        </div>
-      )}
-
-      {uiState.showUploader && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-xl">家具上傳中心</h3>
-              <button onClick={toggleUploader} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-                <X className="w-6 h-6" />
-              </button>
+        {uiState.showEditor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-xl">資產編輯器</h3>
+                <button onClick={toggleEditor} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <FurnitureEditor
+                  onClose={toggleEditor}
+                  customCatalog={fullCatalog as any[]}
+                  onUpdate={(updated) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === updated.id ? updated : i))}
+                  onDelete={(id) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
+                  customWalls={customWalls as any[]}
+                  customFloors={customFloors as any[]}
+                  onUpdateWall={() => { }}
+                  onUpdateFloor={() => { }}
+                  onDeleteWall={() => { }}
+                  onDeleteFloor={() => { }}
+                  onEnterTransformMode={(id) => toggleTransformPanel(id)}
+                  customModels={fullModels}
+                />
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <FurnitureUploader
-                onClose={toggleUploader}
-                onSave={() => toggleUploader()}
+          </div>
+        )}
+
+        {uiState.showTransformPanel && uiState.transformTargetId && (() => {
+          const targetItem = fullCatalog.find((f: any) => f.id === uiState.transformTargetId);
+          if (!targetItem) return null;
+          return (
+            <div className="fixed inset-0 z-[60] flex">
+              <TransformPanel
+                furnitureName={targetItem.name || '未命名家具'}
+                furnitureImage={targetItem.spriteImages?.[0] || undefined}
+                data={{
+                  spriteOffsetX: targetItem.spriteOffsetX ?? 0,
+                  spriteOffsetY: targetItem.spriteOffsetY ?? 20,
+                  spriteScale: targetItem.spriteScale ?? 1,
+                  spriteScaleX: targetItem.spriteScaleX ?? 100,
+                  spriteScaleY: targetItem.spriteScaleY ?? 100,
+                  spriteSkewX: targetItem.spriteSkewX ?? 0,
+                  spriteSkewY: targetItem.spriteSkewY ?? 0,
+                }}
+                onChange={(changes) => {
+                  setCustomCatalog((prev: any[]) =>
+                    prev.map((item) =>
+                      item.id === uiState.transformTargetId ? { ...item, ...changes } : item
+                    )
+                  );
+                }}
+                onSave={() => toggleTransformPanel(null)}
+                onCancel={() => toggleTransformPanel(null)}
+                onReset={() => { }}
               />
             </div>
-          </div>
-        </div>
-      )}
-
-      {uiState.showEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-xl">資產編輯器</h3>
-              <button onClick={toggleEditor} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <FurnitureEditor
-                onClose={toggleEditor}
-                customCatalog={fullCatalog as any[]}
-                onUpdate={(updated) => setCustomCatalog((prev: any[]) => prev.map(i => i.id === updated.id ? updated : i))}
-                onDelete={(id) => setCustomCatalog((prev: any[]) => prev.filter(i => i.id !== id))}
-                customWalls={customWalls as any[]}
-                customFloors={customFloors as any[]}
-                onUpdateWall={() => { }}
-                onUpdateFloor={() => { }}
-                onDeleteWall={() => { }}
-                onDeleteFloor={() => { }}
-                onEnterTransformMode={(id) => toggleTransformPanel(id)}
-                customModels={fullModels}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {uiState.showTransformPanel && uiState.transformTargetId && (() => {
-        const targetItem = fullCatalog.find((f: any) => f.id === uiState.transformTargetId);
-        if (!targetItem) return null;
-        return (
-          <div className="fixed inset-0 z-[60] flex">
-            <TransformPanel
-              furnitureName={targetItem.name || '未命名家具'}
-              furnitureImage={targetItem.spriteImages?.[0] || undefined}
-              data={{
-                spriteOffsetX: targetItem.spriteOffsetX ?? 0,
-                spriteOffsetY: targetItem.spriteOffsetY ?? 20,
-                spriteScale: targetItem.spriteScale ?? 1,
-                spriteScaleX: targetItem.spriteScaleX ?? 100,
-                spriteScaleY: targetItem.spriteScaleY ?? 100,
-                spriteSkewX: targetItem.spriteSkewX ?? 0,
-                spriteSkewY: targetItem.spriteSkewY ?? 0,
-              }}
-              onChange={(changes) => {
-                setCustomCatalog((prev: any[]) =>
-                  prev.map((item) =>
-                    item.id === uiState.transformTargetId ? { ...item, ...changes } : item
-                  )
-                );
-              }}
-              onSave={() => toggleTransformPanel(null)}
-              onCancel={() => toggleTransformPanel(null)}
-              onReset={() => { }}
-            />
-          </div>
-        );
-      })()}
-    </>
+          );
+        })()}
+      </div>
+    </MobileTestEmulator>
   );
 }
 

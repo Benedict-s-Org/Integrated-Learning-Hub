@@ -139,13 +139,13 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
         />
       )}
       <div
-        className="pt-20 min-h-full bg-gray-50 pr-8"
+        className="pt-20 min-h-full bg-gray-50 pr-0 md:pr-8"
         data-source-tsx="ProofreadingInput|src/components/ProofreadingInput/ProofreadingInput.tsx"
       >
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="max-w-4xl mx-auto px-4 py-4 md:py-8">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
             <h1
-              className="text-3xl font-bold text-gray-800 mb-6 text-center"
+              className="text-xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6 text-center"
               data-source-tsx="ProofreadingInput Title|src/components/ProofreadingInput/ProofreadingInput.tsx"
             >
               Proofreading Exercise
@@ -223,7 +223,7 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
                   ref={textAreaRef}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-96 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
+                  className="w-full h-64 md:h-96 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
                   placeholder="Enter your sentences here, one per line...&#10;&#10;Example:&#10;She don't like apples.&#10;He go to school everyday.&#10;They was playing football."
                   data-source-tsx="ProofreadingInput Textarea|src/components/ProofreadingInput/ProofreadingInput.tsx"
                 />

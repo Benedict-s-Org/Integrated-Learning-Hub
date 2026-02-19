@@ -806,6 +806,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                   </tr>
                 );
               })}
+              {filteredAndSortedUsers.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="text-center py-8 text-slate-500">No users found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

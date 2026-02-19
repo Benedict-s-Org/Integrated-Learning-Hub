@@ -3,7 +3,6 @@ import { FileText, Eye, Users, Trash2, AlertCircle, Pencil, Check, X } from 'luc
 import { ProofreadingPractice } from '../../types';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 
 interface SavedProofreadingPracticesProps {
@@ -29,7 +28,7 @@ const SavedProofreadingPractices: React.FC<SavedProofreadingPracticesProps> = ({
   onAssignPractice,
   onDeletePractice,
 }) => {
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const { updateProofreadingPractice } = useAppContext();
   const [assignmentStats, setAssignmentStats] = useState<AssignmentStats>({});
   const [loading, setLoading] = useState(true);
@@ -134,12 +133,12 @@ const SavedProofreadingPractices: React.FC<SavedProofreadingPracticesProps> = ({
         currentView="saved"
       />
       <div
-        className="pt-20 min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
+        className="pt-20 min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-4 md:p-8"
       >
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Saved Proofreading Practices</h1>
-            <p className="text-gray-600">Manage and assign your saved practices to students</p>
+          <div className="mb-6 md:mb-8">
+            <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2">Saved Proofreading Practices</h1>
+            <p className="text-sm md:text-base text-gray-600">Manage and assign your saved practices to students</p>
           </div>
 
           {loading ? (

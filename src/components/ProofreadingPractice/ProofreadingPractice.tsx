@@ -226,8 +226,8 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
         className="min-h-screen bg-background"
         data-source-tsx="ProofreadingPractice|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
       >
-        <div className="max-w-[95%] mx-auto px-4 py-8">
-          <Card className="p-8">
+        <div className="max-w-[95%] md:max-w-6xl mx-auto px-4 py-4 md:py-8">
+          <Card className="p-4 md:p-8">
             <h1
               className="text-3xl font-bold text-foreground mb-6 text-center"
               data-source-tsx="ProofreadingPractice Title|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
@@ -239,7 +239,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
               <p>Click on the word that contains a mistake in each sentence, then enter the correction.</p>
             </div>
 
-            <div className="overflow-x-auto mb-8">
+            <div className="overflow-x-auto mb-8 hidden md:block">
               <table className="w-full border-collapse border border-gray-300">
                 <thead>
                   <tr className="bg-gray-100">
@@ -368,20 +368,136 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
               </table>
             </div>
 
-            <div className="flex justify-between items-center mt-6">
+            {/* Mobile Card Layout */}
+            <div className="md:hidden space-y-6 mb-8">
+              {parsedSentences.map((sentence) => {
+                const selectedWordIndex = selectedWords.get(sentence.lineNumber);
+                const correction = corrections.get(sentence.lineNumber) || '';
+                const correctAnswer = correctAnswers.get(sentence.lineNumber);
+                const isCorrect = isAnswerCorrect(sentence.lineNumber);
+
+                return (
+                  <div
+                    key={sentence.lineNumber}
+                    className={`bg-white border rounded-lg p-4 shadow-sm ${showResults && isCorrect === true
+                      ? 'border-green-200 bg-green-50/30'
+                      : showResults && isCorrect === false
+                        ? 'border-red-200 bg-red-50/30'
+                        : 'border-gray-200'
+                      }`}
+                  >
+                    <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
+                      <span className="font-semibold text-gray-500 text-sm">Question {sentence.lineNumber + 1}</span>
+                      {correctAnswer?.tip && !showResults && !isPreview && (
+                        <div className="relative">
+                          <button
+                            onClick={() => {
+                              const newSet = new Set(revealedTips);
+                              if (newSet.has(sentence.lineNumber)) {
+                                newSet.delete(sentence.lineNumber);
+                              } else {
+                                newSet.add(sentence.lineNumber);
+                              }
+                              setRevealedTips(newSet);
+                            }}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors ${revealedTips.has(sentence.lineNumber)
+                              ? 'text-yellow-700 bg-yellow-100'
+                              : 'text-blue-600 bg-blue-50'
+                              }`}
+                          >
+                            <Lightbulb size={12} />
+                            {revealedTips.has(sentence.lineNumber) ? 'Hide Tip' : 'Show Tip'}
+                          </button>
+                          {revealedTips.has(sentence.lineNumber) && (
+                            <div className="absolute right-0 top-full mt-2 z-10 w-48 p-2 bg-yellow-50 border border-yellow-200 rounded shadow-md text-xs text-yellow-800 italic text-left">
+                              {correctAnswer.tip}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mb-4 text-lg leading-relaxed">
+                      {sentence.words.map((word, idx) => {
+                        if (word.index === -1) {
+                          return <span key={`space-${idx}`} className="text-gray-800">{word.text}</span>;
+                        }
+
+                        const isSelected = selectedWordIndex === word.index;
+                        const isClickable = !word.isPunctuation && !showResults && !isPreview;
+
+                        return (
+                          <button
+                            key={`word-${idx}`}
+                            onClick={() => !word.isPunctuation && handleWordClick(sentence.lineNumber, word.index)}
+                            disabled={!isClickable}
+                            className={`inline-block px-1 py-0.5 rounded transition-colors ${isSelected
+                              ? 'bg-red-200 text-gray-800'
+                              : isClickable
+                                ? 'active:bg-blue-100 text-gray-800 decoration-dotted decoration-gray-400 underline-offset-4 hover:underline'
+                                : 'text-gray-800'
+                              }`}
+                          >
+                            {word.text}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="space-y-3 bg-gray-50 p-3 rounded-md">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Your Correction:</label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={correction}
+                            onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
+                            disabled={showResults || isPreview}
+                            placeholder="Type correction..."
+                            className="flex-1 bg-white"
+                          />
+                          {showResults && correctAnswer && (
+                            <div className="flex-shrink-0 flex items-center justify-center w-10">
+                              {isCorrect === true ? (
+                                <Check className="text-green-600" size={24} />
+                              ) : (
+                                <X className="text-red-600" size={24} />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {showResults && correctAnswer && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Correct Answer:</label>
+                          <span className="text-blue-700 font-medium">
+                            {correctAnswer.correction}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center mt-6 gap-4 sm:gap-0">
               <Button
                 onClick={onBack}
                 variant="secondary"
                 icon={ArrowLeft}
+                className="w-full sm:w-auto"
               >
                 Back
               </Button>
 
-              <div className="flex space-x-4">
+              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-4 w-full sm:w-auto">
                 {showResults && !isPreview && (
                   <Button
                     onClick={handleReset}
                     variant="gold"
+                    className="w-full sm:w-auto"
                   >
                     Try Again
                   </Button>
@@ -393,6 +509,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                     disabled={!hasAllAnswers()}
                     variant="success"
                     icon={Check}
+                    className="w-full sm:w-auto"
                   >
                     Check Answers
                   </Button>

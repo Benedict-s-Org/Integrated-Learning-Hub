@@ -34,13 +34,13 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
         />
       )}
       <div
-        className={`min-h-full bg-gray-50 pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}
+        className={`min-h-full bg-gray-50 pr-0 md:pr-8 ${user && onViewSaved ? 'pt-24' : 'pt-20'}`}
         data-source-tsx="TextInput|src/components/TextInput/TextInput.tsx"
       >
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="max-w-4xl mx-auto px-4 py-4 md:py-8">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
             <h1
-              className="text-3xl font-bold text-gray-800 mb-6 text-center"
+              className="text-xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6 text-center"
               data-source-tsx="TextInput Title|src/components/TextInput/TextInput.tsx"
             >
               Enter Your Text
@@ -59,7 +59,7 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
                   id="text-input"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="w-full h-64 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
+                  className="w-full h-48 md:h-64 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
                   placeholder="Enter your paragraph here..."
                   data-source-tsx="TextInput Textarea|src/components/TextInput/TextInput.tsx"
                 />

@@ -221,7 +221,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
             <div className="bg-blue-50 rounded-xl p-6 mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Results</h2>
-              <div className="grid grid-cols-3 gap-4 text-center mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center mb-4">
                 <div>
                   <p className="text-3xl font-bold text-green-600">{correctCount}</p>
                   <p className="text-gray-600">Correct</p>
@@ -282,23 +282,24 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
   return (
     <div
-      className="min-h-screen bg-background p-8"
+      className="min-h-screen bg-background p-4 md:p-8"
     >
       <div className="max-w-3xl mx-auto">
-        <Card className="p-8">
+        <Card className="p-4 md:p-8">
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+              <h1 className="text-xl md:text-3xl font-bold text-foreground text-center sm:text-left">{title}</h1>
               <span className="text-lg text-muted-foreground font-medium">
                 Word {currentWordIndex + 1} of {words.length}
               </span>
             </div>
 
-            <div className="flex justify-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 mb-4">
               <Button
                 onClick={() => setLevel(1)}
                 disabled={showFeedback}
                 variant={level === 1 ? "primary" : "secondary"}
+                className="w-full sm:w-auto"
               >
                 Level 1: Letter Click
               </Button>
@@ -306,6 +307,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                 onClick={() => setLevel(2)}
                 disabled={showFeedback}
                 variant={level === 2 ? "primary" : "secondary"}
+                className="w-full sm:w-auto"
               >
                 Level 2: Typing
               </Button>
@@ -330,7 +332,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               </Button>
             </div>
 
-            <p className="text-center text-sm text-gray-500 mb-6">
+            <p className="hidden sm:block text-center text-sm text-gray-500 mb-6">
               Keyboard shortcuts: <kbd className="px-2 py-1 bg-gray-200 rounded">Ctrl + Space</kbd> to replay
             </p>
 
@@ -366,7 +368,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                         key={index}
                         onClick={() => handleLetterClick(letter, index)}
                         disabled={showFeedback}
-                        className="text-2xl font-mono bg-blue-100 hover:bg-blue-200 text-blue-800 px-6 py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="text-xl md:text-2xl font-mono bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {letter}
                       </button>
@@ -429,11 +431,12 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
             </div>
           )}
 
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
             <Button
               onClick={onBack}
               variant="secondary"
               icon={ArrowLeft}
+              className="w-full sm:w-auto"
             >
               Back
             </Button>
@@ -443,6 +446,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                 onClick={handleCheck}
                 disabled={level === 1 ? clickedLetters.length === 0 : !userInput.trim()}
                 variant="success"
+                className="w-full sm:w-auto"
               >
                 Check Spelling
               </Button>
@@ -450,6 +454,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               <Button
                 onClick={handleNext}
                 variant="primary"
+                className="w-full sm:w-auto"
               >
                 {currentWordIndex < words.length - 1 ? 'Next Word' : 'Finish'}
               </Button>

@@ -171,11 +171,11 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 shrink-0">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Assign Content <span className="text-[10px] font-normal text-gray-400">v1.0.1</span></h2>
-            <p className="text-sm text-gray-600 mt-1">{contentTitle}</p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800">Assign Content <span className="text-[10px] font-normal text-gray-400">v1.0.1</span></h2>
+            <p className="text-xs md:text-sm text-gray-600 mt-1 line-clamp-1">{contentTitle}</p>
           </div>
           <button
             onClick={onClose}
@@ -185,7 +185,7 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+        <div className="p-4 md:p-6 overflow-y-auto flex-1">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
               {error}

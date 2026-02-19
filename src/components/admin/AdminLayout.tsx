@@ -12,6 +12,7 @@ import {
   Menu,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
+import { useAuth } from "@/context/AuthContext";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
   const location = useLocation();
   const [showMapEditor, setShowMapEditor] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isMobileEmulator } = useAuth();
 
   const NAV_ITEMS: NavItem[] = [
     {
@@ -130,7 +132,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-72 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5">
+      <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-72 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
         <SidebarContent />
       </aside>
 
@@ -152,7 +154,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all"
+              className={`${isMobileEmulator ? 'flex' : 'md:hidden'} p-2 rounded-xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all`}
             >
               <Menu className="w-5 h-5" />
             </button>

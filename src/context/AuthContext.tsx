@@ -119,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const [isUserView, setIsUserView] = useState(false);
+  const [isMobileEmulator, setIsMobileEmulator] = useState(false);
   const [testUserId, setTestUserId] = useState<string | null>(null);
 
   // Fetch test user ID for impersonation when admin switches to user view
@@ -168,6 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin,
     isUserView,
     toggleViewMode,
+    isMobileEmulator,
+    setIsMobileEmulator,
     accentPreference,
     updateAccentPreference,
   }), [
@@ -176,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     isAdmin,
     isUserView,
+    isMobileEmulator,
     accentPreference,
     updateAccentPreference,
   ]);

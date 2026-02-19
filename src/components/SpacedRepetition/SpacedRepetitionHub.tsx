@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2 } from 'lucide-react';
 import { SpacedRepetitionSet, UserStreak } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -73,14 +73,14 @@ export function SpacedRepetitionHub({
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-6">
+    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Spaced Repetition Learning</h1>
-          <p className="text-gray-600">Master material using scientifically-proven spacing intervals</p>
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2">Spaced Repetition Learning</h1>
+          <p className="text-sm md:text-base text-gray-600">Master material using scientifically-proven spacing intervals</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -126,10 +126,10 @@ export function SpacedRepetitionHub({
           </div>
         </div>
 
-        <div className="flex gap-3 mb-8">
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
           <button
             onClick={onCreateNew}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors w-full sm:w-auto"
           >
             <Plus className="w-5 h-5" />
             Create New Set
@@ -137,7 +137,7 @@ export function SpacedRepetitionHub({
 
           <button
             onClick={onViewAnalytics}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors w-full sm:w-auto"
           >
             <BarChart3 className="w-5 h-5" />
             Analytics
@@ -145,7 +145,7 @@ export function SpacedRepetitionHub({
 
           <button
             onClick={onViewSettings}
-            className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors w-full sm:w-auto"
           >
             Settings
           </button>

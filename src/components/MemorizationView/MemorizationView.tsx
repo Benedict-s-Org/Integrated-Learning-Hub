@@ -352,18 +352,18 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         className="min-h-screen bg-background"
         data-source-tsx="MemorizationView|src/components/MemorizationView/MemorizationView.tsx"
       >
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <Card className="p-8">
+        <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4 md:py-8">
+          <Card className="p-4 md:p-8">
             <h1
-              className="text-3xl font-bold text-foreground mb-6 text-center"
+              className="text-xl md:text-3xl font-bold text-foreground mb-4 md:mb-6 text-center"
               data-source-tsx="MemorizationView Title|src/components/MemorizationView/MemorizationView.tsx"
             >
               Practice Memorization
             </h1>
 
             <div className="mb-6 space-y-4">
-              <div className="flex justify-center space-x-3">
-                <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:space-x-3">
+                <div className="flex flex-wrap justify-center items-center gap-2 sm:space-x-2">
                   <span className="text-sm font-medium text-muted-foreground">Difficulty:</span>
                   <Button
                     onClick={() => setDifficultyLevel(1)}
@@ -391,7 +391,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
 
               {speechSupported && (
                 <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4">
-                  <div className="flex items-center justify-center space-x-6">
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 md:space-x-6">
                     <div className="flex items-center space-x-3">
                       <Button
                         onClick={handlePlay}
@@ -444,7 +444,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-end space-x-4">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:space-x-4">
                 <Button
                   onClick={revealAllWords}
                   variant="success"
@@ -548,22 +548,24 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
               <Button
                 onClick={onBack}
                 variant="secondary"
                 icon={ArrowLeft}
+                className="w-full sm:w-auto"
               >
                 {isPublicView ? 'Home' : 'Back'}
               </Button>
 
               {!isPublicView && user && (
-                <div className="flex flex-col items-end space-y-2">
+                <div className="flex flex-col items-center sm:items-end space-y-2 w-full sm:w-auto">
                   <Button
                     onClick={handleSave}
                     disabled={isSaving || saveSuccess || (!isAdmin && saveLimit !== null && currentSaveCount >= saveLimit)}
                     variant={saveSuccess ? "success" : "primary"}
                     icon={Save}
+                    className="w-full sm:w-auto"
                   >
                     {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
                   </Button>
@@ -581,7 +583,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
             </div>
 
             <div
-              className="mt-4 text-sm text-gray-600 text-center space-y-2"
+              className="mt-6 text-sm text-gray-600 text-center space-y-2"
               data-source-tsx="MemorizationView Instructions Container|src/components/MemorizationView/MemorizationView.tsx"
             >
               <p data-source-tsx="MemorizationView Instructions Text|src/components/MemorizationView/MemorizationView.tsx">
