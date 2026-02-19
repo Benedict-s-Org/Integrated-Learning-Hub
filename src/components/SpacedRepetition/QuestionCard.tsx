@@ -43,9 +43,9 @@ export function QuestionCard({
   const isCorrect = selectedIndex === question.correct_answer_index;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 sm:p-6 pb-24 md:pb-8">
+      <div className="max-w-2xl mx-auto flex flex-col h-full">
+        <div className="mb-4 sm:mb-8 flex items-center justify-between">
           <div className="flex-1">
             <div className="relative h-1 bg-gray-200 rounded-full overflow-hidden">
               <div
@@ -59,9 +59,9 @@ export function QuestionCard({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
+        <div className="bg-white rounded-xl shadow-lg p-5 sm:p-8 mb-4 sm:mb-6">
+          <div className="mb-5 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
               {question.question_text}
             </h2>
             {question.image_url && (
@@ -89,13 +89,13 @@ export function QuestionCard({
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {question.choices.map((choice, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSelectAnswer(idx)}
                 disabled={showFeedback}
-                className={`w-full p-4 text-left border-2 rounded-lg transition-all duration-200 ${selectedIndex === idx
+                className={`w-full p-3 sm:p-4 text-left border-2 rounded-lg transition-all duration-200 ${selectedIndex === idx
                   ? isCorrect
                     ? 'border-green-500 bg-green-50'
                     : 'border-red-500 bg-red-50'
@@ -104,9 +104,9 @@ export function QuestionCard({
                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                   } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2 sm:gap-3">
                   <span
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${selectedIndex === idx
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base flex-shrink-0 ${selectedIndex === idx
                       ? isCorrect
                         ? 'bg-green-500 text-white'
                         : 'bg-red-500 text-white'
@@ -118,7 +118,7 @@ export function QuestionCard({
                     {String.fromCharCode(65 + idx)}
                   </span>
                   <span
-                    className={`text-lg ${selectedIndex === idx
+                    className={`text-base sm:text-lg ${selectedIndex === idx
                       ? isCorrect
                         ? 'text-green-900 font-semibold'
                         : 'text-red-900 font-semibold'
