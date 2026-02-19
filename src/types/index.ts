@@ -293,6 +293,7 @@ export interface SpacedRepetitionSet {
   difficulty: 'easy' | 'medium' | 'hard';
   total_questions: number;
   is_published: boolean;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -307,6 +308,7 @@ export interface SpacedRepetitionQuestion {
   explanation?: string;
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string[];
+  order_index?: number;
   created_at: string;
   updated_at: string;
 }

@@ -14,8 +14,14 @@ interface SpacedRepetitionContextType {
 
   createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
+  updateSet: (setId: string, updates: Partial<SpacedRepetitionSet>) => Promise<boolean>;
+  updateQuestion: (questionId: string, updates: Partial<SpacedRepetitionQuestion>) => Promise<boolean>;
+  deleteQuestion: (questionId: string) => Promise<boolean>;
   deleteSet: (setId: string) => Promise<void>;
+  restoreSet: (setId: string) => Promise<boolean>;
+  permanentlyDeleteSet: (setId: string) => Promise<boolean>;
   fetchSet: (setId: string) => Promise<void>;
+  fetchRecycleBin: () => Promise<SpacedRepetitionSet[]>;
   fetchCardsDueToday: () => Promise<SpacedRepetitionQuestion[]>;
   recordAttempt: (questionId: string, selectedIndex: number, responseTime: number) => Promise<boolean>;
   getQuestionsForSet: (setId: string) => Promise<SpacedRepetitionQuestion[]>;
@@ -99,7 +105,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return false;
 
     try {
-      const questionRecords = questionsData.map(q => ({
+      const questionRecords = questionsData.map((q, idx) => ({
         set_id: setId,
         question_text: q.question_text || q.question,
         choices: q.choices,
@@ -107,6 +113,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         tags: q.tags || [],
+        order_index: q.order_index ?? idx,
       })) as any[];
 
       const { data: insertedQuestions, error: insertError } = await ((supabase as any)
@@ -135,7 +142,6 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         .eq('id', setId);
 
       if (updateError) throw updateError;
-
       setQuestions(typedQuestions);
       setSchedules(scheduleRecords as unknown as SpacedRepetitionSchedule[]);
       return true;
@@ -145,12 +151,121 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     }
   };
 
+  const updateSet = async (setId: string, updates: Partial<SpacedRepetitionSet>): Promise<boolean> => {
+    try {
+      const { error } = await ((supabase as any)
+        .from('spaced_repetition_sets')
+        .update(updates as any) as any)
+        .eq('id', setId);
+
+      if (error) throw error;
+
+      setSets(prev => prev.map(s => s.id === setId ? { ...s, ...updates } : s));
+      if (currentSet?.id === setId) {
+        setCurrentSet(prev => prev ? { ...prev, ...updates } : null);
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to update set:', error);
+      return false;
+    }
+  };
+
+  const updateQuestion = async (questionId: string, updates: Partial<SpacedRepetitionQuestion>): Promise<boolean> => {
+    try {
+      const { error } = await ((supabase as any)
+        .from('spaced_repetition_questions')
+        .update(updates as any) as any)
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } : q));
+      return true;
+    } catch (error) {
+      console.error('Failed to update question:', error);
+      return false;
+    }
+  };
+
+  const deleteQuestion = async (questionId: string): Promise<boolean> => {
+    try {
+      const { error } = await (supabase as any)
+        .from('spaced_repetition_questions')
+        .delete()
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      setQuestions(prev => prev.filter(q => q.id !== questionId));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete question:', error);
+      return false;
+    }
+  };
+
   const deleteSet = async (setId: string) => {
     try {
-      await (supabase as any).from('spaced_repetition_sets').delete().eq('id', setId);
+      // Soft-delete
+      await ((supabase as any)
+        .from('spaced_repetition_sets')
+        .update({ deleted_at: new Date().toISOString() } as any) as any)
+        .eq('id', setId);
+
       setSets(sets.filter(s => s.id !== setId));
     } catch (error) {
-      console.error('Failed to delete set:', error);
+      console.error('Failed to soft-delete set:', error);
+    }
+  };
+
+  const restoreSet = async (setId: string): Promise<boolean> => {
+    try {
+      const { error } = await ((supabase as any)
+        .from('spaced_repetition_sets')
+        .update({ deleted_at: null } as any) as any)
+        .eq('id', setId);
+
+      if (error) throw error;
+
+      // We don't necessarily re-add to 'sets' here immediately, 
+      // usually the caller will re-fetch or the Hub will refresh.
+      return true;
+    } catch (error) {
+      console.error('Failed to restore set:', error);
+      return false;
+    }
+  };
+
+  const permanentlyDeleteSet = async (setId: string): Promise<boolean> => {
+    try {
+      const { error } = await (supabase as any)
+        .from('spaced_repetition_sets')
+        .delete()
+        .eq('id', setId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Failed to permanently delete set:', error);
+      return false;
+    }
+  };
+
+  const fetchRecycleBin = async (): Promise<SpacedRepetitionSet[]> => {
+    try {
+      const { data, error } = await ((supabase as any)
+        .from('spaced_repetition_sets')
+        .select('*') as any)
+        .eq('user_id', userId)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as unknown as SpacedRepetitionSet[];
+    } catch (error) {
+      console.error('Failed to fetch recycle bin:', error);
+      return [];
     }
   };
 
@@ -257,7 +372,8 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
       const { data, error } = await ((supabase as any)
         .from('spaced_repetition_questions')
         .select('*') as any)
-        .eq('set_id', setId);
+        .eq('set_id', setId)
+        .order('order_index', { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as SpacedRepetitionQuestion[];
     } catch (error) {
@@ -371,8 +487,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         loading,
         createSet,
         addQuestions,
+        updateSet,
+        updateQuestion,
+        deleteQuestion,
         deleteSet,
+        restoreSet,
+        permanentlyDeleteSet,
         fetchSet,
+        fetchRecycleBin,
         fetchCardsDueToday,
         recordAttempt,
         getQuestionsForSet,

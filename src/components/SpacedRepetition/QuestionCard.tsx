@@ -61,7 +61,7 @@ export function QuestionCard({
 
         <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 leading-relaxed">
+            <h2 className="text-2xl font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
               {question.question_text}
             </h2>
             {question.image_url && (

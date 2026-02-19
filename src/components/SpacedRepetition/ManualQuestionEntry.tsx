@@ -15,19 +15,23 @@ interface Question {
 interface ManualQuestionEntryProps {
   title: string;
   description: string;
+  initialQuestions?: Question[];
   onSave: (questions: Question[], setTitle: string, setDescription: string) => void;
   onCancel: () => void;
+  mode?: 'create' | 'edit';
 }
 
 export function ManualQuestionEntry({
   title: initialTitle,
   description: initialDescription,
+  initialQuestions,
   onSave,
   onCancel,
+  mode = 'create',
 }: ManualQuestionEntryProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
-  const [questions, setQuestions] = useState<Question[]>([
+  const [questions, setQuestions] = useState<Question[]>(initialQuestions || [
     {
       question_text: '',
       image_url: null,
@@ -175,7 +179,9 @@ export function ManualQuestionEntry({
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Create Question Set Manually</h2>
+        <h2 className="text-2xl font-bold text-gray-900">
+          {mode === 'edit' ? 'Edit Question Set' : 'Create Question Set Manually'}
+        </h2>
         <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
           {questions.length} Question{questions.length !== 1 && 's'}
         </span>
@@ -232,7 +238,7 @@ export function ManualQuestionEntry({
                 <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${expandedIndex === idx ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                   {idx + 1}
                 </span>
-                <span className="font-medium text-gray-900 truncate max-w-md">
+                <span className="font-medium text-gray-900 truncate max-w-md whitespace-pre-wrap">
                   {question.question_text || <span className="text-gray-400 italic">New Question</span>}
                 </span>
                 {question.image_url && <ImageIcon className="w-4 h-4 text-blue-500" />}
@@ -384,7 +390,7 @@ export function ManualQuestionEntry({
                         })
                       }
                       placeholder="e.g., biology, chapter5"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow font-mono text-sm"
                     />
                   </div>
                 </div>
@@ -395,7 +401,7 @@ export function ManualQuestionEntry({
                     value={question.explanation}
                     onChange={(e) => updateQuestion(idx, { explanation: e.target.value })}
                     placeholder="Explain why this answer is correct..."
-                    rows={2}
+                    rows={3}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   />
                 </div>
@@ -437,7 +443,7 @@ export function ManualQuestionEntry({
           ) : (
             <>
               <CheckCircle className="w-5 h-5" />
-              Save & Create Set
+              {mode === 'edit' ? 'Save Changes' : 'Save & Create Set'}
             </>
           )}
         </button>

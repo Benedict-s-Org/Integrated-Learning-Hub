@@ -11,11 +11,13 @@ import { SpacedRepetitionQuestion, SpacedRepetitionSessionState } from '../../ty
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Login } from '../Auth/Login';
+import { supabase } from '../../lib/supabase';
 
 type PageState =
   | { view: 'hub' }
   | { view: 'createNew'; source?: 'manual' | 'file' | 'notion' }
   | { view: 'learning'; setId: string }
+  | { view: 'edit'; setId: string; initialData: { title: string; description: string; questions: any[] } }
   | { view: 'analytics' };
 
 export const SpacedRepetitionPage: React.FC = () => {
@@ -23,6 +25,9 @@ export const SpacedRepetitionPage: React.FC = () => {
   const {
     createSet,
     addQuestions,
+    updateSet,
+    updateQuestion,
+    deleteQuestion,
     getQuestionsForSet,
     recordAttempt,
     streak
@@ -59,7 +64,6 @@ export const SpacedRepetitionPage: React.FC = () => {
       }
 
       const sessionQuestions = questions
-        .sort(() => Math.random() - 0.5)
         .slice(0, 20);
 
       const now = Date.now();
@@ -136,12 +140,6 @@ export const SpacedRepetitionPage: React.FC = () => {
     });
   };
 
-  // ─── Creation Logic ──────────────────────────────────────────────────
-
-  const handleSourceSelect = (source: 'manual' | 'file' | 'notion') => {
-    setState({ view: 'createNew', source });
-  };
-
   const handleQuestionsImport = async (
     questions: any[],
     title: string,
@@ -158,6 +156,100 @@ export const SpacedRepetitionPage: React.FC = () => {
     } catch (error) {
       console.error("Failed to create set:", error);
       alert("Failed to save the question set. Please try again.");
+    }
+  };
+
+  // ─── Creation Logic ──────────────────────────────────────────────────
+
+  const handleSourceSelect = (source: 'manual' | 'file' | 'notion') => {
+    setState({ view: 'createNew', source });
+  };
+
+  const handleEditSet = async (setId: string) => {
+    setLoadingSession(true);
+    try {
+      const { data: set, error: setError } = await (supabase as any)
+        .from('spaced_repetition_sets')
+        .select('*')
+        .eq('id', setId)
+        .single();
+
+      if (setError) throw setError;
+
+      const questions = await getQuestionsForSet(setId);
+
+      setState({
+        view: 'edit',
+        setId,
+        initialData: {
+          title: set.title,
+          description: set.description || '',
+          questions: questions || []
+        }
+      });
+    } catch (err) {
+      console.error("Failed to fetch set for editing:", err);
+      alert("Failed to load set data.");
+    } finally {
+      setLoadingSession(false);
+    }
+  };
+
+  const handleUpdateSet = async (
+    questionsData: any[],
+    title: string,
+    description: string
+  ) => {
+    if (state.view !== 'edit') return;
+    const setId = state.setId;
+
+    try {
+      // 1. Update set metadata
+      await updateSet(setId, { title, description });
+
+      // 2. Identify deleted, updated, and new questions
+      const existingQuestions = state.initialData.questions;
+      const currentIds = questionsData.map(q => q.id).filter(Boolean);
+
+      // Delete questions that were removed in the UI
+      const deletedIds = existingQuestions
+        .filter(q => !currentIds.includes(q.id))
+        .map(q => q.id);
+
+      for (const qId of deletedIds) {
+        await deleteQuestion(qId);
+      }
+
+      // Update existing or add new
+      const newQuestions = [];
+      for (let i = 0; i < questionsData.length; i++) {
+        const q = questionsData[i];
+        if (q.id) {
+          // Update existing
+          await updateQuestion(q.id, {
+            question_text: q.question_text,
+            image_url: q.image_url,
+            choices: q.choices,
+            correct_answer_index: q.correct_answer_index,
+            explanation: q.explanation,
+            difficulty: q.difficulty,
+            tags: q.tags,
+            order_index: i
+          });
+        } else {
+          newQuestions.push({ ...q, order_index: i });
+        }
+      }
+
+      // 3. Add any new questions
+      if (newQuestions.length > 0) {
+        await addQuestions(setId, newQuestions);
+      }
+
+      setState({ view: 'hub' });
+    } catch (error) {
+      console.error("Failed to update set:", error);
+      alert("Failed to update the question set.");
     }
   };
 
@@ -250,6 +342,19 @@ export const SpacedRepetitionPage: React.FC = () => {
     }
   }
 
+  if (state.view === 'edit') {
+    return (
+      <ManualQuestionEntry
+        mode="edit"
+        title={state.initialData.title}
+        description={state.initialData.description}
+        initialQuestions={state.initialData.questions}
+        onSave={handleUpdateSet}
+        onCancel={() => setState({ view: 'hub' })}
+      />
+    );
+  }
+
   if (state.view === 'analytics') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
@@ -280,6 +385,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       <SpacedRepetitionHub
         onCreateNew={() => setState({ view: 'createNew' })}
         onStartLearning={startSession}
+        onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}
       />
