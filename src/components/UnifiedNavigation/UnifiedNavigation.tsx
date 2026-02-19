@@ -97,7 +97,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
 
     return (
         <nav
-            className={`fixed top-0 left-0 h-full bg-gradient-to-b from-white via-orange-50/30 to-pink-50/30 border-r border-orange-100 z-50 shadow-lg transition-all duration-300 flex flex-col ${isNavOpen ? 'w-72' : 'w-20'
+            className={`fixed top-0 left-0 h-full bg-gradient-to-b from-white via-orange-50/30 to-pink-50/30 border-r border-orange-100 z-50 shadow-lg transition-all duration-300 hidden md:flex flex-col ${isNavOpen ? 'w-72' : 'w-20'
                 }`}
         >
             {/* Toggle Button */}

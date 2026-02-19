@@ -8,6 +8,7 @@ import { MemoryPalaceProvider, useMemoryPalaceContext } from './contexts/MemoryP
 import { useInventory } from './hooks/useInventory';
 import SourceInspector from './components/SourceInspector/SourceInspector';
 import { UnifiedNavigation } from './components/UnifiedNavigation/UnifiedNavigation';
+import { MobileTabBar } from './components/UnifiedNavigation/MobileTabBar';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
@@ -107,7 +108,7 @@ function AppContent() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
-  const { user, loading, toggleViewMode, isAdmin } = useAuth();
+  const { user, loading, toggleViewMode, isAdmin, signOut, isUserView } = useAuth();
 
   // Memory Palace Context Handlers
   const {
@@ -1029,7 +1030,35 @@ function AppContent() {
           onOpenMemory={toggleMemoryPanel}
         />
       )}
-      <main className={`h-screen overflow-y-auto transition-all duration-300 ${(['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
+      {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+        <MobileTabBar
+          currentPage={getCurrentPage()}
+          onPageChange={handlePageChange}
+          isAdmin={isAdmin}
+          onLogin={handleLogin}
+          onSignOut={signOut}
+          userName={user?.display_name || user?.username}
+          userRole={user?.role}
+          pendingCount={pendingCount}
+          onOpenNotifications={() => setShowPendingModal(true)}
+          onShop={toggleShop}
+          onCity={() => setView('map')}
+          onRegion={() => setView('region')}
+          onOpenStudio={toggleStudio}
+          onOpenUploader={toggleUploader}
+          onOpenEditor={toggleEditor}
+          onOpenSpaceDesign={toggleSpaceDesign}
+          onOpenThemeDesigner={toggleThemeDesigner}
+          onOpenMapEditor={toggleMapEditor}
+          onOpenAssetUpload={toggleAssetUpload}
+          onOpenFurniture={toggleFurniturePanel}
+          onOpenHistory={toggleHistoryPanel}
+          onOpenMemory={toggleMemoryPanel}
+          isUserView={isUserView}
+          onToggleViewMode={toggleViewMode}
+        />
+      )}
+      <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 ${(['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
         {renderCurrentView()}
       </main>
       {showLoginModal && (
