@@ -167,12 +167,12 @@ export const SpacedRepetitionPage: React.FC = () => {
   };
 
   const handleSaveAndExit = async () => {
-    // If we're currently saving, wait for it
+    // If we're currently saving, wait a bit or we could use a reference to the promise
+    // For now, let's just use a simple check. If isSaving is true, we might miss the last one
+    // if we transition immediately.
     if (isSaving) {
-      // Just a small delay and check or we could use a ref to track the promise
-      // For simplicity in this UI context, we can just block the exit briefly
-      // But a better way is to check if we've already handled the current question
-      // The state change to hub will happen after this
+      // Wait for a short duration to allow the async save to progress
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     setState({ view: 'hub' });
   };

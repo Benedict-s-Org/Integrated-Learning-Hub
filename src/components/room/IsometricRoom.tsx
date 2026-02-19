@@ -2,23 +2,17 @@ import React, { useState, useRef } from "react";
 import { HOUSE_LEVELS } from "@/constants/houseLevels";
 import { GridMode } from "@/components/IsometricGridOverlay";
 import { MemoryPoint } from "@/hooks/useMemoryPoints";
-import { FurnitureItem, Placement, WallPlacement, CustomFurniture, FurnitureColorVariant, FurnitureBoxPrimitive } from "@/types/furniture";
+import { FurnitureItem, Placement, WallPlacement, CustomFurniture } from "@/types/furniture";
 import { CustomWall, CustomFloor } from "@/types/room";
+import { WallRenderer } from "./WallRenderer";
 
 // Types
-interface ActiveWall {
+interface ActiveWall extends Partial<CustomWall> {
   id: string;
-  lightSide?: string;
-  darkSide?: string;
-  lightImage?: string;
-  darkImage?: string;
-  color?: string;
 }
 
-interface ActiveFloor {
+interface ActiveFloor extends Partial<CustomFloor> {
   id: string;
-  image?: string;
-  color?: string;
 }
 
 interface IsometricRoomProps {
@@ -83,7 +77,6 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
   isStudyMode = false,
   onStudyClick,
   hasDueCard,
-  onRemoveWallPlacement,
   showGrid = false,
   gridMode = "floor" as GridMode,
   onTileClick,
@@ -111,8 +104,6 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
   const wallGridCols = gridSize;
   const wallGridRows = 3;
   const wallCellHeight = wallHeight / wallGridRows;
-  const baseboardHeight = 15;
-  const frameThickness = 8;
 
   const toIso = (x: number, y: number) => {
     const cx = x - gridSize / 2;
@@ -802,7 +793,7 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
           item = {
             ...item,
             spriteImages: variant.images
-          } as CustomFurniture;
+          } as any;
         }
       }
 
@@ -826,9 +817,9 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
             className="cursor-pointer"
           >
             <g transform={`skewY(${wallPos.skewY}deg)`}>
-              {item.type === "sprite" && item.spriteImages?.[0] ? (
+              {item.type === "sprite" && (item as any).spriteImages?.[0] ? (
                 <image
-                  href={item.spriteImages[0]}
+                  href={(item as any).spriteImages[0]}
                   x={-itemSize / 2}
                   y={-itemSize}
                   width={itemSize}
@@ -871,9 +862,9 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
         render: (
           <g key="wall-ghost" transform={`translate(${wallPos.x}, ${wallPos.y})`} style={{ pointerEvents: "none" }}>
             <g transform={`skewY(${wallPos.skewY}deg)`}>
-              {draggingItem.type === "sprite" && draggingItem.spriteImages?.[0] ? (
+              {(draggingItem as any).type === "sprite" && (draggingItem as any).spriteImages?.[0] ? (
                 <image
-                  href={draggingItem.spriteImages[0]}
+                  href={(draggingItem as any).spriteImages[0]}
                   x={-itemSize / 2}
                   y={-itemSize}
                   width={itemSize}
@@ -959,190 +950,14 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
     return [...floorObjects, ...objects].map((o) => o.render);
   };
 
-  const renderWalls = () => {
-    const corners = [
-      { x: 0, y: 0 },
-      { x: gridSize, y: 0 },
-      { x: gridSize, y: gridSize },
-      { x: 0, y: gridSize },
-    ];
-    const screenCorners = corners.map((c) => ({ ...c, pos: toIso(c.x, c.y) }));
-    let backCornerIdx = 0;
-    let minScreenY = Infinity;
-    screenCorners.forEach((c, idx) => {
-      if (c.pos.y < minScreenY) {
-        minScreenY = c.pos.y;
-        backCornerIdx = idx;
-      }
-    });
-    const prevIdx = (backCornerIdx - 1 + 4) % 4;
-    const nextIdx = (backCornerIdx + 1) % 4;
-    const backCorner = screenCorners[backCornerIdx];
-    const prevCorner = screenCorners[prevIdx];
-    const nextCorner = screenCorners[nextIdx];
-
-    const hasCustomWallLight = activeWall?.lightSide || activeWall?.lightImage;
-    const hasCustomWallDark = activeWall?.darkSide || activeWall?.darkImage;
-
-    return (
-      <g style={{ pointerEvents: "none" }}>
-        <defs>
-          <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#5DC9BF" />
-            <stop offset="30%" stopColor="#4DB6AC" />
-            <stop offset="100%" stopColor="#3D9B91" />
-          </linearGradient>
-          <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#4DB6AC" />
-            <stop offset="30%" stopColor="#3D9B91" />
-            <stop offset="100%" stopColor="#2D8B81" />
-          </linearGradient>
-          {hasCustomWallLight && (
-            <pattern id="custom-wall-light-pattern" patternUnits="userSpaceOnUse" width="100" height="100">
-              <image href={activeWall?.lightSide || activeWall?.lightImage} width="100" height="100" preserveAspectRatio="xMidYMid slice" />
-            </pattern>
-          )}
-          {hasCustomWallDark && (
-            <pattern id="custom-wall-dark-pattern" patternUnits="userSpaceOnUse" width="100" height="100">
-              <image href={activeWall?.darkSide || activeWall?.darkImage} width="100" height="100" preserveAspectRatio="xMidYMid slice" />
-            </pattern>
-          )}
-          <linearGradient id="wood-frame-light" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#A1887F" />
-            <stop offset="50%" stopColor="#8D6E63" />
-            <stop offset="100%" stopColor="#6D4C41" />
-          </linearGradient>
-          <linearGradient id="wood-frame-dark" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#8D6E63" />
-            <stop offset="50%" stopColor="#6D4C41" />
-            <stop offset="100%" stopColor="#5D4037" />
-          </linearGradient>
-          <linearGradient id="wood-baseboard" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#8D6E63" />
-            <stop offset="100%" stopColor="#5D4037" />
-          </linearGradient>
-          <linearGradient id="ao-shadow" x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stopColor="rgba(45, 80, 75, 0.5)" />
-            <stop offset="40%" stopColor="rgba(45, 80, 75, 0)" />
-          </linearGradient>
-        </defs>
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight} Z`}
-          fill={hasCustomWallLight ? "url(#custom-wall-light-pattern)" : "url(#wall-left-gradient)"}
-        />
-        {!hasCustomWallLight && (
-          <path
-            d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight} L${prevCorner.pos.x + 2} ${prevCorner.pos.y - wallHeight + 3} L${backCorner.pos.x - 2} ${backCorner.pos.y - wallHeight + 3} Z`}
-            fill="#7DD4CA"
-            opacity={0.7}
-          />
-        )}
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y - 40} L${backCorner.pos.x} ${backCorner.pos.y - 40} Z`}
-          fill="url(#ao-shadow)"
-        />
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight} Z`}
-          fill={hasCustomWallDark ? "url(#custom-wall-dark-pattern)" : "url(#wall-right-gradient)"}
-        />
-        {!hasCustomWallDark && (
-          <path
-            d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight} L${nextCorner.pos.x - 2} ${nextCorner.pos.y - wallHeight + 3} L${backCorner.pos.x + 2} ${backCorner.pos.y - wallHeight + 3} Z`}
-            fill="#5DC9BF"
-            opacity={0.5}
-          />
-        )}
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y - 40} L${backCorner.pos.x} ${backCorner.pos.y - 40} Z`}
-          fill="url(#ao-shadow)"
-        />
-
-        <line
-          x1={backCorner.pos.x}
-          y1={backCorner.pos.y}
-          x2={backCorner.pos.x}
-          y2={backCorner.pos.y - wallHeight}
-          stroke="#7DD4CA"
-          strokeWidth="2"
-          opacity={0.8}
-        />
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y - baseboardHeight} L${backCorner.pos.x} ${backCorner.pos.y - baseboardHeight} Z`}
-          fill="url(#wood-baseboard)"
-        />
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - baseboardHeight} L${prevCorner.pos.x} ${prevCorner.pos.y - baseboardHeight} L${prevCorner.pos.x + 1} ${prevCorner.pos.y - baseboardHeight + 2} L${backCorner.pos.x - 1} ${backCorner.pos.y - baseboardHeight + 2} Z`}
-          fill="#A1887F"
-          opacity={0.8}
-        />
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y - baseboardHeight} L${backCorner.pos.x} ${backCorner.pos.y - baseboardHeight} Z`}
-          fill="url(#wood-frame-dark)"
-        />
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - baseboardHeight} L${nextCorner.pos.x} ${nextCorner.pos.y - baseboardHeight} L${nextCorner.pos.x - 1} ${nextCorner.pos.y - baseboardHeight + 2} L${backCorner.pos.x + 1} ${backCorner.pos.y - baseboardHeight + 2} Z`}
-          fill="#8D6E63"
-          opacity={0.6}
-        />
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight - frameThickness} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight - frameThickness} Z`}
-          fill="url(#wood-frame-light)"
-        />
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight - frameThickness} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight - frameThickness} L${prevCorner.pos.x + 2} ${prevCorner.pos.y - wallHeight - frameThickness + 3} L${backCorner.pos.x - 2} ${backCorner.pos.y - wallHeight - frameThickness + 3} Z`}
-          fill="#BCAAA4"
-          opacity={0.8}
-        />
-
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight - frameThickness} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight - frameThickness} Z`}
-          fill="url(#wood-frame-dark)"
-        />
-        <path
-          d={`M${backCorner.pos.x} ${backCorner.pos.y - wallHeight - frameThickness} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight - frameThickness} L${nextCorner.pos.x - 2} ${nextCorner.pos.y - wallHeight - frameThickness + 3} L${backCorner.pos.x + 2} ${backCorner.pos.y - wallHeight - frameThickness + 3} Z`}
-          fill="#A1887F"
-          opacity={0.6}
-        />
-
-        <rect
-          x={backCorner.pos.x - 6}
-          y={backCorner.pos.y - wallHeight - frameThickness}
-          width={12}
-          height={wallHeight + frameThickness}
-          fill="url(#wood-frame-light)"
-        />
-        <rect
-          x={backCorner.pos.x - 6}
-          y={backCorner.pos.y - wallHeight - frameThickness}
-          width={3}
-          height={wallHeight + frameThickness}
-          fill="#BCAAA4"
-          opacity={0.5}
-        />
-
-        <rect
-          x={prevCorner.pos.x - 6}
-          y={prevCorner.pos.y - wallHeight - frameThickness}
-          width={12}
-          height={wallHeight + frameThickness}
-          fill="url(#wood-frame-dark)"
-        />
-
-        <rect
-          x={nextCorner.pos.x - 6}
-          y={nextCorner.pos.y - wallHeight - frameThickness}
-          width={12}
-          height={wallHeight + frameThickness}
-          fill="url(#wood-frame-dark)"
-        />
-      </g>
-    );
-  };
+  const renderWalls = () => (
+    <WallRenderer
+      gridSize={gridSize}
+      wallHeight={wallHeight}
+      toIso={toIso}
+      activeWall={activeWall as CustomWall}
+    />
+  );
 
   const renderCompassLabels = () => {
     const labelStyle: React.CSSProperties = {
@@ -1192,100 +1007,8 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
         preserveAspectRatio="xMidYMid meet"
       >
         <g transform={`translate(${offset.x}, ${offset.y})`}>
+
           {renderWalls()}
-
-          {activeFloor?.image && (
-            <>
-              <defs>
-                {Array.from({ length: Math.ceil(gridSize / 2) }).map((_, i) =>
-                  Array.from({ length: Math.ceil(gridSize / 2) }).map((_, j) => {
-                    const gridX = i * 2;
-                    const gridY = j * 2;
-                    const p0 = toIso(gridX, gridY);
-                    const p1 = toIso(gridX + 2, gridY);
-                    const p2 = toIso(gridX + 2, gridY + 2);
-                    const p3 = toIso(gridX, gridY + 2);
-                    const diamondPath = `M${p0.x} ${p0.y} L${p1.x} ${p1.y} L${p2.x} ${p2.y} L${p3.x} ${p3.y} Z`;
-                    return (
-                      <clipPath key={`clip-${i}-${j}`} id={`tile-clip-${i}-${j}`} clipPathUnits="userSpaceOnUse">
-                        <path d={diamondPath} />
-                      </clipPath>
-                    );
-                  }),
-                )}
-              </defs>
-
-              <g style={{ pointerEvents: "none" }}>
-                {Array.from({ length: gridSize + 1 }).map((_, i) => {
-                  const start = toIso(i, 0);
-                  const end = toIso(i, gridSize);
-                  return (
-                    <line
-                      key={`grid-x-${i}`}
-                      x1={start.x}
-                      y1={start.y}
-                      x2={end.x}
-                      y2={end.y}
-                      stroke="rgba(0,0,0,0.1)"
-                      strokeWidth={0.5}
-                    />
-                  );
-                })}
-                {Array.from({ length: gridSize + 1 }).map((_, i) => {
-                  const start = toIso(0, i);
-                  const end = toIso(gridSize, i);
-                  return (
-                    <line
-                      key={`grid-y-${i}`}
-                      x1={start.x}
-                      y1={start.y}
-                      x2={end.x}
-                      y2={end.y}
-                      stroke="rgba(0,0,0,0.1)"
-                      strokeWidth={0.5}
-                    />
-                  );
-                })}
-              </g>
-
-              {Array.from({ length: Math.ceil(gridSize / 2) }).map((_, i) =>
-                Array.from({ length: Math.ceil(gridSize / 2) }).map((_, j) => {
-                  const gridX = i * 2;
-                  const gridY = j * 2;
-                  const p0 = toIso(gridX, gridY);
-                  const p1 = toIso(gridX + 2, gridY);
-                  const p2 = toIso(gridX + 2, gridY + 2);
-                  const p3 = toIso(gridX, gridY + 2);
-
-                  const bleed = 2;
-                  const minX = Math.min(p0.x, p1.x, p2.x, p3.x) - bleed;
-                  const maxX = Math.max(p0.x, p1.x, p2.x, p3.x) + bleed;
-                  const minY = Math.min(p0.y, p1.y, p2.y, p3.y) - bleed;
-                  const maxY = Math.max(p0.y, p1.y, p2.y, p3.y) + bleed;
-
-                  const imgWidth = maxX - minX;
-                  const imgHeight = maxY - minY;
-                  const centerX = (minX + maxX) / 2;
-                  const centerY = (minY + maxY) / 2;
-
-                  return (
-                    <g key={`floor-tex-${i}-${j}`} clipPath={`url(#tile-clip-${i}-${j})`}>
-                      <image
-                        href={activeFloor.image}
-                        x={centerX - imgWidth / 2}
-                        y={centerY - imgHeight / 2}
-                        width={imgWidth}
-                        height={imgHeight}
-                        preserveAspectRatio="xMidYMid slice"
-                        style={{ pointerEvents: "none" }}
-                      />
-                    </g>
-                  );
-                }),
-              )}
-            </>
-          )}
-
           {renderScene()}
 
           {showGrid && (

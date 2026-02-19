@@ -6,7 +6,7 @@ interface QuestionCardProps {
   question: SpacedRepetitionQuestion;
   questionNumber: number;
   totalQuestions: number;
-  onAnswer: (selectedIndex: number, responseTime: number) => void;
+  onAnswer: (selectedIndex: number, responseTime: number) => Promise<void> | void;
   onNext: () => void;
   onPrevious: () => void;
   onSaveAndExit: () => void;
@@ -47,12 +47,12 @@ export function QuestionCard({
     setAnswerTimer(timer);
   };
 
-  const handleExit = () => {
+  const handleExit = async () => {
     // If there's a pending answer timer, flush it immediately before exiting
     if (answerTimer && selectedIndex !== null) {
       clearTimeout(answerTimer);
-      onAnswer(selectedIndex, responseTime);
       setAnswerTimer(null);
+      await onAnswer(selectedIndex, responseTime);
     }
     onSaveAndExit();
   };

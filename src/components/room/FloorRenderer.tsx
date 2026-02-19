@@ -21,20 +21,22 @@ interface FloorBaseProps {
 }
 
 // Floor base with gradient or transparent for custom texture
-export const FloorBase: React.FC<FloorBaseProps> = ({
+export const FloorBase: React.FC<FloorBaseProps & { activeFloor?: CustomFloor | null }> = ({
   gridSize,
   toIso,
   hasCustomFloor,
+  activeFloor,
 }) => {
   const floorPath = getFloorPath(gridSize, toIso, 0.02);
+  const hasColor = activeFloor?.color;
 
   return (
     <g>
       <defs>
         <linearGradient id="floor-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#F5E6D3" />
-          <stop offset="50%" stopColor="#EBD9C6" />
-          <stop offset="100%" stopColor="#E0CCBA" />
+          <stop offset="0%" stopColor={hasColor || "#F5E6D3"} />
+          <stop offset="50%" stopColor={hasColor || "#EBD9C6"} />
+          <stop offset="100%" stopColor={hasColor || "#E0CCBA"} />
         </linearGradient>
       </defs>
       <path d={floorPath} fill={hasCustomFloor ? "transparent" : "url(#floor-gradient)"} />
@@ -239,7 +241,7 @@ export const FloorTiles: React.FC<FloorRendererProps> = ({
         >
           {/* Transparent but hoverable base */}
           <path d={tilePath} fill="transparent" style={{ pointerEvents: "auto" }} />
-          
+
           {/* Memory point indicator */}
           {hasTileMemory && (
             <g>
@@ -265,7 +267,7 @@ export const FloorTiles: React.FC<FloorRendererProps> = ({
               </text>
             </g>
           )}
-          
+
           {/* Hover highlight */}
           {isHovered && (
             <path
