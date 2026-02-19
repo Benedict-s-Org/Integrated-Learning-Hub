@@ -147,12 +147,6 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
       if (scheduleError) throw scheduleError;
 
-      const { error: updateError } = await ((supabase as any)
-        .from('spaced_repetition_sets')
-        .update({ total_questions: questionsData.length } as any) as any)
-        .eq('id', setId);
-
-      if (updateError) throw updateError;
       setQuestions(typedQuestions);
       setSchedules(scheduleRecords as unknown as SpacedRepetitionSchedule[]);
       return true;
