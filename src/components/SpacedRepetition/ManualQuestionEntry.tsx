@@ -169,7 +169,7 @@ export function ManualQuestionEntry({
   };
 
 
-  const validateAndSave = () => {
+  const validateAndSave = async () => {
     const newErrors: string[] = [];
 
     if (!title.trim()) {
@@ -199,9 +199,12 @@ export function ManualQuestionEntry({
     setIsSaving(true);
     setErrors([]);
     try {
-      onSave(questions, title, description);
+      await onSave(questions, title, description);
+      // If onSave handles navigation, we might not need to reset isSaving here
+      // but if it fails, the catch will handle it.
     } catch (err) {
-      setErrors(['An unexpected error occurred while saving.']);
+      console.error("Save error in component:", err);
+      setErrors(['An unexpected error occurred while saving. Please try again.']);
       setIsSaving(false);
     }
   };
