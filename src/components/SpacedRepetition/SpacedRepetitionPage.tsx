@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Login } from '../Auth/Login';
 import { supabase } from '../../lib/supabase';
+import { SpacedRepetitionAnalytics } from './SpacedRepetitionAnalytics';
 
 type PageState =
   | { view: 'hub' }
@@ -99,12 +100,12 @@ export const SpacedRepetitionPage: React.FC = () => {
     const currentQ = sessionState.questions[sessionState.currentQuestionIndex];
     const isCorrect = answerIndex === currentQ.correct_answer_index;
 
-    try {
-      await recordAttempt(currentQ.id, answerIndex, timeSpent);
-    } catch (err) {
-      console.error("Failed to record attempt:", err);
-    }
+    // 1. Optimistic background save
+    recordAttempt(currentQ.id, answerIndex, timeSpent).catch(err => {
+      console.error("Failed to record attempt in background:", err);
+    });
 
+    // 2. Immediate state update (Don't await the save)
     setSessionState(prev => {
       if (!prev) return null;
 
@@ -336,6 +337,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         onAnswer={handleAnswer}
         onNext={handleNext}
         onPrevious={handlePrevious}
+        onSaveAndExit={() => setState({ view: 'hub' })}
         canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
       />
     );
@@ -410,16 +412,21 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   if (state.view === 'analytics') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Analytics Coming Soon</h1>
-          <p className="text-gray-600 mb-6">Detailed analytics dashboard will be available soon.</p>
-          <button
-            onClick={() => setState({ view: 'hub' })}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-          >
-            Back to Hub
-          </button>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Learning Analytics</h1>
+              <p className="text-gray-500 mt-1">Track your progress and card mastery over time</p>
+            </div>
+            <button
+              onClick={() => setState({ view: 'hub' })}
+              className="px-6 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              Back to Hub
+            </button>
+          </div>
+          <SpacedRepetitionAnalytics />
         </div>
       </div>
     );

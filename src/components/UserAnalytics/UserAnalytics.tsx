@@ -5,18 +5,17 @@ import {
   Target,
   FileEdit,
   Clock,
-  Calendar,
   Search,
   TrendingUp,
   TrendingDown,
   Activity,
-  Award,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'activity';
+type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'activity';
 
 interface ClassAnalyticsSummary {
   total_students: number;
@@ -60,6 +59,13 @@ interface ClassAnalyticsSummary {
     total_time_hours: number;
     avg_time_minutes: number;
   };
+  spaced_repetition: {
+    total_practices: number;
+    unique_students: number;
+    average_accuracy: number;
+    total_time_hours: number;
+    avg_time_minutes: number;
+  };
 }
 
 interface StudentPerformance {
@@ -71,6 +77,7 @@ interface StudentPerformance {
   proofreading_practices: number;
   proofreading_avg_accuracy: number;
   memorization_sessions: number;
+  spaced_repetition_sessions: number;
   total_practices: number;
   overall_avg_accuracy: number;
   last_activity: string;
@@ -82,6 +89,7 @@ interface ActivityTimelineEntry {
   spelling_count: number;
   proofreading_count: number;
   memorization_count: number;
+  spaced_repetition_count: number;
   total_count: number;
   unique_students: number;
 }
@@ -126,12 +134,12 @@ const UserAnalytics: React.FC = () => {
     setLoading(true);
     try {
       const [summaryData, studentsData, timelineData, recentData, spellingDist, proofreadingDist] = await Promise.all([
-        supabase.rpc('get_class_analytics_summary'),
-        supabase.rpc('get_all_students_performance'),
-        supabase.rpc('get_practice_activity_timeline', { days_back: 30 }),
-        supabase.rpc('get_recent_activity', { limit_count: 20 }),
-        supabase.rpc('get_performance_distribution', { practice_type: 'spelling' }),
-        supabase.rpc('get_performance_distribution', { practice_type: 'proofreading' }),
+        (supabase as any).rpc('get_class_analytics_summary'),
+        (supabase as any).rpc('get_all_students_performance'),
+        (supabase as any).rpc('get_practice_activity_timeline', { days_back: 30 }),
+        (supabase as any).rpc('get_recent_activity', { limit_count: 20 }),
+        (supabase as any).rpc('get_performance_distribution', { practice_type: 'spelling' }),
+        (supabase as any).rpc('get_performance_distribution', { practice_type: 'proofreading' }),
       ]);
 
       if (summaryData.data) setClassSummary(summaryData.data);
@@ -220,14 +228,15 @@ const UserAnalytics: React.FC = () => {
             { id: 'spelling', label: 'Spelling', icon: Target },
             { id: 'proofreading', label: 'Proofreading', icon: FileEdit },
             { id: 'memorization', label: 'Memorization', icon: Clock },
+            { id: 'spaced_repetition', label: 'Spaced Repetition', icon: Zap },
             { id: 'activity', label: 'Activity', icon: Activity },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id as TabType)}
               className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap ${activeTab === id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
             >
               <Icon size={20} />
@@ -430,10 +439,10 @@ const UserAnalytics: React.FC = () => {
                           <td className="px-6 py-4">
                             <span
                               className={`inline-flex px-2 py-1 rounded text-xs font-medium ${activity.activity_type === 'spelling'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : activity.activity_type === 'proofreading'
-                                    ? 'bg-yellow-100 text-yellow-700'
-                                    : 'bg-green-100 text-green-700'
+                                ? 'bg-blue-100 text-blue-700'
+                                : activity.activity_type === 'proofreading'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-green-100 text-green-700'
                                 }`}
                             >
                               {activity.activity_type}
@@ -484,6 +493,7 @@ const UserAnalytics: React.FC = () => {
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Spelling</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Proofreading</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Memorization</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Spaced Repetition</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Total</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Avg Score</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Last Activity</th>
@@ -523,6 +533,9 @@ const UserAnalytics: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="text-sm text-gray-900">{student.memorization_sessions}</div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="text-sm text-gray-900">{student.spaced_repetition_sessions}</div>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="text-sm font-semibold text-gray-900">{student.total_practices}</div>
@@ -586,12 +599,12 @@ const UserAnalytics: React.FC = () => {
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${range.score_range === '90-100'
-                            ? 'bg-green-500'
-                            : range.score_range === '80-89'
-                              ? 'bg-blue-500'
-                              : range.score_range === '70-79'
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
+                          ? 'bg-green-500'
+                          : range.score_range === '80-89'
+                            ? 'bg-blue-500'
+                            : range.score_range === '70-79'
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
                           }`}
                         style={{ width: `${range.percentage}%` }}
                       />
@@ -640,12 +653,12 @@ const UserAnalytics: React.FC = () => {
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${range.score_range === '90-100'
-                            ? 'bg-green-500'
-                            : range.score_range === '80-89'
-                              ? 'bg-blue-500'
-                              : range.score_range === '70-79'
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
+                          ? 'bg-green-500'
+                          : range.score_range === '80-89'
+                            ? 'bg-blue-500'
+                            : range.score_range === '70-79'
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
                           }`}
                         style={{ width: `${range.percentage}%` }}
                       />
@@ -676,6 +689,42 @@ const UserAnalytics: React.FC = () => {
                 <div className="text-sm text-gray-600 mb-1">Total Time</div>
                 <div className="text-3xl font-bold text-gray-900">{classSummary.memorization.total_time_hours}h</div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'spaced_repetition' && classSummary && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <div className="text-sm text-gray-600 mb-1">Total Reviews</div>
+                <div className="text-3xl font-bold text-gray-900">{classSummary.spaced_repetition.total_practices}</div>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <div className="text-sm text-gray-600 mb-1">Average Accuracy</div>
+                <div className={`text-3xl font-bold ${getScoreColor(classSummary.spaced_repetition.average_accuracy)}`}>
+                  {classSummary.spaced_repetition.average_accuracy}%
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <div className="text-sm text-gray-600 mb-1">Unique Students</div>
+                <div className="text-3xl font-bold text-blue-600">{classSummary.spaced_repetition.unique_students}</div>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <div className="text-sm text-gray-600 mb-1">Total Time</div>
+                <div className="text-3xl font-bold text-gray-900">{classSummary.spaced_repetition.total_time_hours}h</div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="text-blue-600" size={24} />
+                <h3 className="text-lg font-semibold text-gray-800">Learning Intensity</h3>
+              </div>
+              <p className="text-gray-600">
+                Spaced Repetition helps students retain knowledge longer through optimized review intervals.
+                Currently, {classSummary.spaced_repetition.unique_students} students have completed {classSummary.spaced_repetition.total_practices} review attempts.
+              </p>
             </div>
           </div>
         )}

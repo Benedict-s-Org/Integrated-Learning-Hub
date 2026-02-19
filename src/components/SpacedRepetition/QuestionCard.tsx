@@ -9,6 +9,7 @@ interface QuestionCardProps {
   onAnswer: (selectedIndex: number, responseTime: number) => void;
   onNext: () => void;
   onPrevious: () => void;
+  onSaveAndExit: () => void;
   canGoNext: boolean;
 }
 
@@ -19,6 +20,7 @@ export function QuestionCard({
   onAnswer,
   onNext,
   onPrevious,
+  onSaveAndExit,
   canGoNext,
 }: QuestionCardProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -35,9 +37,11 @@ export function QuestionCard({
     setResponseTime(time);
     setShowFeedback(true);
 
+    // Call onAnswer almost immediately for optimistic update
+    // But keep a small delay for feedback visibility
     setTimeout(() => {
       onAnswer(index, time);
-    }, 1500);
+    }, 800);
   };
 
   const isCorrect = selectedIndex === question.correct_answer_index;
@@ -45,7 +49,7 @@ export function QuestionCard({
   return (
     <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 sm:p-6 pb-24 md:pb-8">
       <div className="max-w-2xl mx-auto flex flex-col h-full">
-        <div className="mb-4 sm:mb-8 flex items-center justify-between">
+        <div className="mb-4 sm:mb-8 flex items-center justify-between gap-4">
           <div className="flex-1">
             <div className="relative h-1 bg-gray-200 rounded-full overflow-hidden">
               <div
@@ -57,6 +61,12 @@ export function QuestionCard({
               Question {questionNumber} of {totalQuestions}
             </p>
           </div>
+          <button
+            onClick={onSaveAndExit}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-100"
+          >
+            Save & Exit
+          </button>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-5 sm:p-8 mb-4 sm:mb-6">
