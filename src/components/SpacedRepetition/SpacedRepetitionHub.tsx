@@ -7,7 +7,7 @@ import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
 interface SpacedRepetitionHubProps {
   onCreateNew: () => void;
-  onStartLearning: (setId: string) => void;
+  onStartLearning: (setId?: string) => void;
   onEditSet: (setId: string) => void;
   onViewAnalytics: () => void;
   onViewSettings: () => void;
@@ -214,7 +214,7 @@ export function SpacedRepetitionHub({
               You have {cardsDue} card{cardsDue !== 1 ? 's' : ''} ready for review today.
             </p>
             <button
-              onClick={() => sets.length > 0 && onStartLearning(sets[0].id)}
+              onClick={() => onStartLearning()}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
               Start Review Session

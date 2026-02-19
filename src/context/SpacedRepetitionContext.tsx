@@ -326,10 +326,20 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         activeSchedule = data as unknown as SpacedRepetitionSchedule | null;
       }
 
-      const question = questions.find(q => q.id === questionId);
-      if (!question) return false;
+      const question = questions.find(q => q.id === questionId || (q as any).question_id === questionId);
+      if (!question) {
+        // Fetch question if not in state
+        const { data: qData } = await (supabase as any)
+          .from('spaced_repetition_questions')
+          .select('*')
+          .eq('id', questionId)
+          .single();
+        if (!qData) return false;
+        // Temporary fix for property naming inconsistency
+        (qData as any).correct_answer_index = qData.correct_answer_index;
+      }
 
-      const isCorrect = selectedIndex === question.correct_answer_index;
+      const isCorrect = selectedIndex === (question?.correct_answer_index ?? (question as any)?.correct_answer_index);
       const qualityRating = getQualityRatingFromCorrectness(isCorrect, responseTime);
 
       const { error: attemptError } = await ((supabase as any)
@@ -356,13 +366,15 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
             next_review_date: nextReview.nextReviewDate.toISOString(),
             last_reviewed_at: new Date().toISOString(),
             last_quality_rating: qualityRating,
+            updated_at: new Date().toISOString()
           } as any) as any)
           .eq('id', activeSchedule.id);
 
         if (updateError) throw updateError;
       }
 
-      updateStreakData(isCorrect);
+      // Update streak and master stats
+      await updateStreakData(isCorrect);
       checkForAchievements();
 
       return true;
@@ -388,14 +400,21 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   };
 
   const updateStreakData = async (isCorrect: boolean) => {
-    if (!userId || !isCorrect) return;
+    if (!userId) return;
 
     try {
+      // 1. Get current card stats from RPC
+      const { data: statsData, error: statsError } = await (supabase as any)
+        .rpc('get_user_card_stats', { p_user_id: userId });
+
+      if (statsError) throw statsError;
+
       let currentStreak = streak?.current_streak_days || 0;
       const today = new Date().toDateString();
       const lastPractice = streak?.last_practice_date ? new Date(streak.last_practice_date).toDateString() : null;
 
-      if (lastPractice !== today) {
+      // Only increment streak if this is the first practice of the day
+      if (isCorrect && lastPractice !== today) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
 
@@ -414,9 +433,10 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
           user_id: userId,
           current_streak_days: currentStreak,
           longest_streak_days: longest,
-          last_practice_date: today,
-          total_cards_learned: (streak?.total_cards_learned || 0),
-          total_cards_mastered: (streak?.total_cards_mastered || 0),
+          last_practice_date: lastPractice === today ? streak?.last_practice_date : today,
+          total_cards_learned: statsData.total_learned,
+          total_cards_mastered: statsData.total_mastered,
+          updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' }) as any)
         .select()
         .single();

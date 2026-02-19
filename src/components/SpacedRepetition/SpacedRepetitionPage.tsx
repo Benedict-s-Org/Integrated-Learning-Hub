@@ -61,19 +61,51 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId: string) => {
+  const startSession = async (setId?: string) => {
     setLoadingSession(true);
     try {
-      const questions = await getQuestionsForSet(setId);
+      const { data: schedulesRes, error: schedulesError } = await (supabase as any)
+        .from('spaced_repetition_schedules')
+        .select('*, spaced_repetition_questions(*)')
+        .eq('user_id', user.id);
 
-      if (!questions || questions.length === 0) {
-        alert("No questions found in this set.");
+      if (schedulesError) throw schedulesError;
+
+      let sessionQuestions: any[] = [];
+
+      if (setId) {
+        // Specific Set Session: Prioritize due cards within this set
+        const setQuestions = await getQuestionsForSet(setId);
+        const setSchedules = (schedulesRes || []).filter((s: any) => s.spaced_repetition_questions?.set_id === setId);
+
+        const dueIds = (setSchedules || [])
+          .filter((s: any) => new Date(s.next_review_date) <= new Date())
+          .map((s: any) => s.question_id);
+
+        const dueQuestions = setQuestions.filter((q: any) => dueIds.includes(q.id));
+        const otherQuestions = setQuestions.filter((q: any) => !dueIds.includes(q.id));
+
+        // Session order: Due first, then the rest
+        sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, 20);
+      } else {
+        // Global Review Session: Fetch top 20 due cards from ALL sets
+        sessionQuestions = (schedulesRes || [])
+          .filter((s: any) => new Date(s.next_review_date) <= new Date())
+          .sort((a: any, b: any) => new Date(a.next_review_date).getTime() - new Date(b.next_review_date).getTime())
+          .slice(0, 20)
+          .map((s: any) => ({
+            ...s.spaced_repetition_questions,
+            // Ensure ID is the question ID, not the schedule ID if there's any confusion
+            id: s.question_id
+          }))
+          .filter(q => q.question_text); // filter out any broken joins
+      }
+
+      if (sessionQuestions.length === 0) {
+        alert("No questions found or all cards are up to date.");
         setLoadingSession(false);
         return;
       }
-
-      const sessionQuestions = questions
-        .slice(0, 20);
 
       const now = Date.now();
       setSessionState({
@@ -85,7 +117,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         currentQuestionStartTime: now
       });
 
-      setState({ view: 'learning', setId });
+      setState({ view: 'learning', setId: setId || 'global' });
     } catch (error) {
       console.error("Failed to start session:", error);
       alert("Failed to start session. Please try again.");
