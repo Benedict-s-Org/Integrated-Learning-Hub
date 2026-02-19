@@ -7,7 +7,7 @@ import { NotionImporter } from './NotionImporter';
 import { QuestionCard } from './QuestionCard';
 import { SessionSummary } from './SessionSummary';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
-import { SpacedRepetitionQuestion, SpacedRepetitionSessionState } from '../../types';
+import { SpacedRepetitionSessionState } from '../../types';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Login } from '../Auth/Login';
@@ -15,7 +15,15 @@ import { supabase } from '../../lib/supabase';
 
 type PageState =
   | { view: 'hub' }
-  | { view: 'createNew'; source?: 'manual' | 'file' | 'notion' }
+  | {
+    view: 'createNew';
+    source?: 'manual' | 'file' | 'notion';
+    initialImportData?: {
+      title: string;
+      description: string;
+      questions: any[];
+    }
+  }
   | { view: 'learning'; setId: string }
   | { view: 'edit'; setId: string; initialData: { title: string; description: string; questions: any[] } }
   | { view: 'analytics' };
@@ -146,16 +154,22 @@ export const SpacedRepetitionPage: React.FC = () => {
     description: string
   ) => {
     try {
-      const setId = await createSet(title, description, 'medium');
-      if (setId) {
-        await addQuestions(setId, questions);
-        setState({ view: 'hub' });
-      } else {
-        throw new Error("Failed to create set ID");
-      }
+      // setId was removed because we don't create the set immediately anymore
+      // const setId = await createSet(title, description, 'medium');
+      // Instead of saving immediately, redirect to manual entry for confirmation
+      // This allows "Edit Before Save" and visual verification of order
+      setState({
+        view: 'createNew', // Use createNew with manual source to reuse ManualQuestionEntry as a "Review" step
+        source: 'manual',
+        initialImportData: {
+          title,
+          description,
+          questions
+        }
+      });
     } catch (error) {
-      console.error("Failed to create set:", error);
-      alert("Failed to save the question set. Please try again.");
+      console.error("Failed to prepare import:", error);
+      alert("Failed to process questions. Please try again.");
     }
   };
 
@@ -311,8 +325,9 @@ export const SpacedRepetitionPage: React.FC = () => {
     if (state.source === 'manual') {
       return (
         <ManualQuestionEntry
-          title=""
-          description=""
+          title={state.initialImportData?.title || ""}
+          description={state.initialImportData?.description || ""}
+          initialQuestions={state.initialImportData?.questions}
           onSave={handleQuestionsImport}
           onCancel={() => setState({ view: 'createNew' })}
         />

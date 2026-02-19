@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle, Image as ImageIcon, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle, Image as ImageIcon, Sparkles, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { ImageGenerationModal } from '../Shared/ImageGenerationModal';
 
 interface Question {
@@ -87,6 +87,26 @@ export function ManualQuestionEntry({
       setExpandedIndex(Math.max(0, index - 1));
     } else if (expandedIndex !== null && expandedIndex > index) {
       setExpandedIndex(expandedIndex - 1);
+    }
+  };
+
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === questions.length - 1) return;
+
+    const newQuestions = [...questions];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    // Swap
+    [newQuestions[index], newQuestions[targetIndex]] = [newQuestions[targetIndex], newQuestions[index]];
+
+    setQuestions(newQuestions);
+
+    // Update expanded index if needed
+    if (expandedIndex === index) {
+      setExpandedIndex(targetIndex);
+    } else if (expandedIndex === targetIndex) {
+      setExpandedIndex(index);
     }
   };
 
@@ -244,6 +264,30 @@ export function ManualQuestionEntry({
                 {question.image_url && <ImageIcon className="w-4 h-4 text-blue-500" />}
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex flex-col mr-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveQuestion(idx, 'up');
+                    }}
+                    disabled={idx === 0}
+                    className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                    title="Move Up"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveQuestion(idx, 'down');
+                    }}
+                    disabled={idx === questions.length - 1}
+                    className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                    title="Move Down"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

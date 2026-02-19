@@ -105,6 +105,17 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return false;
 
     try {
+      // Get current max order index to prevent collisions if appending
+      const { data: maxOrderData } = await (supabase as any)
+        .from('spaced_repetition_questions')
+        .select('order_index')
+        .eq('set_id', setId)
+        .order('order_index', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const startOrderIndex = (maxOrderData?.order_index ?? -1) + 1;
+
       const questionRecords = questionsData.map((q, idx) => ({
         set_id: setId,
         question_text: q.question_text || q.question,
@@ -113,7 +124,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         tags: q.tags || [],
-        order_index: q.order_index ?? idx,
+        order_index: typeof q.order_index === 'number' ? q.order_index : (startOrderIndex + idx),
       })) as any[];
 
       const { data: insertedQuestions, error: insertError } = await ((supabase as any)

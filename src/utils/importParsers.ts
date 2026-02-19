@@ -155,6 +155,15 @@ function extractTextFromNotion(prop: any): string {
   if (prop?.title) {
     return prop.title.map((t: any) => t.plain_text || '').join('');
   }
+  if (prop?.type === 'formula') {
+    if (prop.formula.type === 'string') return prop.formula.string || '';
+    if (prop.formula.type === 'number') return String(prop.formula.number);
+  }
+  if (prop?.type === 'rollup') {
+    if (prop.rollup.type === 'array') {
+      return prop.rollup.array.map((p: any) => extractTextFromNotion(p)).join('\n'); // Rollups usually list items, newline is safer
+    }
+  }
   return '';
 }
 
@@ -265,6 +274,22 @@ function extractNotionProperty(props: Record<string, any>, possibleNames: string
     }
     if (prop.type === 'number' && prop.number !== null) {
       return String(prop.number);
+    }
+    if (prop.type === 'formula') {
+      if (prop.formula?.type === 'string') {
+        return prop.formula.string || '';
+      }
+      if (prop.formula?.type === 'number') {
+        return String(prop.formula.number);
+      }
+    }
+    if (prop.type === 'rollup') {
+      if (prop.rollup?.type === 'array') {
+        // For rollups, we might want to join with a separator if they are distinct values
+        // or just join them if they are parts of a text.
+        // Given the use case "Divided into lines", joining with newline seems appropriate if they are separate items.
+        return prop.rollup.array.map((p: any) => extractTextFromNotion(p)).join('\n');
+      }
     }
   }
   return '';

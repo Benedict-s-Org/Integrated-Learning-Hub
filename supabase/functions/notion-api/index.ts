@@ -51,10 +51,10 @@ function extractText(
       }
       | undefined;
     if (!prop) continue;
-    if (prop.type === "title" && prop.title?.[0])
-      return prop.title[0].plain_text;
-    if (prop.type === "rich_text" && prop.rich_text?.[0])
-      return prop.rich_text[0].plain_text;
+    if (prop.type === "title" && prop.title)
+      return prop.title.map((t) => t.plain_text).join("");
+    if (prop.type === "rich_text" && prop.rich_text)
+      return prop.rich_text.map((t) => t.plain_text).join("");
   }
   return "";
 }
