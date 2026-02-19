@@ -29,7 +29,9 @@ import {
   MemorizationState,
   ProofreadingAnswer,
   ProofreadingPractice,
-  AssignedProofreadingPracticeContent
+  AssignedProofreadingPracticeContent,
+  CustomWall,
+  CustomFloor
 } from './types';
 
 // Regular Component Imports (not lazy)
@@ -141,6 +143,8 @@ function AppContent() {
     setActiveFloorId,
     fullCatalog,
     setCustomCatalog,
+    setCustomWalls,
+    setCustomFloors,
     fullModels,
   } = useMemoryPalaceContext();
   const { buyItem } = useInventory();
@@ -593,6 +597,36 @@ function AppContent() {
 
   const handleBackToSpellingInput = () => {
     setAppState({ page: 'spelling', step: 'input' });
+  };
+
+  const handleApplySystemStyle = (style: any) => {
+    if (style.type === 'wall') {
+      const wallObj: CustomWall = {
+        id: style.id,
+        name: style.name,
+        color: style.color_hex,
+        price: style.price
+      };
+
+      // Ensure it's in customWalls before applying
+      if (!customWalls.some((w: any) => w.id === style.id)) {
+        setCustomWalls((prev: any) => [...prev, wallObj]);
+      }
+      setActiveWallId(style.id);
+    } else {
+      const floorObj: CustomFloor = {
+        id: style.id,
+        name: style.name,
+        color: style.color_hex,
+        price: style.price
+      };
+
+      // Ensure it's in customFloors before applying
+      if (!customFloors.some((f: any) => f.id === style.id)) {
+        setCustomFloors((prev: any) => [...prev, floorObj]);
+      }
+      setActiveFloorId(style.id);
+    }
   };
 
   const handleBackToSpellingPreview = () => {
@@ -1095,6 +1129,7 @@ function AppContent() {
             ownedBlueprints={[]}
             onBuyBlueprint={() => { }}
             onApplyBlueprint={() => { }}
+            onApplySystemStyle={handleApplySystemStyle}
           />
         )}
 

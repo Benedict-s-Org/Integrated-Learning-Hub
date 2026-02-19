@@ -7,6 +7,7 @@ export interface CustomWall {
   darkImage?: string;
   lightSide?: string;
   darkSide?: string;
+  color?: string;
   colorVariants?: {
     id: string;
     name: string;
@@ -22,6 +23,7 @@ export interface CustomFloor {
   name: string;
   price?: number;
   image?: string;
+  color?: string;
   colorVariants?: {
     id: string;
     name: string;

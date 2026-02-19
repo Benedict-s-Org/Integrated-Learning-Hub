@@ -12,24 +12,13 @@ interface ActiveWall {
   darkSide?: string;
   lightImage?: string;
   darkImage?: string;
+  color?: string;
 }
 
 interface ActiveFloor {
   id: string;
   image?: string;
-}
-
-interface ActiveWall {
-  id: string;
-  lightSide?: string;
-  darkSide?: string;
-  lightImage?: string;
-  darkImage?: string;
-}
-
-interface ActiveFloor {
-  id: string;
-  image?: string;
+  color?: string;
 }
 
 interface IsometricRoomProps {
@@ -556,6 +545,7 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
 
     const floorPath = getFloorPath(0.02);
     const hasCustomFloor = activeFloor?.image;
+    const hasCustomFloorColor = activeFloor?.color;
 
     floorObjects.push({
       depth: -99999,
@@ -564,9 +554,19 @@ export const IsometricRoom: React.FC<IsometricRoomProps> = ({
         <g key="floor-base">
           <defs>
             <linearGradient id="floor-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#F5E6D3" />
-              <stop offset="50%" stopColor="#EBD9C6" />
-              <stop offset="100%" stopColor="#E0CCBA" />
+              {hasCustomFloorColor ? (
+                <>
+                  <stop offset="0%" stopColor={hasCustomFloorColor} style={{ filter: 'brightness(1.05)' }} />
+                  <stop offset="50%" stopColor={hasCustomFloorColor} />
+                  <stop offset="100%" stopColor={hasCustomFloorColor} style={{ filter: 'brightness(0.95)' }} />
+                </>
+              ) : (
+                <>
+                  <stop offset="0%" stopColor="#F5E6D3" />
+                  <stop offset="50%" stopColor="#EBD9C6" />
+                  <stop offset="100%" stopColor="#E0CCBA" />
+                </>
+              )}
             </linearGradient>
           </defs>
           <path d={floorPath} fill={hasCustomFloor ? "transparent" : "url(#floor-gradient)"} />

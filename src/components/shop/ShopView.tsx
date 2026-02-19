@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Package, Square, Grid, Layout, Check } from "lucide-react";
+import { Package, Square, Grid, Layout, Check, Filter } from "lucide-react";
 import { HOUSE_LEVELS } from "@/constants/houseLevels";
 import { FurnitureItem } from "@/types/furniture";
 import { CustomWall, CustomFloor } from "@/types/room";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
 interface Blueprint {
   id: string;
@@ -32,6 +34,7 @@ interface ShopViewProps {
   ownedBlueprints: string[];
   onBuyBlueprint: (blueprint: Blueprint) => void;
   onApplyBlueprint: (blueprint: Blueprint) => void;
+  onApplySystemStyle?: (style: any) => void;
 }
 
 export const ShopView: React.FC<ShopViewProps> = ({
@@ -53,10 +56,27 @@ export const ShopView: React.FC<ShopViewProps> = ({
   ownedBlueprints,
   onBuyBlueprint,
   onApplyBlueprint,
+  onApplySystemStyle,
 }) => {
   const currentHouse = HOUSE_LEVELS[houseLevel];
   const nextHouse = HOUSE_LEVELS[houseLevel + 1];
   const [shopTab, setShopTab] = useState<"furniture" | "wall" | "floor" | "blueprint">("furniture");
+  const [systemStyles, setSystemStyles] = useState<any[]>([]);
+  const [colorFilter, setColorFilter] = useState("all");
+
+  useEffect(() => {
+    const fetchSystemStyles = async () => {
+      const { data, error } = await (supabase.from('shop_system_styles' as any) as any).select('*');
+      if (!error && data) {
+        setSystemStyles(data);
+      }
+    };
+    fetchSystemStyles();
+  }, []);
+
+  const systemWalls = systemStyles.filter(s => s.type === 'wall');
+  const systemFloors = systemStyles.filter(s => s.type === 'floor');
+  const colorCategories = Array.from(new Set(systemStyles.map(s => s.category))).sort();
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -234,103 +254,229 @@ export const ShopView: React.FC<ShopViewProps> = ({
             )}
 
             {shopTab === "wall" && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-300 mb-4">🧱 牆壁樣式</h3>
-                {customWalls.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <Square size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>尚無上傳的牆壁樣式</p>
-                    <p className="text-sm mt-2">請前往管理員頁面上傳牆壁</p>
+              <div className="space-y-8">
+                {/* System Wall Colors */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-primary flex items-center gap-2">🎨 牆面顏色</h3>
+                    <div className="flex items-center gap-2">
+                      <Filter size={16} className="text-primary/40" />
+                      <select
+                        value={colorFilter}
+                        onChange={(e) => setColorFilter(e.target.value)}
+                        className="bg-white/50 border border-primary/10 rounded-lg px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="all">所有顏色</option>
+                        {colorCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {customWalls.map((wall) => {
-                      const isActive = activeWallId === wall.id;
-                      return (
-                        <div
-                          key={wall.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${isActive
-                            ? "border-green-500 bg-green-900/20"
-                            : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                            }`}
-                        >
-                          <div className="mb-3 flex gap-2">
-                            <div className="flex-1 aspect-square rounded-lg overflow-hidden bg-slate-600">
-                              <img src={wall.lightImage} alt="亮面" className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1 aspect-square rounded-lg overflow-hidden bg-slate-600">
-                              <img src={wall.darkImage} alt="暗面" className="w-full h-full object-cover" />
-                            </div>
-                          </div>
-                          <h4 className="text-white font-medium text-sm">{wall.name}</h4>
-                          <p className="text-slate-400 text-xs mt-1">💰 {wall.price}</p>
-                          <div className="mt-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {systemWalls
+                      .filter(s => colorFilter === 'all' || s.category === colorFilter)
+                      .map(style => {
+                        const owned = inventory.includes(style.id);
+                        const isActive = activeWallId === style.id;
+                        const canAfford = isAdmin || coins >= style.price;
+
+                        return (
+                          <div
+                            key={style.id}
+                            className={`group bg-white/60 p-3 rounded-2xl border-2 transition-all hover:shadow-xl ${isActive ? "border-primary bg-primary/5" : "border-transparent"
+                              }`}
+                          >
+                            <div
+                              className="aspect-square rounded-xl shadow-inner border border-primary/10 mb-3"
+                              style={{ backgroundColor: style.color_hex }}
+                            />
+                            <div className="font-bold text-sm text-primary mb-1">{style.name}</div>
+                            <div className="text-[10px] text-primary/40 mb-3">{style.category}</div>
+
                             {isActive ? (
-                              <span className="text-green-400 text-sm font-medium flex items-center gap-1">
+                              <div className="w-full py-2 bg-primary/10 text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-1">
                                 <Check size={14} /> 使用中
-                              </span>
+                              </div>
+                            ) : owned ? (
+                              <button
+                                onClick={() => onApplySystemStyle?.(style)}
+                                className="w-full py-2 bg-secondary hover:bg-white text-primary text-xs font-bold rounded-xl transition-all border border-transparent hover:border-primary/10"
+                              >
+                                套用
+                              </button>
                             ) : (
                               <button
-                                onClick={() => onSelectWall(wall.id)}
-                                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={() => onBuy({ id: style.id, name: style.name, cost: style.price } as any)}
+                                disabled={!canAfford}
+                                className="w-full py-2 bg-primary hover:opacity-90 disabled:bg-primary/20 text-white text-xs font-bold rounded-xl transition-all"
                               >
-                                選用
+                                💰 {style.price}
                               </button>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
-                )}
+                </div>
+
+                <div className="h-px bg-primary/10" />
+
+                {/* Custom Wall Textures */}
+                <div>
+                  <h3 className="text-lg font-bold text-primary mb-4">🧱 牆面材質</h3>
+                  {customWalls.length === 0 ? (
+                    <div className="bg-white/30 rounded-2xl p-8 text-center border-2 border-dashed border-primary/10">
+                      <p className="text-primary/40 font-medium italic">尚未上傳任何材質</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {customWalls.map((wall) => {
+                        const isActive = activeWallId === wall.id;
+                        return (
+                          <div
+                            key={wall.id}
+                            className={`bg-white/60 p-3 rounded-2xl border-2 transition-all ${isActive ? "border-primary bg-primary/5" : "border-transparent"
+                              }`}
+                          >
+                            <div className="flex gap-1 mb-3">
+                              <div className="flex-1 aspect-square rounded-lg overflow-hidden border border-primary/5">
+                                <img src={wall.lightImage} alt="亮面" className="w-full h-full object-cover" />
+                              </div>
+                              <div className="flex-1 aspect-square rounded-lg overflow-hidden border border-primary/5">
+                                <img src={wall.darkImage} alt="暗面" className="w-full h-full object-cover" />
+                              </div>
+                            </div>
+                            <div className="font-bold text-sm text-primary">{wall.name}</div>
+                            <div className="mt-3">
+                              {isActive ? (
+                                <div className="w-full py-2 bg-primary/10 text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                                  <Check size={14} /> 使用中
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => onSelectWall(wall.id)}
+                                  className="w-full py-2 bg-secondary hover:bg-white text-primary text-xs font-bold rounded-xl transition-all"
+                                >
+                                  套用
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {shopTab === "floor" && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-300 mb-4">🪵 地板樣式</h3>
-                {customFloors.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <Grid size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>尚無上傳的地板樣式</p>
-                    <p className="text-sm mt-2">請前往管理員頁面上傳地板</p>
+              <div className="space-y-8">
+                {/* System Floor Colors */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-primary flex items-center gap-2">🎨 地面顏色</h3>
+                    <div className="flex items-center gap-2">
+                      <Filter size={16} className="text-primary/40" />
+                      <select
+                        value={colorFilter}
+                        onChange={(e) => setColorFilter(e.target.value)}
+                        className="bg-white/50 border border-primary/10 rounded-lg px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="all">所有顏色</option>
+                        {colorCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {customFloors.map((floor) => {
-                      const isActive = activeFloorId === floor.id;
-                      return (
-                        <div
-                          key={floor.id}
-                          className={`bg-slate-700/50 rounded-xl p-4 border transition-all ${isActive
-                            ? "border-green-500 bg-green-900/20"
-                            : "border-slate-600 hover:border-indigo-500/50 hover:bg-slate-700"
-                            }`}
-                        >
-                          <div className="mb-3 aspect-square rounded-lg overflow-hidden bg-slate-600">
-                            <img src={floor.image} alt={floor.name} className="w-full h-full object-cover" />
-                          </div>
-                          <h4 className="text-white font-medium text-sm">{floor.name}</h4>
-                          <p className="text-slate-400 text-xs mt-1">💰 {floor.price}</p>
-                          <div className="mt-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {systemFloors
+                      .filter(s => colorFilter === 'all' || s.category === colorFilter)
+                      .map(style => {
+                        const owned = inventory.includes(style.id);
+                        const isActive = activeFloorId === style.id;
+                        const canAfford = isAdmin || coins >= style.price;
+
+                        return (
+                          <div
+                            key={style.id}
+                            className={`group bg-white/60 p-3 rounded-2xl border-2 transition-all hover:shadow-xl ${isActive ? "border-primary bg-primary/5" : "border-transparent"
+                              }`}
+                          >
+                            <div
+                              className="aspect-square rounded-xl shadow-inner border border-primary/10 mb-3"
+                              style={{ backgroundColor: style.color_hex }}
+                            />
+                            <div className="font-bold text-sm text-primary mb-1">{style.name}</div>
+                            <div className="text-[10px] text-primary/40 mb-3">{style.category}</div>
+
                             {isActive ? (
-                              <span className="text-green-400 text-sm font-medium flex items-center gap-1">
+                              <div className="w-full py-2 bg-primary/10 text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-1">
                                 <Check size={14} /> 使用中
-                              </span>
+                              </div>
+                            ) : owned ? (
+                              <button
+                                onClick={() => onApplySystemStyle?.(style)}
+                                className="w-full py-2 bg-secondary hover:bg-white text-primary text-xs font-bold rounded-xl transition-all border border-transparent hover:border-primary/10"
+                              >
+                                套用
+                              </button>
                             ) : (
                               <button
-                                onClick={() => onSelectFloor(floor.id)}
-                                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={() => onBuy({ id: style.id, name: style.name, cost: style.price } as any)}
+                                disabled={!canAfford}
+                                className="w-full py-2 bg-primary hover:opacity-90 disabled:bg-primary/20 text-white text-xs font-bold rounded-xl transition-all"
                               >
-                                選用
+                                💰 {style.price}
                               </button>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
-                )}
+                </div>
+
+                <div className="h-px bg-primary/10" />
+
+                {/* Custom Floor Textures */}
+                <div>
+                  <h3 className="text-lg font-bold text-primary mb-4">🪵 地面材質</h3>
+                  {customFloors.length === 0 ? (
+                    <div className="bg-white/30 rounded-2xl p-8 text-center border-2 border-dashed border-primary/10">
+                      <p className="text-primary/40 font-medium italic">尚未上傳任何材質</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {customFloors.map((floor) => {
+                        const isActive = activeFloorId === floor.id;
+                        return (
+                          <div
+                            key={floor.id}
+                            className={`bg-white/60 p-3 rounded-2xl border-2 transition-all ${isActive ? "border-primary bg-primary/5" : "border-transparent"
+                              }`}
+                          >
+                            <div className="aspect-square rounded-lg overflow-hidden border border-primary/5 mb-3">
+                              <img src={floor.image} alt={floor.name} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="font-bold text-sm text-primary">{floor.name}</div>
+                            <div className="mt-3">
+                              {isActive ? (
+                                <div className="w-full py-2 bg-primary/10 text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                                  <Check size={14} /> 使用中
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => onSelectFloor(floor.id)}
+                                  className="w-full py-2 bg-secondary hover:bg-white text-primary text-xs font-bold rounded-xl transition-all"
+                                >
+                                  套用
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

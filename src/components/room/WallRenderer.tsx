@@ -15,22 +15,41 @@ export const WallRenderer: React.FC<WallRendererProps> = ({
 
   const hasCustomWallLight = activeWall?.lightSide;
   const hasCustomWallDark = activeWall?.darkSide;
+  const hasCustomColor = activeWall?.color;
 
   return (
     <g style={{ pointerEvents: "none" }}>
       {/* Gradient and pattern definitions */}
       <defs>
-        {/* Teal wall gradients (fallback) */}
-        <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#5DC9BF" />
-          <stop offset="30%" stopColor="#4DB6AC" />
-          <stop offset="100%" stopColor="#3D9B91" />
-        </linearGradient>
-        <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#4DB6AC" />
-          <stop offset="30%" stopColor="#3D9B91" />
-          <stop offset="100%" stopColor="#2D8B81" />
-        </linearGradient>
+        {/* Wall color gradients */}
+        {hasCustomColor ? (
+          <>
+            <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={hasCustomColor} style={{ filter: 'brightness(1.1)' }} />
+              <stop offset="30%" stopColor={hasCustomColor} />
+              <stop offset="100%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.9)' }} />
+            </linearGradient>
+            <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={hasCustomColor} />
+              <stop offset="30%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.9)' }} />
+              <stop offset="100%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.8)' }} />
+            </linearGradient>
+          </>
+        ) : (
+          <>
+            {/* Teal wall gradients (fallback) */}
+            <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#5DC9BF" />
+              <stop offset="30%" stopColor="#4DB6AC" />
+              <stop offset="100%" stopColor="#3D9B91" />
+            </linearGradient>
+            <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#4DB6AC" />
+              <stop offset="30%" stopColor="#3D9B91" />
+              <stop offset="100%" stopColor="#2D8B81" />
+            </linearGradient>
+          </>
+        )}
         {/* Custom wall patterns */}
         {hasCustomWallLight && (
           <pattern id="custom-wall-light-pattern" patternUnits="userSpaceOnUse" width="100" height="100">

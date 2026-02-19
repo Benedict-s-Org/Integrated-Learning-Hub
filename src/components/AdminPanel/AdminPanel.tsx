@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { StudentQRCodeModal } from '../admin/StudentQRCodeModal';
+import { ShopStyleManager } from '../admin/ShopStyleManager';
 
 interface User {
   id: string;
@@ -71,6 +72,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
+  const [showShopStyles, setShowShopStyles] = useState(false);
 
   // Sorting and Filtering States
   const [sortBy, setSortBy] = useState<'created_at' | 'username' | 'class'>('created_at');
@@ -541,6 +543,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
             >
               <UserPlus size={20} />
               <span>Create User</span>
+            </button>
+            <button
+              onClick={() => setShowShopStyles(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+            >
+              <Palette size={20} />
+              <span>Shop Styles</span>
             </button>
           </div>
         </div>
@@ -1201,6 +1210,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
           onClose={() => setQrUser(null)}
           student={qrUser}
         />
+      )}
+
+      {showShopStyles && (
+        <ShopStyleManager onClose={() => setShowShopStyles(false)} />
       )}
     </div>
   );
