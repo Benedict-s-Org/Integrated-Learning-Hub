@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle, Image as ImageIcon, Sparkles, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, Copy, CheckCircle, AlertCircle, Image as ImageIcon, Sparkles, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { ImageGenerationModal } from '../Shared/ImageGenerationModal';
+import { sortQuestionsByEmbeddedNumber } from '../../utils/questionUtils';
 
 interface Question {
   question_text: string;
@@ -108,6 +109,15 @@ export function ManualQuestionEntry({
     } else if (expandedIndex === targetIndex) {
       setExpandedIndex(index);
     }
+  };
+
+  const sortByNumber = () => {
+    if (!window.confirm("This will reorder all questions based on the number at the start of the question text. Continue?")) {
+      return;
+    }
+
+    const sorted = sortQuestionsByEmbeddedNumber(questions);
+    setQuestions(sorted);
   };
 
   const updateChoices = (index: number, choiceIndex: number, value: string) => {
@@ -464,6 +474,15 @@ export function ManualQuestionEntry({
           Add Question
         </button>
 
+        <button
+          onClick={sortByNumber}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium ml-2"
+          title="Sort questions by the number at the start of the text"
+        >
+          <ArrowUpDown className="w-5 h-5" />
+          Sort by #
+        </button>
+
         <div className="flex-1"></div>
 
         <button
@@ -497,7 +516,7 @@ export function ManualQuestionEntry({
         onClose={() => setIsImageModalOpen(false)}
         onImageSelected={handleImageSelected}
         initialPrompt={
-          activeQuestionIndex !== null && questions[activeQuestionIndex].question_text
+          activeQuestionIndex !== null && questions[activeQuestionIndex]
             ? questions[activeQuestionIndex].question_text
             : ""
         }

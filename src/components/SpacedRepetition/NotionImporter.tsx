@@ -2,37 +2,37 @@ import React, { useState } from 'react';
 import { BookOpen, AlertCircle, CheckCircle, ArrowLeft, Database, FileText, Search, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
-    parseCSVQuestions,
+    extractTextFromNotion,
+    parseNotionCSV,
     parseNotionAPIResponse,
-    validateImportedQuestions,
-    ImportedQuestion,
+    NotionQuestion
 } from '../../utils/importParsers';
+import { sortQuestionsByEmbeddedNumber } from '../../utils/questionUtils';
 
 interface NotionImporterProps {
     title: string;
     description: string;
-    onImport: (questions: ImportedQuestion[], setTitle: string, setDescription: string) => void;
+    onImport: (questions: any[], title: string, description: string) => void;
     onCancel: () => void;
 }
 
 export function NotionImporter({ title: initialTitle, description: initialDescription, onImport, onCancel }: NotionImporterProps) {
     const [mode, setMode] = useState<'api' | 'csv'>('api');
-    const [title, setTitle] = useState(initialTitle);
-    const [description, setDescription] = useState(initialDescription);
+    const [step, setStep] = useState<'connect' | 'preview'>('connect');
+    const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState<string[]>([]);
 
     // API Mode State
     const [databaseId, setDatabaseId] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
 
     // CSV Mode State
     const [fileInputKey, setFileInputKey] = useState(0);
 
-    // Shared State
-    const [parsedQuestions, setParsedQuestions] = useState<ImportedQuestion[]>([]);
-    const [errors, setErrors] = useState<string[]>([]);
-    const [step, setStep] = useState<'connect' | 'preview'>('connect');
-
-    // ─── API Mode Handlers ──────────────────────────────────────────────
+    // Preview State
+    const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+    const [title, setTitle] = useState(initialTitle);
+    const [description, setDescription] = useState(initialDescription);
+    const [autoSort, setAutoSort] = useState(false);
 
     const handleFetchFromNotion = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,11 +51,15 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
 
             if (error) throw error;
             if (data.error) throw new Error(data.error);
+            if (!data.results || data.results.length === 0) {
+                throw new Error("No questions found in this database. Please check the property names.");
+            }
 
-            const parsed = parseNotionAPIResponse(data.results || []);
-            handleParsedResult(parsed);
-        } catch (err) {
-            console.error('Notion API Error:', err);
+            const questions = parseNotionAPIResponse(data.results);
+            setParsedQuestions(questions);
+            setStep('preview');
+        } catch (err: any) {
+            console.error("Notion API Error:", err);
             setErrors([
                 err instanceof Error ? err.message : 'Failed to fetch from Notion',
                 'Make sure the database is shared with the integration and ID is correct.'
@@ -65,41 +69,31 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
         }
     };
 
-    // ─── CSV Mode Handlers ──────────────────────────────────────────────
-
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setIsLoading(true);
+        setErrors([]);
+
         const reader = new FileReader();
         reader.onload = (event) => {
-            const content = event.target?.result as string;
-            const parsed = parseCSVQuestions(content);
-            handleParsedResult(parsed);
+            try {
+                const csvText = event.target?.result as string;
+                const questions = parseCSVQuestions(csvText);
+                setParsedQuestions(questions);
+                setStep('preview');
+            } catch (err: any) {
+                setErrors([err.message || "Failed to parse CSV."]);
+            } finally {
+                setIsLoading(false);
+                setFileInputKey(prev => prev + 1);
+            }
         };
         reader.readAsText(file);
     };
 
-    // ─── Shared Logic ───────────────────────────────────────────────────
 
-    const handleParsedResult = (parsed: ImportedQuestion[]) => {
-        if (parsed.length === 0) {
-            setErrors(['No valid questions found. check your column names match: Question, Choice A, Choice B, Choice C, Choice D, Correct Answer, Explanation, Difficulty']);
-            setParsedQuestions([]);
-            return;
-        }
-
-        const { valid, errors: validationErrors } = validateImportedQuestions(parsed);
-
-        if (validationErrors.length > 0 && valid.length === 0) {
-            setErrors(validationErrors);
-            setParsedQuestions([]);
-        } else {
-            setErrors(validationErrors);
-            setParsedQuestions(valid);
-            setStep('preview');
-        }
-    };
 
     return (
         <div className="p-6 max-w-4xl mx-auto">
@@ -315,13 +309,29 @@ export function NotionImporter({ title: initialTitle, description: initialDescri
                     </div>
 
                     <div className="flex gap-3 pt-2">
+                        <div className="flex items-center gap-4 mb-4 mt-6">
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={autoSort}
+                                    onChange={(e) => setAutoSort(e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                Sort questions by embedded number (e.g. "1. Question")
+                            </label>
+                        </div>
+
                         <button
                             onClick={() => {
                                 if (!title.trim()) {
                                     setErrors(['Please enter a set title']);
                                     return;
                                 }
-                                onImport(parsedQuestions, title, description);
+                                let finalQuestions = parsedQuestions;
+                                if (autoSort) {
+                                    finalQuestions = sortQuestionsByEmbeddedNumber(parsedQuestions);
+                                }
+                                onImport(finalQuestions, title, description);
                             }}
                             className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-sm"
                         >

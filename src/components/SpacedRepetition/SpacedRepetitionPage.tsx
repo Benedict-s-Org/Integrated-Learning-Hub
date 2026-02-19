@@ -148,31 +148,6 @@ export const SpacedRepetitionPage: React.FC = () => {
     });
   };
 
-  const handleQuestionsImport = async (
-    questions: any[],
-    title: string,
-    description: string
-  ) => {
-    try {
-      // setId was removed because we don't create the set immediately anymore
-      // const setId = await createSet(title, description, 'medium');
-      // Instead of saving immediately, redirect to manual entry for confirmation
-      // This allows "Edit Before Save" and visual verification of order
-      setState({
-        view: 'createNew', // Use createNew with manual source to reuse ManualQuestionEntry as a "Review" step
-        source: 'manual',
-        initialImportData: {
-          title,
-          description,
-          questions
-        }
-      });
-    } catch (error) {
-      console.error("Failed to prepare import:", error);
-      alert("Failed to process questions. Please try again.");
-    }
-  };
-
   // ─── Creation Logic ──────────────────────────────────────────────────
 
   const handleSourceSelect = (source: 'manual' | 'file' | 'notion') => {
@@ -267,6 +242,69 @@ export const SpacedRepetitionPage: React.FC = () => {
     }
   };
 
+  /**
+   * Final Save Handler (Commit to DB)
+   * This function is used by ManualQuestionEntry to actually save the new set.
+   */
+  const handleInternalSaveSet = async (
+    questions: any[],
+    title: string,
+    description: string
+  ): Promise<void> => {
+    try {
+      const setId = await createSet(title, description, 'medium');
+      if (setId) {
+        // Here we ensure questions are added IN ORDER
+        await addQuestions(setId, questions);
+        setState({ view: 'hub' });
+      } else {
+        throw new Error("Failed to create set ID");
+      }
+    } catch (error) {
+      console.error("Failed to save set:", error);
+      alert("Failed to save the question set. Please try again.");
+    }
+  };
+
+  /**
+   * Import Preview Handler
+   * This function receives data from importers (Notion/File/Manual) and 
+   * redirects to the Manual Entry screen for "Edit Before Save".
+   */
+  const handleQuestionsImportPreview = async (
+    questions: any[],
+    title: string,
+    description: string
+  ) => {
+    try {
+      // Instead of saving immediately, redirect to manual entry for confirmation
+      // This allows "Edit Before Save" and visual verification of order
+      const mappedQuestions = questions.map(q => ({
+        ...q,
+        question_text: q.question || q.question_text || '',
+        choices: q.choices,
+        correct_answer_index: q.correct_answer_index,
+        explanation: q.explanation || '',
+        difficulty: q.difficulty || 'medium',
+        tags: q.tags || [],
+        image_url: null
+      }));
+
+      setState({
+        view: 'createNew', // Use createNew with manual source to reuse ManualQuestionEntry as a "Review" step
+        source: 'manual',
+        initialImportData: {
+          title,
+          description,
+          questions: mappedQuestions
+        }
+      });
+    } catch (error) {
+      console.error("Failed to prepare import:", error);
+      alert("Failed to process questions. Please try again.");
+    }
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────
 
   // 1. Learning View
@@ -328,7 +366,7 @@ export const SpacedRepetitionPage: React.FC = () => {
           title={state.initialImportData?.title || ""}
           description={state.initialImportData?.description || ""}
           initialQuestions={state.initialImportData?.questions}
-          onSave={handleQuestionsImport}
+          onSave={handleInternalSaveSet} // Manual entry saves to DB
           onCancel={() => setState({ view: 'createNew' })}
         />
       );
@@ -339,7 +377,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         <FileImporter
           title=""
           description=""
-          onImport={handleQuestionsImport}
+          onImport={handleQuestionsImportPreview} // File imports go to preview
           onCancel={() => setState({ view: 'createNew' })}
         />
       );
@@ -350,7 +388,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         <NotionImporter
           title=""
           description=""
-          onImport={handleQuestionsImport}
+          onImport={handleQuestionsImportPreview} // Notion imports go to preview
           onCancel={() => setState({ view: 'createNew' })}
         />
       );

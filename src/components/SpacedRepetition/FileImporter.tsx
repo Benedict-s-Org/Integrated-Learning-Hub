@@ -8,6 +8,7 @@ import {
     generateXLSXTemplate,
     ImportedQuestion,
 } from '../../utils/importParsers';
+import { sortQuestionsByEmbeddedNumber } from '../../utils/questionUtils';
 
 interface FileImporterProps {
     title: string;
@@ -24,6 +25,7 @@ export function FileImporter({ title: initialTitle, description: initialDescript
     const [step, setStep] = useState<'upload' | 'preview'>('upload');
     const [fileName, setFileName] = useState('');
     const [isDragging, setIsDragging] = useState(false);
+    const [autoSort, setAutoSort] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFile = (file: File) => {
@@ -102,6 +104,18 @@ export function FileImporter({ title: initialTitle, description: initialDescript
         URL.revokeObjectURL(link.href);
     };
 
+    const handleImportInternal = () => {
+        if (!title.trim()) {
+            setErrors(['Please enter a set title']);
+            return;
+        }
+        let finalQuestions = [...parsedQuestions];
+        if (autoSort) {
+            finalQuestions = sortQuestionsByEmbeddedNumber(finalQuestions);
+        }
+        onImport(finalQuestions, title, description);
+    };
+
     return (
         <div className="p-6 max-w-4xl mx-auto">
             <div className="flex items-center gap-3 mb-6">
@@ -164,8 +178,8 @@ export function FileImporter({ title: initialTitle, description: initialDescript
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
                         className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 cursor-pointer ${isDragging
-                                ? 'border-blue-500 bg-blue-50 shadow-inner'
-                                : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'
+                            ? 'border-blue-500 bg-blue-50 shadow-inner'
+                            : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'
                             }`}
                     >
                         <Upload className={`w-12 h-12 mx-auto mb-4 transition-colors ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
@@ -260,8 +274,8 @@ export function FileImporter({ title: initialTitle, description: initialDescript
                                         <div
                                             key={choiceIdx}
                                             className={`text-sm px-3 py-2 rounded-lg ${choiceIdx === q.correct_answer_index
-                                                    ? 'bg-green-50 text-green-800 border border-green-200 font-medium'
-                                                    : 'bg-gray-50 text-gray-700 border border-gray-100'
+                                                ? 'bg-green-50 text-green-800 border border-green-200 font-medium'
+                                                : 'bg-gray-50 text-gray-700 border border-gray-100'
                                                 }`}
                                         >
                                             <span className="font-mono font-bold mr-1.5">{String.fromCharCode(65 + choiceIdx)}.</span>
@@ -275,8 +289,8 @@ export function FileImporter({ title: initialTitle, description: initialDescript
                                     )}
                                     {q.difficulty && (
                                         <span className={`px-2 py-0.5 rounded-full ${q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
-                                                q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                             }`}>
                                             {q.difficulty}
                                         </span>
@@ -287,15 +301,21 @@ export function FileImporter({ title: initialTitle, description: initialDescript
                     </div>
 
                     {/* Actions */}
+                    <div className="flex items-center gap-4 mb-4 mt-6">
+                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={autoSort}
+                                onChange={(e) => setAutoSort(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Sort questions by embedded number (e.g. "1. Question")
+                        </label>
+                    </div>
+
                     <div className="flex gap-3 pt-2">
                         <button
-                            onClick={() => {
-                                if (!title.trim()) {
-                                    setErrors(['Please enter a set title']);
-                                    return;
-                                }
-                                onImport(parsedQuestions, title, description);
-                            }}
+                            onClick={handleImportInternal}
                             className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-sm"
                         >
                             Import {parsedQuestions.length} Questions
