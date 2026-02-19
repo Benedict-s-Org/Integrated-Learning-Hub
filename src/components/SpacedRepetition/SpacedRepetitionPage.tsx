@@ -185,6 +185,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
     return (
       <QuestionCard
+        key={currentQuestion.id}
         question={currentQuestion}
         questionNumber={sessionState.currentQuestionIndex + 1}
         totalQuestions={sessionState.questions.length}
