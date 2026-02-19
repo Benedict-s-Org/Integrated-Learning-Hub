@@ -28,6 +28,7 @@ export function QuestionCard({
   const [startTime] = useState(Date.now());
   const [responseTime, setResponseTime] = useState(0);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const [answerTimer, setAnswerTimer] = useState<NodeJS.Timeout | null>(null);
 
   const handleSelectAnswer = (index: number) => {
     if (showFeedback) return;
@@ -39,9 +40,21 @@ export function QuestionCard({
 
     // Call onAnswer almost immediately for optimistic update
     // But keep a small delay for feedback visibility
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       onAnswer(index, time);
+      setAnswerTimer(null);
     }, 800);
+    setAnswerTimer(timer);
+  };
+
+  const handleExit = () => {
+    // If there's a pending answer timer, flush it immediately before exiting
+    if (answerTimer && selectedIndex !== null) {
+      clearTimeout(answerTimer);
+      onAnswer(selectedIndex, responseTime);
+      setAnswerTimer(null);
+    }
+    onSaveAndExit();
   };
 
   const isCorrect = selectedIndex === question.correct_answer_index;
@@ -62,7 +75,7 @@ export function QuestionCard({
             </p>
           </div>
           <button
-            onClick={onSaveAndExit}
+            onClick={handleExit}
             className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-100"
           >
             Save & Exit

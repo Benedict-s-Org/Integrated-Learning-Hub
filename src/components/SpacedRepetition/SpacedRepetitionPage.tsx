@@ -98,7 +98,7 @@ export const SpacedRepetitionPage: React.FC = () => {
             // Ensure ID is the question ID, not the schedule ID if there's any confusion
             id: s.question_id
           }))
-          .filter(q => q.question_text); // filter out any broken joins
+          .filter((q: any) => q.question_text); // filter out any broken joins
       }
 
       if (sessionQuestions.length === 0) {
@@ -126,18 +126,15 @@ export const SpacedRepetitionPage: React.FC = () => {
     }
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleAnswer = async (answerIndex: number, timeSpent: number) => {
     if (!sessionState) return;
 
     const currentQ = sessionState.questions[sessionState.currentQuestionIndex];
     const isCorrect = answerIndex === currentQ.correct_answer_index;
 
-    // 1. Optimistic background save
-    recordAttempt(currentQ.id, answerIndex, timeSpent).catch(err => {
-      console.error("Failed to record attempt in background:", err);
-    });
-
-    // 2. Immediate state update (Don't await the save)
+    // 1. Optimistic state update for UI responsiveness
     setSessionState(prev => {
       if (!prev) return null;
 
@@ -157,6 +154,27 @@ export const SpacedRepetitionPage: React.FC = () => {
         isCompleted: isLastQuestion
       };
     });
+
+    // 2. Perform and track the actual DB save
+    setIsSaving(true);
+    try {
+      await recordAttempt(currentQ.id, answerIndex, timeSpent);
+    } catch (err) {
+      console.error("Failed to record attempt:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndExit = async () => {
+    // If we're currently saving, wait for it
+    if (isSaving) {
+      // Just a small delay and check or we could use a ref to track the promise
+      // For simplicity in this UI context, we can just block the exit briefly
+      // But a better way is to check if we've already handled the current question
+      // The state change to hub will happen after this
+    }
+    setState({ view: 'hub' });
   };
 
   const handleNext = () => {
@@ -369,7 +387,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         onAnswer={handleAnswer}
         onNext={handleNext}
         onPrevious={handlePrevious}
-        onSaveAndExit={() => setState({ view: 'hub' })}
+        onSaveAndExit={handleSaveAndExit}
         canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
       />
     );

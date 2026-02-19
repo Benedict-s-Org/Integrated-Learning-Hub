@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import {
   Loader2,
-  ArrowLeft,
   Users,
   Search,
   Home,
@@ -18,7 +16,6 @@ import {
   ChevronDown,
   BarChart3,
   Eye,
-  MapPin,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -26,25 +23,30 @@ import { MemoryContentModal } from '@/components/MemoryContentModal';
 
 interface UserProgress {
   id: string;
+  username: string;
   display_name: string | null;
   created_at: string;
   is_admin: boolean;
   // Room data
   house_level: number;
   coins: number;
-  virtual_coins: number; // Add this
-  daily_real_earned: number; // Add this
+  virtual_coins: number;
+  daily_real_earned: number;
   inventory_count: number;
   placement_count: number;
   updated_at: string | null;
-  // Learning data
-  total_cards: number;
-  reviewed_cards: number;
-  total_reviews: number;
-  avg_stability: number;
-  avg_difficulty: number;
-  last_review: string | null;
-  // Memory points
+  // Analytics from RPC
+  spelling_practices: number;
+  spelling_avg_accuracy: number;
+  proofreading_practices: number;
+  proofreading_avg_accuracy: number;
+  memorization_sessions: number;
+  spaced_repetition_sessions: number;
+  total_practices: number;
+  overall_avg_accuracy: number;
+  last_activity: string | null;
+  total_time_minutes: number;
+  // Others
   memory_count: number;
 }
 
@@ -58,7 +60,6 @@ const HOUSE_LEVEL_NAMES = [
 type SortOption = 'activity' | 'cards' | 'level' | 'created';
 
 export function AdminProgressPage() {
-  const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
   const [users, setUsers] = useState<UserProgress[]>([]);
@@ -71,117 +72,72 @@ export function AdminProgressPage() {
   const fetchUserProgress = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch all user profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('user_profiles')
-        .select('id, display_name, created_at')
-        .order('created_at', { ascending: false });
+      // 1. Fetch unified performance data via RPC
+      const { data: performanceData, error: performanceError } = await (supabase as any).rpc('get_all_students_performance');
 
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        return;
-      }
+      if (performanceError) throw performanceError;
 
-      if (!profiles || profiles.length === 0) {
-        setUsers([]);
-        return;
-      }
-
-      // 2. Fetch room data for all users
+      // 2. Fetch room data for all users (not included in the performance RPC)
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
         .select('user_id, house_level, coins, virtual_coins, daily_counts, inventory, placements, updated_at');
 
-      if (roomError) {
-        console.error('Error fetching room data:', roomError);
-      }
+      if (roomError) throw roomError;
 
-      // 3. Fetch cards data for all users
-      const { data: cardsData, error: cardsError } = await supabase
-        .from('cards')
-        .select('user_id, reps, stability, difficulty, last_review');
-
-      if (cardsError) {
-        console.error('Error fetching cards:', cardsError);
-      }
-
-      // 4. Fetch memories for all users
+      // 3. Fetch memories for point of interest counts
       const { data: memoriesData, error: memoriesError } = await supabase
         .from('memories')
         .select('user_id');
 
-      if (memoriesError) {
-        console.error('Error fetching memories:', memoriesError);
-      }
+      if (memoriesError) throw memoriesError;
 
-      // 5. Create lookup maps
+      // 4. Also fetch profile creation date for all (RPC only returns users)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, created_at');
+
+      if (profilesError) throw profilesError;
+
+      // 5. Create maps for efficient lookup
       const today = new Date().toISOString().split('T')[0];
       const roomMap = new Map<string, any>();
       (roomData || []).forEach((room) => {
-        const dailyRealEarned = room.daily_counts?.date === today ? (room.daily_counts?.real_earned || 0) : 0;
+        const dailyCounts = room.daily_counts as any;
+        const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
         roomMap.set(room.user_id, { ...room, daily_real_earned: dailyRealEarned });
       });
 
-      // Aggregate cards by user
-      const cardsMap = new Map<string, {
-        total: number;
-        reviewed: number;
-        totalReps: number;
-        totalStability: number;
-        totalDifficulty: number;
-        lastReview: string | null;
-      }>();
-
-      (cardsData || []).forEach((card) => {
-        const existing = cardsMap.get(card.user_id) || {
-          total: 0,
-          reviewed: 0,
-          totalReps: 0,
-          totalStability: 0,
-          totalDifficulty: 0,
-          lastReview: null,
-        };
-
-        existing.total += 1;
-        if (card.reps > 0) existing.reviewed += 1;
-        existing.totalReps += card.reps;
-        existing.totalStability += card.stability;
-        existing.totalDifficulty += card.difficulty;
-
-        if (card.last_review) {
-          if (!existing.lastReview || new Date(card.last_review) > new Date(existing.lastReview)) {
-            existing.lastReview = card.last_review;
-          }
-        }
-
-        cardsMap.set(card.user_id, existing);
-      });
-
-      // Count memories by user
       const memoriesMap = new Map<string, number>();
       (memoriesData || []).forEach((memory) => {
-        memoriesMap.set(memory.user_id, (memoriesMap.get(memory.user_id) || 0) + 1);
+        if (memory.user_id) {
+          memoriesMap.set(memory.user_id, (memoriesMap.get(memory.user_id) || 0) + 1);
+        }
       });
 
-      // 6. Build user progress with admin status check
+      const profileMap = new Map<string, string | null>();
+      (profiles || []).forEach((p) => {
+        if (p.id) profileMap.set(p.id, p.created_at);
+      });
+
+      // 6. Combine data
       const usersProgress = await Promise.all(
-        profiles.map(async (profile) => {
+        (performanceData || []).map(async (student: any) => {
+          // Check admin status
           const { data: isAdminData } = await supabase.rpc('has_role', {
-            _user_id: profile.id,
+            _user_id: student.user_id,
             _role: 'admin',
           });
 
-          const room = roomMap.get(profile.id);
-          const cards = cardsMap.get(profile.id);
-          const memoryCount = memoriesMap.get(profile.id) || 0;
-
+          const room = roomMap.get(student.user_id);
+          const memoryCount = memoriesMap.get(student.user_id) || 0;
           const inventoryArray = room?.inventory as string[] | null;
           const placementsArray = room?.placements as unknown[] | null;
 
           return {
-            id: profile.id,
-            display_name: profile.display_name,
-            created_at: profile.created_at,
+            id: student.user_id,
+            username: student.username,
+            display_name: student.display_name,
+            created_at: (student.user_id && profileMap.get(student.user_id as string)) || '',
             is_admin: isAdminData === true,
             // Room
             house_level: room?.house_level ?? 0,
@@ -191,14 +147,18 @@ export function AdminProgressPage() {
             inventory_count: inventoryArray?.length ?? 0,
             placement_count: placementsArray?.length ?? 0,
             updated_at: room?.updated_at ?? null,
-            // Cards
-            total_cards: cards?.total ?? 0,
-            reviewed_cards: cards?.reviewed ?? 0,
-            total_reviews: cards?.totalReps ?? 0,
-            avg_stability: cards && cards.total > 0 ? cards.totalStability / cards.total : 0,
-            avg_difficulty: cards && cards.total > 0 ? cards.totalDifficulty / cards.total : 0,
-            last_review: cards?.lastReview ?? null,
-            // Memories
+            // Learning (from RPC)
+            spelling_practices: Number(student.spelling_practices) || 0,
+            spelling_avg_accuracy: Number(student.spelling_avg_accuracy) || 0,
+            proofreading_practices: Number(student.proofreading_practices) || 0,
+            proofreading_avg_accuracy: Number(student.proofreading_avg_accuracy) || 0,
+            memorization_sessions: Number(student.memorization_sessions) || 0,
+            spaced_repetition_sessions: Number(student.spaced_repetition_sessions) || 0,
+            total_practices: Number(student.total_practices) || 0,
+            overall_avg_accuracy: Number(student.overall_avg_accuracy) || 0,
+            last_activity: student.last_activity,
+            total_time_minutes: Number(student.total_time_minutes) || 0,
+            // Memory Palace
             memory_count: memoryCount,
           } as UserProgress;
         })
@@ -226,12 +186,12 @@ export function AdminProgressPage() {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'activity': {
-          const aTime = a.updated_at || a.last_review || a.created_at;
-          const bTime = b.updated_at || b.last_review || b.created_at;
+          const aTime = a.last_activity || a.updated_at || a.created_at;
+          const bTime = b.last_activity || b.updated_at || b.created_at;
           return new Date(bTime).getTime() - new Date(aTime).getTime();
         }
-        case 'cards':
-          return b.total_cards - a.total_cards;
+        case 'cards': // We'll keep the name 'cards' but use total_practices
+          return b.total_practices - a.total_practices;
         case 'level':
           return b.house_level - a.house_level || b.coins - a.coins;
         case 'created':
@@ -246,7 +206,7 @@ export function AdminProgressPage() {
 
   const sortOptions: { value: SortOption; label: string }[] = [
     { value: 'activity', label: '最近活躍' },
-    { value: 'cards', label: '卡片數量' },
+    { value: 'cards', label: '練習次數' }, // Changed label
     { value: 'level', label: '房屋等級' },
     { value: 'created', label: '註冊時間' },
   ];
@@ -331,29 +291,30 @@ export function AdminProgressPage() {
             <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-3 shadow-sm">
               <div className="flex items-center justify-center gap-2 text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-wider mb-1">
                 <BarChart3 className="w-3 h-3" />
-                數據細節
+                平均準確度
               </div>
               <div className="text-xl font-black text-[hsl(var(--foreground))]">
-                {/* Simplified for mobile */}
-                {users.reduce((sum, u) => sum + u.total_cards, 0)}
+                {users.length > 0
+                  ? (users.reduce((sum, u) => sum + u.overall_avg_accuracy, 0) / users.length).toFixed(1)
+                  : 0}%
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
-                <Brain className="w-4 h-4" />
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-3 shadow-sm">
+              <div className="flex items-center justify-center gap-2 text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-wider mb-1">
+                <Brain className="w-3 h-3" />
                 總記憶點
               </div>
-              <div className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              <div className="text-xl font-black text-[hsl(var(--foreground))]">
                 {users.reduce((sum, u) => sum + u.memory_count, 0)}
               </div>
             </div>
-            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))] text-sm mb-1">
-                <TrendingUp className="w-4 h-4" />
-                總複習次數
+            <div className="bg-[hsl(var(--card))] rounded-xl border border-[hsl(var(--border))] p-3 shadow-sm">
+              <div className="flex items-center justify-center gap-2 text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-wider mb-1">
+                <TrendingUp className="w-3 h-3" />
+                總練習次數
               </div>
-              <div className="text-2xl font-bold text-[hsl(var(--foreground))]">
-                {users.reduce((sum, u) => sum + u.total_reviews, 0)}
+              <div className="text-xl font-black text-[hsl(var(--foreground))]">
+                {users.reduce((sum, u) => sum + u.total_practices, 0)}
               </div>
             </div>
           </div>
@@ -399,7 +360,7 @@ export function AdminProgressPage() {
                     </div>
                     <div className="text-right text-sm text-[hsl(var(--muted-foreground))]">
                       <Clock className="w-4 h-4 inline mr-1" />
-                      最後活躍：{formatDateTime(user.updated_at || user.last_review)}
+                      最後活躍：{formatDateTime(user.last_activity || user.updated_at)}
                     </div>
                   </div>
 
@@ -446,39 +407,36 @@ export function AdminProgressPage() {
 
                     {/* Learning Progress */}
                     <div className="bg-[hsl(var(--muted)/0.5)] rounded-xl p-4 border border-[hsl(var(--border))]">
-                      <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] mb-3">
-                        <BookOpen className="w-4 h-4 text-[hsl(var(--primary))]" />
-                        學習進度
+                      <div className="flex items-center justify-between gap-2 text-sm font-medium text-[hsl(var(--foreground))] mb-3">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-[hsl(var(--primary))]" />
+                          學習進度
+                        </div>
+                        <div className="text-[10px] bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))] px-1.5 py-0.5 rounded">
+                          {user.overall_avg_accuracy}% 準確
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">卡片數</div>
-                          <div className="font-semibold text-[hsl(var(--foreground))]">
-                            {user.total_cards}
-                          </div>
+                          <div className="text-[10px] text-[hsl(var(--muted-foreground))]">Spaced Rep.</div>
+                          <div className="text-sm font-semibold">{user.spaced_repetition_sessions}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">複習次數</div>
-                          <div className="font-semibold text-[hsl(var(--foreground))]">
-                            {user.total_reviews}
-                          </div>
+                          <div className="text-[10px] text-[hsl(var(--muted-foreground))]">默寫 Spelling</div>
+                          <div className="text-sm font-semibold">{user.spelling_practices}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">穩定性</div>
-                          <div className="font-semibold text-[hsl(var(--foreground))]">
-                            {user.avg_stability.toFixed(1)}
-                          </div>
+                          <div className="text-[10px] text-[hsl(var(--muted-foreground))]">校對 Proofing</div>
+                          <div className="text-sm font-semibold">{user.proofreading_practices}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-[hsl(var(--muted-foreground))] mb-0.5">難度</div>
-                          <div className="font-semibold text-[hsl(var(--foreground))]">
-                            {user.avg_difficulty.toFixed(1)}
-                          </div>
+                          <div className="text-[10px] text-[hsl(var(--muted-foreground))]">總練習 Practices</div>
+                          <div className="text-sm font-bold text-[hsl(var(--primary))]">{user.total_practices}</div>
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-[hsl(var(--border))]">
-                        <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                          最後複習：{formatDateTime(user.last_review)}
+                        <div className="text-[10px] text-[hsl(var(--muted-foreground))] truncate">
+                          最後活動：{formatDateTime(user.last_activity)}
                         </div>
                       </div>
                     </div>
