@@ -19,7 +19,7 @@ export function calculateNextReview(
   schedule: SpacedRepetitionSchedule,
   qualityRating: number
 ): SM2Response {
-  let { ease_factor: easeFactor, interval, repetitions } = schedule;
+  let { ease_factor: easeFactor, interval_days: interval, repetitions } = schedule;
 
   const qualityAdjustment = getQualityAdjustment(qualityRating);
   easeFactor = Math.max(
@@ -28,7 +28,7 @@ export function calculateNextReview(
   );
 
   if (qualityRating < 3) {
-    interval = 1;
+    interval = 0;
     repetitions = 0;
   } else {
     if (repetitions === 0) {
@@ -42,7 +42,14 @@ export function calculateNextReview(
   }
 
   const nextReviewDate = new Date();
-  nextReviewDate.setDate(nextReviewDate.getDate() + interval);
+
+  // If the interval is 1, we want to ensure it's actually due *tomorrow*, not just exactly 24 hours from now which could still count as "today" depending on timezones and rounding.
+  if (interval === 1) {
+    nextReviewDate.setDate(nextReviewDate.getDate() + 1);
+    nextReviewDate.setHours(0, 0, 0, 0); // Start of tomorrow
+  } else {
+    nextReviewDate.setDate(nextReviewDate.getDate() + interval);
+  }
 
   return {
     easeFactor,
@@ -82,8 +89,6 @@ export function initializeSchedule(questionId: string, userId: string): Partial<
     interval_days: 1,
     repetitions: 0,
     next_review_date: now.toISOString(),
-    last_reviewed_at: null,
-    last_quality_rating: null,
   };
 }
 

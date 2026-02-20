@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Trophy, Clock, Target, Award, BarChart3 } from 'lucide-react';
+import { Trophy, Clock, Target, Award, BarChart3, Zap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { SpacedRepetitionAnalytics } from '../SpacedRepetition/SpacedRepetitionAnalytics';
 import {
   ProgressSummary,
   RankingEntry,
@@ -10,7 +11,7 @@ import {
   MemorizationSession,
 } from '../../types';
 
-type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'rankings';
+type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'rankings';
 
 const StudentProgress: React.FC = () => {
   const { user } = useAuth();
@@ -36,15 +37,15 @@ const StudentProgress: React.FC = () => {
 
     setLoading(true);
     try {
-      const { data: summary } = await supabase.rpc('get_user_progress_summary', {
+      const { data: summary } = await (supabase as any).rpc('get_user_progress_summary', {
         target_user_id: user.id,
       });
 
       if (summary) {
-        setProgressSummary(summary);
+        setProgressSummary(summary as any);
       }
 
-      const { data: spellingData } = await supabase
+      const { data: spellingData } = await (supabase as any)
         .from('spelling_practice_results')
         .select('*')
         .eq('user_id', user.id)
@@ -52,10 +53,10 @@ const StudentProgress: React.FC = () => {
         .limit(20);
 
       if (spellingData) {
-        setSpellingResults(spellingData);
+        setSpellingResults(spellingData as any);
       }
 
-      const { data: proofreadingData } = await supabase
+      const { data: proofreadingData } = await (supabase as any)
         .from('proofreading_practice_results')
         .select('*')
         .eq('user_id', user.id)
@@ -63,10 +64,10 @@ const StudentProgress: React.FC = () => {
         .limit(20);
 
       if (proofreadingData) {
-        setProofreadingResults(proofreadingData);
+        setProofreadingResults(proofreadingData as any);
       }
 
-      const { data: memorizationData } = await supabase
+      const { data: memorizationData } = await (supabase as any)
         .from('memorization_practice_sessions')
         .select('*')
         .eq('user_id', user.id)
@@ -74,20 +75,20 @@ const StudentProgress: React.FC = () => {
         .limit(20);
 
       if (memorizationData) {
-        setMemorizationSessions(memorizationData);
+        setMemorizationSessions(memorizationData as any);
       }
 
-      const { data: spellingRankData } = await supabase.rpc('get_spelling_rankings');
+      const { data: spellingRankData } = await (supabase as any).rpc('get_spelling_rankings');
       if (spellingRankData) {
-        setSpellingRankings(spellingRankData);
-        const userRank = spellingRankData.find((r: RankingEntry) => r.user_id === user.id);
+        setSpellingRankings(spellingRankData as any);
+        const userRank = (spellingRankData as any[]).find((r: RankingEntry) => r.user_id === user.id);
         setUserSpellingRank(userRank ? Number(userRank.rank) : null);
       }
 
-      const { data: proofreadingRankData } = await supabase.rpc('get_proofreading_rankings');
+      const { data: proofreadingRankData } = await (supabase as any).rpc('get_proofreading_rankings');
       if (proofreadingRankData) {
-        setProofreadingRankings(proofreadingRankData);
-        const userRank = proofreadingRankData.find((r: RankingEntry) => r.user_id === user.id);
+        setProofreadingRankings(proofreadingRankData as any);
+        const userRank = (proofreadingRankData as any[]).find((r: RankingEntry) => r.user_id === user.id);
         setUserProofreadingRank(userRank ? Number(userRank.rank) : null);
       }
     } catch (error) {
@@ -119,12 +120,6 @@ const StudentProgress: React.FC = () => {
     if (percentage >= 90) return 'text-green-600';
     if (percentage >= 70) return 'text-yellow-600';
     return 'text-red-600';
-  };
-
-  const getScoreBgColor = (percentage: number) => {
-    if (percentage >= 90) return 'bg-green-50';
-    if (percentage >= 70) return 'bg-yellow-50';
-    return 'bg-red-50';
   };
 
   const renderSpellingChart = () => {
@@ -231,6 +226,7 @@ const StudentProgress: React.FC = () => {
             { id: 'spelling', label: 'Spelling', icon: Target },
             { id: 'proofreading', label: 'Proofreading', icon: Trophy },
             { id: 'memorization', label: 'Memorization', icon: Clock },
+            { id: 'spaced_repetition', label: 'Spaced Repetition', icon: Zap },
             { id: 'rankings', label: 'Rankings', icon: Award },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -321,6 +317,33 @@ const StudentProgress: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Time Spent:</span>
                     <span className="font-semibold">{progressSummary.memorization.total_time_minutes} min</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Spaced Repetition</h3>
+                  <Zap className="text-blue-600" size={24} />
+                </div>
+                <div className="space-y-2 text-sm md:text-base">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Reviews:</span>
+                    <span className="font-semibold">{progressSummary.spaced_repetition?.total_practices || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Avg Accuracy:</span>
+                    <span className={`font-semibold ${getScoreColor(progressSummary.spaced_repetition?.average_accuracy || 0)}`}>
+                      {progressSummary.spaced_repetition?.average_accuracy || 0}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Cards Mastered:</span>
+                    <span className="font-semibold text-green-600">{progressSummary.spaced_repetition?.mastery_count || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Time Spent:</span>
+                    <span className="font-semibold">{progressSummary.spaced_repetition?.total_time_minutes || 0} min</span>
                   </div>
                 </div>
               </div>
@@ -483,6 +506,12 @@ const StudentProgress: React.FC = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'spaced_repetition' && (
+          <div className="space-y-6">
+            <SpacedRepetitionAnalytics />
           </div>
         )}
 

@@ -205,6 +205,12 @@ export interface ProgressSummary {
     total_time_minutes: number;
     total_words_practiced: number;
   };
+  spaced_repetition?: {
+    total_practices: number;
+    average_accuracy: number;
+    total_time_minutes: number;
+    mastery_count: number;
+  };
 }
 
 export interface RankingEntry {

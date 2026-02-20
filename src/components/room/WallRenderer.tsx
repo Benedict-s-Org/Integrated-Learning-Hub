@@ -15,39 +15,40 @@ export const WallRenderer: React.FC<WallRendererProps> = ({
   const hasCustomWallDark = activeWall?.darkSide || activeWall?.darkImage;
   const hasCustomColor = activeWall?.color;
 
+  // Helper to adjust hex color brightness
+  const adjustBrightness = (hex: string, percent: number) => {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    return '#' + (0x1000000 + (R < 255 ? (R < 0 ? 0 : R) : 255) * 0x10000 + (G < 255 ? (G < 0 ? 0 : G) : 255) * 0x100 + (B < 255 ? (B < 0 ? 0 : B) : 255)).toString(16).slice(1);
+  };
+
+  const wallColor = hasCustomColor || "#4DB6AC";
+  const leftColorTop = adjustBrightness(wallColor, 10);
+  const leftColorMid = wallColor;
+  const leftColorBot = adjustBrightness(wallColor, -10);
+
+  const rightColorTop = adjustBrightness(wallColor, -5);
+  const rightColorMid = adjustBrightness(wallColor, -15);
+  const rightColorBot = adjustBrightness(wallColor, -25);
+
   return (
     <g style={{ pointerEvents: "none" }}>
       {/* Gradient and pattern definitions */}
       <defs>
         {/* Wall color gradients */}
-        {hasCustomColor ? (
-          <>
-            <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor={hasCustomColor} style={{ filter: 'brightness(1.1)' }} />
-              <stop offset="30%" stopColor={hasCustomColor} />
-              <stop offset="100%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.9)' }} />
-            </linearGradient>
-            <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor={hasCustomColor} />
-              <stop offset="30%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.9)' }} />
-              <stop offset="100%" stopColor={hasCustomColor} style={{ filter: 'brightness(0.8)' }} />
-            </linearGradient>
-          </>
-        ) : (
-          <>
-            {/* Teal wall gradients (fallback) */}
-            <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#5DC9BF" />
-              <stop offset="30%" stopColor="#4DB6AC" />
-              <stop offset="100%" stopColor="#3D9B91" />
-            </linearGradient>
-            <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#4DB6AC" />
-              <stop offset="30%" stopColor="#3D9B91" />
-              <stop offset="100%" stopColor="#2D8B81" />
-            </linearGradient>
-          </>
-        )}
+        <linearGradient id="wall-left-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={leftColorTop} />
+          <stop offset="30%" stopColor={leftColorMid} />
+          <stop offset="100%" stopColor={leftColorBot} />
+        </linearGradient>
+        <linearGradient id="wall-right-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={rightColorTop} />
+          <stop offset="30%" stopColor={rightColorMid} />
+          <stop offset="100%" stopColor={rightColorBot} />
+        </linearGradient>
         {/* Custom wall patterns */}
         {hasCustomWallLight && (
           <pattern id="custom-wall-light-pattern" patternUnits="userSpaceOnUse" width="100" height="100">
@@ -59,11 +60,7 @@ export const WallRenderer: React.FC<WallRendererProps> = ({
             <image href={activeWall?.darkSide || activeWall?.darkImage} width="100" height="100" preserveAspectRatio="xMidYMid slice" />
           </pattern>
         )}
-        {/* Ambient occlusion */}
-        <linearGradient id="ao-shadow" x1="0%" y1="100%" x2="0%" y2="0%">
-          <stop offset="0%" stopColor="rgba(45, 80, 75, 0.4)" />
-          <stop offset="40%" stopColor="rgba(45, 80, 75, 0)" />
-        </linearGradient>
+
       </defs>
 
       {/* Left wall - uses lightSide texture if available */}
@@ -71,22 +68,14 @@ export const WallRenderer: React.FC<WallRendererProps> = ({
         d={`M${backCorner.pos.x} ${backCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y - wallHeight} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight} Z`}
         fill={hasCustomWallLight ? "url(#custom-wall-light-pattern)" : "url(#wall-left-gradient)"}
       />
-      {/* Left wall AO at floor */}
-      <path
-        d={`M${backCorner.pos.x} ${backCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y} L${prevCorner.pos.x} ${prevCorner.pos.y - 40} L${backCorner.pos.x} ${backCorner.pos.y - 40} Z`}
-        fill="url(#ao-shadow)"
-      />
+
 
       {/* Right wall - uses darkSide texture if available */}
       <path
         d={`M${backCorner.pos.x} ${backCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y - wallHeight} L${backCorner.pos.x} ${backCorner.pos.y - wallHeight} Z`}
         fill={hasCustomWallDark ? "url(#custom-wall-dark-pattern)" : "url(#wall-right-gradient)"}
       />
-      {/* Right wall AO at floor */}
-      <path
-        d={`M${backCorner.pos.x} ${backCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y} L${nextCorner.pos.x} ${nextCorner.pos.y - 40} L${backCorner.pos.x} ${backCorner.pos.y - 40} Z`}
-        fill="url(#ao-shadow)"
-      />
+
 
       {/* Corner highlight line */}
       <line

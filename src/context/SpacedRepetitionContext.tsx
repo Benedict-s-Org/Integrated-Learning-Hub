@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, UserStreak, UserAchievement } from '../types';
+import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, UserStreak, UserAchievement, SpacedRepetitionSessionState } from '../types';
 import { supabase } from '../lib/supabase';
 import { calculateNextReview, getQualityRatingFromCorrectness, initializeSchedule, getAchievementUnlocked } from '../utils/spacedRepetitionAlgorithm';
 
@@ -11,6 +11,7 @@ interface SpacedRepetitionContextType {
   streak: UserStreak | null;
   achievements: UserAchievement[];
   loading: boolean;
+  cardsDueToday: number;
 
   createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
@@ -23,10 +24,14 @@ interface SpacedRepetitionContextType {
   fetchSet: (setId: string) => Promise<void>;
   fetchRecycleBin: () => Promise<SpacedRepetitionSet[]>;
   fetchCardsDueToday: () => Promise<SpacedRepetitionQuestion[]>;
+  fetchAllData: () => Promise<void>;
   recordAttempt: (questionId: string, selectedIndex: number, responseTime: number) => Promise<boolean>;
   getQuestionsForSet: (setId: string) => Promise<SpacedRepetitionQuestion[]>;
   getStreakData: () => UserStreak | null;
   getAchievements: () => UserAchievement[];
+  saveActiveSession: (setId: string, sessionState: any) => Promise<boolean>;
+  fetchActiveSession: (setId: string) => Promise<any | null>;
+  clearActiveSession: (setId: string) => Promise<void>;
 }
 
 const SpacedRepetitionContextInstance = createContext<SpacedRepetitionContextType | undefined>(undefined);
@@ -44,6 +49,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const [streak, setStreak] = useState<UserStreak | null>(null);
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cardsDueToday, setCardsDueToday] = useState(0);
 
   useEffect(() => {
     if (userId) {
@@ -57,15 +63,17 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return;
 
     try {
-      const [setsRes, streakRes, achievementsRes] = await Promise.all([
-        ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId),
+      const [setsRes, streakRes, achievementsRes, cardsDueRes] = await Promise.all([
+        ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId).is('deleted_at', null),
         ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
         ((supabase as any).from('user_achievements').select('*') as any).eq('user_id', userId),
+        (supabase as any).rpc('get_cards_due_today', { p_user_id: userId })
       ]);
 
       setSets((setsRes.data || []) as unknown as SpacedRepetitionSet[]);
       setStreak(streakRes.data as unknown as UserStreak | null);
       setAchievements((achievementsRes.data || []) as unknown as UserAchievement[]);
+      setCardsDueToday(cardsDueRes.data || 0);
     } catch (error) {
       console.error('Failed to fetch spaced repetition data:', error);
     } finally {
@@ -326,20 +334,29 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         activeSchedule = data as unknown as SpacedRepetitionSchedule | null;
       }
 
-      const question = questions.find(q => q.id === questionId || (q as any).question_id === questionId);
+      let question = questions.find(q => q.id === questionId || (q as any).question_id === questionId);
       if (!question) {
         // Fetch question if not in state
-        const { data: qData } = await (supabase as any)
+        const { data: qData, error: qError } = await (supabase as any)
           .from('spaced_repetition_questions')
           .select('*')
           .eq('id', questionId)
           .single();
-        if (!qData) return false;
+
+        if (qError || !qData) {
+          console.error('Failed to fetch question for recordAttempt:', qError);
+          return false;
+        }
+
+        question = qData as unknown as SpacedRepetitionQuestion;
         // Temporary fix for property naming inconsistency
-        (qData as any).correct_answer_index = qData.correct_answer_index;
+        (question as any).correct_answer_index = (question as any).correct_answer_index;
       }
 
-      const isCorrect = selectedIndex === (question?.correct_answer_index ?? (question as any)?.correct_answer_index);
+      const correctAnswerIndex = (question?.correct_answer_index ?? (question as any)?.correct_answer_index);
+      const isCorrect = selectedIndex === correctAnswerIndex;
+
+      console.log(`[SR Debug] Recording attempt for Q:${questionId}. Selected:${selectedIndex}, Correct:${correctAnswerIndex}, isCorrect:${isCorrect}`);
       const qualityRating = getQualityRatingFromCorrectness(isCorrect, responseTime);
 
       const { error: attemptError } = await ((supabase as any)
@@ -371,6 +388,25 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
           .eq('id', activeSchedule.id);
 
         if (updateError) throw updateError;
+      } else {
+        // Create a new schedule for this user and question
+        const initialSched = initializeSchedule(questionId, userId);
+        const nextReview = calculateNextReview(initialSched as SpacedRepetitionSchedule, qualityRating);
+
+        const { error: insertScheduleError } = await ((supabase as any)
+          .from('spaced_repetition_schedules')
+          .insert({
+            user_id: userId,
+            question_id: questionId,
+            ease_factor: nextReview.easeFactor,
+            interval_days: nextReview.interval,
+            repetitions: nextReview.repetitions,
+            next_review_date: nextReview.nextReviewDate.toISOString(),
+            last_reviewed_at: new Date().toISOString(),
+            last_quality_rating: qualityRating,
+          } as any) as any);
+
+        if (insertScheduleError) throw insertScheduleError;
       }
 
       // Update streak and master stats
@@ -500,6 +536,87 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const getStreakData = () => streak;
   const getAchievements = () => achievements;
 
+  const saveActiveSession = async (setId: string, sessionState: SpacedRepetitionSessionState): Promise<boolean> => {
+    if (!userId) return false;
+    try {
+      const payload: any = {
+        user_id: userId,
+        set_id: setId,
+        current_question_index: sessionState.currentQuestionIndex,
+        questions: sessionState.questions,
+        results: sessionState.results,
+        session_start_time: new Date(sessionState.sessionStartTime).toISOString(),
+        updated_at: new Date().toISOString(),
+        is_completed: sessionState.isCompleted
+      };
+
+      const { error } = await ((supabase as any)
+        .from('spaced_repetition_sessions')
+        .upsert(payload, { onConflict: 'user_id, set_id' }) as any);
+
+      if (error) {
+        // Fallback for if column hasn't been added yet
+        if (error.code === '42703') { // undefined_column
+          delete payload.is_completed;
+          await ((supabase as any)
+            .from('spaced_repetition_sessions')
+            .upsert(payload, { onConflict: 'user_id, set_id' }) as any);
+        } else {
+          throw error;
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to save active session:', error);
+      return false;
+    }
+  };
+
+  const fetchActiveSession = async (setId: string): Promise<any | null> => {
+    if (!userId) return null;
+    try {
+      const { data, error } = await ((supabase as any)
+        .from('spaced_repetition_sessions')
+        .select('*') as any)
+        .eq('user_id', userId)
+        .eq('set_id', setId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      if (data.is_completed) {
+        clearActiveSession(setId);
+        return null;
+      }
+
+      return {
+        currentQuestionIndex: data.current_question_index,
+        questions: data.questions,
+        results: data.results,
+        isCompleted: data.is_completed || false,
+        sessionStartTime: new Date(data.session_start_time).getTime(),
+        currentQuestionStartTime: Date.now() // Reset timer on resume
+      };
+    } catch (error) {
+      console.error('Failed to fetch active session:', error);
+      return null;
+    }
+  };
+
+  const clearActiveSession = async (setId: string): Promise<void> => {
+    if (!userId) return;
+    try {
+      await ((supabase as any)
+        .from('spaced_repetition_sessions')
+        .delete() as any)
+        .eq('user_id', userId)
+        .eq('set_id', setId);
+    } catch (error) {
+      console.error('Failed to clear active session:', error);
+    }
+  };
+
   return (
     <SpacedRepetitionContextInstance.Provider
       value={{
@@ -510,6 +627,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         streak,
         achievements,
         loading,
+        cardsDueToday,
         createSet,
         addQuestions,
         updateSet,
@@ -521,10 +639,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         fetchSet,
         fetchRecycleBin,
         fetchCardsDueToday,
+        fetchAllData,
         recordAttempt,
         getQuestionsForSet,
         getStreakData,
         getAchievements,
+        saveActiveSession,
+        fetchActiveSession,
+        clearActiveSession,
       }}
     >
       {children}

@@ -39,12 +39,19 @@ export const SpacedRepetitionPage: React.FC = () => {
     deleteQuestion,
     getQuestionsForSet,
     recordAttempt,
-    streak
+    streak,
+    saveActiveSession,
+    fetchActiveSession,
+    clearActiveSession
   } = useSpacedRepetition();
 
   const [state, setState] = useState<PageState>({ view: 'hub' });
   const [sessionState, setSessionState] = useState<SpacedRepetitionSessionState | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [resumptionData, setResumptionData] = useState<{ setId: string; sessionData: any; intendedLimit: number } | null>(null);
+  const [prepSession, setPrepSession] = useState<{ setId?: string } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
+  const [customSize, setCustomSize] = useState<number>(10);
 
   // If user is not logged in or authorized
   if (!user) return <Login />;
@@ -61,9 +68,25 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId?: string) => {
+  const startSession = async (setId?: string, forceFresh = false, limit = 20) => {
     setLoadingSession(true);
+    const effectiveSetId = setId || 'global';
+
     try {
+      if (!forceFresh) {
+        const existingSession = await fetchActiveSession(effectiveSetId);
+        const isFactuallyCompleted = existingSession && (existingSession.isCompleted || existingSession.results.length === existingSession.questions.length);
+
+        if (existingSession && !isFactuallyCompleted) {
+          setResumptionData({ setId: effectiveSetId, sessionData: existingSession, intendedLimit: limit });
+          setLoadingSession(false);
+          return;
+        } else if (existingSession && isFactuallyCompleted) {
+          // Auto-clear silent completed sessions
+          await clearActiveSession(effectiveSetId);
+        }
+      }
+
       const { data: schedulesRes, error: schedulesError } = await (supabase as any)
         .from('spaced_repetition_schedules')
         .select('*, spaced_repetition_questions(*)')
@@ -78,21 +101,60 @@ export const SpacedRepetitionPage: React.FC = () => {
         const setQuestions = await getQuestionsForSet(setId);
         const setSchedules = (schedulesRes || []).filter((s: any) => s.spaced_repetition_questions?.set_id === setId);
 
+
+
         const dueIds = (setSchedules || [])
-          .filter((s: any) => new Date(s.next_review_date) <= new Date())
+          .filter((s: any) => {
+            const nextReviewDate = new Date(s.next_review_date);
+            nextReviewDate.setHours(0, 0, 0, 0);
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+
+            const isDue = nextReviewDate.getTime() <= now.getTime();
+
+            const hoursSinceReview = s.last_reviewed_at
+              ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
+              : Infinity;
+            const reviewedToday = hoursSinceReview < 16;
+
+            return isDue && (!reviewedToday || s.interval_days === 0);
+          })
+          .map((s: any) => s.question_id);
+
+        const alreadyReviewedIds = (setSchedules || [])
+          .filter((s: any) => {
+            if (!s.last_reviewed_at || s.interval_days === 0) return false;
+            const hoursSinceReview = (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60);
+            return hoursSinceReview < 16;
+          })
           .map((s: any) => s.question_id);
 
         const dueQuestions = setQuestions.filter((q: any) => dueIds.includes(q.id));
-        const otherQuestions = setQuestions.filter((q: any) => !dueIds.includes(q.id));
+        // Include questions that aren't due and haven't been reviewed today
+        const otherQuestions = setQuestions.filter((q: any) => !dueIds.includes(q.id) && !alreadyReviewedIds.includes(q.id));
 
         // Session order: Due first, then the rest
-        sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, 20);
+        sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, limit);
       } else {
-        // Global Review Session: Fetch top 20 due cards from ALL sets
+        // Global Review Session: Fetch top cards from ALL sets based on limit
         sessionQuestions = (schedulesRes || [])
-          .filter((s: any) => new Date(s.next_review_date) <= new Date())
+          .filter((s: any) => {
+            const nextReviewDate = new Date(s.next_review_date);
+            nextReviewDate.setHours(0, 0, 0, 0);
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+
+            const isDue = nextReviewDate.getTime() <= now.getTime();
+
+            const hoursSinceReview = s.last_reviewed_at
+              ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
+              : Infinity;
+            const reviewedToday = hoursSinceReview < 16;
+
+            return isDue && (!reviewedToday || s.interval_days === 0);
+          })
           .sort((a: any, b: any) => new Date(a.next_review_date).getTime() - new Date(b.next_review_date).getTime())
-          .slice(0, 20)
+          .slice(0, limit)
           .map((s: any) => ({
             ...s.spaced_repetition_questions,
             // Ensure ID is the question ID, not the schedule ID if there's any confusion
@@ -108,22 +170,57 @@ export const SpacedRepetitionPage: React.FC = () => {
       }
 
       const now = Date.now();
-      setSessionState({
+      const newSessionState: SpacedRepetitionSessionState = {
         currentQuestionIndex: 0,
         questions: sessionQuestions,
         results: [],
         isCompleted: false,
         sessionStartTime: now,
         currentQuestionStartTime: now
-      });
+      };
 
-      setState({ view: 'learning', setId: setId || 'global' });
+      setSessionState(newSessionState);
+      // Save initial session
+      await saveActiveSession(effectiveSetId, newSessionState);
+
+      setState({ view: 'learning', setId: effectiveSetId });
     } catch (error) {
       console.error("Failed to start session:", error);
       alert("Failed to start session. Please try again.");
     } finally {
       setLoadingSession(false);
     }
+  };
+
+  const resumeSession = async () => {
+    if (!resumptionData) return;
+
+    let sessionData = resumptionData.sessionData;
+
+    // Check if the current question has already been answered
+    const currentQuestion = sessionData.questions[sessionData.currentQuestionIndex];
+    const isAnswered = sessionData.results.some((r: any) => r.question_id === currentQuestion?.id);
+
+    // If it's already answered, move to the next one
+    const isFactuallyCompleted = sessionData.isCompleted || sessionData.results.length === sessionData.questions.length;
+
+    if (isAnswered && sessionData.currentQuestionIndex < sessionData.questions.length - 1) {
+      sessionData = {
+        ...sessionData,
+        currentQuestionIndex: sessionData.currentQuestionIndex + 1,
+        currentQuestionStartTime: Date.now()
+      };
+      // Save the advanced index so we don't need to do this check again
+      await saveActiveSession(resumptionData.setId, sessionData);
+    } else if (isFactuallyCompleted) {
+      // It was the last question and it was answered
+      sessionData = { ...sessionData, isCompleted: true };
+      await saveActiveSession(resumptionData.setId, sessionData);
+    }
+
+    setSessionState(sessionData);
+    setState({ view: 'learning', setId: resumptionData.setId });
+    setResumptionData(null);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -133,6 +230,12 @@ export const SpacedRepetitionPage: React.FC = () => {
 
     const currentQ = sessionState.questions[sessionState.currentQuestionIndex];
     const isCorrect = answerIndex === currentQ.correct_answer_index;
+
+    let newQuestionsList = [...sessionState.questions];
+    if (!isCorrect) {
+      // Re-add the question to the end of the session queue
+      newQuestionsList.push(currentQ);
+    }
 
     // 1. Optimistic state update for UI responsiveness
     setSessionState(prev => {
@@ -146,10 +249,11 @@ export const SpacedRepetitionPage: React.FC = () => {
       };
 
       const newResults = [...prev.results, newResult];
-      const isLastQuestion = prev.currentQuestionIndex === prev.questions.length - 1;
+      const isLastQuestion = prev.currentQuestionIndex === newQuestionsList.length - 1;
 
       return {
         ...prev,
+        questions: newQuestionsList,
         results: newResults,
         isCompleted: isLastQuestion
       };
@@ -159,33 +263,67 @@ export const SpacedRepetitionPage: React.FC = () => {
     setIsSaving(true);
     try {
       await recordAttempt(currentQ.id, answerIndex, timeSpent);
+
+      // Update persistent session state
+      if (state.view === 'learning' && sessionState) {
+        const isLastQuestion = sessionState.currentQuestionIndex === newQuestionsList.length - 1;
+        const updatedSession = {
+          ...sessionState,
+          questions: newQuestionsList,
+          results: [...sessionState.results, {
+            question_id: currentQ.id,
+            selected_answer_index: answerIndex,
+            is_correct: isCorrect,
+            response_time_ms: timeSpent,
+          }],
+          isCompleted: isLastQuestion
+        };
+        await saveActiveSession(state.setId, updatedSession);
+      }
     } catch (err) {
-      console.error("Failed to record attempt:", err);
+      console.error("Failed to record attempt or save session:", err);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleSaveAndExit = async () => {
-    // If we're currently saving, wait a bit or we could use a reference to the promise
-    // For now, let's just use a simple check. If isSaving is true, we might miss the last one
-    // if we transition immediately.
     if (isSaving) {
-      // Wait for a short duration to allow the async save to progress
       await new Promise(resolve => setTimeout(resolve, 500));
     }
+
+    // Explicitly save state before exiting if possible
+    if (state.view === 'learning' && sessionState) {
+      await saveActiveSession(state.setId, sessionState);
+    }
+
     setState({ view: 'hub' });
   };
 
   const handleNext = () => {
-    setSessionState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        currentQuestionIndex: prev.currentQuestionIndex + 1,
+    if (!sessionState) return;
+    const isLast = sessionState.currentQuestionIndex === sessionState.questions.length - 1;
+
+    if (isLast) {
+      setSessionState(prev => prev ? { ...prev, isCompleted: true } : null);
+      // Clear persistent session on success
+      if (state.view === 'learning') {
+        clearActiveSession(state.setId);
+      }
+    } else {
+      const nextIndex = sessionState.currentQuestionIndex + 1;
+      const updatedSession = {
+        ...sessionState,
+        currentQuestionIndex: nextIndex,
         currentQuestionStartTime: Date.now()
       };
-    });
+      setSessionState(updatedSession);
+
+      // Update persistent index
+      if (state.view === 'learning') {
+        saveActiveSession(state.setId, updatedSession);
+      }
+    }
   };
 
   const handlePrevious = () => {
@@ -356,22 +494,139 @@ export const SpacedRepetitionPage: React.FC = () => {
     }
   };
 
+  // ─── Helpers ────────────────────────────────────────────────────────
+
+  const renderModals = () => (
+    <>
+      {resumptionData && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 font-display">Resume Session?</h3>
+            <p className="text-gray-600 mb-6 text-sm">
+              You have an unfinished learning session. Would you like to continue or start over?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={resumeSession}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-sm active:scale-95"
+              >
+                Resume Progress
+              </button>
+              <button
+                onClick={() => {
+                  const id = resumptionData.setId === 'global' ? undefined : resumptionData.setId;
+                  const limit = resumptionData.intendedLimit;
+                  setResumptionData(null);
+                  startSession(id, true, limit); // `true` here means ignore completed sessions
+                }}
+                className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all active:scale-95"
+              >
+                Start Fresh
+              </button>
+              <button
+                onClick={() => setResumptionData(null)}
+                className="w-full px-4 py-2 text-gray-400 hover:text-gray-600 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {prepSession && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-300">
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-6">
+              <Loader2 className="w-6 h-6 text-blue-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">Practice Session</h3>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+              Choose how many cards you would like to practice in this session.
+            </p>
+
+            <div className="space-y-6 mb-8">
+              <div className="grid grid-cols-4 gap-2">
+                {[5, 10, 15, 20].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={`py-2 rounded-xl text-sm font-bold transition-all border ${selectedSize === size
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-white hover:border-blue-200'
+                      }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setSelectedSize('custom')}
+                className={`w-full py-3 rounded-xl text-sm font-bold transition-all border flex items-center justify-center gap-2 ${selectedSize === 'custom'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
+                  : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-white hover:border-blue-200'
+                  }`}
+              >
+                <span>Custom Amount</span>
+                {selectedSize === 'custom' && (
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    autoFocus
+                    value={customSize}
+                    onChange={(e) => setCustomSize(parseInt(e.target.value) || 1)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-16 px-2 py-1 bg-white/20 border-white/30 rounded text-white focus:outline-none placeholder-white/50"
+                  />
+                )}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  const limit = selectedSize === 'custom' ? customSize : selectedSize;
+                  const setId = prepSession.setId;
+                  setPrepSession(null);
+                  startSession(setId, false, limit);
+                }}
+                className="w-full px-4 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
+              >
+                Start Learning
+              </button>
+              <button
+                onClick={() => setPrepSession(null)}
+                className="w-full px-4 py-2 text-gray-400 hover:text-gray-600 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // ─── Render ──────────────────────────────────────────────────────────
 
   // 1. Learning View
   if (state.view === 'learning' && sessionState) {
     if (sessionState.isCompleted && sessionState.results.length === sessionState.questions.length) {
       return (
-        <SessionSummary
-          results={sessionState.results}
-          newStreak={streak?.current_streak_days || 0}
-          onContinue={() => {
-            if ('setId' in state) {
-              startSession(state.setId);
-            }
-          }}
-          onBackToHub={() => setState({ view: 'hub' })}
-        />
+        <>
+          <SessionSummary
+            results={sessionState.results}
+            newStreak={streak?.current_streak_days || 0}
+            onContinue={() => {
+              const id = state.setId === 'global' ? undefined : state.setId;
+              setPrepSession({ setId: id });
+            }}
+            onBackToHub={() => setState({ view: 'hub' })}
+          />
+          {renderModals()}
+        </>
       );
     }
 
@@ -379,17 +634,20 @@ export const SpacedRepetitionPage: React.FC = () => {
     const hasAnsweredCurrent = sessionState.results.length > sessionState.currentQuestionIndex;
 
     return (
-      <QuestionCard
-        key={currentQuestion.id}
-        question={currentQuestion}
-        questionNumber={sessionState.currentQuestionIndex + 1}
-        totalQuestions={sessionState.questions.length}
-        onAnswer={handleAnswer}
-        onNext={handleNext}
-        onPrevious={handlePrevious}
-        onSaveAndExit={handleSaveAndExit}
-        canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
-      />
+      <>
+        <QuestionCard
+          key={currentQuestion.id}
+          question={currentQuestion}
+          questionNumber={sessionState.currentQuestionIndex + 1}
+          totalQuestions={sessionState.questions.length}
+          onAnswer={handleAnswer}
+          onNext={handleNext}
+          onPrevious={handlePrevious}
+          onSaveAndExit={handleSaveAndExit}
+          canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
+        />
+        {renderModals()}
+      </>
     );
   }
 
@@ -485,16 +743,16 @@ export const SpacedRepetitionPage: React.FC = () => {
   return (
     <>
       {loadingSession && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl flex items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <p className="font-medium text-gray-900">Starting Session...</p>
-          </div>
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+          <p className="text-gray-600 font-medium animate-pulse">Initializing Session...</p>
         </div>
       )}
+
+      {renderModals()}
       <SpacedRepetitionHub
         onCreateNew={() => setState({ view: 'createNew' })}
-        onStartLearning={startSession}
+        onStartLearning={(id) => setPrepSession({ setId: id })}
         onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}

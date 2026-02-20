@@ -48,8 +48,16 @@ export const SpacedRepetitionAnalytics: React.FC = () => {
 
             if (studentError) throw studentError;
 
-            const srData = studentData.spaced_repetition;
-            setStats(srData);
+            if (studentData && studentData.spaced_repetition) {
+                const srData = studentData.spaced_repetition;
+                setStats(srData);
+            } else {
+                setStats({
+                    average_accuracy: 0,
+                    total_time_minutes: 0,
+                    recent_attempts: []
+                });
+            }
 
             // 2. Fetch Card Maturity Distribution
             // Since we don't have a specific RPC for this in the new migration (it was mostly aggregated)

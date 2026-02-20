@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle } from 'lucide-react';
-import { SpacedRepetitionSet, UserStreak } from '../../types';
-import { supabase } from '../../lib/supabase';
+import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { SpacedRepetitionSet } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
@@ -21,46 +20,36 @@ export function SpacedRepetitionHub({
   onViewSettings,
 }: SpacedRepetitionHubProps) {
   const { user } = useAuth();
-  const { deleteSet, restoreSet, permanentlyDeleteSet, fetchRecycleBin } = useSpacedRepetition();
-  const [sets, setSets] = useState<SpacedRepetitionSet[]>([]);
+  const {
+    sets,
+    streak,
+    cardsDueToday,
+    loading: contextLoading,
+    deleteSet,
+    restoreSet,
+    permanentlyDeleteSet,
+    fetchRecycleBin,
+    fetchAllData
+  } = useSpacedRepetition();
   const [recycleBin, setRecycleBin] = useState<SpacedRepetitionSet[]>([]);
-  const [streak, setStreak] = useState<UserStreak | null>(null);
-  const [cardsDue, setCardsDue] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'active' | 'bin'>('active');
   const [confirmingSetId, setConfirmingSetId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    if (user?.id) {
+      fetchAllData();
+    }
   }, [user?.id]);
 
-  const fetchData = async () => {
-    if (!user?.id) return;
-
-    try {
-      const [setsRes, streakRes, cardsRes] = await Promise.all([
-        (supabase as any)
-          .from('spaced_repetition_sets')
-          .select('*')
-          .eq('user_id', user.id)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false }),
-        (supabase as any)
-          .from('user_streaks')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        (supabase as any).rpc('get_cards_due_today', { p_user_id: user.id }),
-      ]);
-
-      setSets(setsRes.data || []);
-      setStreak(streakRes.data);
-      setCardsDue(cardsRes.data || 0);
-    } catch (error) {
-      console.error('Failed to fetch spaced repetition data:', error);
-    } finally {
-      setLoading(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchAllData();
+    if (view === 'bin') {
+      const bin = await fetchRecycleBin();
+      setRecycleBin(bin);
     }
+    setIsRefreshing(false);
   };
 
   const handleDelete = async (setId: string) => {
@@ -71,7 +60,7 @@ export function SpacedRepetitionHub({
     if (!confirmingSetId) return;
     try {
       await deleteSet(confirmingSetId);
-      setSets(sets.filter((s: SpacedRepetitionSet) => s.id !== confirmingSetId));
+      // Context will update sets automatically
       setConfirmingSetId(null);
     } catch (error) {
       console.error('Failed to delete set:', error);
@@ -83,7 +72,7 @@ export function SpacedRepetitionHub({
       const success = await restoreSet(setId);
       if (success) {
         setRecycleBin(recycleBin.filter((s: SpacedRepetitionSet) => s.id !== setId));
-        fetchData(); // Refresh active sets
+        fetchAllData(); // Refresh active sets via context
       }
     } catch (error) {
       console.error('Failed to restore set:', error);
@@ -120,10 +109,13 @@ export function SpacedRepetitionHub({
     return remaining > 0 ? remaining : 0;
   };
 
-  if (loading) {
+  if (contextLoading && sets.length === 0) {
     return (
       <div className="min-h-full flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <p className="text-gray-500 font-medium">Loading Learning Hub...</p>
+        </div>
       </div>
     );
   }
@@ -137,48 +129,60 @@ export function SpacedRepetitionHub({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow p-6 relative overflow-hidden">
+            <div className="flex items-center justify-between relative z-10">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Cards Due Today</p>
-                <p className="text-3xl font-bold text-blue-600">{cardsDue}</p>
+                <p className="text-3xl font-bold text-blue-600">{cardsDueToday}</p>
               </div>
-              <Play className="w-8 h-8 text-blue-600 opacity-20" />
+              <div className="p-3 bg-blue-50 rounded-xl">
+                <Play className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
+            <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-50/50 rounded-full blur-2xl" />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow p-6 relative overflow-hidden">
+            <div className="flex items-center justify-between relative z-10">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Current Streak</p>
                 <p className="text-3xl font-bold text-orange-600">
                   {streak?.current_streak_days || 0} 🔥
                 </p>
               </div>
-              <Flame className="w-8 h-8 text-orange-600 opacity-20" />
+              <div className="p-3 bg-orange-50 rounded-xl">
+                <Flame className="w-6 h-6 text-orange-600" />
+              </div>
             </div>
+            <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-orange-50/50 rounded-full blur-2xl" />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow p-6 relative overflow-hidden">
+            <div className="flex items-center justify-between relative z-10">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Cards Mastered</p>
                 <p className="text-3xl font-bold text-green-600">
                   {streak?.total_cards_mastered || 0}
                 </p>
               </div>
-              <Zap className="w-8 h-8 text-green-600 opacity-20" />
+              <div className="p-3 bg-green-50 rounded-xl">
+                <Zap className="w-6 h-6 text-green-600" />
+              </div>
             </div>
+            <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-green-50/50 rounded-full blur-2xl" />
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow p-6 relative overflow-hidden">
+            <div className="flex items-center justify-between relative z-10">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Question Sets</p>
                 <p className="text-3xl font-bold text-purple-600">{sets.length}</p>
               </div>
-              <BookOpen className="w-8 h-8 text-purple-600 opacity-20" />
+              <div className="p-3 bg-purple-50 rounded-xl">
+                <BookOpen className="w-6 h-6 text-purple-600" />
+              </div>
             </div>
+            <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-purple-50/50 rounded-full blur-2xl" />
           </div>
         </div>
 
@@ -205,13 +209,22 @@ export function SpacedRepetitionHub({
           >
             Settings
           </button>
+
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`flex items-center justify-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors w-full sm:w-auto ${isRefreshing ? 'opacity-50' : ''}`}
+          >
+            <RefreshCw className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
-        {cardsDue > 0 && (
+        {cardsDueToday > 0 && (
           <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-            <h3 className="font-bold text-gray-900 mb-2">Time to Review!</h3>
+            <h3 className="font-bold text-gray-900 mb-2 font-display">Time to Review!</h3>
             <p className="text-gray-700 mb-4">
-              You have {cardsDue} card{cardsDue !== 1 ? 's' : ''} ready for review today.
+              You have {cardsDueToday} card{cardsDueToday !== 1 ? 's' : ''} ready for review today.
             </p>
             <button
               onClick={() => onStartLearning()}
