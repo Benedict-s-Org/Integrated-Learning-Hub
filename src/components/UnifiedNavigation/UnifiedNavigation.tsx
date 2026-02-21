@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     BookOpen,
     FileEdit,
@@ -37,6 +38,9 @@ import {
     Users,
     Tablet,
     Smartphone,
+    Activity,
+    Camera,
+    QrCode,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
@@ -45,7 +49,7 @@ export type PageType =
     | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
     | 'proofreading' | 'spelling' | 'progress' | 'assignments'
     | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics';
+    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;
@@ -94,6 +98,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     onOpenNotifications,
 }) => {
     const { user, signOut, toggleViewMode, isUserView, isAdmin, isMobileEmulator, setIsMobileEmulator } = useAuth();
+    const navigate = useNavigate();
     const isInCommunity = currentPage === 'learningHub';
 
     return (
@@ -213,6 +218,15 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             isActive={currentPage === 'phonics'}
                             onClick={() => onPageChange('phonics')}
                         />
+                        <NavItem
+                            icon={Camera}
+                            label="QR Up!"
+                            isActive={currentPage === 'interactiveScanner'}
+                            onClick={() => {
+                                onPageChange('interactiveScanner');
+                                navigate('/qr-up/dashboard');
+                            }}
+                        />
                     </NavSection>
 
                     {/* My Learning Community Section - Only visible when in community */}
@@ -304,10 +318,54 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             icon={Shield}
                             iconColor="text-purple-500"
                             bgColor="bg-purple-50"
-                            defaultOpen={false}
+                            defaultOpen={true}
                             isCollapsed={!isNavOpen}
                         >
-                            {/* Previously in City Admin */}
+                            <NavItem
+                                icon={Shield}
+                                label="Admin Panel"
+                                isActive={window.location.pathname === '/admin/users'}
+                                onClick={() => navigate('/admin/users')}
+                            />
+                            <NavItem
+                                icon={LayoutGrid}
+                                label="Class Dashboard"
+                                isActive={currentPage === 'classDashboard'}
+                                onClick={() => onPageChange('classDashboard')}
+                            />
+                            <NavItem
+                                icon={FolderKanban}
+                                label="Assignment Management"
+                                isActive={currentPage === 'assignmentManagement'}
+                                onClick={() => onPageChange('assignmentManagement')}
+                            />
+                            <NavItem
+                                icon={Camera}
+                                label="Interactive Scanner"
+                                isActive={window.location.pathname === '/admin/interactive-scanner'}
+                                onClick={() => navigate('/admin/interactive-scanner')}
+                            />
+                            <NavItem
+                                icon={QrCode}
+                                label="Marker Generator"
+                                isActive={window.location.pathname === '/admin/marker-generator'}
+                                onClick={() => navigate('/admin/marker-generator')}
+                            />
+                            <NavItem
+                                icon={QrCode}
+                                label="Legacy QR Scanner"
+                                isActive={window.location.pathname === '/admin/scanner'}
+                                onClick={() => navigate('/admin/scanner')}
+                            />
+                            <NavItem
+                                icon={Bell}
+                                label="Notifications"
+                                onClick={onOpenNotifications}
+                                badge={pendingCount}
+                            />
+
+                            <div className="my-2 border-t border-purple-100 mx-2" />
+
                             <NavItem
                                 icon={PenTool}
                                 label="Furniture Studio"
@@ -347,7 +405,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             <NavItem
                                 icon={Layout}
                                 label="UI Builder"
-                                onClick={() => (window.location.href = '/admin/ui-builder')}
+                                onClick={() => navigate('/admin/ui-builder')}
                             />
                             <NavItem
                                 icon={Palette}
@@ -355,31 +413,28 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={onOpenThemeDesigner}
                             />
 
+                            <div className="my-2 border-t border-purple-100 mx-2" />
+
                             <NavItem
-                                icon={Users}
-                                label="User Management"
-                                onClick={() => (window.location.href = '/admin/users')}
+                                icon={User}
+                                label="Avatar Builder Studio"
+                                isActive={currentPage === 'avatarBuilder'}
+                                onClick={() => onPageChange('avatarBuilder')}
                             />
                             <NavItem
-                                icon={Bell}
-                                label="Notifications"
-                                onClick={onOpenNotifications}
-                                badge={pendingCount}
+                                icon={Sparkles}
+                                label="Avatar Asset Manager"
+                                isActive={currentPage === 'adminAvatarUploader'}
+                                onClick={() => onPageChange('adminAvatarUploader')}
                             />
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
                             <NavItem
-                                icon={Shield}
-                                label="Admin Panel"
+                                icon={Activity}
+                                label="Legacy Dashboard"
                                 isActive={currentPage === 'admin'}
                                 onClick={() => onPageChange('admin')}
-                            />
-                            <NavItem
-                                icon={FolderKanban}
-                                label="Assignment Management"
-                                isActive={currentPage === 'assignmentManagement'}
-                                onClick={() => onPageChange('assignmentManagement')}
                             />
                             <NavItem
                                 icon={Database}

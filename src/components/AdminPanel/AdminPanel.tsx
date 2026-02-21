@@ -28,9 +28,12 @@ interface PendingPermissions {
 interface AdminPanelProps {
   onNavigateToAssets?: () => void;
   onOpenMapEditor?: () => void;
+  onNavigateToAvatarUploader?: () => void;
+  onNavigateToAvatarBuilder?: () => void;
+  onNavigateToMarkerGenerator?: () => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor, onNavigateToAvatarUploader, onNavigateToAvatarBuilder, onNavigateToMarkerGenerator }) => {
   const { user: currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -551,6 +554,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
               <Palette size={20} />
               <span>Shop Styles</span>
             </button>
+            {onNavigateToAvatarUploader && (
+              <button
+                onClick={onNavigateToAvatarUploader}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <User size={20} />
+                <span>Avatar Uploader</span>
+              </button>
+            )}
+            {onNavigateToAvatarBuilder && (
+              <button
+                onClick={onNavigateToAvatarBuilder}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <User size={20} />
+                <span>Avatar Studio</span>
+              </button>
+            )}
+            {onNavigateToMarkerGenerator && (
+              <button
+                onClick={onNavigateToMarkerGenerator}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <QrCode size={20} />
+                <span>Marker Generator</span>
+              </button>
+            )}
           </div>
         </div>
 

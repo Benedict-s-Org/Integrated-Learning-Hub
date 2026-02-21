@@ -35,7 +35,7 @@ export const DEFAULT_TABS: TabConfig[] = [
         icon: BookOpen,
         label: 'Learning',
         page: 'new',
-        activePages: ['new', 'saved', 'proofreading', 'spelling', 'spacedRepetition', 'wordSnake', 'learningHub', 'notionHub', 'phonics'],
+        activePages: ['new', 'saved', 'proofreading', 'spelling', 'spacedRepetition', 'wordSnake', 'learningHub', 'notionHub', 'phonics', 'interactiveScanner'],
     },
     {
         id: 'progress',
@@ -50,7 +50,7 @@ export const DEFAULT_TABS: TabConfig[] = [
         label: 'Admin',
         page: 'admin',
         adminOnly: true,
-        activePages: ['admin', 'database', 'assignmentManagement', 'assetUpload', 'assetGenerator', 'flowithTest'],
+        activePages: ['admin', 'database', 'assignmentManagement', 'assetUpload', 'assetGenerator', 'flowithTest', 'interactiveScanner'],
     },
 ];
 

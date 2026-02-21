@@ -93,6 +93,38 @@ This workflow documents common errors encountered during development and best pr
 - Disable buttons during these operations to prevent double-submissions.
 - Provide clear visual feedback (spinners, success toasts).
 
+### 11. Supabase Query URL Length Limits (400 Bad Request)
+**Problem**: Using `.in('id', array)` with a large array (e.g., 50+ UUIDs) generates a GET URL that exceeds the proxy or server's length limit, resulting in a `400 Bad Request` or `414 URI Too Long`.
+
+**Prevention**:
+- Never pass an unbounded array directly to an `.in()` query.
+- Chunk the array into smaller batches (e.g., 30 items per batch) and use `Promise.all` to fetch them concurrently.
+- Alternatively, if the RLS policy automatically restricts rows to what the user needs, fetch all rows and filter client-side.
+
+### 12. Removing Deprecated Exports (SyntaxError Crashes)
+**Problem**: Deleting or renaming an export in a shared utility file (e.g., `avatarParts.ts`) causes `Uncaught SyntaxError: The requested module does not provide an export named X` and entirely crashes the application if legacy components still import it.
+
+**Prevention**:
+- Before removing an export, perform a workspace-wide search for its usage.
+- If a full migration of all dependent components is too large for one PR/session, leave the legacy export in place.
+- Explicitly mark it with `// @deprecated` or `// Legacy Support (Do not remove until X is updated)` so future developers know its purpose.
+
+### 13. Interface Synchronization Across Component Trees
+**Problem**: Modifying the shape of a data object fetched in a parent component (e.g., swapping `avatar_config` for `equipped_items`), but failing to update the shared interfaces (`UserWithCoins`) and prop declarations in deeply nested child components. This leads to silent data loss at runtime or complex TypeScript compilation errors.
+
+**Prevention**:
+- When modifying a core data structure, trace its exact path down the component tree.
+- Update the shared interface definition *first*. Let the TypeScript compiler surface the errors in all child components that consume that interface, and fix them systematically from the top down.
+- Avoid redefining the same interface in multiple files; export a single shared interface from a common types file to ensure consistency.
+
+### 14. Unpushed Schema Migrations (400 Bad Request)
+**Problem**: The application throws `400 Bad Request` or `column X does not exist` when fetching data, despite the code and local Supabase types being perfectly in sync. This happens when the developer connects their local frontend to the **production/online** Supabase instance but forgets to push the latest local migration file.
+
+**Prevention**:
+- Always verify if `VITE_SUPABASE_URL` in `.env` is pointing to `localhost` or the production `.supabase.co` URL.
+- When adding new columns or tables in a local `supabase/migrations/` file, the online database doesn't magically update. You **must** run `npx supabase db push` before testing the live environment.
+- If a post-record `select('new_column')` starts failing with a 400, your remote schema is lagging behind your codebase.
+
 ---
 
 ## 📊 Automatic Error Logging

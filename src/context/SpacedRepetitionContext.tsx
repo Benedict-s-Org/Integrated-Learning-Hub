@@ -12,6 +12,7 @@ interface SpacedRepetitionContextType {
   achievements: UserAchievement[];
   loading: boolean;
   cardsDueToday: number;
+  assignedSets: SpacedRepetitionSet[];
 
   createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
@@ -32,6 +33,8 @@ interface SpacedRepetitionContextType {
   saveActiveSession: (setId: string, sessionState: any) => Promise<boolean>;
   fetchActiveSession: (setId: string) => Promise<any | null>;
   clearActiveSession: (setId: string) => Promise<void>;
+  assignSet: (setId: string, userIds: string[], dueDate?: string) => Promise<boolean>;
+  fetchAllStudents: () => Promise<any[]>;
 }
 
 const SpacedRepetitionContextInstance = createContext<SpacedRepetitionContextType | undefined>(undefined);
@@ -50,6 +53,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [cardsDueToday, setCardsDueToday] = useState(0);
+  const [assignedSets, setAssignedSets] = useState<SpacedRepetitionSet[]>([]);
 
   useEffect(() => {
     if (userId) {
@@ -63,17 +67,25 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return;
 
     try {
-      const [setsRes, streakRes, achievementsRes, cardsDueRes] = await Promise.all([
+      const [setsRes, streakRes, achievementsRes, cardsDueRes, assignedRes] = await Promise.all([
         ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId).is('deleted_at', null),
         ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
         ((supabase as any).from('user_achievements').select('*') as any).eq('user_id', userId),
-        (supabase as any).rpc('get_cards_due_today', { p_user_id: userId })
+        (supabase as any).rpc('get_cards_due_today', { p_user_id: userId }),
+        ((supabase as any).from('set_assignments').select('*, spaced_repetition_sets(*)').eq('user_id', userId) as any)
       ]);
 
       setSets((setsRes.data || []) as unknown as SpacedRepetitionSet[]);
       setStreak(streakRes.data as unknown as UserStreak | null);
       setAchievements((achievementsRes.data || []) as unknown as UserAchievement[]);
       setCardsDueToday(cardsDueRes.data || 0);
+
+      // Process assigned sets
+      const assignedData = (assignedRes.data || []) as any[];
+      const mappedAssignedSets = assignedData
+        .map(a => a.spaced_repetition_sets)
+        .filter(Boolean) as SpacedRepetitionSet[];
+      setAssignedSets(mappedAssignedSets);
     } catch (error) {
       console.error('Failed to fetch spaced repetition data:', error);
     } finally {
@@ -617,6 +629,44 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     }
   };
 
+  const assignSet = async (setId: string, userIds: string[], dueDate?: string): Promise<boolean> => {
+    if (!userId) return false;
+    try {
+      const assignments = userIds.map(uId => ({
+        set_id: setId,
+        user_id: uId,
+        assigned_by: userId,
+        due_date: dueDate || null
+      }));
+
+      const { error } = await (supabase as any)
+        .from('set_assignments')
+        .upsert(assignments, { onConflict: 'set_id, user_id' });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Failed to assign set:', error);
+      return false;
+    }
+  };
+
+  const fetchAllStudents = async (): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, display_name, class')
+        .eq('role', 'user')
+        .order('display_name');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch students:', error);
+      return [];
+    }
+  };
+
   return (
     <SpacedRepetitionContextInstance.Provider
       value={{
@@ -628,6 +678,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         achievements,
         loading,
         cardsDueToday,
+        assignedSets,
         createSet,
         addQuestions,
         updateSet,
@@ -647,6 +698,8 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         saveActiveSession,
         fetchActiveSession,
         clearActiveSession,
+        assignSet,
+        fetchAllStudents,
       }}
     >
       {children}

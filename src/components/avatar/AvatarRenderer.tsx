@@ -1,90 +1,64 @@
-import React from 'react';
-import { AvatarConfig, DEFAULT_AVATAR_CONFIG } from './avatarParts';
-import {
-    BodyAssets,
-    EyeAssets,
-    NoseAssets,
-    MouthAssets,
-    HairBackAssets,
-    HairFrontAssets,
-    OutfitAssets,
-    AccessoryAssets
-} from './AvatarAssets';
+import React, { useMemo } from 'react';
+import { AvatarImageItem, UserAvatarConfig, DEFAULT_PART_OFFSET } from './avatarParts';
 
 interface AvatarRendererProps {
-    config: AvatarConfig;
+    equippedItems: AvatarImageItem[];
+    userConfig: UserAvatarConfig;
     size?: number | string;
     className?: string;
     showBackground?: boolean;
 }
 
 export const AvatarRenderer: React.FC<AvatarRendererProps> = ({
-    config = DEFAULT_AVATAR_CONFIG,
+    equippedItems = [],
+    userConfig = {},
     size = 200,
     className = '',
     showBackground = false
 }) => {
-    // Safe fallbacks for missing parts
-    const BodyComp = BodyAssets[config.body] || BodyAssets['body-round'];
-    const EyesComp = EyeAssets[config.eyes] || EyeAssets['eyes-dot'];
-    const NoseComp = NoseAssets[config.nose] || NoseAssets['nose-dot'];
-    const MouthComp = MouthAssets[config.mouth] || MouthAssets['mouth-smile'];
-    const HairBackComp = HairBackAssets[config.hair] || HairBackAssets['hair-short'];
-    const HairFrontComp = HairFrontAssets[config.hair] || HairFrontAssets['hair-short'];
-    const OutfitComp = OutfitAssets[config.outfit] || OutfitAssets['outfit-tshirt'];
-    const AccessoryComp = config.accessory ? AccessoryAssets[config.accessory] : null;
+
+    // Sort items by their Z-Index so they stack correctly (lowest to highest)
+    const sortedItems = useMemo(() => {
+        return [...equippedItems].sort((a, b) => a.layer_z_index - b.layer_z_index);
+    }, [equippedItems]);
 
     return (
         <div
-            className={`relative inline-block ${className}`}
-            style={{ width: size, height: size }}
+            className={`relative flex items-center justify-center overflow-hidden rounded-2xl ${className}`}
+            style={{
+                width: size,
+                height: size,
+                backgroundColor: showBackground ? '#f0f9ff' : 'transparent',
+                border: showBackground ? '2px solid #bae6fd' : 'none'
+            }}
         >
-            <svg
-                viewBox="0 0 200 200"
-                width="100%"
-                height="100%"
-                xmlns="http://www.w3.org/2000/svg"
-                className="filter drop-shadow-sm"
-            >
-                {/* Background Circle if requested */}
-                {showBackground && (
-                    <circle cx="100" cy="100" r="95" fill="#f0f9ff" stroke="#bae6fd" strokeWidth="2" />
-                )}
+            {sortedItems.map((item) => {
+                // Get user's custom offset for this specific category (if any)
+                const offset = userConfig[item.category] || DEFAULT_PART_OFFSET;
 
-                {/* 1. Hair Back */}
-                <g id="layer-hair-back">
-                    <HairBackComp color={config.hairColor} />
-                </g>
+                return (
+                    <img
+                        key={item.id}
+                        src={item.image_url}
+                        alt={`Avatar ${item.category} part`}
+                        className="absolute object-contain pointer-events-none transition-transform duration-200"
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            zIndex: item.layer_z_index,
+                            transform: `translate(${offset.x}%, ${offset.y}%) scale(${offset.scale})`,
+                            transformOrigin: 'center center'
+                        }}
+                    />
+                );
+            })}
 
-                {/* 2. Body Base (Color comes from skin tone) */}
-                <g id="layer-body">
-                    <BodyComp color={config.skinColor} />
-                </g>
-
-                {/* 3. Clothing */}
-                <g id="layer-outfit">
-                    <OutfitComp color={config.outfitColor} />
-                </g>
-
-                {/* 4. Facial Features */}
-                <g id="layer-face">
-                    <EyesComp color={config.eyeColor} />
-                    <NoseComp color={config.skinColor} /> {/* Nose often matches skin or slightly darker, passing skin for now, assets handle opacity */}
-                    <MouthComp color="#000000" /> {/* Mouths usually outlined in black/dark */}
-                </g>
-
-                {/* 5. Hair Front */}
-                <g id="layer-hair-front">
-                    <HairFrontComp color={config.hairColor} />
-                </g>
-
-                {/* 6. Accessory */}
-                {AccessoryComp && (
-                    <g id="layer-accessory">
-                        <AccessoryComp color={config.outfitColor /* Defaulting to outfit color for generic accs, specific assets might ignore */} />
-                    </g>
-                )}
-            </svg>
+            {sortedItems.length === 0 && (
+                <div className="text-gray-400 text-sm font-fredoka text-center px-4">
+                    Empty Avatar
+                </div>
+            )}
         </div>
     );
 };
+

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw, Users, GraduationCap } from 'lucide-react';
+import { SetAssignmentModal } from './SetAssignmentModal';
 import { SpacedRepetitionSet } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
@@ -22,6 +23,7 @@ export function SpacedRepetitionHub({
   const { user } = useAuth();
   const {
     sets,
+    assignedSets,
     streak,
     cardsDueToday,
     loading: contextLoading,
@@ -32,8 +34,9 @@ export function SpacedRepetitionHub({
     fetchAllData
   } = useSpacedRepetition();
   const [recycleBin, setRecycleBin] = useState<SpacedRepetitionSet[]>([]);
-  const [view, setView] = useState<'active' | 'bin'>('active');
+  const [view, setView] = useState<'active' | 'assigned' | 'bin'>('active');
   const [confirmingSetId, setConfirmingSetId] = useState<string | null>(null);
+  const [assigningSet, setAssigningSet] = useState<{ id: string, title: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export function SpacedRepetitionHub({
     }
   };
 
-  const toggleView = async (newView: 'active' | 'bin') => {
+  const toggleView = async (newView: 'active' | 'assigned' | 'bin') => {
     setView(newView);
     if (newView === 'bin') {
       const binData = await fetchRecycleBin();
@@ -243,7 +246,23 @@ export function SpacedRepetitionHub({
               : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
           >
-            Active Sets
+            My Sets
+          </button>
+          <button
+            onClick={() => toggleView('assigned')}
+            className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${view === 'assigned'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              Assigned to Me
+              {assignedSets.length > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  {assignedSets.length}
+                </span>
+              )}
+            </div>
           </button>
           <button
             onClick={() => toggleView('bin')}
@@ -258,7 +277,7 @@ export function SpacedRepetitionHub({
 
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            {view === 'active' ? 'Your Question Sets' : 'Recycle Bin'}
+            {view === 'active' ? 'Your Question Sets' : view === 'assigned' ? 'Assigned to You' : 'Recycle Bin'}
           </h2>
 
           {view === 'active' ? (
@@ -278,27 +297,38 @@ export function SpacedRepetitionHub({
                 {sets.map((set: SpacedRepetitionSet) => (
                   <div
                     key={set.id}
-                    className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+                    className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 flex flex-col"
                   >
-                    <h3 className="font-bold text-gray-900 mb-2 line-clamp-2">{set.title}</h3>
-                    {set.description && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{set.description}</p>
-                    )}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-900 mb-2 line-clamp-2">{set.title}</h3>
+                      {set.description && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{set.description}</p>
+                      )}
 
-                    <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                      <span>{set.total_questions} questions</span>
-                      <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
-                        {set.difficulty}
-                      </span>
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                        <span>{set.total_questions} questions</span>
+                        <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
+                          {set.difficulty}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mt-auto">
                       <button
                         onClick={() => onStartLearning(set.id)}
                         className="flex-1 px-3 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition-colors text-sm"
                       >
                         Practice
                       </button>
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => setAssigningSet({ id: set.id, title: set.title })}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="Assign to Students"
+                        >
+                          <Users className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => onEditSet(set.id)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -314,6 +344,49 @@ export function SpacedRepetitionHub({
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : view === 'assigned' ? (
+            assignedSets.length === 0 ? (
+              <div className="bg-white rounded-lg shadow p-12 text-center border-2 border-dashed border-gray-100">
+                <GraduationCap className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">No question sets assigned to you yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {assignedSets.map((set: SpacedRepetitionSet) => (
+                  <div
+                    key={set.id}
+                    className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 flex flex-col border-l-4 border-indigo-500"
+                  >
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-gray-900 line-clamp-2">{set.title}</h3>
+                        <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-tighter">
+                          Assigned
+                        </span>
+                      </div>
+                      {set.description && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{set.description}</p>
+                      )}
+
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                        <span>{set.total_questions} questions</span>
+                        <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">
+                          {set.difficulty}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => onStartLearning(set.id)}
+                      className="w-full px-3 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      Practice Assigned Set
+                    </button>
                   </div>
                 ))}
               </div>
@@ -384,6 +457,15 @@ export function SpacedRepetitionHub({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Assignment Modal */}
+      {assigningSet && (
+        <SetAssignmentModal
+          setId={assigningSet.id}
+          setTitle={assigningSet.title}
+          onClose={() => setAssigningSet(null)}
+        />
       )}
     </div>
   );

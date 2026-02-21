@@ -262,10 +262,10 @@ Deno.serve(async (req: Request) => {
       }
 
       if (newUser.user) {
-        // Optionally update public.users if the trigger missed any fields (like gender)
+        // Update public.users with display_name and managed_by_id
         await supabase.from('users').update({
           display_name: display_name,
-          // gender: gender // Uncomment if gender column exists in public.users
+          managed_by_id: adminUserId,
         }).eq('id', newUser.user.id);
       }
 
@@ -336,6 +336,10 @@ Deno.serve(async (req: Request) => {
               error: error.message || "Failed to create user",
             });
           } else {
+            // Tag the newly created user with managed_by_id
+            if (newUser) {
+              await supabase.from('users').update({ managed_by_id: adminUserId }).eq('id', newUser);
+            }
             results.push({
               line: i + 1,
               username: user.username,

@@ -10,9 +10,17 @@ import {
   AlertTriangle,
   Paintbrush,
   Menu,
+  Shield,
+  FolderKanban,
+  Database,
+  LayoutGrid,
+  Camera,
+  QrCode,
+  Crown,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
 import { useAuth } from "@/context/AuthContext";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -33,6 +41,7 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
   const [showMapEditor, setShowMapEditor] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isMobileEmulator } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
 
   const NAV_ITEMS: NavItem[] = [
     {
@@ -70,6 +79,37 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       label: "Theme Design",
       icon: <Paintbrush className="w-4 h-4" />,
     },
+    {
+      path: "/",
+      label: "Admin Hub",
+      icon: <Shield className="w-4 h-4" />,
+    },
+    {
+      path: "/",
+      label: "Class Dashboard",
+      icon: <LayoutGrid className="w-4 h-4" />,
+    },
+    {
+      path: "/",
+      label: "Assignment Management",
+      icon: <FolderKanban className="w-4 h-4" />,
+    },
+    {
+      path: "/",
+      label: "Database",
+      icon: <Database className="w-4 h-4" />,
+    },
+    {
+      path: "/qr-up/dashboard",
+      label: "QR Up! Dashboard",
+      icon: <Camera className="w-4 h-4" />,
+    },
+    // Super Admin only
+    ...(isSuperAdmin ? [{
+      path: "/admin/super-admin-panel",
+      label: "Super Admin Panel",
+      icon: <Crown className="w-4 h-4" />,
+    }] : []),
   ];
 
   const SidebarContent = () => (

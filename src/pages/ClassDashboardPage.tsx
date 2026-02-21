@@ -9,8 +9,9 @@ import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
-import { AvatarConfig } from '@/components/avatar/avatarParts';
+import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarParts';
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
+import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 
 interface UserWithCoins {
     id: string;
@@ -26,7 +27,8 @@ interface UserWithCoins {
     is_admin: boolean;
     morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
-    avatar_config?: AvatarConfig;
+    equipped_item_ids?: string[];
+    custom_offsets?: UserAvatarConfig;
 }
 
 export function ClassDashboardPage() {
@@ -39,6 +41,7 @@ export function ClassDashboardPage() {
     const [guestToken] = useState<string | null>(token);
 
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
+    const [avatarCatalog, setAvatarCatalog] = useState<AvatarImageItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]); // For legacy CoinAwardModal
@@ -50,6 +53,7 @@ export function ClassDashboardPage() {
         return hour < 9; // Default true before 9am
     });
     const [showNameSidebar, setShowNameSidebar] = useState(false);
+    const [showQuizBoard, setShowQuizBoard] = useState(false);
 
     // Class Tabs State
     const [activeClass, setActiveClass] = useState<string>('all');
@@ -94,23 +98,51 @@ export function ClassDashboardPage() {
 
                 // Fetch avatar configs
                 const userIds: string[] = usersData?.map((u: any) => u.id) || [];
-                const { data: avatarData } = await supabase
-                    .from('user_avatar_config' as any)
-                    .select('user_id, config')
-                    .in('user_id', userIds);
 
-                const avatarMap = new Map((avatarData as any[])?.map(a => [a.user_id, a.config]) || []);
+                // Chunk userIds to avoid 400 Bad Request URI Too Long
+                const chunkedUserIds: string[][] = [];
+                for (let i = 0; i < userIds.length; i += 30) {
+                    chunkedUserIds.push(userIds.slice(i, i + 30));
+                }
+
+                const [{ data: catalogData }, ...avatarDataChunks] = await Promise.all([
+                    supabase.from('avatar_items').select('*'),
+                    ...chunkedUserIds.map(chunk =>
+                        supabase
+                            .from('user_avatar_config')
+                            .select('user_id, equipped_items, custom_offsets')
+                            .in('user_id', chunk)
+                    )
+                ]);
+
+                const avatarData: any[] = avatarDataChunks.flatMap(chunk => chunk.data || []);
+
+                if (catalogData) {
+                    setAvatarCatalog((catalogData as any[]).map(item => ({
+                        ...item,
+                        category: item.category as any
+                    })));
+                }
+                const avatarMap = new Map((avatarData as any[])?.map(a => [a.user_id, {
+                    items: a.equipped_items as string[],
+                    offsets: a.custom_offsets as UserAvatarConfig
+                }]) || []);
 
                 // If user is logged in, check their morning status for today
                 let morningStatuses: Record<string, any> = {};
                 if (userIds.length > 0) {
-                    const { data: roomData } = await supabase
-                        .from('user_room_data')
-                        .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update')
-                        .in('user_id', userIds);
+                    const roomDataChunks = await Promise.all(
+                        chunkedUserIds.map(chunk =>
+                            supabase
+                                .from('user_room_data')
+                                .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update')
+                                .in('user_id', chunk)
+                        )
+                    );
 
-                    if (roomData) {
-                        (roomData as any[])?.forEach(d => {
+                    const roomData = roomDataChunks.flatMap(chunk => chunk.data || []);
+                    if (roomData.length > 0) {
+                        roomData.forEach((d: any) => {
                             morningStatuses[d.user_id] = d;
                         });
                     }
@@ -136,7 +168,8 @@ export function ClassDashboardPage() {
                         is_admin: u.role === 'admin',
                         morning_status: roomInfo?.morning_status,
                         last_morning_update: roomInfo?.last_morning_update,
-                        avatar_config: avatarMap.get(u.id) as AvatarConfig | undefined
+                        equipped_item_ids: avatarMap.get(u.id)?.items,
+                        custom_offsets: avatarMap.get(u.id)?.offsets
                     };
                 });
             }
@@ -341,6 +374,19 @@ export function ClassDashboardPage() {
                             <Activity size={18} className={showNameSidebar ? 'text-blue-600' : 'text-slate-400'} />
                             {showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar'}
                         </button>
+                        {activeClass !== 'all' && !isGuestMode && (
+                            <button
+                                onClick={() => setShowQuizBoard(!showQuizBoard)}
+                                className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
+                                ${showQuizBoard
+                                        ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                            `}
+                            >
+                                <LayoutGrid size={18} className={showQuizBoard ? 'text-purple-600' : 'text-slate-400'} />
+                                {showQuizBoard ? 'Hide Quiz Board' : 'Quiz Board'}
+                            </button>
+                        )}
                         <button
                             onClick={() => {
                                 setSelectedForAward([]);
@@ -416,6 +462,7 @@ export function ClassDashboardPage() {
                                         </h2>
                                         <ClassDistributor
                                             users={groupedUsers[className]}
+                                            avatarCatalog={avatarCatalog}
                                             isLoading={false}
                                             onAwardCoins={async (ids) => {
                                                 setSelectedForAward(ids);
@@ -430,22 +477,31 @@ export function ClassDashboardPage() {
                                 ))
                             ) : (
                                 <div className="bg-white rounded-xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8 animate-in fade-in slide-in-from-bottom-4">
-                                    <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
-                                        <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
-                                        <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length} Students</span>
-                                    </h2>
-                                    <ClassDistributor
-                                        users={groupedUsers[activeClass] || []}
-                                        isLoading={false}
-                                        onAwardCoins={async (ids) => {
-                                            setSelectedForAward(ids);
-                                            setShowAwardModal(true);
-                                        }}
-                                        onStudentClick={handleStudentClick}
-                                        onReorder={handleReorder}
-                                        selectedIds={selectedStudentIds}
-                                        onSelectionChange={setSelectedStudentIds}
-                                    />
+                                    {showQuizBoard ? (
+                                        <div className="h-[700px] w-full">
+                                            <InteractiveQuizDashboard className={activeClass} />
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
+                                                <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
+                                                <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length} Students</span>
+                                            </h2>
+                                            <ClassDistributor
+                                                users={groupedUsers[activeClass] || []}
+                                                avatarCatalog={avatarCatalog}
+                                                isLoading={false}
+                                                onAwardCoins={async (ids) => {
+                                                    setSelectedForAward(ids);
+                                                    setShowAwardModal(true);
+                                                }}
+                                                onStudentClick={handleStudentClick}
+                                                onReorder={handleReorder}
+                                                selectedIds={selectedStudentIds}
+                                                onSelectionChange={setSelectedStudentIds}
+                                            />
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </>
@@ -465,6 +521,7 @@ export function ClassDashboardPage() {
                 isOpen={!!selectedStudent}
                 onClose={handleCloseProfile}
                 student={selectedStudent}
+                avatarCatalog={avatarCatalog}
                 onUpdateCoins={fetchUsers}
                 isGuestMode={isGuestMode}
                 guestToken={guestToken || undefined}
@@ -493,12 +550,11 @@ export function ClassDashboardPage() {
             )}
             <AvatarCustomizationModal
                 isOpen={isAvatarModalOpen}
-                onClose={() => setIsAvatarModalOpen(false)}
-                userId={currentUser?.id}
-                onConfigSave={() => {
-                    // Refresh users to update avatar
+                onClose={() => {
+                    setIsAvatarModalOpen(false);
                     fetchUsers();
                 }}
+                userId={selectedStudent?.id || currentUser?.id}
             />
         </div>
     );

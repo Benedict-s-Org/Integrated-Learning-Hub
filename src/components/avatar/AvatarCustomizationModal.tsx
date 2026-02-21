@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AvatarEditor } from './AvatarEditor';
-import { AvatarConfig, DEFAULT_AVATAR_CONFIG } from './avatarParts';
+import { AvatarImageItem, UserAvatarConfig } from './avatarParts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2, X } from 'lucide-react';
@@ -8,60 +8,85 @@ import { Loader2, X } from 'lucide-react';
 interface AvatarCustomizationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    userId?: string; // Optional: Admin editing another user
-    currentConfig?: AvatarConfig | null;
-    onConfigSave?: (newConfig: AvatarConfig) => void;
+    userId?: string;
+    initialEquipped?: AvatarImageItem[];
+    initialConfig?: UserAvatarConfig;
+    onSave?: (equippedIds: string[], config: UserAvatarConfig) => void;
 }
 
 export const AvatarCustomizationModal: React.FC<AvatarCustomizationModalProps> = ({
     isOpen,
     onClose,
     userId,
-    currentConfig,
-    onConfigSave
 }) => {
     const { user } = useAuth();
     const targetUserId = userId || user?.id;
     const [loading, setLoading] = useState(false);
-    const [initialConfig, setInitialConfig] = useState<AvatarConfig>(DEFAULT_AVATAR_CONFIG);
+    const [availableItems, setAvailableItems] = useState<AvatarImageItem[]>([]);
+    const [equippedItems, setEquippedItems] = useState<AvatarImageItem[]>([]);
+    const [userConfig, setUserConfig] = useState<UserAvatarConfig>({});
 
     useEffect(() => {
         if (isOpen && targetUserId) {
-            if (currentConfig) {
-                setInitialConfig(currentConfig);
-            } else {
-                fetchConfig();
-            }
+            fetchAvatarData();
         }
-    }, [isOpen, targetUserId, currentConfig]);
+    }, [isOpen, targetUserId]);
 
-    const fetchConfig = async () => {
-        if (!targetUserId) return;
+    const fetchAvatarData = async () => {
         setLoading(true);
-        const { data, error } = await (supabase
-            .from('user_avatar_config' as any)
-            .select('config')
-            .eq('user_id', targetUserId)
-            .single() as any);
+        try {
+            // 1. Fetch catalog
+            const { data: itemsData } = await supabase
+                .from('avatar_items')
+                .select('*')
+                .order('layer_z_index', { ascending: true });
 
-        if (data && data.config) {
-            // Cast the JSON to AvatarConfig, ensuring defaults for missing keys
-            setInitialConfig({ ...DEFAULT_AVATAR_CONFIG, ...data.config as any });
+            const items = (itemsData || []) as AvatarImageItem[];
+            setAvailableItems(items);
+
+            if (!targetUserId) {
+                setLoading(false);
+                return;
+            }
+
+            // 2. Fetch user config
+            const { data: configData } = await supabase
+                .from('user_avatar_config')
+                .select('equipped_items, custom_offsets')
+                .eq('user_id', targetUserId)
+                .maybeSingle();
+
+            if (configData) {
+                const equippedIds = configData.equipped_items as string[] || [];
+                const offsets = configData.custom_offsets as UserAvatarConfig || {};
+
+                const equipped = items.filter(item => equippedIds.includes(item.id));
+                setEquippedItems(equipped);
+                setUserConfig(offsets);
+            } else {
+                // Default items
+                setEquippedItems(items.filter(i => i.is_default));
+            }
+        } catch (err) {
+            console.error("Error fetching avatar data:", err);
+        } finally {
+            setLoading(true); // Wait, should be false
+            setLoading(false);
         }
-        setLoading(false);
     };
 
-    const handleSave = async (newConfig: AvatarConfig) => {
+    const handleSave = async (equippedIds: string[], config: UserAvatarConfig) => {
         if (!targetUserId) return;
         setLoading(true);
 
-        const { error } = await (supabase
-            .from('user_avatar_config' as any)
+        const { error } = await supabase
+            .from('user_avatar_config')
             .upsert({
                 user_id: targetUserId,
-                config: newConfig as any,
+                equipped_items: equippedIds,
+                custom_offsets: config as any,
                 updated_at: new Date().toISOString()
-            }) as any);
+            });
 
         setLoading(false);
 
@@ -70,7 +95,7 @@ export const AvatarCustomizationModal: React.FC<AvatarCustomizationModalProps> =
             alert('Failed to save avatar');
         } else {
             alert('Avatar updated! ✨');
-            onConfigSave?.(newConfig);
+            onSave?.(equippedIds, config);
             onClose();
         }
     };
@@ -95,7 +120,9 @@ export const AvatarCustomizationModal: React.FC<AvatarCustomizationModalProps> =
                         </div>
                     ) : (
                         <AvatarEditor
-                            initialConfig={initialConfig}
+                            availableItems={availableItems}
+                            initialEquipped={equippedItems}
+                            initialConfig={userConfig}
                             onSave={handleSave}
                             onCancel={onClose}
                         />

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, User as UserIcon, Award, Activity, Settings, TrendingUp, Bell } from 'lucide-react';
+import { X, User as UserIcon, Activity, Settings, TrendingUp, Bell } from 'lucide-react';
 import { StudentOverview } from './tabs/StudentOverview';
 import { StudentProgress } from './tabs/StudentProgress';
 import { StudentHistory } from './tabs/StudentHistory';
 import { AvatarRenderer } from '../avatar/AvatarRenderer';
-import { AvatarConfig } from '../avatar/avatarParts';
+import { AvatarImageItem, UserAvatarConfig } from '../avatar/avatarParts';
 import { Edit2 } from 'lucide-react';
 
 interface UserWithCoins {
@@ -15,7 +15,9 @@ interface UserWithCoins {
     virtual_coins?: number;
     daily_real_earned?: number;
     class?: string | null;
-    avatar_config?: AvatarConfig;
+    is_admin: boolean;
+    equipped_item_ids?: string[];
+    custom_offsets?: UserAvatarConfig;
 }
 
 interface StudentProfileModalProps {
@@ -24,6 +26,7 @@ interface StudentProfileModalProps {
     student: UserWithCoins | null;
     onUpdateCoins: () => void;
     isGuestMode?: boolean;
+    avatarCatalog: AvatarImageItem[];
     guestToken?: string;
     onCustomizeAvatar?: () => void;
 }
@@ -36,6 +39,7 @@ export function StudentProfileModal({
     student,
     onUpdateCoins,
     isGuestMode = false,
+    avatarCatalog,
     guestToken,
     onCustomizeAvatar
 }: StudentProfileModalProps) {
@@ -82,9 +86,14 @@ export function StudentProfileModal({
                         <div className="flex items-center gap-3">
                             <div className="relative">
                                 <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100 flex items-center justify-center p-0.5">
-                                    {student.avatar_config ? (
+                                    {student.equipped_item_ids && student.equipped_item_ids.length > 0 ? (
                                         <div className="w-full h-full transform scale-125 translate-y-1">
-                                            <AvatarRenderer config={student.avatar_config} size="100%" showBackground={false} />
+                                            <AvatarRenderer
+                                                equippedItems={avatarCatalog.filter(item => student.equipped_item_ids?.includes(item.id))}
+                                                userConfig={student.custom_offsets || {}}
+                                                size="100%"
+                                                showBackground={false}
+                                            />
                                         </div>
                                     ) : student.avatar_url ? (
                                         <img src={student.avatar_url} alt={student.display_name || ''} className="w-full h-full object-cover" />

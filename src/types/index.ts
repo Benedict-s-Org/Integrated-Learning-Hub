@@ -45,7 +45,7 @@ export interface AppContextType {
   refreshSavedContents: () => Promise<void>;
 }
 
-export type AppPage = 'new' | 'saved' | 'admin' | 'publicPractice' | 'proofreading';
+export type AppPage = 'new' | 'saved' | 'admin' | 'publicPractice' | 'proofreading' | 'adminAvatarUploader' | 'avatarBuilder';
 
 export interface ProofreadingSentence {
   text: string;

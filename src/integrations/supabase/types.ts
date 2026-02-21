@@ -128,6 +128,74 @@ export type Database = {
         }
         Relationships: []
       }
+      avatar_items: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          category: string
+          image_url: string
+          layer_z_index: number
+          base_price: number
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          category: string
+          image_url: string
+          layer_z_index?: number
+          base_price?: number
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          category?: string
+          image_url?: string
+          layer_z_index?: number
+          base_price?: number
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_avatar_config: {
+        Row: {
+          user_id: string
+          equipped_items: Json
+          custom_offsets: Json
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          equipped_items?: Json
+          custom_offsets?: Json
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          equipped_items?: Json
+          custom_offsets?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_avatar_config_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       content_reference: {
         Row: {
           category_tags: string[] | null

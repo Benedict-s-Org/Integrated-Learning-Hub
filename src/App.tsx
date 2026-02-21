@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AppProvider, useAppContext } from './context/AppContext';
@@ -56,7 +56,9 @@ import StudentProgress from './components/StudentProgress/StudentProgress';
 import UserAnalytics from './components/UserAnalytics/UserAnalytics';
 import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
 import { AssetGenerator } from './components/admin/AssetGenerator';
+import { AdminAssetUploader } from './components/admin/AdminAssetUploader';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
+import { AvatarBuilderPage } from './components/avatar/AvatarBuilderPage';
 import { ShopView } from './components/shop/ShopView';
 import { SpaceDesignCenter } from './components/SpaceDesignCenter';
 import { FurnitureUploader } from './components/furniture/FurnitureUploader';
@@ -64,6 +66,7 @@ import { FurnitureEditor } from './components/editor/FurnitureEditor';
 import { AssetUploadCenter } from './components/ui-builder/AssetUploadCenter';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { TransformPanel } from './components/TransformPanel';
+import { MarkerGenerator } from './components/admin/MarkerGenerator';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 
 type AppState =
@@ -103,9 +106,14 @@ type AppState =
   | { page: 'quickReward'; qrToken: string }
   | { page: 'scanner' }
   | { page: 'phonics'; section: 'wall' | 'blending' | 'games' | 'quiz' | 'builder' }
-  | { page: 'notionHub' };
+  | { page: 'notionHub' }
+  | { page: 'adminAvatarUploader' }
+  | { page: 'avatarBuilder' }
+  | { page: 'markerGenerator' }
+  | { page: 'interactiveScanner' };
 
 function AppContent() {
+  const location = useLocation();
   const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
 
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -253,6 +261,13 @@ function AppContent() {
       return;
     }
 
+    const qrUpMatch = path.match(/^\/qr-up\/dashboard$/);
+    if (qrUpMatch) {
+      setAppState({ page: 'interactiveScanner' });
+      setIsNavOpen(false); // Auto-collapse navigation for QR Up!
+      return;
+    }
+
     if (legacyRewardMatch) {
       setAppState({ page: 'quickReward', qrToken: legacyRewardMatch[1] });
       return;
@@ -267,6 +282,8 @@ function AppContent() {
       setAppState({ page: 'classDashboard' });
       return;
     }
+
+
 
     const handleHashChange = async () => {
       const hash = window.location.hash;
@@ -296,7 +313,7 @@ function AppContent() {
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [fetchPublicContent]);
+  }, [fetchPublicContent, location.pathname]);
 
   // Handle permissions and conditional state updates
   useEffect(() => {
@@ -360,9 +377,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner')) {
       setShowLoginModal(true);
       return;
     }
@@ -437,6 +454,13 @@ function AppContent() {
       setAppState({ page: 'notionHub' });
     } else if (page === 'phonics') {
       setAppState({ page: 'phonics', section: 'wall' });
+    } else if (page === 'adminAvatarUploader') {
+      setAppState({ page: 'adminAvatarUploader' });
+    } else if (page === 'avatarBuilder') {
+      setAppState({ page: 'avatarBuilder' });
+    } else if (page === 'interactiveScanner') {
+      setAppState({ page: 'interactiveScanner' });
+      setIsNavOpen(false); // Auto-collapse when opening
     }
   };
 
@@ -675,7 +699,18 @@ function AppContent() {
         return <AdminPanel
           onNavigateToAssets={() => setAppState({ page: 'assetUpload' })}
           onOpenMapEditor={toggleMapEditor}
+          onNavigateToAvatarUploader={() => setAppState({ page: 'adminAvatarUploader' })}
+          onNavigateToAvatarBuilder={() => setAppState({ page: 'avatarBuilder' })}
+          onNavigateToMarkerGenerator={() => setAppState({ page: 'markerGenerator' })}
         />;
+      case 'interactiveScanner':
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <InteractiveScanQuizPage />
+          </Suspense>
+        );
+      case 'markerGenerator':
+        return <MarkerGenerator onBack={() => setAppState({ page: 'admin' })} />;
       case 'assetUpload':
         return (
           <div className="h-full bg-background p-4 md:p-8 flex flex-col overflow-hidden">
@@ -890,6 +925,10 @@ function AppContent() {
         return <AssignmentManagement />;
       case 'proofreadingAssignments':
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
+      case 'adminAvatarUploader':
+        return <AdminAssetUploader />;
+      case 'avatarBuilder':
+        return <AvatarBuilderPage />;
       case 'learningHub':
         return (
           <MemoryPalacePage onExit={() => setAppState({ page: 'new', step: 'input' })} />
@@ -991,7 +1030,7 @@ function AppContent() {
     if (appState.page === 'spacedRepetition') {
       return 'spacedRepetition';
     }
-    if (appState.page === 'admin') {
+    if (appState.page === 'admin' || appState.page === 'markerGenerator') {
       return 'admin';
     }
     if (appState.page === 'assetGenerator') {
@@ -1092,7 +1131,7 @@ function AppContent() {
             onOpenMemory={toggleMemoryPanel}
           />
         )}
-        <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
+        <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
           {renderCurrentView()}
         </main>
         {showLoginModal && (
@@ -1281,7 +1320,9 @@ const RewardPage = lazy(() => import('./pages/RewardPage.tsx'));
 const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
+const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m => ({ default: m.SuperAdminPanel })));
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
+const InteractiveScanQuizPage = lazy(() => import('./pages/InteractiveScanQuizPage').then(module => ({ default: module.InteractiveScanQuizPage })));
 const AdminCityEditorPage = lazy(() => import('./pages/AdminCityEditorPage.tsx'));
 const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
 const PhonicsLayout = lazy(() => import('./components/phonics/PhonicsLayout.tsx').then(m => ({ default: m.PhonicsLayout })));
@@ -1338,10 +1379,26 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/super-admin-panel"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <SuperAdminPanel />
+          </Suspense>
+        }
+      />
+      <Route
         path="/admin/scanner"
         element={
           <Suspense fallback={<PageLoader />}>
             <QRScannerPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/admin/marker-generator"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <MarkerGenerator onBack={() => window.history.back()} />
           </Suspense>
         }
       />

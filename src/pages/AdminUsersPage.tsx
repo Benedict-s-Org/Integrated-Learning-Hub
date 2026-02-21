@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -28,6 +28,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
 import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 const createUserSchema = z.object({
   email: z.string().trim().email({ message: '請輸入有效的電郵地址' }),
@@ -49,10 +50,12 @@ interface UserWithProfile {
   seat_number: number | null; // Class Number
   class_name?: string | null; // Mapped from 'class' column in users table
   qr_token?: string;
+  managed_by_id?: string | null;
 }
 
 export function AdminUsersPage() {
   const { isAdmin, user: currentUser } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'classroom'>('list');
 
@@ -82,7 +85,7 @@ export function AdminUsersPage() {
       // 1. Fetch ALL users from public 'users' table (Source of Truth)
       const { data: publicUsers, error: usersError } = await (supabase
         .from('users')
-        .select('id, email, display_name, class, qr_token, role, created_at') as any);
+        .select('id, username, display_name, class, qr_token, role, created_at, managed_by_id') as any);
 
       if (usersError) throw usersError;
 
@@ -121,7 +124,7 @@ export function AdminUsersPage() {
         const profile: any = profileMap.get(u.id) || {};
         return {
           id: u.id,
-          email: u.email || '', // public.users might not have email depending on RLS/Schema, but let's try
+          email: u.username || '',
           display_name: u.display_name || 'Unnamed',
           avatar_url: profile.avatar_url || null,
           created_at: u.created_at || new Date().toISOString(),
@@ -131,7 +134,8 @@ export function AdminUsersPage() {
           daily_real_earned: roomDataMap.get(u.id)?.daily_real_earned || 0,
           seat_number: profile.seat_number || null,
           class_name: u.class || null,
-          qr_token: u.qr_token || null
+          qr_token: u.qr_token || null,
+          managed_by_id: u.managed_by_id || null
         };
       });
 
@@ -166,6 +170,13 @@ export function AdminUsersPage() {
       fetchUsers();
     }
   }, [isAdmin]);
+
+  // Filter users based on admin isolation
+  const visibleUsers = useMemo(() => {
+    if (isSuperAdmin) return users; // Super Admin sees all
+    if (!currentUser?.id) return [];
+    return users.filter(u => u.managed_by_id === currentUser.id);
+  }, [users, isSuperAdmin, currentUser?.id]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +367,7 @@ export function AdminUsersPage() {
           {viewMode === 'classroom' ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
               <ClassDistributor
-                users={filterClass === 'all' ? users : users.filter(u => u.class_name === filterClass)}
+                users={filterClass === 'all' ? visibleUsers : visibleUsers.filter(u => u.class_name === filterClass)}
                 selectedIds={selectedForAward}
                 onSelectionChange={setSelectedForAward}
                 isLoading={isLoadingUsers}
@@ -566,13 +577,13 @@ export function AdminUsersPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--muted-foreground))]" />
                   </div>
-                ) : users.length === 0 ? (
+                ) : visibleUsers.length === 0 ? (
                   <p className="text-center py-8 text-[hsl(var(--muted-foreground))]">
                     暫無用戶
                   </p>
                 ) : (
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
-                    {users
+                    {visibleUsers
                       .filter(u => filterClass === 'all' || u.class_name === filterClass)
                       .map((user) => (
                         <div
