@@ -4,7 +4,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP, REWARD_COLOR_OPTIONS } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, REWARD_COLOR_OPTIONS, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { RewardSubOptionOverlay } from './RewardSubOptionOverlay';
 
 interface CoinAwardModalProps {
     isOpen: boolean;
@@ -21,9 +22,9 @@ export interface ClassReward {
     type: 'reward' | 'consequence';
     icon: string;
     color: string;
+    sub_options?: Record<string, string[]>;
 }
 
-const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
 // Special reward handling is now done via robust string matching
 
 export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, selectedStudentIds }: CoinAwardModalProps) {
@@ -39,13 +40,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     const [editForm, setEditForm] = useState<Partial<ClassReward>>({});
     const [customValues, setCustomValues] = useState<Record<string, number>>({});
 
-    // Sub-options for specific reward
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
 
     // Daily Count State
     const [maxDailyCount, setMaxDailyCount] = useState<number>(0);
-
-    /* ... existing code ... */
 
     // Help admins notice why management is hidden
     const showAdminHint = !isAdmin && user?.role === 'admin' && isUserView;
@@ -69,7 +67,6 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         } else {
             setRewards(data || []);
         }
-        setIsLoading(false);
         setIsLoading(false);
     };
 
@@ -102,34 +99,27 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     }, [isOpen, selectedCount, selectedStudentIds]);
 
 
+    const getEffectiveSubOptions = (reward: ClassReward) => {
+        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
+            return reward.sub_options;
+        }
+        return DEFAULT_SUB_OPTIONS;
+    };
+
     const handleRewardClick = (item: ClassReward) => {
         if (isEditMode || isCustomMode) return;
         if (selectedCount === 0) return;
 
-        // Robust title matching for "完成班務（欠功課）"
-        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
+        const effectiveSubs = getEffectiveSubOptions(item);
+        const hasSubs = Object.keys(effectiveSubs).length > 0;
 
-        if (isSpecialReward) {
+        if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             onAward(item.coins, item.title);
         }
     };
 
-    const handleSubOptionToggle = (option: string) => {
-        if (!pendingSubOptions) return;
-        const selected = pendingSubOptions.selected.includes(option)
-            ? pendingSubOptions.selected.filter(o => o !== option)
-            : [...pendingSubOptions.selected, option];
-        setPendingSubOptions({ ...pendingSubOptions, selected });
-    };
-
-    const handleSubOptionSubmit = () => {
-        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
-        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
-        onAward(pendingSubOptions.reward.coins, reason);
-        setPendingSubOptions(null);
-    };
 
     const handleSave = async () => {
         if (!editForm.title || editForm.coins === undefined || editForm.coins === null) return;
@@ -140,7 +130,8 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                 coins: Number(editForm.coins),
                 type: activeTab,
                 icon: editForm.icon || 'Star',
-                color: editForm.color || 'text-yellow-500 bg-yellow-100'
+                color: editForm.color || 'text-yellow-500 bg-yellow-100',
+                sub_options: editForm.sub_options || null
             };
 
             if (editingId && editingId !== 'new') {
@@ -203,11 +194,11 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="flex justify-between items-center p-6 border-b border-gray-100">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                             {isEditMode ? 'Manage Feedback Items' : 'Give Feedback'}
                         </h2>
                         <p className="text-sm text-gray-500">
@@ -262,11 +253,24 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                     </div>
                 </div>
 
+                {/* Sub-option Selection Overlay (Shared Component) */}
+                {pendingSubOptions && (
+                    <RewardSubOptionOverlay
+                        reward={pendingSubOptions.reward}
+                        onClose={() => setPendingSubOptions(null)}
+                        onSubmit={(selectedItems) => {
+                            const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
+                            onAward(pendingSubOptions.reward.coins, reason);
+                            setPendingSubOptions(null);
+                        }}
+                    />
+                )}
+
                 {/* Tabs */}
                 <div className="flex border-b border-gray-100">
                     <button
                         onClick={() => setActiveTab('reward')}
-                        className={`flex-1 py-3 text-sm font-bold transition-colors border-b-2 
+                        className={`flex-1 py-3 text-sm font-bold transition-colors border-b-2
                             ${activeTab === 'reward'
                                 ? 'border-green-500 text-green-600 bg-green-50'
                                 : 'border-transparent text-gray-400 hover:text-gray-600'}`}
@@ -275,7 +279,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                     </button>
                     <button
                         onClick={() => setActiveTab('consequence')}
-                        className={`flex-1 py-3 text-sm font-bold transition-colors border-b-2 
+                        className={`flex-1 py-3 text-sm font-bold transition-colors border-b-2
                             ${activeTab === 'consequence'
                                 ? 'border-red-500 text-red-600 bg-red-50'
                                 : 'border-transparent text-gray-400 hover:text-gray-600'}`}
@@ -286,44 +290,6 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
 
                 {/* Content */}
                 <div className="p-6 overflow-y-auto flex-1 bg-gray-50/50 relative">
-                    {/* Sub-option Selection Overlay */}
-                    {pendingSubOptions && (
-                        <div className="absolute inset-0 z-20 bg-white/95 backdrop-blur-sm p-8 flex flex-col items-center justify-center animate-in slide-in-from-bottom duration-300">
-                            <h3 className="text-lg font-bold text-gray-800 mb-2">{pendingSubOptions.reward.title}</h3>
-                            <p className="text-sm text-gray-500 mb-6 text-center">Select subjects to complete (Total 10 Coins)</p>
-
-                            <div className="grid grid-cols-2 gap-3 w-full max-w-sm mb-8">
-                                {SUB_OPTIONS.map(opt => (
-                                    <button
-                                        key={opt}
-                                        onClick={() => handleSubOptionToggle(opt)}
-                                        className={`px-4 py-3 rounded-xl border-2 font-bold transition-all
-                                            ${pendingSubOptions.selected.includes(opt)
-                                                ? 'border-blue-500 bg-blue-50 text-blue-600'
-                                                : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'}`}
-                                    >
-                                        {opt}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="flex gap-3 w-full max-w-sm">
-                                <button
-                                    onClick={() => setPendingSubOptions(null)}
-                                    className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSubOptionSubmit}
-                                    disabled={pendingSubOptions.selected.length === 0}
-                                    className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
-                                >
-                                    Award 10 Coins
-                                </button>
-                            </div>
-                        </div>
-                    )}
 
                     {isLoading ? (
                         <div className="flex justify-center p-8">
@@ -528,6 +494,84 @@ function RewardEditor({ form, onChange, onSave, onCancel }: any) {
                             {React.createElement(REWARD_ICON_MAP[iconName] || Star, { size: 18 })}
                         </button>
                     ))}
+                </div>
+            </div>
+
+            {/* Sub-options Editor */}
+            <div className="space-y-1">
+                <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sub-options (Tabs & Items)</label>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const name = prompt("Enter category name (e.g. 中文):");
+                            if (name) {
+                                onChange({ ...form, sub_options: { ...(form.sub_options || {}), [name]: [] } });
+                            }
+                        }}
+                        className="text-[10px] text-blue-600 font-bold hover:underline"
+                    >
+                        + Add Tab
+                    </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 mt-2">
+                    {Object.entries(form.sub_options || {}).map(([cat, items]: [string, any]) => (
+                        <div key={cat} className="p-2 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-gray-700">{cat}</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const item = prompt(`Enter item for ${cat}:`);
+                                            if (item) {
+                                                const newSubs = { ...(form.sub_options || {}) };
+                                                newSubs[cat] = [...(newSubs[cat] || []), item];
+                                                onChange({ ...form, sub_options: newSubs });
+                                            }
+                                        }}
+                                        className="text-[10px] text-green-600 hover:underline"
+                                    >
+                                        Add Item
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newSubs = { ...(form.sub_options || {}) };
+                                            delete newSubs[cat];
+                                            onChange({ ...form, sub_options: newSubs });
+                                        }}
+                                        className="text-[10px] text-red-600 hover:underline"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                                {items.map((it: string) => (
+                                    <div key={it} className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border border-gray-200 text-[10px]">
+                                        {it}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newSubs = { ...(form.sub_options || {}) };
+                                                newSubs[cat] = newSubs[cat].filter((i: string) => i !== it);
+                                                onChange({ ...form, sub_options: newSubs });
+                                            }}
+                                            className="text-gray-400 hover:text-red-500"
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {items.length === 0 && <span className="text-[10px] text-gray-400 italic">No items added</span>}
+                            </div>
+                        </div>
+                    ))}
+                    {Object.keys(form.sub_options || {}).length === 0 && (
+                        <p className="text-[10px] text-gray-400 text-center py-2 bg-gray-50 rounded-lg">No structured sub-options defined</p>
+                    )}
                 </div>
             </div>
 

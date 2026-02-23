@@ -1,19 +1,17 @@
 // Asset Upload Center - Multi-format file management
 import React, { useState, useCallback } from 'react';
 import {
-  Upload,
-  Image,
-  FileText,
-  Database,
-  X,
-  Folder,
+  Search,
   Grid,
   List,
-  Search,
-  Trash2,
   Eye,
+  Trash2,
+  FileText,
+  Database,
+  Image,
+  X,
   Cloud,
-  ArrowRight,
+  Folder,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
@@ -23,7 +21,6 @@ import type {
 } from '@/types/ui-builder';
 import { ASSET_CONTEXTS, ASSET_CATEGORIES, AssetContext } from '@/constants/assetCategories';
 import { updateAssetCategorization } from '@/utils/assetPersistence';
-import { Button } from '@/components/ui/Button';
 
 interface AssetUploadCenterProps {
   assets: Asset[];
@@ -34,7 +31,6 @@ interface AssetUploadCenterProps {
 type MainTab = 'upload' | 'library';
 type FileTypeTab = 'images' | 'documents' | 'data';
 type ViewMode = 'grid' | 'list';
-type ImageUploadType = 'single' | 'directional' | 'conditional';
 
 export function AssetUploadCenter({
   assets,
@@ -50,8 +46,8 @@ export function AssetUploadCenter({
         <button
           onClick={() => setMainTab('upload')}
           className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${mainTab === 'upload'
-              ? 'bg-background border-t-2 border-t-primary text-primary shadow-sm'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            ? 'bg-background border-t-2 border-t-primary text-primary shadow-sm'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
         >
           <Cloud className="w-4 h-4" />
@@ -60,8 +56,8 @@ export function AssetUploadCenter({
         <button
           onClick={() => setMainTab('library')}
           className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all ${mainTab === 'library'
-              ? 'bg-background border-t-2 border-t-primary text-primary shadow-sm'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            ? 'bg-background border-t-2 border-t-primary text-primary shadow-sm'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
         >
           <Folder className="w-4 h-4" />
@@ -353,8 +349,8 @@ function LibraryTab({
                 key={key}
                 onClick={() => setActiveTypeTab(key)}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-md transition-all ${activeTypeTab === key
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 {icon}

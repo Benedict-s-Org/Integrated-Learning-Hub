@@ -6,9 +6,11 @@ import { Session, User } from '@supabase/supabase-js';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [sessionUser, setSessionUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [realIsSuperAdmin, setRealIsSuperAdmin] = useState(false);
+  const [realIsSuperAdminLoading, setRealIsSuperAdminLoading] = useState(true);
 
   // Helper to map Supabase User to App UserProfile
   const mapUserToProfile = (supabaseUser: User): UserProfile => {
@@ -37,9 +39,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        setUser(mapUserToProfile(session.user));
+        setSessionUser(mapUserToProfile(session.user));
       } else {
-        setUser(null);
+        setSessionUser(null);
       }
       setLoading(false);
     });
@@ -48,9 +50,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        setUser(mapUserToProfile(session.user));
+        setSessionUser(mapUserToProfile(session.user));
       } else {
-        setUser(null);
+        setSessionUser(null);
       }
       setLoading(false);
     });
@@ -77,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setUser(null);
+    setSessionUser(null);
     setSession(null);
   };
 
@@ -102,10 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateAccentPreference = useCallback(async (accent: string) => {
-    if (!user) return;
+    if (!sessionUser) return;
 
     // Optimistic update
-    setUser(prev => prev ? { ...prev, accent_preference: accent } : null);
+    setSessionUser(prev => prev ? { ...prev, accent_preference: accent } : null);
 
     // Save to user_metadata (portable preference storage)
     const { error } = await supabase.auth.updateUser({
@@ -116,15 +118,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed to update accent preference', error);
       // Revert if needed, but keeping simple for now
     }
-  }, [user]);
+  }, [sessionUser]);
 
   const [isUserView, setIsUserView] = useState(false);
   const [isMobileEmulator, setIsMobileEmulator] = useState(false);
   const [testUserId, setTestUserId] = useState<string | null>(null);
+  const [impersonatedAdminId, setImpersonatedAdminId] = useState<string | null>(null);
 
   // Fetch test user ID for impersonation when admin switches to user view
   useEffect(() => {
-    if (user?.role === 'admin' && isUserView && !testUserId) {
+    if (sessionUser?.role === 'admin' && isUserView && !testUserId) {
       supabase
         .from('users')
         .select('id')
@@ -134,28 +137,103 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data) setTestUserId(data.id);
         });
     }
-  }, [user, isUserView, testUserId]);
+  }, [sessionUser, isUserView, testUserId]);
+
+  // Check for super admin status for the real session user
+  useEffect(() => {
+    if (sessionUser?.id) {
+      setRealIsSuperAdminLoading(true);
+      supabase.functions.invoke('auth/check-super-admin', {
+        body: { adminUserId: sessionUser.id },
+      }).then(({ data }) => {
+        if (data && data.isSuperAdmin) {
+          setRealIsSuperAdmin(true);
+          // Auto-sync the role in memory in case auth metadata is stale
+          if (sessionUser.role !== 'admin') {
+            setSessionUser(prev => prev ? { ...prev, role: 'admin' } : null);
+          }
+        } else {
+          setRealIsSuperAdmin(false);
+        }
+      }).catch(err => {
+        console.error('Failed to verify super admin status:', err);
+        setRealIsSuperAdmin(false);
+      }).finally(() => {
+        setRealIsSuperAdminLoading(false);
+      });
+    } else {
+      setRealIsSuperAdmin(false);
+      setRealIsSuperAdminLoading(false);
+    }
+  }, [sessionUser?.id]);
+
+  // Prevent impersonating yourself
+  useEffect(() => {
+    if (impersonatedAdminId && sessionUser?.id === impersonatedAdminId) {
+      console.warn('Automatically clearing self-impersonation');
+      setImpersonatedAdminId(null);
+    }
+  }, [impersonatedAdminId, sessionUser?.id]);
 
   const toggleViewMode = () => {
     setIsUserView(prev => !prev);
   };
 
-  const isAdmin = user?.role === 'admin' && !isUserView;
-  const accentPreference = user?.accent_preference || 'en-US';
+  const isAdmin = sessionUser?.role === 'admin' && !isUserView;
+  const accentPreference = sessionUser?.accent_preference || 'en-US';
 
-  // Effective user for the rest of the app (allows admin to see test user assignments)
+  const [impersonatedAdminProfile, setImpersonatedAdminProfile] = useState<UserProfile | null>(null);
+
+  // Fetch impersonated admin profile
+  useEffect(() => {
+    if (impersonatedAdminId) {
+      (supabase
+        .from('users')
+        .select('id,username,display_name,role,created_at')
+        .eq('id', impersonatedAdminId)
+        .maybeSingle() as any)
+        .then(({ data }: any) => {
+          if (data && !('error' in data)) {
+            const profileData = data as any;
+            setImpersonatedAdminProfile({
+              id: profileData.id,
+              email: profileData.username,
+              username: profileData.username?.split('@')[0] || 'admin',
+              role: profileData.role as 'admin' | 'user',
+              display_name: profileData.display_name || profileData.username?.split('@')[0],
+              created_at: profileData.created_at,
+              updated_at: profileData.created_at,
+              can_access_proofreading: true,
+              can_access_spelling: true,
+              can_access_learning_hub: true,
+              can_access_spaced_repetition: true,
+            } as UserProfile);
+          }
+        });
+    } else {
+      setImpersonatedAdminProfile(null);
+    }
+  }, [impersonatedAdminId]);
+
+  // Effective user for the rest of the app (allows admin to see test user assignments or impersonate other admins)
   const effectiveUser = useMemo(() => {
-    return (user?.role === 'admin' && isUserView && testUserId)
-      ? {
-        ...user!,
-        id: testUserId,
-        email: 'benedictcftsang@outlook.com',
-        username: 'test-user',
-        display_name: 'Test Account',
-        role: 'user' as const // Spoof as regular student
+    if (sessionUser?.role === 'admin') {
+      if (isUserView && testUserId) {
+        return {
+          ...sessionUser!,
+          id: testUserId,
+          email: 'benedictcftsang@outlook.com',
+          username: 'test-user',
+          display_name: 'Test Account',
+          role: 'user' as const // Spoof as regular student
+        };
       }
-      : user;
-  }, [user, isUserView, testUserId]);
+      if (impersonatedAdminProfile) {
+        return impersonatedAdminProfile;
+      }
+    }
+    return sessionUser;
+  }, [sessionUser, isUserView, testUserId, impersonatedAdminProfile]);
 
   const value = useMemo(() => ({
     user: effectiveUser,
@@ -173,6 +251,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsMobileEmulator,
     accentPreference,
     updateAccentPreference,
+    impersonatedAdminId,
+    setImpersonatedAdminId,
+    isImpersonating: !!impersonatedAdminId,
+    realUser: sessionUser,
+    realIsAdmin: sessionUser?.role === 'admin',
+    realIsSuperAdmin,
+    realIsSuperAdminLoading
   }), [
     effectiveUser,
     session,
@@ -182,6 +267,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMobileEmulator,
     accentPreference,
     updateAccentPreference,
+    impersonatedAdminId,
+    sessionUser,
+    realIsSuperAdmin,
+    realIsSuperAdminLoading
   ]);
   return (
     <AuthContext.Provider value={value}>

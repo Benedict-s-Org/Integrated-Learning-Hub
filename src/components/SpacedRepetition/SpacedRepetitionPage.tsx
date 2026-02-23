@@ -25,7 +25,7 @@ type PageState =
       questions: any[];
     }
   }
-  | { view: 'learning'; setId: string }
+  | { view: 'learning'; setId: string; setTitle?: string }
   | { view: 'edit'; setId: string; initialData: { title: string; description: string; questions: any[] } }
   | { view: 'analytics' };
 
@@ -48,8 +48,8 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [state, setState] = useState<PageState>({ view: 'hub' });
   const [sessionState, setSessionState] = useState<SpacedRepetitionSessionState | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
-  const [resumptionData, setResumptionData] = useState<{ setId: string; sessionData: any; intendedLimit: number } | null>(null);
-  const [prepSession, setPrepSession] = useState<{ setId?: string } | null>(null);
+  const [resumptionData, setResumptionData] = useState<{ setId: string; sessionData: any; intendedLimit: number; setTitle?: string } | null>(null);
+  const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
 
@@ -68,7 +68,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId?: string, forceFresh = false, limit = 20) => {
+  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string) => {
     setLoadingSession(true);
     const effectiveSetId = setId || 'global';
 
@@ -78,7 +78,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         const isFactuallyCompleted = existingSession && (existingSession.isCompleted || existingSession.results.length === existingSession.questions.length);
 
         if (existingSession && !isFactuallyCompleted) {
-          setResumptionData({ setId: effectiveSetId, sessionData: existingSession, intendedLimit: limit });
+          setResumptionData({ setId: effectiveSetId, sessionData: existingSession, intendedLimit: limit, setTitle });
           setLoadingSession(false);
           return;
         } else if (existingSession && isFactuallyCompleted) {
@@ -183,7 +183,12 @@ export const SpacedRepetitionPage: React.FC = () => {
       // Save initial session
       await saveActiveSession(effectiveSetId, newSessionState);
 
-      setState({ view: 'learning', setId: effectiveSetId });
+      setState({
+        view: 'learning',
+        setId: effectiveSetId,
+        setTitle: setTitle || (setId ? 'Loading Set...' : 'Global Review')
+      });
+      setLoadingSession(false);
     } catch (error) {
       console.error("Failed to start session:", error);
       alert("Failed to start session. Please try again.");
@@ -219,7 +224,7 @@ export const SpacedRepetitionPage: React.FC = () => {
     }
 
     setSessionState(sessionData);
-    setState({ view: 'learning', setId: resumptionData.setId });
+    setState({ view: 'learning', setId: resumptionData.setId, setTitle: resumptionData.setTitle });
     setResumptionData(null);
   };
 
@@ -516,8 +521,9 @@ export const SpacedRepetitionPage: React.FC = () => {
                 onClick={() => {
                   const id = resumptionData.setId === 'global' ? undefined : resumptionData.setId;
                   const limit = resumptionData.intendedLimit;
+                  const setTitle = resumptionData.setTitle;
                   setResumptionData(null);
-                  startSession(id, true, limit); // `true` here means ignore completed sessions
+                  startSession(id, true, limit, setTitle); // `true` here means ignore completed sessions
                 }}
                 className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all active:scale-95"
               >
@@ -589,8 +595,9 @@ export const SpacedRepetitionPage: React.FC = () => {
                 onClick={() => {
                   const limit = selectedSize === 'custom' ? customSize : selectedSize;
                   const setId = prepSession.setId;
+                  const setTitle = prepSession.setTitle;
                   setPrepSession(null);
-                  startSession(setId, false, limit);
+                  startSession(setId, false, limit, setTitle);
                 }}
                 className="w-full px-4 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
               >
@@ -638,6 +645,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         <QuestionCard
           key={currentQuestion.id}
           question={currentQuestion}
+          setTitle={state.view === 'learning' ? state.setTitle : undefined}
           questionNumber={sessionState.currentQuestionIndex + 1}
           totalQuestions={sessionState.questions.length}
           onAnswer={handleAnswer}
@@ -752,7 +760,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       {renderModals()}
       <SpacedRepetitionHub
         onCreateNew={() => setState({ view: 'createNew' })}
-        onStartLearning={(id) => setPrepSession({ setId: id })}
+        onStartLearning={(id, title) => setPrepSession({ setId: id, setTitle: title })}
         onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}

@@ -1,16 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import {
-  Loader2,
   UserPlus,
   Users,
-  AlertCircle,
-  CheckCircle,
-  Mail,
-  Lock,
-  User,
-  Shield,
   Pencil,
   Settings,
   QrCode,
@@ -30,13 +22,6 @@ import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
 import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
-const createUserSchema = z.object({
-  email: z.string().trim().email({ message: '請輸入有效的電郵地址' }),
-  password: z.string().min(6, { message: '密碼至少需要6個字符' }).max(72, { message: '密碼不能超過72個字符' }),
-  displayName: z.string().trim().min(1, { message: '請輸入顯示名稱' }).max(50, { message: '顯示名稱不能超過50個字符' }),
-  gender: z.enum(['male', 'female', 'unspecified']),
-});
-
 interface UserWithProfile {
   id: string;
   email: string;
@@ -46,15 +31,20 @@ interface UserWithProfile {
   is_admin: boolean;
   coins: number;
   virtual_coins?: number;
-  daily_real_earned?: number; // Add this
-  seat_number: number | null; // Class Number
-  class_name?: string | null; // Mapped from 'class' column in users table
+  daily_real_earned?: number;
+  seat_number: number | null;
+  class_name?: string | null;
   qr_token?: string;
   managed_by_id?: string | null;
 }
 
-export function AdminUsersPage() {
-  const { isAdmin, user: currentUser } = useAuth();
+interface AdminUsersPageProps {
+  isEmbedded?: boolean;
+  forcedAdminId?: string;
+}
+
+export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsersPageProps) {
+  const { user: currentUser } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'classroom'>('list');
@@ -68,10 +58,7 @@ export function AdminUsersPage() {
   const [displayName, setDisplayName] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'unspecified'>('unspecified');
   const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
-  // Modal states
   const [editingUser, setEditingUser] = useState<UserWithProfile | null>(null);
   const [showDefaultSettings, setShowDefaultSettings] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
@@ -82,180 +69,128 @@ export function AdminUsersPage() {
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      // 1. Fetch ALL users from public 'users' table (Source of Truth)
       const { data: publicUsers, error: usersError } = await (supabase
         .from('users')
         .select('id, username, display_name, class, qr_token, role, created_at, managed_by_id') as any);
 
       if (usersError) throw usersError;
 
-      // 2. Fetch profiles for auxiliary data (avatar, seat_number)
       const { data: profiles, error: profilesError } = await (supabase
         .from('user_profiles')
         .select('id, avatar_url, seat_number') as any);
 
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-      } else {
-        console.log(`Fetched ${profiles?.length} profiles. Sample:`, profiles?.slice(0, 3));
-      }
+      if (profilesError) console.error('Error fetching profiles:', profilesError);
 
       const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-      // 3. Fetch room data for coins
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
         .select('user_id, coins, virtual_coins, daily_counts');
 
       if (roomError) console.warn('Error fetching room data:', roomError);
+
       const today = new Date().toISOString().split('T')[0];
       const roomDataMap = new Map((roomData || []).map(r => {
         const dailyCounts = r.daily_counts as any;
-        const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
         return [r.user_id, {
           coins: r.coins,
           virtual_coins: r.virtual_coins,
-          daily_real_earned: dailyRealEarned
+          daily_real_earned: dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0
         }];
       }));
 
-      // 4. Merge Data
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
-        const profile: any = profileMap.get(u.id) || {};
+        const profile = profileMap.get(u.id) as any;
+        const roomData = roomDataMap.get(u.id) as any;
         return {
           id: u.id,
           email: u.username || '',
           display_name: u.display_name || 'Unnamed',
-          avatar_url: profile.avatar_url || null,
+          avatar_url: profile?.avatar_url || null,
           created_at: u.created_at || new Date().toISOString(),
           is_admin: u.role === 'admin',
-          coins: roomDataMap.get(u.id)?.coins || 0,
-          virtual_coins: roomDataMap.get(u.id)?.virtual_coins || 0,
-          daily_real_earned: roomDataMap.get(u.id)?.daily_real_earned || 0,
-          seat_number: profile.seat_number || null,
-          class_name: u.class || null,
-          qr_token: u.qr_token || null,
-          managed_by_id: u.managed_by_id || null
+          coins: roomData?.coins || 0,
+          virtual_coins: roomData?.virtual_coins || 0,
+          daily_real_earned: roomData?.daily_real_earned || 0,
+          seat_number: profile?.seat_number || null,
+          class_name: u.class,
+          qr_token: u.qr_token,
+          managed_by_id: u.managed_by_id
         };
       });
 
-      // 5. Sort
-      const sortedUsers = mergedUsers.sort((a, b) => {
-        // Sort by Class
-        const classA = a.class_name || '';
-        const classB = b.class_name || '';
-
-        if (classA && !classB) return -1;
-        if (!classA && classB) return 1;
-
-        const classCompare = classA.localeCompare(classB, 'zh-HK', { numeric: true });
-        if (classCompare !== 0) return classCompare;
-
-        // Sort by Class Number
-        const seatA = a.seat_number || Number.MAX_SAFE_INTEGER;
-        const seatB = b.seat_number || Number.MAX_SAFE_INTEGER;
-        return seatA - seatB;
-      });
-
-      setUsers(sortedUsers);
+      setUsers(mergedUsers);
     } catch (err) {
-      console.error('Error in fetchUsers:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchUsers();
-    }
-  }, [isAdmin]);
+    fetchUsers();
+  }, [currentUser?.id, forcedAdminId]);
 
-  // Filter users based on admin isolation
   const visibleUsers = useMemo(() => {
-    if (isSuperAdmin) return users; // Super Admin sees all
-    if (!currentUser?.id) return [];
-    return users.filter(u => u.managed_by_id === currentUser.id);
-  }, [users, isSuperAdmin, currentUser?.id]);
+    const activeAdminId = forcedAdminId || currentUser?.id;
+    if (isSuperAdmin && !forcedAdminId) return users;
+    if (!activeAdminId) return [];
+    return users.filter(u => u.managed_by_id === activeAdminId);
+  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCreateError(null);
-    setCreateSuccess(null);
-
-    // Validate input
-    const result = createUserSchema.safeParse({ email, password, displayName, gender });
-    if (!result.success) {
-      setCreateError(result.error.issues[0].message);
-      return;
-    }
-
     setIsCreating(true);
 
     try {
       const { error } = await supabase.functions.invoke('auth/create-user', {
         body: {
-          email: result.data.email,
-          username: result.data.email.split('@')[0],
-          password: result.data.password,
+          email,
+          username: email.split('@')[0],
+          password,
           role: 'user',
-          adminUserId: currentUser?.id,
-          display_name: result.data.displayName,
-          gender: result.data.gender,
+          adminUserId: forcedAdminId || currentUser?.id,
+          display_name: displayName,
+          gender,
         },
       });
 
-      if (error) {
-        setCreateError(error.message || '建立用戶失敗');
-        return;
-      }
+      if (error) throw error;
 
-
-      setCreateSuccess(`用戶 ${result.data.email} 已成功建立`);
+      alert(`用戶 ${displayName} 已成功建立！`);
       setEmail('');
       setPassword('');
       setDisplayName('');
       setGender('unspecified');
       fetchUsers();
-    } catch (err) {
-      setCreateError('建立用戶失敗，請稍後再試');
+    } catch (err: any) {
+      alert(err.message || '建立用戶時發生錯誤');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleAwardCoins = async (userIds: string[], amount: number, reason: string) => {
+  const handleAwardCoins = async (ids: string[], amount: number, reason: string) => {
     try {
-      console.log(`Awarding ${amount} coins to ${userIds.length} users for ${reason}`);
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Use RPC
-      for (const userId of userIds) {
-        const { error } = await (supabase.rpc as any)('increment_room_coins', {
+      const { error } = await (supabase as any).from('coin_logs').insert(
+        ids.map((userId: string) => ({
           target_user_id: userId,
-          amount: amount,
+          amount,
           log_reason: reason,
-          log_admin_id: user?.id
-        });
-
-        if (error) {
-          console.error(`Failed to award coins to ${userId}:`, error);
-        }
-      }
-
-      // Refresh users to show new balance
-      await fetchUsers();
-      setShowAwardModal(false);
-      setSelectedForAward([]);
+          log_admin_id: forcedAdminId || currentUser?.id
+        }))
+      );
+      if (error) throw error;
+      alert(`Successfully awarded ${amount} coins!`);
+      fetchUsers();
     } catch (err) {
-      console.error('Error in handleAwardCoins:', err);
+      console.error('Error awarding coins:', err);
       alert('Failed to award coins');
     }
   };
 
   const handleResetAllCoins = async () => {
-    if (!confirm('Are you sure you want to RESET ALL COINS for all students? This cannot be undone.')) return;
-
+    if (!confirm('Are you sure you want to RESET ALL COINS for all students?')) return;
     try {
       const { error } = await (supabase.rpc as any)('reset_all_coins');
       if (error) throw error;
@@ -263,407 +198,206 @@ export function AdminUsersPage() {
       fetchUsers();
     } catch (err) {
       console.error('Failed to reset coins:', err);
-      alert('Failed to reset coins');
     }
   };
 
-  // ClassDistributor calls this when "Give Feedback" button -> Modal -> then actual award.
-  // Wait, ClassDistributor expects `onAwardCoins` which takes (ids, amount, reason). 
-  // But ClassDistributor doesn't have the modal inside it? 
-  // My ClassDistributor implementation has "Give Feedback" button which should OPEN the modal.
-  // Let's adjust ClassDistributor usage below.
-
-  return (
-    <AdminLayout title="用戶管理" icon={<Users className="w-6 h-6" />}>
-      <div className="p-3 md:p-8">
+  const content = (
+    <>
+      <div className={isEmbedded ? "" : "p-3 md:p-8"}>
         <div className="max-w-6xl mx-auto">
-          {/* Header Actions */}
-          <div className="flex justify-between mb-4">
-            <div className="flex gap-2">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-4">
               <select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
-                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm outline-none"
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none"
               >
                 <option value="all">All Classes</option>
                 {Array.from(new Set(users.map(u => u.class_name).filter(Boolean))).sort().map(className => (
                   <option key={className} value={className!}>{className}</option>
                 ))}
               </select>
+
+              <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                >
+                  <List size={20} />
+                </button>
+                <button
+                  onClick={() => setViewMode('classroom')}
+                  className={`p-2 rounded-md ${viewMode === 'classroom' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                >
+                  <LayoutGrid size={20} />
+                </button>
+              </div>
             </div>
-            {/* Scan QR Button */}
+
             <button
               onClick={() => navigate('/admin/scanner')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold shadow-md"
             >
               <ScanLine size={20} />
               Scan QR
             </button>
-            <button
-              onClick={handleResetAllCoins}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl font-semibold hover:bg-red-100 transition-all shadow-sm"
-              title="Reset all students coins to 0"
-            >
-              <RotateCcw size={18} />
-              Reset All Coins
-            </button>
-            <div className="flex gap-2">
-              {/* Share Link Button */}
-              <button
-                onClick={async () => {
-                  try {
-                    console.log('Generating link for admin:', currentUser?.id);
-
-                    // Determine if we should filter by class
-                    const targetClass = filterClass !== 'all' ? filterClass : undefined;
-
-                    const { data, error } = await supabase.functions.invoke('public-access/create-link', {
-                      body: {
-                        adminUserId: currentUser?.id,
-                        targetClass: targetClass
-                      }
-                    });
-
-                    if (error) {
-                      console.error('Edge Function Error Object:', error);
-                      throw error;
-                    }
-
-                    const url = `${window.location.origin}/class?token=${data.token}`;
-                    await navigator.clipboard.writeText(url);
-                    alert(`Class Public Link ${targetClass ? `for ${targetClass} ` : ''}copied to clipboard!`);
-                  } catch (err: any) {
-                    console.error('Failed to create link detail:', err);
-                    alert('Failed to generate link: ' + (err.message || 'Unknown error'));
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-all shadow-sm"
-              >
-                <Users className="w-5 h-5" />
-                {filterClass !== 'all' ? `Share ${filterClass} Link` : 'Share All Link'}
-              </button>
-
-              <BulkQRCodeExport students={users} />
-            </div>
-            {/* View Toggle */}
-            <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
-                title="List View"
-              >
-                <List size={20} />
-              </button>
-              <button
-                onClick={() => setViewMode('classroom')}
-                className={`p-2 rounded-md transition-all ${viewMode === 'classroom' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
-                title="Classroom View"
-              >
-                <LayoutGrid size={20} />
-              </button>
-            </div>
           </div>
 
-          {viewMode === 'classroom' ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
-              <ClassDistributor
-                users={filterClass === 'all' ? visibleUsers : visibleUsers.filter(u => u.class_name === filterClass)}
-                selectedIds={selectedForAward}
-                onSelectionChange={setSelectedForAward}
-                isLoading={isLoadingUsers}
-                onAwardCoins={async (ids) => {
-                  setSelectedForAward(ids);
-                  setShowAwardModal(true);
-                }}
-                onStudentClick={(student) => setEditingUser(student)}
-                onReorder={async (newOrder) => {
-                  try {
-                    console.log('Starting reorder for users:', newOrder.map(u => u.display_name));
-                    const updates = newOrder.map((user, index) => ({
-                      userId: user.id,
-                      classNumber: index + 1,
-                      class: user.class_name
-                    }));
-
-                    const { data, error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
-                      body: {
-                        adminUserId: currentUser?.id,
-                        updates: updates,
-                        syncAuthMetadata: false // Skip for speed, DB is truth
-                      }
-                    });
-
-                    console.log('Reorder function response:', { data, error });
-
-                    if (error) throw error;
-                    if (data?.errors && data.errors.length > 0) {
-                      console.warn('Some reorder updates failed:', data.errors);
-                    }
-
-                    // Refresh data to ensure everything is in sync
-                    await fetchUsers();
-                    console.log('Refetched users after reorder');
-                  } catch (err) {
-                    console.error('Failed to update seat numbers:', err);
-                    alert('Failed to save order. Please check console.');
-                    throw err;
-                  }
-                }}
-              />
-            </div>
-          ) : (
-            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
-              {/* Create User Form */}
-              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 shadow-sm order-2 md:order-1">
-                <div className="flex items-center gap-2 mb-4">
-                  <UserPlus className="w-5 h-5 text-[hsl(var(--primary))]" />
-                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
-                    建立新用戶
-                  </h2>
-                </div>
-
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <UserPlus className="text-blue-500" />
+                  建立新用戶
+                </h2>
                 <form onSubmit={handleCreateUser} className="space-y-4">
-                  {createError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-[hsl(var(--destructive)/0.1)] text-[hsl(var(--destructive))] text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{createError}</span>
-                    </div>
-                  )}
-
-                  {createSuccess && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 text-green-600 text-sm">
-                      <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{createSuccess}</span>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[hsl(var(--foreground))]">
-                      顯示名稱
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--muted-foreground))]" />
-                      <input
-                        type="text"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="用戶名稱"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                        disabled={isCreating}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[hsl(var(--foreground))]">
-                      電郵地址
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--muted-foreground))]" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="user@example.com"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                        disabled={isCreating}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[hsl(var(--foreground))]">
-                      初始密碼
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[hsl(var(--muted-foreground))]" />
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="至少6個字符"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                        disabled={isCreating}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Gender Selection */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[hsl(var(--foreground))]">
-                      性別
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="gender"
-                          value="male"
-                          checked={gender === 'male'}
-                          onChange={() => setGender('male')}
-                          disabled={isCreating}
-                          className="text-[hsl(var(--primary))]"
-                        />
-                        <span className="text-sm text-[hsl(var(--foreground))]">男</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="gender"
-                          value="female"
-                          checked={gender === 'female'}
-                          onChange={() => setGender('female')}
-                          disabled={isCreating}
-                          className="text-[hsl(var(--primary))]"
-                        />
-                        <span className="text-sm text-[hsl(var(--foreground))]">女</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="gender"
-                          value="unspecified"
-                          checked={gender === 'unspecified'}
-                          onChange={() => setGender('unspecified')}
-                          disabled={isCreating}
-                          className="text-[hsl(var(--primary))]"
-                        />
-                        <span className="text-sm text-[hsl(var(--foreground))]">不指定</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowDefaultSettings(true)}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                      預設設定
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating}
-                      className="flex-1 py-2.5 px-4 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      {isCreating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          建立中...
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-4 h-4" />
-                          建立用戶
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <input
+                    type="email"
+                    placeholder="電郵地址"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="密碼"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="顯示名稱"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    required
+                  />
+                  <select
+                    value={gender}
+                    onChange={(e: any) => setGender(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                  >
+                    <option value="unspecified">性別 (不詳)</option>
+                    <option value="male">男</option>
+                    <option value="female">女</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={isCreating}
+                    className="w-full py-2 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
+                  >
+                    {isCreating ? '處理中...' : '建立用戶'}
+                  </button>
                 </form>
               </div>
-
-              {/* Users List */}
-              <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] p-4 md:p-6 shadow-sm order-1 md:order-2 h-fit">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-5 h-5 text-[hsl(var(--primary))]" />
-                  <h2 className="text-base md:text-lg font-semibold text-[hsl(var(--foreground))]">
-                    用戶列表
-                  </h2>
-                </div>
-
-                {isLoadingUsers ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--muted-foreground))]" />
-                  </div>
-                ) : visibleUsers.length === 0 ? (
-                  <p className="text-center py-8 text-[hsl(var(--muted-foreground))]">
-                    暫無用戶
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
-                    {visibleUsers
-                      .filter(u => filterClass === 'all' || u.class_name === filterClass)
-                      .map((user) => (
-                        <div
-                          key={user.id}
-                          className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--muted)/0.5)] border border-transparent hover:border-[hsl(var(--border))] transition-all active:scale-[0.99]"
-                        >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="relative shrink-0">
-                              <div className="w-10 h-10 rounded-full bg-[hsl(var(--primary)/0.1)] flex items-center justify-center overflow-hidden shrink-0">
-                                {user.avatar_url ? (
-                                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                                ) : (
-                                  <User className="w-5 h-5 text-[hsl(var(--primary))]" />
-                                )}
-                              </div>
-                              {user.seat_number && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-slate-800 text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white">
-                                  {user.seat_number}
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-[hsl(var(--foreground))] truncate text-sm md:text-base">
-                                {user.display_name || '未設定名稱'}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
-                                {user.class_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium whitespace-nowrap">
-                                    {user.class_name}
-                                  </span>
-                                )}
-                                {user.seat_number && (
-                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
-                                    #{user.seat_number}
-                                  </span>
-                                )}
-                                <span className="hidden sm:inline">
-                                  {new Date(user.created_at).toLocaleDateString('zh-HK')}
-                                </span>
-                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold">
-                                  🪙 {user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}
-                                  <span className="text-[10px] opacity-75">({user.virtual_coins || 0})</span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0 ml-2">
-                            {user.is_admin && (
-                              <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] text-[10px] font-bold uppercase tracking-wider">
-                                <Shield className="w-3 h-3" />
-                                <span className="hidden md:inline">管理員</span>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => user.qr_token && setQrUser({
-                                id: user.id,
-                                name: user.display_name || '未命名',
-                                qrToken: user.qr_token
-                              })}
-                              className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
-                              title="顯示 QR Code"
-                              disabled={!user.qr_token}
-                            >
-                              <QrCode className="w-5 h-5 md:w-4 md:h-4" />
-                            </button>
-                            <button
-                              onClick={() => setEditingUser(user)}
-                              className="p-2 rounded-lg hover:bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors active:bg-slate-200"
-                              title="編輯用戶"
-                            >
-                              <Pencil className="w-5 h-5 md:w-4 md:h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <button
+                  onClick={() => setShowDefaultSettings(true)}
+                  className="w-full py-2 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold border border-slate-200 flex items-center justify-center gap-2"
+                >
+                  <Settings size={20} />
+                  默認權限
+                </button>
+                <button
+                  onClick={handleResetAllCoins}
+                  className="w-full py-2 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold border border-red-100 flex items-center justify-center gap-2"
+                >
+                  <RotateCcw size={20} />
+                  重置金幣
+                </button>
               </div>
+              <BulkQRCodeExport students={visibleUsers} />
             </div>
-          )}
+
+            <div className="lg:col-span-3">
+              {viewMode === 'classroom' ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
+                  <ClassDistributor
+                    users={filterClass === 'all' ? visibleUsers : visibleUsers.filter(u => u.class_name === filterClass)}
+                    selectedIds={selectedForAward}
+                    onSelectionChange={setSelectedForAward}
+                    isLoading={isLoadingUsers}
+                    onAwardCoins={async (ids) => {
+                      setSelectedForAward(ids);
+                      setShowAwardModal(true);
+                    }}
+                    onStudentClick={(student) => setEditingUser(student as UserWithProfile)}
+                    onReorder={async (newOrder) => {
+                      try {
+                        const updates = newOrder.map((user, index) => ({
+                          userId: user.id,
+                          classNumber: index + 1,
+                          class: user.class_name
+                        }));
+                        await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+                          body: { adminUserId: forcedAdminId || currentUser?.id, updates }
+                        });
+                        await fetchUsers();
+                      } catch (err) {
+                        console.error('Failed to reorder:', err);
+                      }
+                    }}
+                    avatarCatalog={[]}
+                  />
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="px-6 py-4 font-bold text-slate-600">學生</th>
+                          <th className="px-6 py-4 font-bold text-slate-600">班別/學號</th>
+                          <th className="px-6 py-4 font-bold text-slate-600">金幣</th>
+                          <th className="px-6 py-4 font-bold text-slate-600 text-right">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {isLoadingUsers ? (
+                          <tr><td colSpan={4} className="text-center py-20 text-slate-400">Loading...</td></tr>
+                        ) : visibleUsers.length === 0 ? (
+                          <tr><td colSpan={4} className="text-center py-20 text-slate-400">沒有學生數據</td></tr>
+                        ) : (
+                          visibleUsers
+                            .filter(u => filterClass === 'all' || u.class_name === filterClass)
+                            .map(user => (
+                              <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-slate-800">{user.display_name}</div>
+                                  <div className="text-sm text-slate-500">{user.email}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
+                                  <span className="text-slate-400 font-medium">#{user.seat_number || '-'}</span>
+                                </td>
+                                <td className="px-6 py-4 font-black text-blue-600">{user.coins || 0}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button
+                                    onClick={() => setQrUser({ id: user.id, name: user.display_name || user.email, qrToken: user.qr_token || '' })}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  >
+                                    <QrCode size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingUser(user)}
+                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                  >
+                                    <Pencil size={18} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -675,29 +409,34 @@ export function AdminUsersPage() {
         onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
       />
 
-      {/* Edit Modal */}
       {editingUser && (
         <UserEditModal
           user={editingUser}
           isOpen={!!editingUser}
           onClose={() => setEditingUser(null)}
           onSuccess={fetchUsers}
-          adminUserId={currentUser?.id || ""}
+          adminUserId={forcedAdminId || currentUser?.id || ""}
         />
       )}
 
-      {/* Default Settings Modal */}
       <DefaultUserSettingsModal
         isOpen={showDefaultSettings}
         onClose={() => setShowDefaultSettings(false)}
       />
 
-      {/* QR Code Modal */}
       <StudentQRCodeModal
         isOpen={!!qrUser}
         onClose={() => setQrUser(null)}
         student={qrUser}
       />
+    </>
+  );
+
+  if (isEmbedded) return content;
+
+  return (
+    <AdminLayout title="用戶管理" icon={<Users className="w-6 h-6" />}>
+      {content}
     </AdminLayout>
   );
 }

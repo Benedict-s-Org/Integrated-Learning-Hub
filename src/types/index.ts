@@ -45,7 +45,13 @@ export interface AppContextType {
   refreshSavedContents: () => Promise<void>;
 }
 
-export type AppPage = 'new' | 'saved' | 'admin' | 'publicPractice' | 'proofreading' | 'adminAvatarUploader' | 'avatarBuilder';
+export type PageType =
+  | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
+  | 'proofreading' | 'spelling' | 'progress' | 'assignments'
+  | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
+  | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner';
+
+export type AppPage = PageType;
 
 export interface ProofreadingSentence {
   text: string;
@@ -112,6 +118,13 @@ export interface AuthContextType {
   setIsMobileEmulator: (val: boolean) => void;
   accentPreference: string;
   updateAccentPreference: (accent: string) => Promise<void>;
+  impersonatedAdminId?: string | null;
+  setImpersonatedAdminId: (id: string | null) => void;
+  isImpersonating: boolean;
+  realUser: UserProfile | null;
+  realIsAdmin: boolean;
+  realIsSuperAdmin: boolean;
+  realIsSuperAdminLoading: boolean;
 }
 
 export interface SpellingPracticeList {

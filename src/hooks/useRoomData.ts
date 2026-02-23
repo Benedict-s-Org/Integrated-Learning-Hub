@@ -45,7 +45,7 @@ const safeArray = <T>(data: unknown): T[] => {
   return [];
 };
 
-export const useRoomData = () => {
+export const useRoomData = (palaceId: string | null = null) => {
   console.log("useRoomData: Hook called");
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   console.log("useRoomData: Auth state", { hasUser: !!user, authLoading });
@@ -68,11 +68,18 @@ export const useRoomData = () => {
       setIsLoading(true);
       setError(null);
 
-      const { data: roomData, error: fetchError } = await supabase
+      let query = supabase
         .from("user_room_data")
         .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle() as any;
+        .eq("user_id", user.id);
+
+      if (palaceId) {
+        query = query.eq("room_id", palaceId);
+      } else {
+        query = query.is("room_id", null);
+      }
+
+      const { data: roomData, error: fetchError } = await query.maybeSingle() as any;
 
       if (fetchError) throw fetchError;
 
@@ -160,22 +167,29 @@ export const useRoomData = () => {
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSaving(true);
+        const payload: any = {
+          placements: newData.placements,
+          wall_placements: newData.wallPlacements,
+          inventory: newData.inventory,
+          custom_catalog: newData.customCatalog,
+          custom_models: newData.customModels,
+          custom_walls: newData.customWalls,
+          custom_floors: newData.customFloors,
+          active_wall_id: newData.activeWallId,
+          active_floor_id: newData.activeFloorId,
+          house_level: newData.houseLevel,
+          coins: isAdmin ? 0 : newData.coins, // Don't save admin funds
+          user_id: user.id
+        };
+
+        if (palaceId) {
+          payload.room_id = palaceId;
+        }
+
+        // Use upsert instead of update to handle new palaces
         const { error: updateError } = await supabase
           .from("user_room_data")
-          .update({
-            placements: newData.placements,
-            wall_placements: newData.wallPlacements,
-            inventory: newData.inventory,
-            custom_catalog: newData.customCatalog,
-            custom_models: newData.customModels,
-            custom_walls: newData.customWalls,
-            custom_floors: newData.customFloors,
-            active_wall_id: newData.activeWallId,
-            active_floor_id: newData.activeFloorId,
-            house_level: newData.houseLevel,
-            coins: isAdmin ? 0 : newData.coins, // Don't save admin funds
-          } as any)
-          .eq("user_id", user.id);
+          .upsert(payload, { onConflict: palaceId ? 'user_id, room_id' : 'user_id' });
 
         if (updateError) throw updateError;
       } catch (err) {
@@ -196,7 +210,7 @@ export const useRoomData = () => {
       setIsLoading(false);
       hasInitializedRef.current = false;
     }
-  }, [user, authLoading, loadData]);
+  }, [user, authLoading, loadData, palaceId]);
 
   // Save when data changes
   useEffect(() => {

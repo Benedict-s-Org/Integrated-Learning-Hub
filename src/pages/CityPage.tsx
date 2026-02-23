@@ -5,20 +5,22 @@ import { useCityLayout } from "@/hooks/useCityLayout";
 import { useRoomData } from "@/hooks/useRoomData";
 import { Loader2, Map } from "lucide-react";
 import type { Building, BuildingCatalogItem } from "@/types/city";
-import { DEFAULT_BUILDING_STYLES, CITY_LEVELS } from "@/constants/cityLevels";
+import { CITY_LEVELS } from "@/constants/cityLevels";
 
 export function CityPage() {
   const navigate = useNavigate();
   const [showShop, setShowShop] = useState(false);
-  
+
   const {
     buildings,
     decorations,
     cityLevel,
+    cameraSettings,
     isLoading,
     error,
     addBuilding,
     setCityLevel,
+    setCameraSettings,
     saveLayout,
   } = useCityLayout();
 
@@ -33,7 +35,7 @@ export function CityPage() {
       }
     }, 2000);
     return () => clearTimeout(autoSave);
-  }, [buildings, decorations, cityLevel, isLoading, saveLayout]);
+  }, [buildings, decorations, cityLevel, cameraSettings, isLoading, saveLayout]);
 
   // Handle building purchase
   const handlePurchaseBuilding = useCallback((item: BuildingCatalogItem) => {
@@ -46,12 +48,13 @@ export function CityPage() {
     setCoins(coins - item.cost);
 
     // Find an empty position for the new building
-    const gridSize = CITY_LEVELS[cityLevel]?.cityGridSize || 16;
-    let newPos = { x: 2, y: 2 };
-    
+    const gridSize = CITY_LEVELS[cityLevel]?.cityGridSize || 8;
+    let newPos = { x: 1, y: 1 };
+
     // Simple placement - find first empty spot
-    for (let y = 2; y < gridSize - item.size.depth; y += 4) {
-      for (let x = 2; x < gridSize - item.size.width; x += 4) {
+    let found = false;
+    for (let y = 1; y <= gridSize - item.size.depth; y++) {
+      for (let x = 1; x <= gridSize - item.size.width; x++) {
         const occupied = buildings.some(
           (b) =>
             x < b.position.x + b.size.width &&
@@ -61,9 +64,11 @@ export function CityPage() {
         );
         if (!occupied) {
           newPos = { x, y };
+          found = true;
           break;
         }
       }
+      if (found) break;
     }
 
     // Create new building
@@ -84,7 +89,7 @@ export function CityPage() {
   const handleUpgradeCity = useCallback(() => {
     const nextLevel = CITY_LEVELS[cityLevel + 1];
     if (!nextLevel) return;
-    
+
     if (coins < nextLevel.unlockCost) {
       alert("金幣不足！");
       return;
@@ -128,6 +133,16 @@ export function CityPage() {
         decorations={decorations}
         cityLevel={cityLevel}
         coins={coins}
+        zoom={cameraSettings?.zoom}
+        cameraOffset={cameraSettings?.offset}
+        onViewStateChange={(state) => {
+          if (state.zoom !== undefined || state.cameraOffset !== undefined) {
+            setCameraSettings({
+              zoom: state.zoom ?? cameraSettings.zoom,
+              offset: state.cameraOffset ?? cameraSettings.offset,
+            });
+          }
+        }}
         onOpenShop={() => setShowShop(true)}
       />
 

@@ -67,6 +67,7 @@ import { AssetUploadCenter } from './components/ui-builder/AssetUploadCenter';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { TransformPanel } from './components/TransformPanel';
 import { MarkerGenerator } from './components/admin/MarkerGenerator';
+import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 
 type AppState =
@@ -180,6 +181,12 @@ function AppContent() {
     const handleToggle = (e: any) => setShowComponentInspector(e.detail);
     window.addEventListener('toggle-component-inspector', handleToggle);
     return () => window.removeEventListener('toggle-component-inspector', handleToggle);
+  }, []);
+
+  useEffect(() => {
+    const handleToggleNav = (e: any) => setIsNavOpen(e.detail);
+    window.addEventListener('toggle-navigation', handleToggleNav);
+    return () => window.removeEventListener('toggle-navigation', handleToggleNav);
   }, []);
 
   // Close login modal when user signs in
@@ -1351,100 +1358,109 @@ function App() {
 }
 
 function AppRoutes() {
-  return (
-    <Routes>
-      {/* Standalone pages inside Auth/Theme context */}
-      <Route
-        path="/reward/:qrToken"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <RewardPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/ui-builder"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <AdminUIBuilderPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <AdminUsersPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/super-admin-panel"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <SuperAdminPanel />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/scanner"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <QRScannerPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/marker-generator"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <MarkerGenerator onBack={() => window.history.back()} />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/progress"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <AdminProgressPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/admin/city-editor"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <AdminCityEditorPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/region"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <RegionPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/phonics"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <PhonicsLayout />
-          </Suspense>
-        }
-      >
-        <Route index element={<PhonicsSoundWall />} />
-        <Route path="wall" element={<PhonicsSoundWall />} />
-        <Route path="blending" element={<BlendingBoard />} />
-        <Route path="games" element={<PhonicsGameHub />} />
-        <Route path="quiz" element={<PhonicsQuiz />} />
-        <Route path="builder" element={<WordBuilder />} />
-      </Route>
+  const { isImpersonating, user, setImpersonatedAdminId } = useAuth();
 
-      {/* Legacy app logic for all other routes */}
-      <Route path="*" element={<AppProviderWrapper />} />
-    </Routes>
+  return (
+    <div className="min-h-screen flex flex-col overflow-hidden">
+      {isImpersonating && (
+        <ImpersonationBanner
+          name={user?.display_name || user?.username || 'Admin'}
+          onExit={() => setImpersonatedAdminId(null)}
+        />
+      )}
+      <div className="flex-1 overflow-hidden relative">
+        <Routes>
+          <Route
+            path="/reward/:qrToken"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <RewardPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/ui-builder"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminUIBuilderPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/super-admin-panel"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <SuperAdminPanel />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/scanner"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <QRScannerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/marker-generator"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <MarkerGenerator onBack={() => window.history.back()} />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/progress"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminProgressPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/city-editor"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminCityEditorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/region"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <RegionPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/phonics"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <PhonicsLayout />
+              </Suspense>
+            }
+          >
+            <Route index element={<PhonicsSoundWall />} />
+            <Route path="wall" element={<PhonicsSoundWall />} />
+            <Route path="blending" element={<BlendingBoard />} />
+            <Route path="games" element={<PhonicsGameHub />} />
+            <Route path="quiz" element={<PhonicsQuiz />} />
+            <Route path="builder" element={<WordBuilder />} />
+          </Route>
+          <Route path="*" element={<AppProviderWrapper />} />
+        </Routes>
+      </div>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import type { Building, CityDecoration, CityLayout } from "@/types/city";
+import type { Building, CityDecoration } from "@/types/city";
 import { INITIAL_CITY_LAYOUT } from "@/constants/cityLevels";
 
 // Helper for deep comparison to prevent unnecessary re-renders/loops
@@ -11,6 +11,7 @@ export interface UseCityLayoutReturn {
   buildings: Building[];
   decorations: CityDecoration[];
   cityLevel: number;
+  cameraSettings: { zoom: number; offset: { x: number; y: number } };
   isLoading: boolean;
   error: string | null;
   addBuilding: (building: Omit<Building, "id">) => void;
@@ -19,7 +20,9 @@ export interface UseCityLayoutReturn {
   addDecoration: (decoration: Omit<CityDecoration, "id">) => void;
   removeDecoration: (id: string) => void;
   setCityLevel: (level: number) => void;
+  setCameraSettings: (settings: { zoom: number; offset: { x: number; y: number } }) => void;
   saveLayout: () => Promise<void>;
+  refreshMetadata: () => Promise<void>;
 }
 
 export function useCityLayout(): UseCityLayoutReturn {
@@ -27,6 +30,7 @@ export function useCityLayout(): UseCityLayoutReturn {
   const [buildings, setBuildings] = useState<Building[]>(INITIAL_CITY_LAYOUT.buildings);
   const [decorations, setDecorations] = useState<CityDecoration[]>(INITIAL_CITY_LAYOUT.decorations);
   const [cityLevel, setCityLevel] = useState(0);
+  const [cameraSettings, setCameraSettings] = useState(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +65,7 @@ export function useCityLayout(): UseCityLayoutReturn {
             setBuildings(customData.cityLayout.buildings || INITIAL_CITY_LAYOUT.buildings);
             setDecorations(customData.cityLayout.decorations || INITIAL_CITY_LAYOUT.decorations);
             setCityLevel(customData.cityLayout.cityLevel || 0);
+            setCameraSettings(customData.cityLayout.cameraSettings || INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
           }
         }
       } catch (err) {
@@ -104,6 +109,11 @@ export function useCityLayout(): UseCityLayoutReturn {
               const next = newLayout.cityLevel ?? 0;
               return prev !== next ? next : prev;
             });
+
+            setCameraSettings((prev) => {
+              const next = newLayout.cameraSettings || INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } };
+              return isDifferent(prev, next) ? next : prev;
+            });
           }
         }
       )
@@ -113,6 +123,54 @@ export function useCityLayout(): UseCityLayoutReturn {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // Fetch memory metadata (review counts, total points) for buildings
+  const fetchMetadata = useCallback(async () => {
+    if (!user || buildings.length === 0) return;
+
+    try {
+      // Fetch all cards for the user from the 'cards' table
+      const { data: cardsData, error: cardsError } = await supabase
+        .from('cards')
+        .select('id, palace_id, due')
+        .eq('user_id', user.id);
+
+      if (cardsError) throw cardsError;
+
+      const now = new Date().toISOString();
+      const counts: Record<string, { due: number; total: number }> = {};
+
+      (cardsData || []).forEach((card: any) => {
+        const palaceId = card.palace_id;
+        if (!palaceId) return;
+
+        if (!counts[palaceId]) {
+          counts[palaceId] = { due: 0, total: 0 };
+        }
+
+        counts[palaceId].total += 1;
+        if (card.due && card.due <= now) {
+          counts[palaceId].due += 1;
+        }
+      });
+
+      // Update buildings with metadata
+      setBuildings((prev) =>
+        prev.map((b) => ({
+          ...b,
+          reviewCount: counts[b.id]?.due || 0,
+          totalMemoryPoints: counts[b.id]?.total || 0,
+        }))
+      );
+    } catch (err) {
+      console.error("Error fetching memory metadata:", err);
+    }
+  }, [user, buildings.length]);
+
+  // Refresh metadata when buildings or user changes
+  useEffect(() => {
+    fetchMetadata();
+  }, [fetchMetadata]);
 
   // Add a new building
   const addBuilding = useCallback((building: Omit<Building, "id">) => {
@@ -202,6 +260,7 @@ export function useCityLayout(): UseCityLayoutReturn {
         buildings: mergedBuildings,
         decorations: mergedDecorations,
         cityLevel,
+        cameraSettings,
         updatedAt: new Date().toISOString(),
       };
 
@@ -213,14 +272,14 @@ export function useCityLayout(): UseCityLayoutReturn {
       if (existingData) {
         await supabase
           .from("user_room_data")
-          .update({ custom_catalog: updatedCatalog })
+          .update({ custom_catalog: updatedCatalog as any })
           .eq("id", existingData.id);
       } else {
         await supabase
           .from("user_room_data")
           .insert({
             user_id: user.id,
-            custom_catalog: updatedCatalog,
+            custom_catalog: updatedCatalog as any,
           });
       }
     } catch (err) {
@@ -233,6 +292,7 @@ export function useCityLayout(): UseCityLayoutReturn {
     buildings,
     decorations,
     cityLevel,
+    cameraSettings,
     isLoading,
     error,
     addBuilding,
@@ -241,6 +301,8 @@ export function useCityLayout(): UseCityLayoutReturn {
     addDecoration,
     removeDecoration,
     setCityLevel,
+    setCameraSettings,
     saveLayout,
+    refreshMetadata: fetchMetadata,
   };
 }

@@ -43,6 +43,7 @@ function MemoryPalaceContent({ }: { onExit?: () => void }) {
     toggleMemoryPanel,
     toggleMemoryMode,
     setView,
+    setActivePalaceId,
     studySession
   } = context;
 
@@ -352,9 +353,15 @@ function MemoryPalaceContent({ }: { onExit?: () => void }) {
               decorations={cityDecorations}
               cityLevel={cityLevel}
               coins={coins}
-              onBuildingClick={() => setView("room")}
+              onBuildingClick={(building) => {
+                setActivePalaceId(building.id);
+                setView("room");
+              }}
               onOpenShop={toggleShop}
-              onBackToRoom={() => setView("room")}
+              onBackToRoom={() => {
+                setActivePalaceId(null); // Return to default room or last room?
+                setView("room");
+              }}
             />
           ) : (
             regionData && (

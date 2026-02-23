@@ -1,11 +1,10 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useDefaultAssets } from "@/hooks/useDefaultAssets";
 import { useNavigate } from "react-router-dom";
 import { Coins } from "lucide-react";
 import type { Building, CityDecoration, CityViewState } from "@/types/city";
 import { BuildingExterior } from "./BuildingExterior";
 import { CityDecorations } from "./CityDecorations";
-import { StreetRenderer } from "./StreetRenderer";
 import { CITY_LEVELS, INITIAL_CITY_LAYOUT } from "@/constants/cityLevels";
 import { CARTOON_PALETTE } from "@/constants/cityStyleGuide";
 
@@ -17,6 +16,9 @@ interface CityMapProps {
   onBuildingClick?: (building: Building) => void;
   onOpenShop?: () => void;
   onBackToRoom?: () => void;
+  zoom?: number;
+  cameraOffset?: { x: number; y: number };
+  onViewStateChange?: (state: Partial<CityViewState>) => void;
 }
 
 // Fluffy cloud component
@@ -44,17 +46,23 @@ export function CityMap({
   onBuildingClick,
   onOpenShop,
   onBackToRoom,
+  zoom: initialZoom,
+  cameraOffset: initialOffset,
+  onViewStateChange,
 }: CityMapProps) {
   const navigate = useNavigate();
+  const svgRef = useRef<SVGSVGElement>(null);
   const { defaultTerrain } = useDefaultAssets();
+
+  const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
 
   const [viewState, setViewState] = useState<CityViewState>({
     selectedBuildingId: null,
     hoveredBuildingId: null,
     isPlacingBuilding: false,
     placingBuildingType: null,
-    cameraOffset: { x: 0, y: 0 },
-    zoom: 1,
+    cameraOffset: initialOffset || INITIAL_CITY_LAYOUT.cameraSettings?.offset || { x: 0, y: 0 },
+    zoom: initialZoom || INITIAL_CITY_LAYOUT.cameraSettings?.zoom || 1,
   });
 
   // Get grid size based on city level
@@ -69,7 +77,7 @@ export function CityMap({
   const svgWidth = 800;
   const svgHeight = 600;
   const centerX = svgWidth / 2 + viewState.cameraOffset.x;
-  const centerY = 100 + viewState.cameraOffset.y;
+  const centerY = svgHeight / 2 + viewState.cameraOffset.y;
 
   // Convert grid coordinates to isometric screen coordinates
   const toIso = useCallback((x: number, y: number) => {
@@ -79,7 +87,49 @@ export function CityMap({
     };
   }, [centerX, centerY, tileWidth, tileHeight]);
 
-  // Generate ground tiles with cute cartoon colors
+  // Convert screen coordinates back to grid coordinates
+  const fromIso = useCallback((screenX: number, screenY: number) => {
+    const relX = screenX - centerX;
+    const relY = screenY - centerY;
+
+    const gridX = (relX / (tileWidth / 2) + relY / (tileHeight / 2)) / 2;
+    const gridY = (relY / (tileHeight / 2) - relX / (tileWidth / 2)) / 2;
+
+    return {
+      x: Math.round(gridX),
+      y: Math.round(gridY),
+    };
+  }, [centerX, centerY, tileWidth, tileHeight]);
+
+  // Get SVG coordinates from mouse event
+  const getSVGCoords = useCallback((e: React.MouseEvent) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+
+    const svgPt = pt.matrixTransform(ctm.inverse());
+    return { x: svgPt.x, y: svgPt.y };
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const coords = getSVGCoords(e);
+    const gridPos = fromIso(coords.x, coords.y);
+
+    // Validate if on grid
+    if (gridPos.x >= 0 && gridPos.x < gridSize && gridPos.y >= 0 && gridPos.y < gridSize) {
+      setHoveredTile(gridPos);
+    } else {
+      setHoveredTile(null);
+    }
+  }, [getSVGCoords, fromIso, gridSize]);
+
+  // Generate ground tiles with terrain transform support
   const groundTiles = useMemo(() => {
     const tiles: React.ReactNode[] = [];
 
@@ -90,26 +140,60 @@ export function CityMap({
         const p3 = toIso(x + 1, y + 1);
         const p4 = toIso(x, y + 1);
 
-        // Alternate grass shades for visual interest
+        // Fallback colors
         const isLightTile = (x + y) % 2 === 0;
         const fillColor = isLightTile
           ? CARTOON_PALETTE.ground.grass
           : CARTOON_PALETTE.ground.grassLight;
 
-        tiles.push(
-          <polygon
-            key={`ground-${x}-${y}`}
-            points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`}
-            fill={defaultTerrain ? "url(#grass-pattern)" : fillColor}
-            stroke={defaultTerrain ? "transparent" : CARTOON_PALETTE.ground.grassDark}
-            strokeWidth={0.3}
-          />
-        );
+        if (defaultTerrain) {
+          const config = (defaultTerrain?.config as any) || {};
+          const masterScale = config.scale ?? 2.1;
+          const multiplier = config.anchorMultiplier ?? 0.65;
+          const offsetX = config.offsetX ?? 0;
+          const offsetY = config.offsetY ?? 0;
+          const sx = (config.scaleX ?? 100) / 100;
+          const sy = (config.scaleY ?? 100) / 100;
+
+          const scaledWidth = tileWidth * masterScale * sx;
+          const scaledHeight = tileHeight * masterScale * sy;
+
+          const imageX = p1.x - scaledWidth / 2 + offsetX;
+          const imageY = p1.y + tileHeight - scaledHeight * multiplier + offsetY;
+
+          tiles.push(
+            <g key={`ground-${x}-${y}`}>
+              <image
+                x={imageX}
+                y={imageY}
+                width={scaledWidth}
+                height={scaledHeight}
+                href={defaultTerrain.image_url}
+                preserveAspectRatio="none"
+                style={{
+                  transformBox: 'fill-box',
+                  transformOrigin: 'center',
+                  transform: `skewX(${config.skewX ?? 0}deg) skewY(${config.skewY ?? 0}deg)`
+                }}
+              />
+            </g>
+          );
+        } else {
+          tiles.push(
+            <polygon
+              key={`ground-${x}-${y}`}
+              points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`}
+              fill={fillColor}
+              stroke={CARTOON_PALETTE.ground.grassDark}
+              strokeWidth={0.3}
+            />
+          );
+        }
       }
     }
 
     return tiles;
-  }, [gridSize, toIso, defaultTerrain]);
+  }, [gridSize, toIso, defaultTerrain, tileWidth, tileHeight]);
 
   // Handle building click
   const handleBuildingClick = useCallback((building: Building) => {
@@ -191,13 +275,21 @@ export function CityMap({
       {/* Zoom controls - cute rounded style */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
         <button
-          onClick={() => setViewState(s => ({ ...s, zoom: Math.min(2, s.zoom + 0.1) }))}
+          onClick={() => {
+            const newZoom = Math.min(2, viewState.zoom + 0.1);
+            setViewState(s => ({ ...s, zoom: newZoom }));
+            onViewStateChange?.({ zoom: newZoom });
+          }}
           className="w-11 h-11 bg-white/90 border-2 border-[hsl(30,40%,80%)] rounded-xl flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-md text-lg font-bold text-[hsl(30,50%,45%)]"
         >
           +
         </button>
         <button
-          onClick={() => setViewState(s => ({ ...s, zoom: Math.max(0.5, s.zoom - 0.1) }))}
+          onClick={() => {
+            const newZoom = Math.max(0.5, viewState.zoom - 0.1);
+            setViewState(s => ({ ...s, zoom: newZoom }));
+            onViewStateChange?.({ zoom: newZoom });
+          }}
           className="w-11 h-11 bg-white/90 border-2 border-[hsl(30,40%,80%)] rounded-xl flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-md text-lg font-bold text-[hsl(30,50%,45%)]"
         >
           −
@@ -206,11 +298,14 @@ export function CityMap({
 
       {/* Main SVG Canvas */}
       <svg
+        ref={svgRef}
         width="100%"
         height="100%"
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         preserveAspectRatio="xMidYMid meet"
         style={{ transform: `scale(${viewState.zoom})`, transformOrigin: "center" }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoveredTile(null)}
       >
         {/* Patterns and Definitions */}
         <defs>
@@ -245,8 +340,21 @@ export function CityMap({
           {groundTiles}
         </g>
 
-        {/* Streets layer */}
-        <StreetRenderer gridSize={gridSize} toIso={toIso} />
+        {/* Hover Highlight */}
+        {hoveredTile && (
+          <polygon
+            points={`
+              ${toIso(hoveredTile.x, hoveredTile.y).x},${toIso(hoveredTile.x, hoveredTile.y).y}
+              ${toIso(hoveredTile.x + 1, hoveredTile.y).x},${toIso(hoveredTile.x + 1, hoveredTile.y).y}
+              ${toIso(hoveredTile.x + 1, hoveredTile.y + 1).x},${toIso(hoveredTile.x + 1, hoveredTile.y + 1).y}
+              ${toIso(hoveredTile.x, hoveredTile.y + 1).x},${toIso(hoveredTile.x, hoveredTile.y + 1).y}
+            `}
+            fill="rgba(255, 255, 255, 0.2)"
+            stroke="rgba(255, 255, 255, 0.5)"
+            strokeWidth={1}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
 
         {/* Decorations layer (trees, lamps, etc.) - rendered before buildings for depth */}
         <CityDecorations decorations={sortedDecorations} toIso={toIso} />

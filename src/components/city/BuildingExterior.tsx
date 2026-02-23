@@ -29,7 +29,7 @@ function CustomImageBuilding({
   onMouseLeave,
 }: BuildingExteriorProps) {
   const { size, isUnlocked, customImageUrl, transform } = building;
-  
+
   // Get transform parameters with defaults
   const {
     offsetX = 0,
@@ -39,19 +39,19 @@ function CustomImageBuilding({
     scaleY = 100,
     rotation = 0,
   } = transform || {};
-  
+
   // Calculate base dimensions
   const baseWidth = size.width * tileWidth;
   const baseHeight = size.depth * tileHeight * 2; // Taller for isometric perspective
-  
+
   // Apply transform scaling
   const finalWidth = baseWidth * scale * (scaleX / 100);
   const finalHeight = baseHeight * scale * (scaleY / 100);
-  
+
   // Isometric wall dimensions for selection highlight
   const leftWallWidth = size.depth * (tileWidth / 2);
   const rightWallWidth = size.width * (tileWidth / 2);
-  
+
   return (
     <g
       transform={`translate(${isoX + offsetX}, ${isoY + offsetY})`}
@@ -113,27 +113,42 @@ function CustomImageBuilding({
         </g>
       )}
 
-      {/* Building name label */}
-      {isHovered && (
-        <g transform={`translate(0, ${-baseHeight - 20})`}>
-          <rect
-            x={-55}
-            y={-14}
-            width={110}
-            height={28}
-            fill="white"
-            stroke="hsl(30, 40%, 80%)"
-            strokeWidth={2}
-            rx={8}
-          />
+      {/* Building name label - Always visible for identified Memory Palaces */}
+      <g transform={`translate(0, ${-finalHeight - 20})`}>
+        <rect
+          x={-55}
+          y={-14}
+          width={110}
+          height={28}
+          fill="white"
+          stroke={isSelected ? "hsl(45, 90%, 60%)" : "hsl(30, 40%, 80%)"}
+          strokeWidth={2}
+          rx={8}
+          opacity={0.95}
+        />
+        <text
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={12}
+          fill="hsl(30, 50%, 35%)"
+          fontWeight="700"
+        >
+          {building.name}
+        </text>
+      </g>
+
+      {/* Review Badge */}
+      {building.reviewCount && building.reviewCount > 0 && (
+        <g transform={`translate(50, ${-finalHeight - 25})`}>
+          <circle r={12} fill="#ef4444" stroke="white" strokeWidth={2} className="animate-pulse" />
           <text
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={12}
-            fill="hsl(30, 50%, 35%)"
-            fontWeight="600"
+            fontSize={10}
+            fill="white"
+            fontWeight="bold"
           >
-            {building.name}
+            {building.reviewCount}
           </text>
         </g>
       )}
@@ -172,19 +187,19 @@ export function BuildingExterior({
   }
 
   const { size, type, isUnlocked } = building;
-  
+
   // Get cartoon style for building type
   const cartoonStyle = CARTOON_BUILDING_STYLES[type as keyof typeof CARTOON_BUILDING_STYLES] || CARTOON_BUILDING_STYLES.house;
   const stories = building.exteriorStyle?.stories || 1;
-  
+
   // Calculate building dimensions in pixels
   const storyHeight = 32;
   const buildingHeight = stories * storyHeight;
-  
+
   // Isometric wall dimensions
   const leftWallWidth = size.depth * (tileWidth / 2);
   const rightWallWidth = size.width * (tileWidth / 2);
-  
+
   // Darken/lighten helper for HSL colors
   const adjustLightness = (color: string, amount: number) => {
     const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
@@ -201,7 +216,7 @@ export function BuildingExterior({
     const windows: React.ReactNode[] = [];
     const windowCount = Math.max(1, Math.floor(wallWidth / 28));
     const windowSpacing = wallWidth / (windowCount + 1);
-    
+
     for (let s = 0; s < stories; s++) {
       for (let w = 0; w < windowCount; w++) {
         const wx = windowSpacing * (w + 1);
@@ -441,27 +456,42 @@ export function BuildingExterior({
         </g>
       )}
 
-      {/* Building name label - cute style */}
-      {isHovered && (
-        <g transform={`translate(0, ${-buildingHeight - roofHeight - 35})`}>
-          <rect
-            x={-55}
-            y={-14}
-            width={110}
-            height={28}
-            fill="white"
-            stroke="hsl(30, 40%, 80%)"
-            strokeWidth={2}
-            rx={8}
-          />
+      {/* Building name label - Always visible */}
+      <g transform={`translate(0, ${-buildingHeight - roofHeight - 35})`}>
+        <rect
+          x={-55}
+          y={-14}
+          width={110}
+          height={28}
+          fill="white"
+          stroke={isSelected ? "hsl(45, 90%, 60%)" : "hsl(30, 40%, 80%)"}
+          strokeWidth={2}
+          rx={8}
+          opacity={0.95}
+        />
+        <text
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={12}
+          fill="hsl(30, 50%, 35%)"
+          fontWeight="700"
+        >
+          {building.name}
+        </text>
+      </g>
+
+      {/* Review Badge */}
+      {building.reviewCount && building.reviewCount > 0 && (
+        <g transform={`translate(50, ${-buildingHeight - roofHeight - 40})`}>
+          <circle r={12} fill="#ef4444" stroke="white" strokeWidth={2} className="animate-pulse" />
           <text
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={12}
-            fill="hsl(30, 50%, 35%)"
-            fontWeight="600"
+            fontSize={10}
+            fill="white"
+            fontWeight="bold"
           >
-            {building.name}
+            {building.reviewCount}
           </text>
         </g>
       )}

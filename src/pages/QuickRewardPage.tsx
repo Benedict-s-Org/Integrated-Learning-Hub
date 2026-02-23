@@ -3,14 +3,13 @@ import { useParams } from 'react-router-dom';
 import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star, AlertTriangle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { ClassReward } from '@/components/admin/CoinAwardModal';
+import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import { playSuccessSound } from '@/utils/audio';
 import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
-const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-// Special reward handling is now done via robust string matching
 
 interface StudentInfo {
     id: string;
@@ -44,6 +43,13 @@ export function QuickRewardPage() {
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    const getEffectiveSubOptions = (reward: ClassReward) => {
+        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
+            return reward.sub_options;
+        }
+        return DEFAULT_SUB_OPTIONS;
+    };
 
     // Initialize: Check Auth & Fetch Student & Rewards
     useEffect(() => {
@@ -151,33 +157,17 @@ export function QuickRewardPage() {
         }
     };
 
-    // Sub-option handlers
-    const handleSubOptionToggle = (option: string) => {
-        if (!pendingSubOptions) return;
-        const selected = pendingSubOptions.selected.includes(option)
-            ? pendingSubOptions.selected.filter(o => o !== option)
-            : [...pendingSubOptions.selected, option];
-        setPendingSubOptions({ ...pendingSubOptions, selected });
-    };
-
-    const handleSubOptionSubmit = () => {
-        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
-        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
-        handleAward(pendingSubOptions.reward.coins, reason);
-        setPendingSubOptions(null);
-    };
 
     const handleRewardClick = (item: ClassReward) => {
         if (awarding) return;
 
         // In custom mode, clicking the item itself does nothing unless it's a special reward
-        // The confirm button handles awarding for custom amounts
         if (isCustomMode) return;
 
-        // Robust title matching for "完成班務（欠功課）"
-        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
+        const effectiveSubs = getEffectiveSubOptions(item);
+        const hasSubs = Object.keys(effectiveSubs).length > 0;
 
-        if (isSpecialReward) {
+        if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAward(item.coins, item.title);
@@ -283,45 +273,17 @@ export function QuickRewardPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 relative">
-            {/* Sub-option Selection Overlay */}
+            {/* Sub-option Selection Overlay (Shared Component) */}
             {pendingSubOptions && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
-                        <h3 className="text-xl font-bold text-gray-800 mb-1 text-center">{pendingSubOptions.reward.title}</h3>
-                        <p className="text-[10px] text-gray-400 mb-6 text-center uppercase tracking-widest font-bold">Total 10 Coins</p>
-
-                        <div className="grid grid-cols-2 gap-2 mb-8">
-                            {SUB_OPTIONS.map(opt => (
-                                <button
-                                    key={opt}
-                                    onClick={() => handleSubOptionToggle(opt)}
-                                    className={`px-3 py-3 rounded-2xl border-2 font-bold transition-all text-sm
-                                        ${pendingSubOptions.selected.includes(opt)
-                                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                                            : 'border-gray-50 bg-gray-50/50 text-gray-400 hover:border-gray-100'}`}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setPendingSubOptions(null)}
-                                className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-colors text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSubOptionSubmit}
-                                disabled={pendingSubOptions.selected.length === 0}
-                                className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95 text-sm"
-                            >
-                                Award Coins
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <RewardSubOptionOverlay
+                    reward={pendingSubOptions.reward}
+                    onClose={() => setPendingSubOptions(null)}
+                    onSubmit={(selectedItems) => {
+                        const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
+                        handleAward(pendingSubOptions.reward.coins, reason);
+                        setPendingSubOptions(null);
+                    }}
+                />
             )}
 
             <div className="w-full max-w-md bg-white rounded-3xl shadow-lg p-6 text-center mt-4 border border-gray-100">

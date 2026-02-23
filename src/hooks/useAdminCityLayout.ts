@@ -7,6 +7,7 @@ export interface AdminCityLayoutReturn {
   buildings: Building[];
   decorations: CityDecoration[];
   cityLevel: number;
+  cameraSettings: { zoom: number; offset: { x: number; y: number } };
   coins: number;
   isLoading: boolean;
   error: string | null;
@@ -14,6 +15,7 @@ export interface AdminCityLayoutReturn {
   setBuildings: React.Dispatch<React.SetStateAction<Building[]>>;
   setDecorations: React.Dispatch<React.SetStateAction<CityDecoration[]>>;
   setCityLevel: React.Dispatch<React.SetStateAction<number>>;
+  setCameraSettings: React.Dispatch<React.SetStateAction<{ zoom: number, offset: { x: number, y: number } }>>;
   setCoins: React.Dispatch<React.SetStateAction<number>>;
   addBuilding: (building: Omit<Building, "id">) => void;
   updateBuilding: (id: string, updates: Partial<Building>) => void;
@@ -29,6 +31,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
   const [buildings, setBuildings] = useState<Building[]>(INITIAL_CITY_LAYOUT.buildings);
   const [decorations, setDecorations] = useState<CityDecoration[]>(INITIAL_CITY_LAYOUT.decorations);
   const [cityLevel, setCityLevel] = useState(0);
+  const [cameraSettings, setCameraSettings] = useState(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
   const [coins, setCoins] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,17 +59,20 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
           setBuildings(customData.cityLayout.buildings || INITIAL_CITY_LAYOUT.buildings);
           setDecorations(customData.cityLayout.decorations || INITIAL_CITY_LAYOUT.decorations);
           setCityLevel(customData.cityLayout.cityLevel || 0);
+          setCameraSettings(customData.cityLayout.cameraSettings || INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
         } else {
           // User has no city layout yet, use defaults
           setBuildings(INITIAL_CITY_LAYOUT.buildings);
           setDecorations(INITIAL_CITY_LAYOUT.decorations);
           setCityLevel(0);
+          setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
         }
       } else {
         // No user_room_data record, use defaults
         setBuildings(INITIAL_CITY_LAYOUT.buildings);
         setDecorations(INITIAL_CITY_LAYOUT.decorations);
         setCityLevel(0);
+        setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
         setCoins(0);
       }
     } catch (err) {
@@ -135,6 +141,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
         buildings,
         decorations,
         cityLevel,
+        cameraSettings,
         updatedAt: new Date().toISOString(),
       };
 
@@ -146,8 +153,8 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
       if (existingData) {
         const { error: updateError } = await supabase
           .from("user_room_data")
-          .update({ 
-            custom_catalog: updatedCatalog,
+          .update({
+            custom_catalog: updatedCatalog as any,
             coins: coins,
           })
           .eq("id", existingData.id);
@@ -156,11 +163,11 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
       } else {
         const { error: insertError } = await supabase
           .from("user_room_data")
-          .insert({
+          .insert(({
             user_id: userId,
-            custom_catalog: updatedCatalog,
+            custom_catalog: updatedCatalog as any,
             coins: coins,
-          });
+          } as any));
 
         if (insertError) throw insertError;
       }
@@ -178,12 +185,14 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
     setBuildings(INITIAL_CITY_LAYOUT.buildings);
     setDecorations(INITIAL_CITY_LAYOUT.decorations);
     setCityLevel(0);
+    setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
   }, []);
 
   return {
     buildings,
     decorations,
     cityLevel,
+    cameraSettings,
     coins,
     isLoading,
     error,
@@ -191,6 +200,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
     setBuildings,
     setDecorations,
     setCityLevel,
+    setCameraSettings,
     setCoins,
     addBuilding,
     updateBuilding,

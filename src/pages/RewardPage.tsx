@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Check, ArrowLeft, Loader2, AlertCircle, Settings2, Star, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { CoinAwardModal, ClassReward } from '@/components/admin/CoinAwardModal';
+import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import React from 'react';
-
-const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-// Special reward handling is now done via robust string matching
 
 export function RewardPage() {
     const { qrToken } = useParams<{ qrToken: string }>();
@@ -25,6 +23,13 @@ export function RewardPage() {
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    const getEffectiveSubOptions = (reward: ClassReward) => {
+        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
+            return reward.sub_options;
+        }
+        return DEFAULT_SUB_OPTIONS;
+    };
 
     // Check if current user is admin and fetch student info
     useEffect(() => {
@@ -95,22 +100,6 @@ export function RewardPage() {
         setConsequences(allItems.filter((i: any) => i.coins <= 0));
     };
 
-    // Sub-option handlers
-    const handleSubOptionToggle = (option: string) => {
-        if (!pendingSubOptions) return;
-        const selected = pendingSubOptions.selected.includes(option)
-            ? pendingSubOptions.selected.filter(o => o !== option)
-            : [...pendingSubOptions.selected, option];
-        setPendingSubOptions({ ...pendingSubOptions, selected });
-    };
-
-    const handleSubOptionSubmit = () => {
-        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
-        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
-        handleAward(pendingSubOptions.reward.coins, reason);
-        setPendingSubOptions(null);
-    };
-
     // Award coins to the student
     const handleAward = async (amount: number, reason: string) => {
         if (!student || awarding) return;
@@ -147,8 +136,11 @@ export function RewardPage() {
 
     const onRewardClick = (reward: ClassReward) => {
         if (awarding) return;
-        const isSpecialReward = reward.title.includes("完成班務") && reward.title.includes("欠功課");
-        if (isSpecialReward) {
+
+        const effectiveSubs = getEffectiveSubOptions(reward);
+        const hasSubs = Object.keys(effectiveSubs).length > 0;
+
+        if (hasSubs) {
             setPendingSubOptions({ reward, selected: [] });
         } else {
             handleAward(reward.coins, reward.title);
@@ -189,45 +181,17 @@ export function RewardPage() {
     // Main reward interface
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4 sm:p-8 relative">
-            {/* Sub-option Selection Overlay */}
+            {/* Sub-option Selection Overlay (Shared Component) */}
             {pendingSubOptions && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
-                        <h3 className="text-xl font-bold text-gray-800 mb-2 text-center">{pendingSubOptions.reward.title}</h3>
-                        <p className="text-sm text-gray-500 mb-8 text-center">Select subjects to complete (Total 10 Coins)</p>
-
-                        <div className="grid grid-cols-2 gap-3 mb-8">
-                            {SUB_OPTIONS.map(opt => (
-                                <button
-                                    key={opt}
-                                    onClick={() => handleSubOptionToggle(opt)}
-                                    className={`px-4 py-4 rounded-2xl border-2 font-bold transition-all text-center
-                                        ${pendingSubOptions.selected.includes(opt)
-                                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                                            : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'}`}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setPendingSubOptions(null)}
-                                className="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSubOptionSubmit}
-                                disabled={pendingSubOptions.selected.length === 0}
-                                className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
-                            >
-                                Award 10 Coins
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <RewardSubOptionOverlay
+                    reward={pendingSubOptions.reward}
+                    onClose={() => setPendingSubOptions(null)}
+                    onSubmit={(selectedItems) => {
+                        const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
+                        handleAward(pendingSubOptions.reward.coins, reason);
+                        setPendingSubOptions(null);
+                    }}
+                />
             )}
 
             {/* Header */}

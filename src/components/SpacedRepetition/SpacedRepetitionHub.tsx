@@ -7,7 +7,7 @@ import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
 interface SpacedRepetitionHubProps {
   onCreateNew: () => void;
-  onStartLearning: (setId?: string) => void;
+  onStartLearning: (setId?: string, setTitle?: string) => void;
   onEditSet: (setId: string) => void;
   onViewAnalytics: () => void;
   onViewSettings: () => void;
@@ -315,7 +315,7 @@ export function SpacedRepetitionHub({
 
                     <div className="flex gap-2 mt-auto">
                       <button
-                        onClick={() => onStartLearning(set.id)}
+                        onClick={() => onStartLearning(set.id, set.title)}
                         className="flex-1 px-3 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition-colors text-sm"
                       >
                         Practice
@@ -381,7 +381,7 @@ export function SpacedRepetitionHub({
                     </div>
 
                     <button
-                      onClick={() => onStartLearning(set.id)}
+                      onClick={() => onStartLearning(set.id, set.title)}
                       className="w-full px-3 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 transition-colors text-sm flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4" />

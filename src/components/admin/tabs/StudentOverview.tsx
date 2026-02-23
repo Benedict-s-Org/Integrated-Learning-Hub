@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, Star, AlertTriangle, Trash2, Plus, Check } from 'lucide-react';
-import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
+import { RewardSubOptionOverlay } from '../RewardSubOptionOverlay';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
 import React from 'react';
@@ -27,7 +28,6 @@ interface Transaction {
     created_at: string;
 }
 
-const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
 
 export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode = false, guestToken }: StudentOverviewProps) {
     const { isAdmin } = useAuth();
@@ -45,6 +45,13 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    const getEffectiveSubOptions = (reward: ClassReward) => {
+        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
+            return reward.sub_options;
+        }
+        return DEFAULT_SUB_OPTIONS;
+    };
 
     useEffect(() => {
         if (student?.id) {
@@ -85,20 +92,6 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
         }
     };
 
-    const handleSubOptionToggle = (option: string) => {
-        if (!pendingSubOptions) return;
-        const selected = pendingSubOptions.selected.includes(option)
-            ? pendingSubOptions.selected.filter(o => o !== option)
-            : [...pendingSubOptions.selected, option];
-        setPendingSubOptions({ ...pendingSubOptions, selected });
-    };
-
-    const handleSubOptionSubmit = () => {
-        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
-        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
-        handleAwardCoins(pendingSubOptions.reward.coins, reason);
-        setPendingSubOptions(null);
-    };
 
     const handleItemClick = (item: ClassReward) => {
         if (isSubmitting) return;
@@ -106,10 +99,10 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
         // In custom mode, clicking the item itself does nothing unless it's a special reward
         if (isCustomMode) return;
 
-        // Robust title matching for "完成班務（欠功課）"
-        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
+        const effectiveSubs = getEffectiveSubOptions(item);
+        const hasSubs = Object.keys(effectiveSubs).length > 0;
 
-        if (isSpecialReward) {
+        if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAwardCoins(item.coins, item.title);
@@ -206,45 +199,17 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
     return (
         <div className="space-y-6 relative flex flex-col h-full">
-            {/* Sub-option Selection Overlay (Modal style context) */}
+            {/* Sub-option Selection Overlay (Shared Component) */}
             {pendingSubOptions && (
-                <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-                        <h3 className="text-lg font-bold text-slate-800 mb-1 text-center">{pendingSubOptions.reward.title}</h3>
-                        <p className="text-[10px] text-slate-400 mb-6 text-center uppercase tracking-widest font-bold">Total 10 Coins</p>
-
-                        <div className="grid grid-cols-2 gap-2 mb-6">
-                            {SUB_OPTIONS.map(opt => (
-                                <button
-                                    key={opt}
-                                    onClick={() => handleSubOptionToggle(opt)}
-                                    className={`px-3 py-3 rounded-xl border-2 font-bold transition-all text-xs
-                                        ${pendingSubOptions.selected.includes(opt)
-                                            ? 'border-blue-500 bg-blue-50 text-blue-600'
-                                            : 'border-slate-50 bg-slate-50/50 text-slate-400 hover:border-slate-100'}`}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setPendingSubOptions(null)}
-                                className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors text-xs"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSubOptionSubmit}
-                                disabled={pendingSubOptions.selected.length === 0}
-                                className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95 text-xs"
-                            >
-                                Award 10 Coins
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <RewardSubOptionOverlay
+                    reward={pendingSubOptions.reward}
+                    onClose={() => setPendingSubOptions(null)}
+                    onSubmit={(selectedItems) => {
+                        const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
+                        handleAwardCoins(pendingSubOptions.reward.coins, reason);
+                        setPendingSubOptions(null);
+                    }}
+                />
             )}
 
             {/* Layout Reordered for Reachability: Activity TOP, Rewards BOTTOM */}

@@ -1,6 +1,6 @@
 import {
-    X, Heart, Star, Zap, Trophy, BookOpen, Users,
-    AlertCircle, Clock, XCircle, Plus, Trash2, Edit2, Check,
+    Heart, Star, Zap, Trophy, BookOpen, Users,
+    AlertCircle, Clock, XCircle, Check,
     Lightbulb, Flame, Award, ThumbsUp, Medal, Crown, Target,
     Smile, Frown, AlertTriangle, Ban,
     Gift, Rocket, Gem, PartyPopper, ShieldCheck, Sun, Moon,
@@ -48,3 +48,11 @@ export const REWARD_COLOR_OPTIONS = [
     { name: 'Teal', class: 'text-teal-500 bg-teal-100' },
     { name: 'Indigo', class: 'text-indigo-500 bg-indigo-100' },
 ];
+
+export const DEFAULT_SUB_OPTIONS: Record<string, string[]> = {
+    "中文": ["預習冊", "詞語", "語基冊", "課練冊", "視聽冊", "實用冊", "作文", "補充", "閱補", "閱讀理解工作紙", "書練習"],
+    "英文": ["WS1", "WS2", "WS3", "Pen", "GE(A)", "GE(B)", "Word Bank", "RWD", "Dict C/S", "Writing WS", "All-in-One", "Handwriting"],
+    "數學": ["A簿", "B簿", "作業", "補充", "複工", "難工", "知多啲", "3下A 工", "3下b 工", "書"],
+    "常識": [],
+    "其他": []
+};

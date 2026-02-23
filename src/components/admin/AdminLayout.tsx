@@ -15,7 +15,6 @@ import {
   Database,
   LayoutGrid,
   Camera,
-  QrCode,
   Crown,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
@@ -26,6 +25,8 @@ interface AdminLayoutProps {
   children: React.ReactNode;
   title: string;
   icon?: React.ReactNode;
+  hideSidebar?: boolean;
+  hideHeader?: boolean;
 }
 
 interface NavItem {
@@ -35,7 +36,7 @@ interface NavItem {
   onClick?: () => void;
 }
 
-export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
+export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: AdminLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showMapEditor, setShowMapEditor] = useState(false);
@@ -172,12 +173,14 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Desktop Sidebar */}
-      <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-72 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
-        <SidebarContent />
-      </aside>
+      {!hideSidebar && (
+        <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-72 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
+          <SidebarContent />
+        </aside>
+      )}
 
       {/* Mobile Drawer */}
-      {isMobileMenuOpen && (
+      {!hideSidebar && isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
@@ -189,26 +192,28 @@ export function AdminLayout({ children, title, icon }: AdminLayoutProps) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Header */}
-        <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4">
-          <div className="flex items-center gap-3 md:gap-5">
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className={`${isMobileEmulator ? 'flex' : 'md:hidden'} p-2 rounded-xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all`}
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+        {!hideHeader && (
+          <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4">
+            <div className="flex items-center gap-3 md:gap-5">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className={`${isMobileEmulator ? 'flex' : 'md:hidden'} p-2 rounded-xl bg-white hover:bg-white/80 text-primary shadow-sm hover:shadow transition-all`}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
 
-            {icon && (
-              <div className="hidden md:block p-4 rounded-3xl bg-primary shadow-lg shadow-primary/20 text-white animate-sway-gentle">
-                {icon}
-              </div>
-            )}
-            <h1 className="text-lg md:text-3xl font-black text-primary tracking-tight truncate">
-              {title}
-            </h1>
-          </div>
-        </header>
+              {icon && (
+                <div className="hidden md:block p-4 rounded-3xl bg-primary shadow-lg shadow-primary/20 text-white animate-sway-gentle">
+                  {icon}
+                </div>
+              )}
+              <h1 className="text-lg md:text-3xl font-black text-primary tracking-tight truncate">
+                {title}
+              </h1>
+            </div>
+          </header>
+        )}
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">

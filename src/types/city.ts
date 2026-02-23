@@ -28,6 +28,9 @@ export interface Building {
   customAssetId?: string;
   // Transform parameters for custom images
   transform?: CityTransformData;
+  // Memory Palace metadata for map indicators
+  reviewCount?: number;       // Number of items due for review
+  totalMemoryPoints?: number; // Total items stored in this building
 }
 
 // Visual styling for building exteriors
@@ -61,6 +64,9 @@ export interface CityDecoration {
   customAssetId?: string;
   // Transform parameters for custom images
   transform?: CityTransformData;
+  // Memory Palace metadata for map indicators
+  reviewCount?: number;       // Number of items due for review
+  totalMemoryPoints?: number; // Total items stored in this building
 }
 
 // Complete city layout
@@ -71,6 +77,10 @@ export interface CityLayout {
   streets: StreetSegment[];
   decorations: CityDecoration[];
   cityLevel: number;
+  cameraSettings?: {
+    zoom: number;
+    offset: { x: number; y: number };
+  };
   createdAt?: string;
   updatedAt?: string;
 }

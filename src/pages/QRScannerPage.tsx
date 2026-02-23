@@ -18,13 +18,12 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { ClassReward } from '@/components/admin/CoinAwardModal';
+import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
-const SUB_OPTIONS = ["中文", "英文", "數學", "常識", "其他"];
-// Special reward handling is now done via robust string matching
 
 interface ScannedStudent {
     id: string;
@@ -49,6 +48,13 @@ export function QRScannerPage() {
 
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+
+    const getEffectiveSubOptions = (reward: ClassReward) => {
+        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
+            return reward.sub_options;
+        }
+        return DEFAULT_SUB_OPTIONS;
+    };
 
     // Login State
     const [accessCode, setAccessCode] = useState('');
@@ -289,28 +295,14 @@ export function QRScannerPage() {
         };
     }, [user, scannerState, scanTrigger, handleScanSuccess, startDetectionLoop]);
 
-    const handleSubOptionToggle = (option: string) => {
-        if (!pendingSubOptions) return;
-        const selected = pendingSubOptions.selected.includes(option)
-            ? pendingSubOptions.selected.filter(o => o !== option)
-            : [...pendingSubOptions.selected, option];
-        setPendingSubOptions({ ...pendingSubOptions, selected });
-    };
-
-    const handleSubOptionSubmit = () => {
-        if (!pendingSubOptions || pendingSubOptions.selected.length === 0) return;
-        const reason = `${pendingSubOptions.reward.title}: ${pendingSubOptions.selected.join(', ')}`;
-        handleAward(pendingSubOptions.reward.coins, reason);
-        setPendingSubOptions(null);
-    };
 
     const handleRewardClick = (item: ClassReward) => {
         if (awarding) return;
 
-        // Robust title matching for "完成班務（欠功課）"
-        const isSpecialReward = item.title.includes("完成班務") && item.title.includes("欠功課");
+        const effectiveSubs = getEffectiveSubOptions(item);
+        const hasSubs = Object.keys(effectiveSubs).length > 0;
 
-        if (isSpecialReward) {
+        if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
             handleAward(item.coins, item.title);
@@ -381,24 +373,18 @@ export function QRScannerPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white relative">
+            {/* Sub-option Selection Overlay (Shared Component) */}
             {pendingSubOptions && (
-                <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md p-4 flex items-center justify-center animate-in fade-in duration-300">
-                    <div className="bg-slate-800 rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <h3 className="text-xl font-bold mb-1 text-center">{pendingSubOptions.reward.title}</h3>
-                        <p className="text-[10px] text-white/40 mb-8 text-center uppercase tracking-widest font-bold">Total 10 Coins</p>
-                        <div className="grid grid-cols-2 gap-3 mb-8">
-                            {SUB_OPTIONS.map(opt => (
-                                <button key={opt} onClick={() => handleSubOptionToggle(opt)} className={`px-4 py-4 rounded-2xl border-2 font-bold transition-all text-sm ${pendingSubOptions.selected.includes(opt) ? 'border-blue-500 bg-blue-500/20 text-blue-400' : 'border-white/5 bg-white/5 text-white/40 hover:border-white/20'}`}>
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex gap-4">
-                            <button onClick={() => setPendingSubOptions(null)} className="flex-1 py-4 text-white/60 font-bold hover:bg-white/5 rounded-2xl transition-colors">Cancel</button>
-                            <button onClick={handleSubOptionSubmit} disabled={pendingSubOptions.selected.length === 0} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all active:scale-95">Award 10 Coins</button>
-                        </div>
-                    </div>
-                </div>
+                <RewardSubOptionOverlay
+                    reward={pendingSubOptions.reward}
+                    onClose={() => setPendingSubOptions(null)}
+                    onSubmit={(selectedItems) => {
+                        const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
+                        handleAward(pendingSubOptions.reward.coins, reason);
+                        setPendingSubOptions(null);
+                    }}
+                    isDark={true}
+                />
             )}
 
             <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10">

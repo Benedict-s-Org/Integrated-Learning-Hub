@@ -55,7 +55,7 @@ export default function AdminCityEditorPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  
+
   // Panel state
   const [activePanel, setActivePanel] = useState<"buildings" | "decorations" | "settings" | "templates">("buildings");
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
@@ -121,11 +121,11 @@ export default function AdminCityEditorPage() {
 
   const handleSave = async () => {
     if (!selectedUserId) return;
-    
+
     setSaveStatus("saving");
     const success = await saveLayout(selectedUserId);
     setSaveStatus(success ? "saved" : "error");
-    
+
     if (success) {
       setTimeout(() => setSaveStatus("idle"), 2000);
     }
@@ -175,13 +175,13 @@ export default function AdminCityEditorPage() {
     }
 
     // Find available position
-    const gridSize = currentLevel?.cityGridSize || 16;
+    const gridSize = currentLevel?.cityGridSize || 8;
     let position = { x: Math.floor(gridSize / 2), y: Math.floor(gridSize / 2) };
-    
+
     // Simple collision check - find first available spot
     let attempts = 0;
     while (attempts < 100) {
-      const collision = buildings.some(b => 
+      const collision = buildings.some(b =>
         Math.abs(b.position.x - position.x) < catalogItem.size.width &&
         Math.abs(b.position.y - position.y) < catalogItem.size.depth
       );
@@ -205,8 +205,8 @@ export default function AdminCityEditorPage() {
 
   const handleAddDecoration = (type: CityDecoration["type"]) => {
     const currentLevel = CITY_LEVELS.find(l => l.level === cityLevel);
-    const gridSize = currentLevel?.cityGridSize || 16;
-    
+    const gridSize = currentLevel?.cityGridSize || 8;
+
     // Random position within grid
     const position = {
       x: Math.floor(Math.random() * gridSize),
@@ -270,13 +270,12 @@ export default function AdminCityEditorPage() {
                 <button
                   onClick={handleSave}
                   disabled={saveStatus === "saving"}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    saveStatus === "saved"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${saveStatus === "saved"
                       ? "bg-green-600 text-white"
                       : saveStatus === "error"
-                      ? "bg-red-600 text-white"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  }`}
+                        ? "bg-red-600 text-white"
+                        : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    }`}
                 >
                   <Save className="w-4 h-4" />
                   {saveStatus === "saving" ? "儲存中..." : saveStatus === "saved" ? "已儲存" : "儲存"}
@@ -297,44 +296,40 @@ export default function AdminCityEditorPage() {
               <div className="flex border-b border-slate-700/50">
                 <button
                   onClick={() => setActivePanel("buildings")}
-                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                    activePanel === "buildings"
+                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "buildings"
                       ? "bg-slate-800 text-white border-b-2 border-emerald-500"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Building2 className="w-4 h-4 inline mr-1" />
                   建築
                 </button>
                 <button
                   onClick={() => setActivePanel("decorations")}
-                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                    activePanel === "decorations"
+                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "decorations"
                       ? "bg-slate-800 text-white border-b-2 border-emerald-500"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Trees className="w-4 h-4 inline mr-1" />
                   裝飾
                 </button>
                 <button
                   onClick={() => setActivePanel("settings")}
-                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                    activePanel === "settings"
+                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "settings"
                       ? "bg-slate-800 text-white border-b-2 border-emerald-500"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Coins className="w-4 h-4 inline mr-1" />
                   設定
                 </button>
                 <button
                   onClick={() => setActivePanel("templates")}
-                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
-                    activePanel === "templates"
+                  className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "templates"
                       ? "bg-slate-800 text-white border-b-2 border-emerald-500"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <FileJson className="w-4 h-4 inline mr-1" />
                   模板
@@ -354,11 +349,10 @@ export default function AdminCityEditorPage() {
                             key={item.id}
                             onClick={() => handleAddBuilding(item)}
                             disabled={item.requiredCityLevel > cityLevel}
-                            className={`p-2 rounded-lg text-xs text-left transition-colors ${
-                              item.requiredCityLevel > cityLevel
+                            className={`p-2 rounded-lg text-xs text-left transition-colors ${item.requiredCityLevel > cityLevel
                                 ? "bg-slate-800/50 text-slate-500 cursor-not-allowed"
                                 : "bg-slate-800 hover:bg-slate-700 text-white"
-                            }`}
+                              }`}
                           >
                             <div className="font-medium">{item.name}</div>
                             <div className="text-slate-400 mt-1">
@@ -383,11 +377,10 @@ export default function AdminCityEditorPage() {
                           {buildings.map((building) => (
                             <div
                               key={building.id}
-                              className={`p-3 rounded-lg transition-colors cursor-pointer ${
-                                selectedBuildingId === building.id
+                              className={`p-3 rounded-lg transition-colors cursor-pointer ${selectedBuildingId === building.id
                                   ? "bg-emerald-600/20 border border-emerald-500/50"
                                   : "bg-slate-800 hover:bg-slate-700"
-                              }`}
+                                }`}
                               onClick={() => setSelectedBuildingId(building.id)}
                             >
                               <div className="flex items-center justify-between">
@@ -518,11 +511,10 @@ export default function AdminCityEditorPage() {
                           {decorations.map((decoration) => (
                             <div
                               key={decoration.id}
-                              className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
-                                selectedDecorationId === decoration.id
+                              className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${selectedDecorationId === decoration.id
                                   ? "bg-emerald-600/20 border border-emerald-500/50"
                                   : "bg-slate-800 hover:bg-slate-700"
-                              }`}
+                                }`}
                               onClick={() => setSelectedDecorationId(decoration.id)}
                             >
                               <div className="text-xs">
@@ -564,9 +556,9 @@ export default function AdminCityEditorPage() {
                                 type="number"
                                 value={decorations.find(d => d.id === selectedDecorationId)?.position.x ?? 0}
                                 onChange={(e) => updateDecoration(selectedDecorationId, {
-                                  position: { 
+                                  position: {
                                     ...decorations.find(d => d.id === selectedDecorationId)!.position,
-                                    x: parseInt(e.target.value) || 0 
+                                    x: parseInt(e.target.value) || 0
                                   }
                                 })}
                                 className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm"
@@ -578,9 +570,9 @@ export default function AdminCityEditorPage() {
                                 type="number"
                                 value={decorations.find(d => d.id === selectedDecorationId)?.position.y ?? 0}
                                 onChange={(e) => updateDecoration(selectedDecorationId, {
-                                  position: { 
+                                  position: {
                                     ...decorations.find(d => d.id === selectedDecorationId)!.position,
-                                    y: parseInt(e.target.value) || 0 
+                                    y: parseInt(e.target.value) || 0
                                   }
                                 })}
                                 className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm"

@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronLeft, Clock } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Clock, LifeBuoy, HelpCircle, Save, Loader2, CheckCircle2 } from 'lucide-react';
 import { SpacedRepetitionQuestion } from '../../types';
+import { InteractiveText } from './InteractiveText';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 interface QuestionCardProps {
   question: SpacedRepetitionQuestion;
+  setTitle?: string;
   questionNumber: number;
   totalQuestions: number;
   onAnswer: (selectedIndex: number, responseTime: number) => Promise<void> | void;
@@ -15,6 +19,7 @@ interface QuestionCardProps {
 
 export function QuestionCard({
   question,
+  setTitle,
   questionNumber,
   totalQuestions,
   onAnswer,
@@ -23,12 +28,19 @@ export function QuestionCard({
   onSaveAndExit,
   canGoNext,
 }: QuestionCardProps) {
+  const { profile } = useAuth();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [startTime] = useState(Date.now());
   const [responseTime, setResponseTime] = useState(0);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [answerTimer, setAnswerTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Help Mode State
+  const [isHelpMode, setIsHelpMode] = useState(false);
+  const [selectedText, setSelectedText] = useState<string | null>(null);
+  const [isSavingUnknown, setIsSavingUnknown] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleSelectAnswer = (index: number) => {
     if (showFeedback) return;
@@ -59,6 +71,40 @@ export function QuestionCard({
 
   const isCorrect = selectedIndex === question.correct_answer_index;
 
+  const handleSaveUnknown = async (forceWholeQuestion = false) => {
+    const textToSave = forceWholeQuestion ? question.question_text : selectedText;
+    if (!textToSave) return;
+
+    setIsSavingUnknown(true);
+    setSaveSuccess(false);
+
+    try {
+      const type = forceWholeQuestion ? 'Whole Question' : (textToSave.split(' ').length > 1 ? 'Phrase' : 'Word');
+
+      const { data, error } = await supabase.functions.invoke('notion-api/save-unknown', {
+        body: {
+          text: textToSave,
+          type: type,
+          context: question.question_text,
+          setId: setTitle || question.set_id,
+          userName: profile?.display_name || profile?.username || "Anonymous Student"
+        }
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      setSaveSuccess(true);
+      setSelectedText(null);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save to Notion:", err);
+      alert("Failed to save to Notion. Please check your connection and Notion setup.");
+    } finally {
+      setIsSavingUnknown(false);
+    }
+  };
+
   return (
     <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 sm:p-6 pb-24 md:pb-8">
       <div className="max-w-2xl mx-auto flex flex-col h-full">
@@ -74,19 +120,78 @@ export function QuestionCard({
               Question {questionNumber} of {totalQuestions}
             </p>
           </div>
-          <button
-            onClick={handleExit}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-100"
-          >
-            Save & Exit
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsHelpMode(!isHelpMode);
+                setSelectedText(null);
+              }}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm font-bold rounded-lg transition-all shadow-sm ${isHelpMode
+                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                } border`}
+            >
+              <LifeBuoy size={16} className={isHelpMode ? "animate-pulse" : ""} />
+              {isHelpMode ? 'Help Active' : 'Help'}
+            </button>
+            <button
+              onClick={handleExit}
+              className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-red-100"
+            >
+              Save & Exit
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-5 sm:p-8 mb-4 sm:mb-6">
           <div className="mb-5 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
-              {question.question_text}
-            </h2>
+            <div className="flex items-start justify-between gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
+                <InteractiveText
+                  text={question.question_text}
+                  isEnabled={isHelpMode}
+                  onSelectionChange={setSelectedText}
+                />
+              </h2>
+              {isHelpMode && (
+                <button
+                  onClick={() => handleSaveUnknown(true)}
+                  className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition-colors shrink-0"
+                  title="Don't understand the whole question?"
+                >
+                  <HelpCircle size={24} />
+                </button>
+              )}
+            </div>
+
+            {isHelpMode && (selectedText || isSavingUnknown || saveSuccess) && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-amber-800 uppercase tracking-tight">Selection</span>
+                  <p className="text-sm text-amber-900 font-medium truncate italic">
+                    "{selectedText || 'Saving...'}"
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleSaveUnknown(false)}
+                  disabled={isSavingUnknown || saveSuccess || !selectedText}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md ${saveSuccess
+                    ? 'bg-green-500 text-white'
+                    : 'bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50'
+                    }`}
+                >
+                  {isSavingUnknown ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : saveSuccess ? (
+                    <CheckCircle2 size={16} />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  {saveSuccess ? 'Saved' : 'Save Unknown'}
+                </button>
+              </div>
+            )}
+
             {question.image_url && (
               <div className="mt-6">
                 <img
@@ -114,44 +219,49 @@ export function QuestionCard({
 
           <div className="space-y-2 sm:space-y-3">
             {question.choices.map((choice, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSelectAnswer(idx)}
-                disabled={showFeedback}
-                className={`w-full p-3 sm:p-4 text-left border-2 rounded-lg transition-all duration-200 ${selectedIndex === idx
-                  ? isCorrect
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-red-500 bg-red-50'
-                  : showFeedback && idx === question.correct_answer_index
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                  } ${showFeedback ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <span
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base flex-shrink-0 ${selectedIndex === idx
-                      ? isCorrect
-                        ? 'bg-green-500 text-white'
-                        : 'bg-red-500 text-white'
-                      : showFeedback && idx === question.correct_answer_index
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 text-gray-700'
-                      }`}
-                  >
-                    {String.fromCharCode(65 + idx)}
-                  </span>
-                  <span
-                    className={`text-base sm:text-lg ${selectedIndex === idx
-                      ? isCorrect
-                        ? 'text-green-900 font-semibold'
-                        : 'text-red-900 font-semibold'
-                      : 'text-gray-700'
-                      }`}
-                  >
-                    {choice}
-                  </span>
-                </div>
-              </button>
+              <div key={idx} className="relative">
+                <button
+                  onClick={() => handleSelectAnswer(idx)}
+                  disabled={showFeedback || isHelpMode}
+                  className={`w-full p-3 sm:p-4 text-left border-2 rounded-lg transition-all duration-200 ${selectedIndex === idx
+                    ? isCorrect
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-red-500 bg-red-50'
+                    : showFeedback && idx === question.correct_answer_index
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                    } ${showFeedback || isHelpMode ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
+                >
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <span
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base flex-shrink-0 ${selectedIndex === idx
+                        ? isCorrect
+                          ? 'bg-green-500 text-white'
+                          : 'bg-red-500 text-white'
+                        : showFeedback && idx === question.correct_answer_index
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-700'
+                        }`}
+                    >
+                      {String.fromCharCode(65 + idx)}
+                    </span>
+                    <span
+                      className={`text-base sm:text-lg ${selectedIndex === idx
+                        ? isCorrect
+                          ? 'text-green-900 font-semibold'
+                          : 'text-red-900 font-semibold'
+                        : 'text-gray-700'
+                        }`}
+                    >
+                      <InteractiveText
+                        text={choice}
+                        isEnabled={isHelpMode}
+                        onSelectionChange={setSelectedText}
+                      />
+                    </span>
+                  </div>
+                </button>
+              </div>
             ))}
           </div>
 

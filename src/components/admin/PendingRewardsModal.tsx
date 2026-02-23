@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, X, Clock, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -38,8 +38,8 @@ export function PendingRewardsModal({ isOpen, onClose, onProcessed }: PendingRew
             const { data, error } = await supabase
                 .from('pending_rewards' as any)
                 .select(`
-                    *,
-                    target_user:users(display_name)
+    *,
+    target_user: users(display_name)
                 `)
                 .eq('status', 'pending')
                 .order('submitted_at', { ascending: false });
@@ -100,7 +100,7 @@ export function PendingRewardsModal({ isOpen, onClose, onProcessed }: PendingRew
     };
 
     const handleApproveAll = async () => {
-        if (!confirm(`Approve all ${rewards.length} requests?`)) return;
+        if (!confirm(`Approve all ${rewards.length} requests ? `)) return;
         setIsProcessing(true);
         try {
             for (const reward of rewards) {
@@ -145,7 +145,7 @@ export function PendingRewardsModal({ isOpen, onClose, onProcessed }: PendingRew
                             <div key={reward.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
-                                        ${reward.amount > 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                        ${reward.amount > 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'} `}>
                                         {reward.amount > 0 ? '+' : ''}{reward.amount}
                                     </div>
                                     <div className="min-w-0">

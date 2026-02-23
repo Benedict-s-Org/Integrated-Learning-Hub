@@ -41,15 +41,11 @@ import {
     Activity,
     Camera,
     QrCode,
+    Crown,
 } from 'lucide-react';
+import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { NavSection, NavItem } from './NavSection';
-
-export type PageType =
-    | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
-    | 'proofreading' | 'spelling' | 'progress' | 'assignments'
-    | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-    | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner';
 
 interface UnifiedNavigationProps {
     currentPage: PageType;
@@ -97,7 +93,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     pendingCount = 0,
     onOpenNotifications,
 }) => {
-    const { user, signOut, toggleViewMode, isUserView, isAdmin, isMobileEmulator, setIsMobileEmulator } = useAuth();
+    const { user, signOut, toggleViewMode, isUserView, isAdmin, isMobileEmulator, setIsMobileEmulator, realIsSuperAdmin } = useAuth();
     const navigate = useNavigate();
     const isInCommunity = currentPage === 'learningHub';
 
@@ -327,6 +323,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={window.location.pathname === '/admin/users'}
                                 onClick={() => navigate('/admin/users')}
                             />
+                            {realIsSuperAdmin && (
+                                <NavItem
+                                    icon={Crown}
+                                    label="Super Admin Panel"
+                                    isActive={window.location.pathname === '/admin/super-admin-panel'}
+                                    onClick={() => navigate('/admin/super-admin-panel')}
+                                />
+                            )}
                             <NavItem
                                 icon={LayoutGrid}
                                 label="Class Dashboard"

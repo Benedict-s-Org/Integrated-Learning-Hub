@@ -125,6 +125,14 @@ This workflow documents common errors encountered during development and best pr
 - When adding new columns or tables in a local `supabase/migrations/` file, the online database doesn't magically update. You **must** run `npx supabase db push` before testing the live environment.
 - If a post-record `select('new_column')` starts failing with a 400, your remote schema is lagging behind your codebase.
 
+### 15. Over-Unification of UI & Navigation (Missing Sidebars)
+**Problem**: Attempting to "harmonize" different sections of the app (e.g., merging Admin and Hub sidebars) without explicit instruction removes specialized navigation that was intentionally separate.
+
+**Prevention**:
+- **Preserve Boundaries**: Treat existing navigation structures (like `AdminLayout` vs `UnifiedNavigation`) as intentional boundaries. Do not merge or move routes between them unless explicitly asked.
+- **Verify UI Loss**: Before moving a route from a standalone wrapper, check if that wrapper provides unique UI (sidebars, headers) that the target wrapper lacks.
+- **Propose Before Move**: If you suspect a layout needs unification, propose it as a specific "UI Change" in the Implementation Plan and wait for explicit user approval.
+
 ---
 
 ## 📊 Automatic Error Logging
@@ -290,32 +298,35 @@ These folders should NEVER be deleted without explicit user confirmation:
 
 ---
 
-## 🚫 CRITICAL: STOP PERFORMING DOM
+## 🚫 CRITICAL: STOP PERFORMING SELF-CHECKS
 
-Do NOT perform automated DOM inspections, element extractions, or subagent-based visual verification. This is a mandatory safety and efficiency rule.
+Do **NOT** attempt to perform "self-checks" or automated visual verification using browser tools, DOM inspections, or subagents after making changes. Automated verification is often token-expensive and prone to false positives/negatives in this complex environment.
+
+### Mandatory Verification Procedure
+1. **Stop Automatic Testing**: Never initiate a browser subagent task to "check if the UI looks right" or "verify the button works" unless explicitly requested by the user for a specific debug session.
+2. **Document the Change**: Provide a clear, concise summary of exactly what was modified, added, or deleted.
+3. **Yield to User**: Provide a specific checklist of what the **USER** should look for and ask them to: *"Please verify this manually on your end to see if it works as expected."*
+4. **Assume Success Pending User Input**: Once the code is implemented and lint-free, the task is considered "Ready for Verification" pending the user's manual check.
 
 ---
 
 ## 🌐 Browser Tool Usage Policy
 
-To optimize token usage and ensure accuracy:
-1. **Block Automated DOM Verification**: Do NOT use browser subagents or DOM extraction tools for verifying visual changes or UI updates. Automated DOM inspection is generally a waste of tokens and often inaccurate for complex layouts.
-2. **Prioritize User Verification**: Whenever a UI change is made, document the change clearly and ASK THE USER to "see if it works" or verify the result manually.
-3. **Exploration Only**: Only use browser tools for initial exploration (finding a URL or seeing a basic page structure) if absolutely necessary, but never for verification of your own edits.
-4. **Follow User Guidance**: If the user asks to "check", do not run automated scripts. Instead, provide a specific checklist for the USER to verify.
+To optimize performance and accuracy:
+1. **Exploration Only**: Browser tools should only be used for gathering layout information or finding specific element IDs if they cannot be determined from the source code.
+2. **No Verification Tasks**: Never use `browser_subagent` to verify the success of your own code edits.
+3. **Follow Manual Checklist**: If a "check" is required, provide the USER with a manual checklist instead of running an automated script.
 
 ---
 
-## ✅ Post-Edit Verification
+## ✅ Post-Edit Verification Checklist
 
-After making changes:
-
-1. **Check for lint errors**: Look at IDE feedback
-2. **Verify build**: `npm run build` should pass
-3. **Strictly Manual Verification**: Do NOT perform automated browser DOM inspection or subagent tasks to verify UI changes. Instead, inform the user of the changes made and ask them to "see if it works" or verify the results manually. This is the mandatory verification method for all UI-related tasks.
-4. **Test functionality**: Does the feature still work?
-5. **Review git diff**: `git diff` to see all changes
-6. **Commit incrementally**: Small, focused commits
+After making changes, the AI must:
+1. **Check for lint errors**: Use IDE feedback and resolve all critical errors.
+2. **Verify build**: Ensure `npm run build` or the dev server shows no fatal errors.
+3. **STOP SELF-CHECK**: Do **NOT** run a subagent to verify the UI.
+4. **Notify User**: Provide the manual verification steps and wait for their confirmation.
+5. **Review git diff**: Briefly verify the logic matches the intent.
 
 ---
 

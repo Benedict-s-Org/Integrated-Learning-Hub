@@ -12,7 +12,7 @@ export function useSuperAdmin() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!isAdmin || !user?.id) {
+        if (!user?.id) {
             setIsSuperAdmin(false);
             setLoading(false);
             return;

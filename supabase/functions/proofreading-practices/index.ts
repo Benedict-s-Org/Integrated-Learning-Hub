@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// @ts-ignore
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -33,6 +34,7 @@ interface UpdatePracticeRequest {
   userId: string;
 }
 
+// @ts-ignore: Deno is a global in Edge Functions
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -42,7 +44,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // @ts-ignore: Deno is a global in Edge Functions
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    // @ts-ignore: Deno is a global in Edge Functions
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {

@@ -159,7 +159,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const url = new URL(req.url);
-    const path = url.pathname;
+    const path = url.pathname.replace(/\/+$/, ""); // Remove trailing slashes
+    console.log(`[notion-api] Handling request: ${req.method} ${path}`);
 
     // ── List Activities (from a hardcoded database) ──────────────────────
     if (path.endsWith("/list-activities")) {
@@ -259,6 +260,62 @@ Deno.serve(async (req: Request) => {
       }
 
       return jsonResponse({ results: allResults });
+    }
+
+    // ── Save Unknown Item ───────────────────────────────────────────────
+    if (path.endsWith("/save-unknown")) {
+      const { text, type, context, setId, userName } = await req.json();
+      const databaseId = Deno.env.get("NOTION_HELP_DATABASE_ID");
+
+      if (!databaseId) {
+        console.error("Missing NOTION_HELP_DATABASE_ID environment variable");
+        return jsonResponse(
+          { error: "Server configuration error: Missing NOTION_HELP_DATABASE_ID secret" }
+        );
+      }
+
+      const resp = await fetch(`${NOTION_API}/pages`, {
+        method: "POST",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({
+          parent: { database_id: databaseId },
+          properties: {
+            "Name": {
+              title: [{ text: { content: text } }]
+            },
+            "Type": {
+              select: { name: type }
+            },
+            "Source Context": {
+              rich_text: [{ text: { content: context } }]
+            },
+            "Learning Set": {
+              rich_text: [{ text: { content: setId } }]
+            },
+            "User": {
+              rich_text: [{ text: { content: userName || "Unknown User" } }]
+            },
+            "Date Added": {
+              date: { start: new Date().toISOString().split('T')[0] }
+            },
+            "Status": {
+              select: { name: "New" }
+            }
+          }
+        })
+      });
+
+      if (!resp.ok) {
+        const errorBody = await resp.text();
+        console.error("Notion save unknown failed:", resp.status, errorBody);
+        let details = errorBody;
+        try { const parsed = JSON.parse(errorBody); details = parsed.message || errorBody; } catch { }
+        return jsonResponse(
+          { error: `Notion API error (${resp.status}): ${details}` }
+        );
+      }
+
+      return jsonResponse({ success: true });
     }
 
     return jsonResponse({ error: "Unknown endpoint" });

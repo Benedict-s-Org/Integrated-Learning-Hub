@@ -25,6 +25,7 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
         view: "room" | "map" | "region";
         showTransformPanel: boolean;
         transformTargetId: string | null;
+        activePalaceId: string | null;
         showThemeDesigner: boolean;
     };
     uiAssets: Asset[];
@@ -46,13 +47,15 @@ interface MemoryPalaceContextType extends ReturnType<typeof useRoomData> {
     toggleMemoryPanel: () => void;
     toggleMemoryMode: () => void;
     toggleTransformPanel: (id: string | null) => void;
+    setActivePalaceId: (id: string | null) => void;
     setView: (view: "room" | "map" | "region") => void;
 }
 
 const MemoryPalaceContext = createContext<MemoryPalaceContextType | null>(null);
 
 export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
-    const roomData = useRoomData();
+    const [activePalaceId, setActivePalaceIdState] = useState<string | null>(null);
+    const roomData = useRoomData(activePalaceId);
     const studySession = useStudySession();
 
     const [uiState, setUiState] = useState({
@@ -107,15 +110,18 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         showTransformPanel: id !== null,
         transformTargetId: id
     })), []);
+    const setActivePalaceId = useCallback((id: string | null) => {
+        setActivePalaceIdState(id);
+    }, []);
     const setView = useCallback((view: "room" | "map" | "region") => setUiState(prev => ({ ...prev, view })), []);
 
     const value = useMemo(() => ({
         ...roomData,
         fullCatalog,
         fullModels,
-        uiState,
+        uiState: { ...uiState, activePalaceId },
         studySession,
-        setUiState,
+        setUiState: setUiState as any,
         toggleShop,
         toggleStudio,
         toggleEditor,
@@ -129,6 +135,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         toggleMemoryPanel,
         toggleMemoryMode,
         toggleTransformPanel,
+        setActivePalaceId,
         setView,
         uiAssets,
         setUiAssets
@@ -137,6 +144,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         fullCatalog,
         fullModels,
         uiState,
+        activePalaceId,
         studySession,
         toggleShop,
         toggleStudio,
@@ -151,6 +159,7 @@ export function MemoryPalaceProvider({ children }: { children: ReactNode }) {
         toggleMemoryPanel,
         toggleMemoryMode,
         toggleTransformPanel,
+        setActivePalaceId,
         setView,
         uiAssets
     ]);

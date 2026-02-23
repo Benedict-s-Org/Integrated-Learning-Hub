@@ -3,11 +3,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import {
-    Shield, Users, Search,
-    ToggleLeft, ToggleRight, UserCog, Crown
+    Eye,
+    Search,
+    Shield,
+    UserCog,
+    ToggleLeft,
+    ToggleRight,
+    Users,
+    Crown,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { PageType } from '@/types';
 
-interface ManagedUser {
+export interface ManagedUser {
     id: string;
     username: string; // This stores the email
     display_name: string | null;
@@ -20,20 +28,26 @@ interface ManagedUser {
     created_at: string;
 }
 
-interface AdminSummary {
+export interface AdminSummary {
     id: string;
     display_name: string | null;
     username: string;
     studentCount: number;
 }
 
-const PERMISSION_KEYS = [
+export interface PermissionKey {
+    key: 'can_access_proofreading' | 'can_access_spelling';
+    label: string;
+    short: string;
+}
+
+const PERMISSION_KEYS: PermissionKey[] = [
     { key: 'can_access_proofreading', label: 'Proofreading', short: 'Proof' },
     { key: 'can_access_spelling', label: 'Spelling', short: 'Spell' },
 ] as const;
 
 export function SuperAdminPanel() {
-    const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
+    const { loading: superAdminLoading } = useSuperAdmin();
 
     const [users, setUsers] = useState<ManagedUser[]>([]);
     const [admins, setAdmins] = useState<AdminSummary[]>([]);
@@ -44,9 +58,16 @@ export function SuperAdminPanel() {
     const [saving, setSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
 
+    const {
+        setImpersonatedAdminId,
+        realUser,
+        realIsSuperAdmin,
+        realIsSuperAdminLoading
+    } = useAuth();
+
     useEffect(() => {
-        if (isSuperAdmin) fetchAllUsers();
-    }, [isSuperAdmin]);
+        if (realIsSuperAdmin) fetchAllUsers();
+    }, [realIsSuperAdmin]);
 
     const fetchAllUsers = async () => {
         setLoading(true);
@@ -74,9 +95,9 @@ export function SuperAdminPanel() {
     };
 
     const filteredUsers = useMemo(() => {
-        let result = [...users]; // Show everyone including admins, so they can edit roles
+        let result = [...users];
         if (selectedAdminFilter !== 'all') {
-            result = result.filter(u => u.managed_by_id === selectedAdminFilter);
+            result = result.filter(u => u.managed_by_id === selectedAdminFilter || u.id === selectedAdminFilter);
         }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
@@ -108,12 +129,10 @@ export function SuperAdminPanel() {
 
     const togglePermission = async (userId: string, key: string, currentValue: boolean) => {
         const newValue = !currentValue;
-        // Optimistic update
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, [key]: newValue } : u));
 
         const { error } = await (supabase.from('users') as any).update({ [key]: newValue }).eq('id', userId);
         if (error) {
-            // Revert
             setUsers(prev => prev.map(u => u.id === userId ? { ...u, [key]: currentValue } : u));
         }
     };
@@ -123,12 +142,11 @@ export function SuperAdminPanel() {
         setSaving(true);
 
         const ids = Array.from(selectedUserIds);
-        // Optimistic update
         setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, [key]: value } : u));
 
         const { error } = await (supabase.from('users') as any).update({ [key]: value }).in('id', ids);
         if (error) {
-            fetchAllUsers(); // Refetch on error
+            fetchAllUsers();
         } else {
             setSuccessMsg(`Updated ${ids.length} user(s)`);
             setTimeout(() => setSuccessMsg(''), 2000);
@@ -162,7 +180,7 @@ export function SuperAdminPanel() {
         else {
             setSuccessMsg(`Reassigned ${ids.length} user(s)`);
             setTimeout(() => setSuccessMsg(''), 2000);
-            fetchAllUsers(); // Refresh admin counts
+            fetchAllUsers();
         }
         setSaving(false);
     };
@@ -173,32 +191,34 @@ export function SuperAdminPanel() {
         return admin?.display_name || admin?.username || 'Unknown';
     };
 
-    if (superAdminLoading || loading) {
-        return (
-            <AdminLayout title="Super Admin Panel">
-                <div className="flex items-center justify-center h-96">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
-                </div>
-            </AdminLayout>
-        );
-    }
+    // 1. Handle loading
+    if (superAdminLoading || loading || realIsSuperAdminLoading) return (
+        <AdminLayout title="Super Admin Panel">
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent shadow-lg"></div>
+            </div>
+        </AdminLayout>
+    );
 
-    if (!isSuperAdmin) {
-        return (
-            <AdminLayout title="Super Admin Panel">
-                <div className="flex flex-col items-center justify-center h-96 text-gray-500">
-                    <Shield size={48} className="mb-4 text-red-400" />
-                    <p className="text-xl font-bold">Access Denied</p>
-                    <p className="text-sm">This page is restricted to the Super Admin.</p>
+    // 2. Handle Regular Super Admin Access Check (for the real user)
+    if (!realIsSuperAdmin) return (
+        <AdminLayout title="Access Denied">
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
+                <div className="bg-red-50 p-6 rounded-3xl mb-4 border-2 border-red-100">
+                    <Shield className="w-16 h-16 text-red-500 mb-4 mx-auto animate-bounce-slow" />
+                    <h2 className="text-2xl font-black text-slate-800">Super Admin Only</h2>
+                    <p className="text-slate-600 mt-2 font-bold max-w-sm">This area is restricted to system administrators with Super Admin privileges.</p>
                 </div>
-            </AdminLayout>
-        );
-    }
+            </div>
+        </AdminLayout>
+    );
 
     return (
-        <AdminLayout title="Super Admin Panel">
+        <AdminLayout
+            title="Super Admin Panel"
+            icon={<Shield className="w-8 h-8" />}
+        >
             <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <Crown className="text-amber-500" size={28} />
@@ -207,34 +227,57 @@ export function SuperAdminPanel() {
                             <p className="text-sm text-gray-500">Manage all admins, users, and permissions</p>
                         </div>
                     </div>
+                    {successMsg && (
+                        <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-4 py-2 text-sm font-medium animate-in fade-in duration-200">
+                            ✓ {successMsg}
+                        </div>
+                    )}
                 </div>
 
-                {/* Admin Overview Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {admins.map(admin => (
-                        <button
+                        <div
                             key={admin.id}
-                            onClick={() => setSelectedAdminFilter(selectedAdminFilter === admin.id ? 'all' : admin.id)}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all ${selectedAdminFilter === admin.id
-                                ? 'border-indigo-400 bg-indigo-50 shadow-md'
-                                : 'border-gray-200 bg-white hover:border-gray-300'
-                                }`}
+                            className={`group relative p-4 rounded-2xl border-2 text-left transition-all bg-white hover:border-indigo-200 hover:shadow-md ${selectedAdminFilter === admin.id ? 'border-indigo-400 ring-2 ring-indigo-50' : 'border-gray-100'}`}
                         >
-                            <div className="flex items-center gap-2 mb-2">
-                                <UserCog size={18} className="text-indigo-500" />
-                                <span className="font-bold text-gray-900 truncate">
-                                    {admin.display_name || admin.username}
-                                </span>
+                            <button
+                                onClick={() => setSelectedAdminFilter(selectedAdminFilter === admin.id ? 'all' : admin.id)}
+                                className="w-full text-left"
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="bg-indigo-50 p-1.5 rounded-lg">
+                                        <UserCog size={18} className="text-indigo-500" />
+                                    </div>
+                                    <span className="font-bold text-gray-900 truncate">
+                                        {admin.display_name || admin.username}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1 text-sm text-gray-500">
+                                    <Users size={14} />
+                                    <span>{admin.studentCount} student{admin.studentCount !== 1 ? 's' : ''}</span>
+                                </div>
+                            </button>
+
+                            <div className="absolute top-4 right-4 flex items-center gap-2">
+                                {admin.id !== realUser?.id && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setImpersonatedAdminId(admin.id);
+                                            window.location.href = '/';
+                                        }}
+                                        className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 transition-transform active:scale-95 flex items-center gap-2 text-xs font-bold"
+                                        title="View as Admin"
+                                    >
+                                        <Eye size={14} />
+                                        View
+                                    </button>
+                                )}
                             </div>
-                            <div className="flex items-center gap-1 text-sm text-gray-500">
-                                <Users size={14} />
-                                <span>{admin.studentCount} student{admin.studentCount !== 1 ? 's' : ''}</span>
-                            </div>
-                        </button>
+                        </div>
                     ))}
                 </div>
 
-                {/* Search & Filter Bar */}
                 <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                     <div className="relative flex-1 min-w-[200px]">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -259,7 +302,6 @@ export function SuperAdminPanel() {
                     <span className="text-sm text-gray-400">{filteredUsers.length} user(s)</span>
                 </div>
 
-                {/* Bulk Actions */}
                 {selectedUserIds.size > 0 && (
                     <div className="flex flex-wrap items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-2xl p-4 animate-in slide-in-from-top duration-200">
                         <span className="text-sm font-bold text-indigo-700 mr-2">
@@ -315,18 +357,11 @@ export function SuperAdminPanel() {
                     </div>
                 )}
 
-                {successMsg && (
-                    <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-4 py-2 text-sm font-medium animate-in fade-in duration-200">
-                        ✓ {successMsg}
-                    </div>
-                )}
-
-                {/* User Table */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
-                                <th className="px-4 py-3 text-left">
+                                <th className="px-4 py-3 text-left w-10">
                                     <input
                                         type="checkbox"
                                         checked={selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0}
@@ -340,6 +375,7 @@ export function SuperAdminPanel() {
                                 {PERMISSION_KEYS.map(p => (
                                     <th key={p.key} className="px-3 py-3 text-center font-bold text-gray-600">{p.short}</th>
                                 ))}
+                                <th className="px-4 py-3 text-right font-bold text-gray-600">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -378,6 +414,20 @@ export function SuperAdminPanel() {
                                             </button>
                                         </td>
                                     ))}
+                                    <td className="px-4 py-3 text-right">
+                                        {u.role === 'admin' && u.id !== realUser?.id && (
+                                            <button
+                                                onClick={() => {
+                                                    setImpersonatedAdminId(u.id);
+                                                    window.location.href = '/';
+                                                }}
+                                                className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
+                                                title="View as Admin"
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                             {filteredUsers.length === 0 && (
@@ -394,3 +444,5 @@ export function SuperAdminPanel() {
         </AdminLayout>
     );
 }
+
+export default SuperAdminPanel;

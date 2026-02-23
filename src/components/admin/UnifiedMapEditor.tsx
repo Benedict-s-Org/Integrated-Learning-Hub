@@ -1090,12 +1090,22 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                 buildings={cityEditor.buildings}
                 decorations={cityEditor.decorations}
                 cityLevel={cityEditor.cityLevel}
+                zoom={cityEditor.cameraSettings.zoom}
+                cameraOffset={cityEditor.cameraSettings.offset}
                 selectedBuildingId={null}
                 selectedDecorationId={null}
                 onBuildingClick={() => { }}
                 onDecorationClick={() => { }}
                 onBuildingDrag={(id, pos) => cityEditor.updateBuilding(id, { position: pos })}
                 onDecorationDrag={(id, pos) => cityEditor.updateDecoration(id, { position: pos })}
+                onViewStateChange={(state) => {
+                    if (state.zoom !== undefined || state.cameraOffset !== undefined) {
+                        cityEditor.setCameraSettings({
+                            zoom: state.zoom ?? cityEditor.cameraSettings.zoom,
+                            offset: state.cameraOffset ?? cityEditor.cameraSettings.offset,
+                        });
+                    }
+                }}
             />
         ) : (
             <div className="h-full flex items-center justify-center text-slate-400">
