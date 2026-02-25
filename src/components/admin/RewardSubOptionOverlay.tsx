@@ -26,15 +26,26 @@ export function RewardSubOptionOverlay({
     };
 
     const effectiveSubs = getEffectiveSubOptions(reward);
-    const [selected, setSelected] = useState<string[]>([]);
+    const [selected, setSelected] = useState<Record<string, string[]>>({});
     const [activeTab, setActiveTab] = useState<string>(Object.keys(effectiveSubs)[0] || "中文");
 
     const currentItems = effectiveSubs[activeTab] || [];
 
     const handleToggle = (item: string) => {
-        setSelected(prev =>
-            prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]
-        );
+        setSelected(prev => {
+            const current = prev[activeTab] || [];
+            const updated = current.includes(item)
+                ? current.filter(i => i !== item)
+                : [...current, item];
+
+            const next = { ...prev };
+            if (updated.length > 0) {
+                next[activeTab] = updated;
+            } else {
+                delete next[activeTab];
+            }
+            return next;
+        });
     };
 
     const textColor = isDark ? "text-white" : "text-slate-800";
@@ -55,7 +66,7 @@ export function RewardSubOptionOverlay({
                     <h3 className={`text-xl font-black ${textColor} mb-1 transition-colors`}>{reward.title}</h3>
                     <div className={`inline-flex items-center gap-2 px-4 py-1.5 ${accentBg} text-white rounded-full shadow-lg ${isDark ? 'shadow-none' : accentShadow}`}>
                         <Star size={14} fill="currentColor" />
-                        <p className="text-[11px] font-black tracking-[0.2em] uppercase">Total 10 Coins</p>
+                        <p className="text-[11px] font-black tracking-[0.2em] uppercase">Total {reward.coins} Coins</p>
                     </div>
                 </div>
 
@@ -63,18 +74,27 @@ export function RewardSubOptionOverlay({
                 <div className="mb-6">
                     <label className={`text-[10px] font-bold ${subTextColor} uppercase tracking-widest mb-3 block text-center`}>1. Select Subject</label>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide justify-center">
-                        {Object.keys(effectiveSubs).map(sub => (
-                            <button
-                                key={sub}
-                                onClick={() => setActiveTab(sub)}
-                                className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all whitespace-nowrap border-2
-                                    ${activeTab === sub
-                                        ? `${accentBg} ${accentBorder} text-white shadow-md`
-                                        : `${cardColor} ${isDark ? 'border-white/10 text-white/40' : 'border-slate-200 text-slate-500'} hover:border-blue-400 hover:text-blue-600`}`}
-                            >
-                                {sub}
-                            </button>
-                        ))}
+                        {Object.keys(effectiveSubs).map(sub => {
+                            const count = selected[sub]?.length || 0;
+                            return (
+                                <button
+                                    key={sub}
+                                    onClick={() => setActiveTab(sub)}
+                                    className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all whitespace-nowrap border-2 flex items-center gap-2
+                                        ${activeTab === sub
+                                            ? `${accentBg} ${accentBorder} text-white shadow-md`
+                                            : `${cardColor} ${isDark ? 'border-white/10 text-white/40' : 'border-slate-200 text-slate-500'} hover:border-blue-400 hover:text-blue-600`}`}
+                                >
+                                    {sub}
+                                    {count > 0 && (
+                                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] 
+                                            ${activeTab === sub ? (isDark ? 'bg-slate-800 text-white' : 'bg-white text-blue-600') : (accentBg + ' text-white')}`}>
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -84,18 +104,21 @@ export function RewardSubOptionOverlay({
                         2. Choose {activeTab} Items
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                        {currentItems.map(opt => (
-                            <button
-                                key={opt}
-                                onClick={() => handleToggle(opt)}
-                                className={`px-3 py-4 rounded-xl border-2 font-bold transition-all text-xs flex items-center justify-center text-center min-h-[60px]
-                                    ${selected.includes(opt)
-                                        ? `${accentBorder} ${accentColor === 'blue' ? 'bg-blue-50' : 'bg-orange-50'} ${accentText} shadow-sm`
-                                        : `${isDark ? 'border-transparent bg-white/5 text-white/40' : 'border-white bg-white text-slate-400'} ${gridItemHoverColor}`}`}
-                            >
-                                {opt}
-                            </button>
-                        ))}
+                        {currentItems.map(opt => {
+                            const isSelected = selected[activeTab]?.includes(opt);
+                            return (
+                                <button
+                                    key={opt}
+                                    onClick={() => handleToggle(opt)}
+                                    className={`px-3 py-4 rounded-xl border-2 font-bold transition-all text-xs flex items-center justify-center text-center min-h-[60px]
+                                        ${isSelected
+                                            ? `${accentBorder} ${accentColor === 'blue' ? 'bg-blue-50' : 'bg-orange-50'} ${accentText} shadow-sm`
+                                            : `${isDark ? 'border-transparent bg-white/5 text-white/40' : 'border-white bg-white text-slate-400'} ${gridItemHoverColor}`}`}
+                                >
+                                    {opt}
+                                </button>
+                            );
+                        })}
                         {currentItems.length === 0 && (
                             <div className={`col-span-full py-12 text-center ${subTextColor} text-sm italic`}>
                                 No items defined for {activeTab}
@@ -113,12 +136,16 @@ export function RewardSubOptionOverlay({
                         Cancel
                     </button>
                     <button
-                        onClick={() => onSubmit(selected)}
-                        disabled={selected.length === 0}
+                        onClick={() => {
+                            const aggregated = Object.entries(selected)
+                                .map(([label, items]) => `${label} (${items.join(', ')})`);
+                            onSubmit(aggregated);
+                        }}
+                        disabled={Object.keys(selected).length === 0}
                         className={`flex-[2] py-4 ${accentBg} text-white font-black rounded-2xl shadow-xl ${isDark ? 'shadow-none' : accentShadow} disabled:opacity-30 disabled:shadow-none transition-all active:scale-95 uppercase tracking-wider text-sm flex items-center justify-center gap-2`}
                     >
                         <Check size={18} />
-                        Award 10 Coins
+                        Award {reward.coins} Coins
                     </button>
                 </div>
             </div>
