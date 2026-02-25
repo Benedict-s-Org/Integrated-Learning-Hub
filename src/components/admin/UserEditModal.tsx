@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield } from "lucide-react";
+import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield, Hash, Save, GraduationCap, Coins, Key } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
@@ -11,7 +11,7 @@ interface UserWithProfile {
   avatar_url?: string | null;
   created_at: string;
   is_admin: boolean;
-  seat_number: number | null;
+  class_number: number | null;
   class_name?: string | null;
   spelling_level?: number;
 }
@@ -32,7 +32,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_url || null);
   const [role, setRole] = useState<'admin' | 'user'>(user.is_admin ? 'admin' : 'user');
   const [className, setClassName] = useState(user.class_name || "");
-  const [classNumber, setClassNumber] = useState<string>(user.seat_number?.toString() || "");
+  const [classNumber, setClassNumber] = useState<string>(user.class_number?.toString() || "");
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -180,7 +180,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
       // Only include changed fields
       if (displayName !== user.display_name) {
-        updateData.displayName = displayName;
+        (updateData as any).display_name = displayName;
       }
       if (email && email !== user.email) {
         updateData.email = email;
@@ -197,8 +197,10 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
       // Add Class and Class Number to update data
       // Note: We need to pass these to the edge function
-      (updateData as any).class = className;
-      (updateData as any).classNumber = classNumber ? parseInt(classNumber) : null;
+      (updateData as any).display_name = displayName || null;
+      (updateData as any).class = className || null;
+      const parsedClassNumber = classNumber !== "" ? parseInt(classNumber) : null;
+      (updateData as any).classNumber = parsedClassNumber;
       (updateData as any).spellingLevel = spellingLevel;
 
       console.log("Sending update request:", updateData);
@@ -217,6 +219,22 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (data?.error) {
         console.error("Data error:", data.error);
         throw new Error(data.error);
+      }
+
+      // Direct DB update as safety net to ensure class_number persists
+      const directUpdate: any = {};
+      if (displayName !== undefined) directUpdate.display_name = displayName || null;
+      if (className !== undefined) directUpdate.class = className || null;
+      if (parsedClassNumber !== undefined) directUpdate.class_number = parsedClassNumber;
+      if (spellingLevel !== undefined) directUpdate.spelling_level = spellingLevel;
+
+      const { error: directError } = await supabase
+        .from('users')
+        .update(directUpdate)
+        .eq('id', user.id);
+
+      if (directError) {
+        console.warn("Direct DB update failed:", directError.message);
       }
 
       onSuccess();
@@ -383,15 +401,16 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
             {/* Class Number */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[hsl(var(--foreground))]">
-                班級編號 (Class Number)
+              <label className="text-sm font-bold text-slate-500 flex items-center gap-2">
+                <Hash size={16} />
+                學號
               </label>
               <input
                 type="number"
                 value={classNumber}
                 onChange={(e) => setClassNumber(e.target.value)}
-                placeholder="#"
-                className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="學號 (1-99)"
               />
             </div>
           </div>
@@ -426,8 +445,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
                 type="button"
                 onClick={() => setSpellingLevel(1)}
                 className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 1
-                    ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
-                    : "bg-white text-slate-400 border-slate-200 hover:border-blue-200"
+                  ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-blue-200"
                   }`}
               >
                 Level 1
@@ -436,8 +455,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
                 type="button"
                 onClick={() => setSpellingLevel(2)}
                 className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 2
-                    ? "bg-purple-500 text-white border-purple-500 shadow-lg shadow-purple-500/20"
-                    : "bg-white text-slate-400 border-slate-200 hover:border-purple-200"
+                  ? "bg-purple-500 text-white border-purple-500 shadow-lg shadow-purple-500/20"
+                  : "bg-white text-slate-400 border-slate-200 hover:border-purple-200"
                   }`}
               >
                 Level 2

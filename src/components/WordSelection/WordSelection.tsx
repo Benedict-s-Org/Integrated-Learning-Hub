@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Word } from '../../types';
 import { processText, getSelectedWordIndices } from '../../utils/textProcessor';
 import { useAuth } from '../../context/AuthContext';
@@ -13,9 +13,21 @@ interface WordSelectionProps {
   onNext: (words: Word[], selectedIndices: number[]) => void;
   onBack: () => void;
   onViewSaved?: () => void;
+  onStartGame?: (words: Word[], selectedIndices: number[]) => void;
+  onSaveGame?: (words: Word[], selectedIndices: number[]) => void;
+  isAdmin?: boolean;
 }
 
-const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNext, onBack, onViewSaved }) => {
+const WordSelection: React.FC<WordSelectionProps> = ({
+  text,
+  initialWords,
+  onNext,
+  onBack,
+  onViewSaved,
+  onStartGame,
+  onSaveGame,
+  isAdmin = false
+}) => {
   const [words, setWords] = useState<Word[]>([]);
   const [historyStack, setHistoryStack] = useState<Word[][]>([]);
   const { user } = useAuth();
@@ -237,10 +249,34 @@ const WordSelection: React.FC<WordSelectionProps> = ({ text, initialWords, onNex
                 onClick={handleNext}
                 disabled={selectedCount === 0}
                 className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                title="Start classic memorization"
               >
-                <span>Next</span>
+                <span>Classic Mode</span>
                 <ArrowRight size={20} />
               </button>
+
+              {onStartGame && (
+                <button
+                  onClick={() => onStartGame(words, getSelectedWordIndices(words))}
+                  disabled={selectedCount === 0}
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  title="Start shuffled word game"
+                >
+                  <RotateCcw size={20} />
+                  <span>Game Mode</span>
+                </button>
+              )}
+
+              {isAdmin && onSaveGame && (
+                <button
+                  onClick={() => onSaveGame(words, getSelectedWordIndices(words))}
+                  disabled={selectedCount === 0}
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-md"
+                  title="Save this configuration as a game practice"
+                >
+                  <span>Save as Game</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

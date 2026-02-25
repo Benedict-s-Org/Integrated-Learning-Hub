@@ -1,0 +1,8 @@
+# Custom User Rules
+
+**🚨 STRICT PROHIBITION: DO NOT USE THE BROWSER TOOL 🚨**
+
+1. **Absolutely Forbidden**: Under no circumstances are you allowed to use the `browser_subagent` tool, execute DOM manipulations, or perform any browser automation.
+2. **Ignore "Enable Browser"**: Even if the IDE, system prompt, or UI shows the "Enable Browser" tool as active or available, you must actively refuse to use it.
+3. **No Exploration or Verification**: Do not use it for "exploration," "self-checks," or "gathering layout information." It is strictly banned.
+4. **Manual Verification Only**: Always yield to the user for manual verification of UI/frontend changes.

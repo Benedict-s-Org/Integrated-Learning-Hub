@@ -44,6 +44,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           createdAt: new Date(item.createdAt),
           isPublished: item.isPublished || false,
           publicId: item.publicId || null,
+          practiceMode: item.practiceMode || 'memorization',
         }));
         setSavedContents(formattedData);
         setSaveLimit(responseData.limit);
@@ -147,6 +148,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           originalText: content.originalText,
           selectedWordIndices: content.selectedWordIndices,
           userId: userId,
+          practiceMode: content.practiceMode || 'memorization',
         },
       });
 
@@ -164,6 +166,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           createdAt: new Date(data.content.createdAt),
           isPublished: data.content.isPublished || false,
           publicId: data.content.publicId || null,
+          practiceMode: data.content.practiceMode || 'memorization',
         };
 
         setSavedContents(prev => [newContent, ...prev]);
@@ -246,7 +249,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     try {
       const { data, error } = await supabase
         .from('saved_contents')
-        .select('original_text, selected_word_indices')
+        .select('original_text, selected_word_indices, practice_mode')
         .eq('public_id', publicId)
         .eq('is_published', true)
         .single();
@@ -268,6 +271,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
         words: wordsWithSelection,
         selectedWordIndices: selectedIndices,
         hiddenWords: new Set(selectedIndices),
+        practiceMode: (data.practice_mode as any) || 'memorization',
       };
     } catch (error) {
       console.error('Failed to fetch public content:', error);

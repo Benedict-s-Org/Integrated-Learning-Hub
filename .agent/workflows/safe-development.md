@@ -312,10 +312,11 @@ Do **NOT** attempt to perform "self-checks" or automated visual verification usi
 
 ## 🌐 Browser Tool Usage Policy
 
-To optimize performance and accuracy:
-1. **Exploration Only**: Browser tools should only be used for gathering layout information or finding specific element IDs if they cannot be determined from the source code.
-2. **No Verification Tasks**: Never use `browser_subagent` to verify the success of your own code edits.
-3. **Follow Manual Checklist**: If a "check" is required, provide the USER with a manual checklist instead of running an automated script.
+**🚨 STRICT PROHIBITION: DO NOT USE THE BROWSER TOOL 🚨**
+1. **Absolutely Forbidden**: Under no circumstances are you allowed to use the `browser_subagent` tool, execute DOM manipulations, or perform any browser automation.
+2. **Ignore "Enable Browser"**: Even if the IDE or system UI shows the "Enable Browser" tool as active or available, you must actively refuse to use it.
+3. **No Exploration or Verification**: Do not use it for "exploration," "self-checks," or "gathering layout information." It is strictly banned.
+4. **Manual Verification Only**: Always yield to the user for manual verification of UI/frontend changes.
 
 ---
 

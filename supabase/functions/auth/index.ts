@@ -24,7 +24,7 @@ interface CreateUserRequest {
 
 interface BulkCreateUsersRequest {
   users: Array<{
-    username: string;
+    email: string;
     password: string;
     role: 'admin' | 'user';
     display_name?: string;
@@ -77,6 +77,16 @@ interface BulkUpdateClassNumbersRequest {
     userId: string;
     classNumber: number;
     class?: string;
+  }>;
+}
+
+interface BulkUpdateUsersRequest {
+  adminUserId: string;
+  updates: Array<{
+    id: string;
+    display_name?: string;
+    class?: string;
+    classNumber?: string | number;
   }>;
 }
 
@@ -253,6 +263,7 @@ Deno.serve(async (req: Request) => {
           role: role || 'user',
           display_name: display_name,
           gender: gender,
+          managed_by_id: adminUserId,
         }
       });
 
@@ -323,39 +334,47 @@ Deno.serve(async (req: Request) => {
       for (let i = 0; i < users.length; i++) {
         const user = users[i];
         try {
-          const { data: newUser, error } = await supabase.rpc("create_user_with_password", {
-            username_input: user.username,
-            password_input: user.password,
-            role_input: user.role,
-            display_name_input: user.display_name || null,
-            can_access_proofreading_input: false,
-            can_access_spelling_input: false,
-            can_access_learning_hub_input: false,
-            class_input: user.class || null,
+          // 1. Create User in Auth System (Sync to Supabase Auth)
+          const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+            email: user.email,
+            password: user.password,
+            email_confirm: true,
+            user_metadata: {
+              role: user.role || 'user',
+              display_name: user.display_name,
+              class: user.class,
+              managed_by_id: adminUserId,
+            }
           });
 
-          if (error) {
+          if (authError) {
             errors.push({
               line: i + 1,
-              username: user.username,
-              error: error.message || "Failed to create user",
+              email: user.email,
+              error: authError.message || "Failed to create auth user",
             });
-          } else {
-            // Tag the newly created user with managed_by_id
-            if (newUser) {
-              await supabase.from('users').update({ managed_by_id: adminUserId }).eq('id', newUser);
-            }
+            continue;
+          }
+
+          if (authUser.user) {
+            // 2. Link to public.users table and set managed_by_id
+            await supabase.from('users').update({
+              display_name: user.display_name,
+              class: user.class,
+              managed_by_id: adminUserId,
+            }).eq('id', authUser.user.id);
+
             results.push({
               line: i + 1,
-              username: user.username,
+              email: user.email,
               success: true,
             });
           }
         } catch (err) {
           errors.push({
             line: i + 1,
-            username: user.username,
-            error: "Unexpected error occurred",
+            email: user.email,
+            error: "Unexpected error occurred during creation",
           });
         }
       }
@@ -502,10 +521,10 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // 1. Fetch users from public.users
+      // 1. Fetch users and their core fields from public.users
       const { data: users, error: usersError } = await supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class")
+        .select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level")
         .order("created_at", { ascending: false });
 
       if (usersError) {
@@ -518,24 +537,25 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // 2. Fetch profiles for seat_number and avatar
-      const { data: profiles, error: profilesError } = await supabase
-        .from("user_profiles")
-        .select("id, seat_number, avatar_url");
+      // 2. Fetch avatar configs (the source of avatar customization)
+      const { data: avatarConfigs, error: avatarError } = await supabase
+        .from("user_avatar_config")
+        .select("user_id, equipped_items");
 
-      if (profilesError) {
-        console.warn("list-users: profiles fetch failed:", profilesError);
+      if (avatarError) {
+        console.warn("list-users: avatar_config fetch failed:", avatarError);
       }
 
-      const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.id, p]));
+      const avatarMap = new Map<string, any>((avatarConfigs || []).map((a: any) => [a.user_id, a]));
 
       // 3. Merge data
       const mergedUsers = (users || []).map((u: any) => {
-        const profile = profileMap.get(u.id);
+        const avatar = avatarMap.get(u.id);
         return {
           ...u,
-          seat_number: profile?.seat_number || null,
-          avatar_url: profile?.avatar_url || null
+          // We don't have a single avatar_url field anymore, 
+          // but we return enough for the frontend to know they exist
+          avatar_url: avatar ? "CUSTOM" : null
         };
       });
 
@@ -583,6 +603,79 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ success: true }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/bulk-delete-users")) {
+      const { adminUserId, userIdsToDelete } = await req.json();
+
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const results = [];
+      const errors = [];
+
+      // 1. Get the first admin ID (super admin) for safety
+      const { data: firstAdmin } = await supabase
+        .from("users")
+        .select("id")
+        .eq("role", "admin")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const superAdminId = firstAdmin?.id;
+
+      for (const userId of userIdsToDelete) {
+        try {
+          // Safety: Cannot delete the super admin
+          if (userId === superAdminId) {
+            errors.push({ id: userId, error: "Cannot delete the super admin" });
+            continue;
+          }
+
+          // 2. Delete from public.users first
+          const { error: dbError } = await supabase
+            .from("users")
+            .delete()
+            .eq("id", userId);
+
+          if (dbError) throw dbError;
+
+          // 3. Delete from Auth system
+          const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+          if (authError) {
+            console.error(`Auth deletion failed for ${userId}:`, authError);
+            // We still proceed as the public record is gone
+          }
+
+          results.push({ id: userId, success: true });
+        } catch (err: any) {
+          console.error(`Failed to delete user ${userId}:`, err);
+          errors.push({ id: userId, error: err.message });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: errors.length === 0,
+          message: `Processed ${userIdsToDelete.length} users. ${results.length} success, ${errors.length} failed.`,
+          results,
+          errors
+        }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -641,16 +734,39 @@ Deno.serve(async (req: Request) => {
       const finalClass = classInput || classNameInput;
 
       try {
-        const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
-          caller_user_id: adminUserId,
-          target_user_id: userId,
-          new_username: username || null,
-          new_display_name: display_name || null,
-          new_role: role || null,
-          new_class: finalClass || null,
-          new_seat_number: classNumber === 0 ? 0 : (classNumber || null),
-          new_spelling_level: spellingLevel || null,
-        });
+        const classNumberValue = classNumber === 0 ? 0 : (classNumber || null);
+
+        const updatePayload: any = {};
+        if (username !== undefined) updatePayload.username = username;
+        if (display_name !== undefined) updatePayload.display_name = display_name;
+        if (role !== undefined) updatePayload.role = role;
+        if (finalClass !== undefined) updatePayload.class = finalClass || null;
+        if (spellingLevel !== undefined) updatePayload.spelling_level = spellingLevel || null;
+        if (classNumber !== undefined) updatePayload.class_number = classNumberValue;
+
+        console.log("DEBUG update-user: userId=", userId, "updatePayload=", JSON.stringify(updatePayload));
+
+        // If payload is empty, nothing to do
+        if (Object.keys(updatePayload).length === 0) {
+          console.log("DEBUG update-user: payload is EMPTY, nothing to update");
+          return new Response(
+            JSON.stringify({ success: true, user: null, message: "No changes to apply" }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Try update — Supabase PostgREST silently ignores unknown columns
+        const { data: updatedUser, error } = await supabase
+          .from("users")
+          .update(updatePayload)
+          .eq("id", userId)
+          .select()
+          .single();
+
+        console.log("DEBUG update-user: result=", JSON.stringify({ data: updatedUser, error }));
 
         if (error) {
           return new Response(
@@ -667,7 +783,7 @@ Deno.serve(async (req: Request) => {
         if (role) authUpdates.role = role;
         if (display_name) authUpdates.display_name = display_name;
         if (finalClass) authUpdates.class = finalClass;
-        if (classNumber !== undefined) authUpdates.seat_number = classNumber;
+        if (classNumber !== undefined) authUpdates.class_number = classNumber;
         if (spellingLevel !== undefined) authUpdates.spelling_level = spellingLevel;
 
         if (Object.keys(authUpdates).length > 0) {
@@ -809,16 +925,14 @@ Deno.serve(async (req: Request) => {
 
       for (const update of updates) {
         try {
-          // 1. Update DB via RPC 
-          const { error: dbError } = await supabase.rpc("update_user_info", {
-            caller_user_id: adminUserId,
-            target_user_id: update.userId,
-            new_username: null,
-            new_display_name: null,
-            new_role: null,
-            new_class: update.class || null,
-            new_seat_number: update.classNumber,
-          });
+          // 1. Update DB directly (bypasses restrictive RPC and handles managed_by_id)
+          const { error: dbError } = await supabase
+            .from("users")
+            .update({
+              class: update.class || null,
+              class_number: update.classNumber
+            })
+            .eq("id", update.userId);
 
           if (dbError) {
             throw dbError;
@@ -828,7 +942,7 @@ Deno.serve(async (req: Request) => {
           if (syncAuthMetadata) {
             const { error: authError } = await supabase.auth.admin.updateUserById(update.userId, {
               user_metadata: {
-                seat_number: update.classNumber,
+                class_number: update.classNumber,
                 ...(update.class ? { class: update.class } : {})
               }
             });
@@ -843,6 +957,88 @@ Deno.serve(async (req: Request) => {
         } catch (err: any) {
           console.error(`Failed to update user ${update.userId}:`, err);
           errors.push({ userId: update.userId, error: err.message });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: errors.length === 0,
+          message: `Processed ${updates.length} users. ${results.length} success, ${errors.length} failed.`,
+          results,
+          errors
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/bulk-update-users")) {
+      const { adminUserId, updates }: BulkUpdateUsersRequest = await req.json();
+
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (!updates || !Array.isArray(updates)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid updates format" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      console.log(`Processing bulk user edit for ${updates.length} users`);
+
+      const results = [];
+      const errors = [];
+
+      for (const update of updates) {
+        try {
+          // 1. Update DB directly (bypasses restrictive RPC and handles all fields)
+          const classNumVal = update.classNumber !== undefined && update.classNumber !== "" ? Number(update.classNumber) : null;
+          const { error: dbError } = await supabase
+            .from("users")
+            .update({
+              display_name: update.display_name || undefined,
+              class: update.class || undefined,
+              class_number: classNumVal,
+              managed_by_id: adminUserId
+            })
+            .eq("id", update.id);
+
+          if (dbError) throw dbError;
+
+          // 2. Sync Auth Metadata
+          const { data: userData } = await supabase.auth.admin.getUserById(update.id);
+          const { error: authError } = await supabase.auth.admin.updateUserById(update.id, {
+            user_metadata: {
+              ...(userData.user?.user_metadata || {}),
+              ...(update.display_name ? { display_name: update.display_name } : {}),
+              ...(update.class !== undefined ? { class: update.class } : {}),
+              ...(update.classNumber !== undefined && update.classNumber !== "" ? { class_number: Number(update.classNumber) } : { class_number: null }),
+              managed_by_id: adminUserId
+            }
+          });
+
+          if (authError) {
+            console.error(`Auth sync failed for ${update.id}:`, authError);
+          }
+
+          results.push({ id: update.id, success: true });
+        } catch (err: any) {
+          console.error(`Failed to update user ${update.id}:`, err);
+          errors.push({ id: update.id, error: err.message });
         }
       }
 

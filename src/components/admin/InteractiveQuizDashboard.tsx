@@ -46,7 +46,7 @@ export function InteractiveQuizDashboard({ className }: InteractiveQuizDashboard
         if (usersData) {
             const { data: profiles } = await supabase
                 .from('user_profiles')
-                .select('id, display_name, seat_number')
+                .select('id, display_name, class_number')
                 .in('id', usersData.map(u => u.id));
 
             const _profiles: any[] = profiles || [];
@@ -55,9 +55,9 @@ export function InteractiveQuizDashboard({ className }: InteractiveQuizDashboard
                 return {
                     ...u,
                     display_name: p?.display_name || null,
-                    seat_number: p?.seat_number || null
+                    class_number: p?.class_number || null
                 };
-            }).sort((a, b) => (a.seat_number || 0) - (b.seat_number || 0));
+            }).sort((a, b) => (a.class_number || 0) - (b.class_number || 0));
             setStudents(merged);
         }
 

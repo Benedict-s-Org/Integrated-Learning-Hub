@@ -30,7 +30,7 @@ interface UserWithCoins {
     coins: number;
     virtual_coins?: number;
     daily_real_earned?: number; // Add this
-    seat_number: number | null;
+    class_number: number | null;
     email: string;
     created_at: string;
     is_admin: boolean;

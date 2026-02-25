@@ -4,7 +4,7 @@ import { User } from 'lucide-react';
 interface UserWithCoins {
     id: string;
     display_name: string | null;
-    seat_number: number | null;
+    class_number: number | null;
     daily_real_earned?: number;
 }
 
@@ -14,7 +14,7 @@ interface StudentNameSidebarProps {
 }
 
 export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward }) => {
-    // Sort logic: Students with 10+ coins drop to the bottom, then sort by seat number
+    // Sort logic: Students with 10+ coins drop to the bottom, then sort by class number
     const sortedUsers = [...users].sort((a, b) => {
         const aCompleted = (a.daily_real_earned || 0) >= 10;
         const bCompleted = (b.daily_real_earned || 0) >= 10;
@@ -22,7 +22,7 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
         if (aCompleted && !bCompleted) return 1;
         if (!aCompleted && bCompleted) return -1;
 
-        return (a.seat_number || 999) - (b.seat_number || 999);
+        return (a.class_number || 999) - (b.class_number || 999);
     });
 
     return (
@@ -67,24 +67,26 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                             className={`w-full flex items-center gap-2 p-1.5 rounded-xl border transition-all active:scale-95 group text-left relative overflow-hidden
                                 ${isCompleted
                                     ? 'bg-slate-50 border-slate-100 opacity-80'
-                                    : 'bg-white border-slate-100 hover:bg-blue-600 hover:text-white hover:border-blue-600 shadow-sm'}`}
+                                    : 'bg-white border-slate-100 hover:bg-blue-600 hover:text-white hover:border-blue-600 shadow-sm'
+                                } `}
                             title={`Reward ${user.display_name} (${rewardCount} times)`}
                         >
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors shrink-0
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors shrink-0
                                 ${rewardCount > 0
                                     ? iconColorClass
-                                    : 'bg-slate-100 text-slate-600 group-hover:bg-blue-500 group-hover:text-white'}`}>
-                                {user.seat_number || <User size={10} />}
+                                    : 'bg-slate-100 text-slate-600 group-hover:bg-blue-500 group-hover:text-white'
+                                } `}>
+                                <User size={14} />
                             </div>
 
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-[11px] truncate leading-tight">
-                                    {user.display_name || 'Student'}
+                                    {user.display_name}({user.class_number || '-'})
                                 </p>
                                 <div className="flex items-center gap-1 mt-0.5">
                                     <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full transition-all duration-500 ${barColorClass}`}
+                                            className={`h-full transition-all duration-500 ${barColorClass} `}
                                             style={{ width: progressWidth }}
                                         />
                                     </div>

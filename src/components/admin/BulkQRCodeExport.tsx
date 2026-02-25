@@ -7,8 +7,7 @@ import { Download, Loader2 } from 'lucide-react';
 interface StudentForExport {
     id: string;
     display_name: string | null;
-    class_name?: string | null;
-    seat_number: number | null;
+    class_number: number | null;
     qr_token?: string;
 }
 
@@ -75,15 +74,15 @@ export function BulkQRCodeExport({ students }: BulkQRCodeExportProps) {
                 // Class Info
                 ctx.fillStyle = '#64748b'; // Slate-500
                 ctx.font = '32px sans-serif';
-                const classText = `${student.class_name || 'No Class'} ${student.seat_number ? '#' + student.seat_number : ''}`;
+                const classText = `Class No. ${student.class_number || 'N/A'}`;
                 ctx.fillText(classText, size / 2, nameY + 100);
 
                 // 4. Convert to Blob
                 canvas.toBlob((blob) => {
                     // Filename sanitization
                     const safeName = (student.display_name || 'student').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                    const safeClass = (student.class_name || 'nc').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                    const filename = `${safeClass}_${student.seat_number || '0'}_${safeName}.jpg`;
+                    const studentNum = student.class_number !== null ? student.class_number.toString().padStart(2, '0') : 'XX';
+                    const filename = `${studentNum}_${safeName}.jpg`;
                     resolve({ blob, filename });
                 }, 'image/jpeg', 0.9);
 

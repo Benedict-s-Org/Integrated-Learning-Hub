@@ -854,6 +854,7 @@ export type Database = {
           id: string
           is_published: boolean | null
           original_text: string
+          practice_mode: string | null
           public_id: string | null
           selected_word_indices: Json
           title: string
@@ -865,6 +866,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           original_text: string
+          practice_mode?: string | null
           public_id?: string | null
           selected_word_indices?: Json
           title: string
@@ -876,6 +878,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           original_text?: string
+          practice_mode?: string | null
           public_id?: string | null
           selected_word_indices?: Json
           title?: string

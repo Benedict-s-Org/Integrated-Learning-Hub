@@ -8,7 +8,7 @@ interface Student {
     username: string;
     display_name: string | null;
     class: string | null;
-    seat_number: number | null;
+    class_number: number | null;
 }
 
 export function MarkerGenerator({ onBack }: { onBack: () => void }) {
@@ -31,37 +31,34 @@ export function MarkerGenerator({ onBack }: { onBack: () => void }) {
 
     const fetchStudents = async (className: string) => {
         setLoading(true);
-        const { data: users } = await supabase
-            .from('users' as any)
-            .select('id, username, class')
-            .eq('class', className);
+        try {
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, username, class, display_name, class_number')
+                .eq('class', className);
 
-        if (users) {
-            // Get profile details
-            const { data: profiles } = await supabase
-                .from('user_profiles' as any)
-                .select('id, display_name, seat_number')
-                .in('id', users.map((u: any) => u.id));
+            if (users) {
+                const merged = users.map((u: any) => ({
+                    id: u.id,
+                    username: u.username,
+                    display_name: u.display_name,
+                    class: u.class,
+                    class_number: u.class_number
+                })).sort((a, b) => {
+                    if (a.class_number !== null && b.class_number !== null) {
+                        return a.class_number - b.class_number;
+                    }
+                    if (a.class_number !== null) return -1;
+                    if (b.class_number !== null) return 1;
+                    const nameA = a.display_name || a.username;
+                    const nameB = b.display_name || b.username;
+                    return nameA.localeCompare(nameB);
+                });
 
-            const _profiles: any[] = profiles || [];
-            const merged = users.map((u: any) => {
-                const p = _profiles.find((p: any) => p.id === u.id);
-                return {
-                    ...u,
-                    display_name: p?.display_name || null,
-                    seat_number: p?.seat_number || null
-                };
-            }).sort((a, b) => {
-                // Sort by class number, fallback to username
-                if (a.seat_number && b.seat_number) {
-                    return a.seat_number - b.seat_number;
-                }
-                if (a.seat_number) return -1;
-                if (b.seat_number) return 1;
-                return a.username.localeCompare(b.username);
-            });
-
-            setStudents(merged);
+                setStudents(merged);
+            }
+        } catch (error) {
+            console.error('Error fetching students:', error);
         }
         setLoading(false);
     };
@@ -80,11 +77,9 @@ export function MarkerGenerator({ onBack }: { onBack: () => void }) {
         window.print();
     };
 
-    // Calculate a safe ArUco ID for a student.
-    // Ensure it falls within 0-999 (DICT_4X4_1000 length).
     const getMarkerId = (student: Student, index: number) => {
-        if (student.seat_number !== null && student.seat_number < 1000 && student.seat_number >= 0) {
-            return student.seat_number;
+        if (student.class_number !== null && student.class_number < 1000 && student.class_number >= 0) {
+            return student.class_number;
         }
         return (index + 1) % 1000;
     };
@@ -134,41 +129,41 @@ export function MarkerGenerator({ onBack }: { onBack: () => void }) {
                 <div className="flex flex-col gap-8 print:block max-w-6xl mx-auto">
                     <style dangerouslySetInnerHTML={{
                         __html: `
-                        @media print {
-                            @page {
-                                size: A4;
-                                margin: 0;
+                            @media print {
+                                @page {
+                                    size: A4;
+                                    margin: 0;
+                                }
+                                body {
+                                    background: white;
+                                }
+                                .student-card {
+                                    height: 297mm;
+                                    width: 210mm;
+                                    padding: 20mm;
+                                    display: flex;
+                                    flex-direction: column;
+                                    justify-content: space-between;
+                                    align-items: center;
+                                    page-break-after: always;
+                                    break-after: page;
+                                    border: none !important;
+                                    box-shadow: none !important;
+                                }
+                                .marker-container {
+                                    width: 150mm !important;
+                                    height: 150mm !important;
+                                    margin-top: 10mm;
+                                }
+                                .labels-layer {
+                                    font-size: 5rem !important;
+                                }
+                                .info-container {
+                                    margin-bottom: 20mm;
+                                    transform: scale(1.5);
+                                }
                             }
-                            body {
-                                background: white;
-                            }
-                            .student-card {
-                                height: 297mm;
-                                width: 210mm;
-                                padding: 20mm;
-                                display: flex;
-                                flex-direction: column;
-                                justify-content: space-between;
-                                align-items: center;
-                                page-break-after: always;
-                                break-after: page;
-                                border: none !important;
-                                box-shadow: none !important;
-                            }
-                            .marker-container {
-                                width: 150mm !important;
-                                height: 150mm !important;
-                                margin-top: 10mm;
-                            }
-                            .labels-layer {
-                                font-size: 5rem !important;
-                            }
-                            .info-container {
-                                margin-bottom: 20mm;
-                                transform: scale(1.5);
-                            }
-                        }
-                    `}} />
+                        `}} />
                     {students.map((student, index) => {
                         const markerId = getMarkerId(student, index);
                         return (
@@ -192,15 +187,15 @@ export function MarkerGenerator({ onBack }: { onBack: () => void }) {
                                 <div className="info-container text-center w-full pb-12">
                                     <h2 className="text-4xl font-black text-slate-800 print:text-black mb-4">
                                         {student.display_name || student.username}
+                                        <div className="flex flex-col gap-2">
+                                            <p className="text-xl font-bold text-slate-500 print:text-black uppercase tracking-widest">
+                                                Class: {student.class || 'N/A'}
+                                            </p>
+                                            <p className="text-xl font-bold text-slate-500 print:text-black uppercase tracking-widest">
+                                                學號: {student.class_number || 'N/A'}
+                                            </p>
+                                        </div>
                                     </h2>
-                                    <div className="flex flex-col gap-2">
-                                        <p className="text-xl font-bold text-slate-500 print:text-black uppercase tracking-widest">
-                                            Class: {student.class || 'N/A'}
-                                        </p>
-                                        <p className="text-xl font-bold text-slate-500 print:text-black uppercase tracking-widest">
-                                            Class Number: {student.seat_number || 'N/A'}
-                                        </p>
-                                    </div>
                                 </div>
                             </div>
                         );

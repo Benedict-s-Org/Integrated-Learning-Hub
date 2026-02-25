@@ -10,6 +10,9 @@ import {
   RotateCcw,
   LayoutGrid,
   List,
+  CheckSquare,
+  Square,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -20,6 +23,9 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentQRCodeModal } from '@/components/admin/StudentQRCodeModal';
 import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
+import { BulkUserCreationModal } from '@/components/admin/BulkUserCreationModal';
+import { BulkUserEditModal } from '@/components/admin/BulkUserEditModal';
+import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 interface UserWithProfile {
@@ -32,7 +38,7 @@ interface UserWithProfile {
   coins: number;
   virtual_coins?: number;
   daily_real_earned?: number;
-  seat_number: number | null;
+  class_number: number | null;
   class_name?: string | null;
   qr_token?: string;
   managed_by_id?: string | null;
@@ -61,12 +67,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [isCreating, setIsCreating] = useState(false);
 
   const [editingUser, setEditingUser] = useState<UserWithProfile | null>(null);
+  const [selectedHomeworkStudent, setSelectedHomeworkStudent] = useState<UserWithProfile | null>(null);
+  const [showBulkCreate, setShowBulkCreate] = useState(false);
   const [showDefaultSettings, setShowDefaultSettings] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
   const [filterClass, setFilterClass] = useState<string>('all');
   const [showAllStudents, setShowAllStudents] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
 
   useEffect(() => {
     // Sync showAllStudents if super admin
@@ -89,13 +99,15 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       }
       console.log(`Fetched ${publicUsers?.length || 0} base user records`);
 
-      const { data: profiles, error: profilesError } = await (supabase
-        .from('user_profiles')
-        .select('id, avatar_url, seat_number') as any);
+      const { data: avatarConfigs, error: avatarError } = await supabase
+        .from("user_avatar_config")
+        .select("user_id, equipped_items");
 
-      if (profilesError) console.error('Error fetching profiles:', profilesError);
+      if (avatarError) {
+        console.warn("fetchUsers: avatar_config fetch failed:", avatarError);
+      }
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      const avatarMap = new Map((avatarConfigs || []).map((a: any) => [a.user_id, a]));
 
       const { data: roomData, error: roomError } = await supabase
         .from('user_room_data')
@@ -114,7 +126,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       }));
 
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
-        const profile = profileMap.get(u.id) as any;
+        const avatar = avatarMap.get(u.id) as any;
         const roomData = roomDataMap.get(u.id) as any;
 
         // Safety: ensure current user (admin) has their role reflected correctly in state
@@ -124,13 +136,13 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           id: u.id,
           email: u.username || '',
           display_name: u.display_name || 'Unnamed',
-          avatar_url: profile?.avatar_url || null,
+          avatar_url: avatar ? "CUSTOM" : null,
           created_at: u.created_at || new Date().toISOString(),
           is_admin: role === 'admin',
           coins: roomData?.coins || 0,
           virtual_coins: roomData?.virtual_coins || 0,
           daily_real_earned: roomData?.daily_real_earned || 0,
-          seat_number: profile?.seat_number || null,
+          class_number: u.class_number ?? u.seat_number ?? null,
           class_name: u.class,
           qr_token: u.qr_token,
           managed_by_id: u.managed_by_id,
@@ -143,6 +155,22 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       console.error('Failed to fetch data:', err);
     } finally {
       setIsLoadingUsers(false);
+    }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const selectAllUsers = (ids: string[]) => {
+    if (selectedUserIds.length === ids.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(ids);
     }
   };
 
@@ -180,7 +208,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       showAllStudents
     });
 
-    return filtered;
+    return filtered.sort((a, b) => {
+      // Sort by class first
+      const classA = a.class_name || 'Unassigned';
+      const classB = b.class_name || 'Unassigned';
+      if (classA !== classB) {
+        return classA.localeCompare(classB);
+      }
+      // Then sort by class number
+      return (a.class_number || 999) - (b.class_number || 999);
+    });
   }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -212,6 +249,57 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       alert(err.message || '建立用戶時發生錯誤');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+
+    const passcode = prompt(`Confirm with passcode 24411222 to delete ${selectedUserIds.length} users:`);
+    if (passcode !== '24411222') {
+      if (passcode !== null) alert('密碼錯誤');
+      return;
+    }
+
+    setIsLoadingUsers(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth/bulk-delete-users', {
+        body: {
+          adminUserId: forcedAdminId || currentUser?.id,
+          userIdsToDelete: selectedUserIds,
+        },
+      });
+
+      if (error) throw error;
+
+      alert(`成功刪除 ${data.results?.length || 0} 個用戶`);
+      setSelectedUserIds([]);
+      await fetchUsers();
+    } catch (err: any) {
+      alert(err.message || '刪除用戶時發生錯誤');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleHomeworkRecord = async (studentId: string, reason: string) => {
+    try {
+      let amount = 0;
+      if (reason === '完成班務（交齊功課）') amount = 20;
+      else if (reason === '完成班務（寫手冊）') amount = 2;
+      else if (reason === '完成班務（欠功課）') amount = -2;
+
+      const { error } = await (supabase as any).rpc('increment_room_coins', {
+        target_user_id: studentId,
+        amount: amount,
+        log_reason: reason,
+        log_admin_id: forcedAdminId || currentUser?.id
+      });
+
+      if (error) throw error;
+      fetchUsers();
+    } catch (err) {
+      console.error('Error recording homework:', err);
     }
   };
 
@@ -289,6 +377,25 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                   <span className="text-sm font-medium text-slate-700">Show All Students</span>
                 </label>
               )}
+
+              {selectedUserIds.length > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowBulkEdit(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-sm hover:bg-indigo-700 transition-colors animate-in fade-in slide-in-from-left-2"
+                  >
+                    <Pencil size={18} />
+                    批量編輯 ({selectedUserIds.length})
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl font-bold shadow-sm hover:bg-red-700 transition-colors animate-in fade-in slide-in-from-left-2"
+                  >
+                    <Trash2 size={18} />
+                    批量刪除 ({selectedUserIds.length})
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -303,9 +410,18 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             <div className="lg:col-span-1 space-y-6">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <UserPlus className="text-blue-500" />
-                  建立新用戶
+                <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <UserPlus className="text-blue-500" />
+                    建立新用戶
+                  </span>
+                  <button
+                    onClick={() => setShowBulkCreate(true)}
+                    className="text-xs bg-slate-50 text-slate-500 px-2 py-1 rounded-lg hover:bg-slate-100 hover:text-blue-600 transition-colors font-bold border border-slate-200"
+                    title="批量建立用戶"
+                  >
+                    批量建立
+                  </button>
                 </h2>
                 <form onSubmit={handleCreateUser} className="space-y-4">
                   <input
@@ -382,6 +498,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                       setShowAwardModal(true);
                     }}
                     onStudentClick={(student) => setEditingUser(student as UserWithProfile)}
+                    onHomeworkClick={(student) => setSelectedHomeworkStudent(student as UserWithProfile)}
                     onReorder={async (newOrder) => {
                       try {
                         const updates = newOrder.map((user, index) => ({
@@ -406,6 +523,21 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                     <table className="w-full text-left">
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
+                          <th className="px-6 py-4 w-10">
+                            <button
+                              onClick={() => {
+                                const filtered = visibleUsers.filter(u => filterClass === 'all' || u.class_name === filterClass);
+                                selectAllUsers(filtered.map(u => u.id));
+                              }}
+                              className="text-slate-400 hover:text-blue-600 transition-colors"
+                            >
+                              {selectedUserIds.length > 0 && selectedUserIds.length === visibleUsers.filter(u => filterClass === 'all' || u.class_name === filterClass).length ? (
+                                <CheckSquare size={20} className="text-blue-600" />
+                              ) : (
+                                <Square size={20} />
+                              )}
+                            </button>
+                          </th>
                           <th className="px-6 py-4 font-bold text-slate-600">學生</th>
                           <th className="px-6 py-4 font-bold text-slate-600">班別/學號</th>
                           <th className="px-6 py-4 font-bold text-slate-600">金幣</th>
@@ -423,12 +555,24 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                             .map(user => (
                               <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
                                 <td className="px-6 py-4">
+                                  <button
+                                    onClick={() => toggleUserSelection(user.id)}
+                                    className={`transition-colors ${selectedUserIds.includes(user.id) ? 'text-blue-600' : 'text-slate-300 hover:text-blue-400'}`}
+                                  >
+                                    {selectedUserIds.includes(user.id) ? (
+                                      <CheckSquare size={20} />
+                                    ) : (
+                                      <Square size={20} />
+                                    )}
+                                  </button>
+                                </td>
+                                <td className="px-6 py-4">
                                   <div className="font-bold text-slate-800">{user.display_name}</div>
                                   <div className="text-sm text-slate-500">{user.email}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                   <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
-                                  <span className="text-slate-400 font-medium">#{user.seat_number || '-'}</span>
+                                  <span className="text-slate-400 font-medium">#{user.class_number || '-'}</span>
                                 </td>
                                 <td className="px-6 py-4 font-black text-blue-600">{user.coins || 0}</td>
                                 <td className="px-6 py-4 text-right space-x-2">
@@ -485,6 +629,31 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         isOpen={!!qrUser}
         onClose={() => setQrUser(null)}
         student={qrUser}
+      />
+
+      <BulkUserCreationModal
+        isOpen={showBulkCreate}
+        onClose={() => setShowBulkCreate(false)}
+        onSuccess={fetchUsers}
+        adminUserId={forcedAdminId || currentUser?.id || ""}
+      />
+
+      <BulkUserEditModal
+        isOpen={showBulkEdit}
+        onClose={() => {
+          setShowBulkEdit(false);
+          setSelectedUserIds([]);
+        }}
+        onSuccess={fetchUsers}
+        selectedUsers={users.filter(u => selectedUserIds.includes(u.id))}
+        adminUserId={forcedAdminId || currentUser?.id || ""}
+      />
+
+      <HomeworkModal
+        isOpen={!!selectedHomeworkStudent}
+        onClose={() => setSelectedHomeworkStudent(null)}
+        studentName={selectedHomeworkStudent?.display_name || ''}
+        onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
       />
     </>
   );

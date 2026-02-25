@@ -6,6 +6,7 @@ export interface SavedContent {
   createdAt: Date;
   isPublished: boolean;
   publicId?: string | null;
+  practiceMode?: 'memorization' | 'shuffledGame';
 }
 
 export interface Word {
@@ -22,6 +23,7 @@ export interface MemorizationState {
   words: Word[];
   selectedWordIndices: number[];
   hiddenWords: Set<number>;
+  practiceMode?: 'memorization' | 'shuffledGame';
 }
 
 export interface AppContextType {
@@ -49,7 +51,8 @@ export type PageType =
   | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
-  | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner';
+  | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
+  | 'shuffledGame';
 
 export type AppPage = PageType;
 

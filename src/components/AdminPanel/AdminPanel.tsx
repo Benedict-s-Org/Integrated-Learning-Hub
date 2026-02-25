@@ -14,7 +14,7 @@ interface User {
   can_access_spelling?: boolean;
   display_name?: string;
   class?: string | null;
-  seat_number?: number | null;
+  class_number?: number | null;
   qr_token?: string;
 }
 
@@ -116,28 +116,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       if (!data) throw new Error('No data returned');
 
 
-      // Fetch QR tokens and seat numbers for users
-      const { data: profiles } = await (supabase
-        .from('user_profiles')
-        .select('id, seat_number') as any);
+      // Fetch QR tokens and class numbers for users
+      const { data: usersWithInfo } = await (supabase
+        .from('users')
+        .select('id, class_number, qr_token') as any);
 
       const profileMap: Record<string, number | null> = {};
-      (profiles || []).forEach((p: any) => {
-        if (p.id) profileMap[p.id] = p.seat_number;
-      });
-
-      const { data: usersWithQr } = await (supabase
-        .from('users')
-        .select('id, qr_token') as any);
-
       const qrTokenMap: Record<string, string> = {};
-      (usersWithQr || []).forEach((u: any) => {
-        if (u.id && u.qr_token) qrTokenMap[u.id] = u.qr_token;
+
+      (usersWithInfo || []).forEach((u: any) => {
+        if (u.id) {
+          profileMap[u.id] = u.class_number;
+          if (u.qr_token) qrTokenMap[u.id] = u.qr_token;
+        }
       });
 
       setUsers(data.users.map((u: any) => ({
         ...u,
-        seat_number: profileMap[u.id],
+        class_number: profileMap[u.id],
         qr_token: qrTokenMap[u.id]
       })));
     } finally {
@@ -293,7 +289,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setEditRole(user.role);
     setEditClass(user.class || '');
     // @ts-ignore
-    setEditClassNumber(user.seat_number?.toString() || '');
+    setEditClassNumber(user.class_number?.toString() || '');
     setEditPassword('');
     setShowEditModal(true);
   };
@@ -484,7 +480,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       } else if (sortBy === 'class') {
         comparison = (a.class || '').localeCompare(b.class || '');
         if (comparison === 0) {
-          comparison = (a.seat_number || 0) - (b.seat_number || 0);
+          comparison = (a.class_number || 0) - (b.class_number || 0);
         }
       } else {
         comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -730,7 +726,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-slate-600">
-                        {user.seat_number ? `#${user.seat_number}` : '-'}
+                        {user.class_number ? `#${user.class_number}` : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">

@@ -14,7 +14,7 @@ import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizatio
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 
-interface UserWithCoins {
+export interface UserWithCoins {
     id: string;
     display_name: string | null;
     avatar_url: string | null;
@@ -22,7 +22,7 @@ interface UserWithCoins {
     virtual_coins?: number;
     daily_real_earned?: number;
     class?: string | null;
-    seat_number: number | null;
+    class_number: number | null;
     email: string;
     created_at: string;
     is_admin: boolean;
@@ -164,7 +164,7 @@ export function ClassDashboardPage() {
                         virtual_coins: roomInfo?.virtual_coins || 0,
                         daily_real_earned: dailyRealEarned,
                         class: u.class || u.user_metadata?.class || 'Unassigned',
-                        seat_number: u.seat_number || null,
+                        class_number: u.class_number || null,
                         email: u.email || '',
                         created_at: u.created_at || new Date().toISOString(),
                         is_admin: u.role === 'admin',
@@ -192,7 +192,7 @@ export function ClassDashboardPage() {
                         virtual_coins: u.virtual_coins || 0,
                         daily_real_earned: dailyRealEarned,
                         class: u.class || u.user_metadata?.class || 'Unassigned',
-                        seat_number: u.seat_number || null,
+                        class_number: u.class_number || null,
                         email: u.email || '',
                         created_at: u.created_at || new Date().toISOString(),
                         is_admin: u.role === 'admin',
@@ -214,7 +214,7 @@ export function ClassDashboardPage() {
             }, {} as Record<string, UserWithCoins[]>);
 
             Object.keys(grouped).forEach(key => {
-                grouped[key].sort((a, b) => (a.seat_number || 999) - (b.seat_number || 999));
+                grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
             });
 
             setGroupedUsers(grouped);
@@ -277,6 +277,27 @@ export function ClassDashboardPage() {
         } catch (err) {
             console.error('Error awarding/requesting coins:', err);
             alert('Failed to process request');
+        }
+    };
+
+    const handleAwardBulk = async (awards: { userId: string, amount: number, reason?: string }[]) => {
+        try {
+            for (const award of awards) {
+                const { error } = await supabase.rpc('increment_room_coins' as any, {
+                    target_user_id: award.userId,
+                    amount: award.amount,
+                    log_reason: award.reason || 'Dictation Bonus',
+                    log_admin_id: currentUser?.id
+                });
+                if (error) console.error(`Failed to award bonus to ${award.userId}:`, error);
+            }
+            playSuccessSound();
+            await fetchUsers();
+            setShowAwardModal(false);
+            setSelectedForAward([]);
+        } catch (err) {
+            console.error('Error in bulk awarding:', err);
+            alert('Failed to process bulk awards');
         }
     };
 
@@ -547,6 +568,8 @@ export function ClassDashboardPage() {
                 selectedCount={selectedForAward.length}
                 selectedStudentIds={selectedForAward}
                 onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
+                onAwardBulk={handleAwardBulk}
+                students={Object.values(groupedUsers).flat()}
             />
 
             <StudentProfileModal

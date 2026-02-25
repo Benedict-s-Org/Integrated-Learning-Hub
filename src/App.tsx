@@ -31,7 +31,8 @@ import {
   ProofreadingPractice,
   AssignedProofreadingPracticeContent,
   CustomWall,
-  CustomFloor
+  CustomFloor,
+  PageType
 } from './types';
 
 // Regular Component Imports (not lazy)
@@ -39,6 +40,7 @@ import TextInput from './components/TextInput/TextInput';
 import WordSelection from './components/WordSelection/WordSelection';
 import MemorizationView from './components/MemorizationView/MemorizationView';
 import SavedContent from './components/SavedContent/SavedContent';
+import ShuffledGameView from './components/ShuffledGameView/ShuffledGameView';
 import AdminPanel from './components/AdminPanel/AdminPanel';
 import ContentDatabase from './components/ContentDatabase/ContentDatabase';
 import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
@@ -74,6 +76,7 @@ type AppState =
   | { page: 'new'; step: 'input'; text?: string }
   | { page: 'new'; step: 'selection'; text: string; words?: Word[] }
   | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
+  | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
   | { page: 'admin' }
@@ -119,7 +122,12 @@ function AppContent() {
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
-  const { fetchPublicContent, proofreadingPractices, deleteProofreadingPractice } = useAppContext();
+  const {
+    fetchPublicContent,
+    proofreadingPractices,
+    deleteProofreadingPractice,
+    addSavedContent,
+  } = useAppContext();
   const { user, loading, toggleViewMode, isAdmin, signOut, isMobileEmulator, setIsMobileEmulator } = useAuth();
 
   // Memory Palace Context Handlers
@@ -384,7 +392,7 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner') => {
+  const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
     if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner')) {
       setShowLoginModal(true);
@@ -476,6 +484,7 @@ function AppContent() {
   };
 
   const handleTextSubmit = (text: string) => {
+    setAppState({ page: 'new', step: 'input', text }); // Initialize with text
     setAppState({ page: 'new', step: 'selection', text });
   };
 
@@ -491,6 +500,40 @@ function AppContent() {
     }
   };
 
+  const handleStartGame = (words: Word[], selectedIndices: number[]) => {
+    if (appState.page === 'new' && appState.step === 'selection') {
+      setAppState({
+        page: 'new',
+        step: 'shuffledGame',
+        words,
+        selectedIndices,
+        text: appState.text,
+      });
+    }
+  };
+
+  const handleSaveGame = async (_words: Word[], selectedIndices: number[]) => {
+    if (!isAdmin) return;
+
+    const title = prompt('Enter a title for this Shuffled Word Game:');
+    if (!title) return;
+
+    try {
+      await addSavedContent({
+        title,
+        originalText: appState.page === 'new' && 'text' in appState ? (appState as any).text : '',
+        selectedWordIndices: selectedIndices,
+        practiceMode: 'shuffledGame',
+        isPublished: false
+      });
+      alert('Game saved successfully!');
+      setAppState({ page: 'saved' });
+    } catch (error) {
+      console.error('Failed to save game:', error);
+      alert('Failed to save game. Please try again.');
+    }
+  };
+
   const handleBackToInput = () => {
     if (appState.page === 'new' && appState.step === 'selection') {
       setAppState({ page: 'new', step: 'input', text: appState.text });
@@ -500,7 +543,7 @@ function AppContent() {
   };
 
   const handleBackToSelection = () => {
-    if (appState.page === 'new' && appState.step === 'memorization') {
+    if (appState.page === 'new' && (appState.step === 'memorization' || appState.step === 'shuffledGame')) {
       setAppState({ page: 'new', step: 'selection', text: appState.text, words: appState.words });
     }
   };
@@ -685,6 +728,9 @@ function AppContent() {
                 onNext={handleWordsSelected}
                 onBack={handleBackToInput}
                 onViewSaved={handleViewSavedMemorization}
+                onStartGame={handleStartGame}
+                onSaveGame={handleSaveGame}
+                isAdmin={isAdmin}
               />
             );
           case 'memorization':
@@ -696,6 +742,13 @@ function AppContent() {
                 onBack={handleBackToSelection}
                 onSave={handleSave}
                 onViewSaved={handleViewSavedMemorization}
+              />
+            );
+          case 'shuffledGame':
+            return (
+              <ShuffledGameView
+                words={appState.words}
+                onBack={handleBackToSelection}
               />
             );
         }
@@ -754,6 +807,15 @@ function AppContent() {
       case 'database':
         return <ContentDatabase />;
       case 'practice':
+        if (appState.memorizationState.practiceMode === 'shuffledGame') {
+          return (
+            <ShuffledGameView
+              words={appState.memorizationState.words}
+              onBack={handleBackFromPractice}
+              isPractice={true}
+            />
+          );
+        }
         return (
           <MemorizationView
             words={appState.memorizationState.words}
@@ -765,6 +827,18 @@ function AppContent() {
           />
         );
       case 'publicPractice':
+        if (appState.memorizationState.practiceMode === 'shuffledGame') {
+          return (
+            <ShuffledGameView
+              words={appState.memorizationState.words}
+              onBack={() => {
+                window.location.hash = '';
+                setAppState({ page: 'new', step: 'input' });
+              }}
+              isPractice={true}
+            />
+          );
+        }
         return (
           <MemorizationView
             words={appState.memorizationState.words}
@@ -943,6 +1017,15 @@ function AppContent() {
       case 'spacedRepetition':
         return <SpacedRepetitionPage />;
       case 'assignedPractice':
+        if (appState.memorizationState.practiceMode === 'shuffledGame') {
+          return (
+            <ShuffledGameView
+              words={appState.memorizationState.words}
+              onBack={handleBackFromAssignedPractice}
+              isPractice={true}
+            />
+          );
+        }
         return (
           <MemorizationView
             words={appState.memorizationState.words}

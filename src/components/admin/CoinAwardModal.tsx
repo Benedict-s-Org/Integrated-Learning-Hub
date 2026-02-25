@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
-    X, Plus, Trash2, Edit2, Check, Star
+    X, Plus, Trash2, Edit2, Check, Star, Trophy
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { REWARD_ICON_MAP, REWARD_COLOR_OPTIONS, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { RewardSubOptionOverlay } from './RewardSubOptionOverlay';
+import { DictationBonusOverlay } from './DictationBonusOverlay';
+import { UserWithCoins } from '@/pages/ClassDashboardPage';
 
 interface CoinAwardModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAward: (amount: number, reason: string) => void;
     selectedCount: number;
-    selectedStudentIds?: string[]; // Add this prop
+    selectedStudentIds?: string[];
+    students?: UserWithCoins[];
+    onAwardBulk?: (awards: { userId: string, amount: number }[]) => void;
 }
 
 export interface ClassReward {
@@ -27,7 +31,7 @@ export interface ClassReward {
 
 // Special reward handling is now done via robust string matching
 
-export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, selectedStudentIds }: CoinAwardModalProps) {
+export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, selectedStudentIds, students = [], onAwardBulk }: CoinAwardModalProps) {
     const { isAdmin, user, isUserView } = useAuth();
     const [rewards, setRewards] = useState<ClassReward[]>([]);
     const [activeTab, setActiveTab] = useState<'reward' | 'consequence'>('reward');
@@ -41,6 +45,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     const [customValues, setCustomValues] = useState<Record<string, number>>({});
 
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
+    const [showDictationBonus, setShowDictationBonus] = useState(false);
 
     // Daily Count State
     const [maxDailyCount, setMaxDailyCount] = useState<number>(0);
@@ -273,6 +278,22 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                     />
                 )}
 
+                {showDictationBonus && onAwardBulk && (
+                    <DictationBonusOverlay
+                        isOpen={showDictationBonus}
+                        onClose={() => setShowDictationBonus(false)}
+                        students={selectedStudentIds
+                            ? students.filter(s => selectedStudentIds.includes(s.id))
+                            : students
+                        }
+                        onAwardBulk={(awards) => {
+                            onAwardBulk(awards);
+                            setShowDictationBonus(false);
+                            onClose();
+                        }}
+                    />
+                )}
+
                 {/* Tabs */}
                 <div className="flex border-b border-gray-100">
                     <button
@@ -306,18 +327,30 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                             {/* Quick Custom card */}
                             {!isEditMode && (
-                                <button
-                                    onClick={() => setIsCustomMode(!isCustomMode)}
-                                    className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-dashed transition-all duration-200
-                                        ${isCustomMode
-                                            ? 'border-orange-400 bg-orange-50 text-orange-600'
-                                            : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'}`}
-                                >
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-orange-100 text-orange-600`}>
-                                        <Plus size={24} />
-                                    </div>
-                                    <div className="font-bold text-xs uppercase tracking-wider">Custom</div>
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => setIsCustomMode(!isCustomMode)}
+                                        className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-dashed transition-all duration-200
+                                            ${isCustomMode
+                                                ? 'border-orange-400 bg-orange-50 text-orange-600'
+                                                : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'}`}
+                                    >
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl bg-orange-100 text-orange-600`}>
+                                            <Plus size={24} />
+                                        </div>
+                                        <div className="font-bold text-xs uppercase tracking-wider">Custom</div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowDictationBonus(true)}
+                                        className="w-full flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-white text-gray-400 hover:border-yellow-300 hover:bg-yellow-50 hover:text-yellow-600 transition-all duration-200"
+                                    >
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl bg-yellow-100 text-yellow-600">
+                                            <Trophy size={24} />
+                                        </div>
+                                        <div className="font-bold text-xs uppercase tracking-wider">Dictation Bonus</div>
+                                    </button>
+                                </>
                             )}
 
                             {isEditMode && editingId === 'new' && (

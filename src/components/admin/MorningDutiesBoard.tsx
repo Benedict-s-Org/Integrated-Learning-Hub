@@ -6,7 +6,7 @@ interface UserWithCoins {
     display_name: string | null;
     avatar_url: string | null;
     class?: string | null;
-    seat_number: number | null;
+    class_number: number | null;
     morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
 }
@@ -37,8 +37,8 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
         u.last_morning_update === today
     );
 
-    // Sort by seat number
-    const sortBySeat = (a: UserWithCoins, b: UserWithCoins) => (a.seat_number || 999) - (b.seat_number || 999);
+    // Sort by class number
+    const sortBySeat = (a: UserWithCoins, b: UserWithCoins) => (a.class_number || 999) - (b.class_number || 999);
     todoUsers.sort(sortBySeat);
     reviewUsers.sort(sortBySeat);
     completedUsers.sort(sortBySeat);
@@ -48,20 +48,19 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, o
             key={user.id}
             onClick={() => onReviewClick(user.id)}
             className={`
-                relative p-1.5 px-2 rounded-lg border shadow-sm flex items-center gap-2 w-fit cursor-pointer hover:shadow-md transition-all
+                relative p-1.5 px-2.5 rounded-xl border shadow-sm flex items-center gap-2 w-fit min-w-[100px] cursor-pointer hover:shadow-md transition-all active:scale-95 group
                 ${status === 'todo' ? 'bg-white border-slate-200 hover:border-slate-300' : ''}
                 ${status === 'review' ? 'bg-orange-50 border-orange-200 hover:border-orange-300' : ''}
                 ${status === 'completed' || status === 'absent' ? 'bg-green-50 border-green-200 hover:border-green-300' : ''}
             `}
         >
-            <div className="flex items-center gap-2 min-w-0">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${status === 'review' ? 'bg-orange-200 text-orange-800' : 'bg-slate-100 text-slate-600'}`}>
-                    {user.seat_number || '-'}
-                </span>
-                <p className="font-bold text-xs truncate text-slate-700">
-                    {user.display_name || 'Student'}
-                    {status === 'absent' && <span className="ml-1 text-[10px] font-medium text-slate-400 font-normal">(absent)</span>}
+            <div className="flex-1 min-w-0">
+                <p className="font-bold text-xs truncate text-slate-700 leading-tight">
+                    {user.display_name}({user.class_number || '-'})
                 </p>
+                {status === 'absent' && (
+                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">absent</p>
+                )}
             </div>
         </div>
     );

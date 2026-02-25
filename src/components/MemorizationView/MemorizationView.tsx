@@ -37,7 +37,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
   const [speechSupported, setSpeechSupported] = useState(true);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isStoppingRef = useRef(false);
@@ -210,7 +209,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     }
 
     isStoppingRef.current = false;
-    setCurrentWordIndex(-1);
 
     // Find the best voice
     const voice = await findBestVoiceMatch(null, accentPreference);
@@ -227,32 +225,12 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     utterance.pitch = 1;
     utterance.volume = 1;
 
-    // Track word boundaries
-    utterance.onboundary = (event) => {
-      if (event.name === 'word' && !isStoppingRef.current) {
-        const charIndex = event.charIndex;
-        // Find which word index corresponds to this character position
-        let currentCharCount = 0;
-        for (let i = 0; i < words.length; i++) {
-          const word = words[i];
-          if (word.isParagraphBreak || word.text === '\n' || word.text === '\r\n') {
-            continue;
-          }
-          const wordLength = word.text.length;
-          if (charIndex >= currentCharCount && charIndex < currentCharCount + wordLength) {
-            setCurrentWordIndex(word.index);
-            break;
-          }
-          currentCharCount += wordLength;
-        }
-      }
-    };
+    // Track word boundaries (removed visuals)
 
     utterance.onend = () => {
       if (!isStoppingRef.current) {
         setIsPlaying(false);
         setIsPaused(false);
-        setCurrentWordIndex(-1);
       }
     };
 
@@ -260,7 +238,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       console.error('Speech synthesis error:', event);
       setIsPlaying(false);
       setIsPaused(false);
-      setCurrentWordIndex(-1);
     };
 
     utteranceRef.current = utterance;
@@ -282,7 +259,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     window.speechSynthesis.cancel();
     setIsPlaying(false);
     setIsPaused(false);
-    setCurrentWordIndex(-1);
     setTimeout(() => {
       handlePlay();
     }, 100);
@@ -491,8 +467,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   const isMemorized = selectedIndices.includes(word.index);
                   const isHidden = hiddenWords.has(word.index);
                   const isHighlighted = word.highlightGroup !== undefined;
-                  const isCurrentlySpeaking = currentWordIndex === word.index;
-
                   if (word.isParagraphBreak) {
                     return <div key={`para-break-${word.index}`} className="mb-4" />;
                   }
@@ -501,15 +475,12 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     return <br key={word.index} />;
                   }
 
-                  // Add speaking highlight style
-                  const speakingClass = isCurrentlySpeaking ? 'ring-4 ring-blue-400 ring-offset-2 animate-pulse' : '';
-
                   // Non-selected but highlighted words
                   if (isHighlighted && !isMemorized) {
                     return (
                       <span
                         key={idx}
-                        className={`inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded ${speakingClass}`}
+                        className="inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded"
                         data-source-tsx="MemorizationView Highlighted Word|src/components/MemorizationView/MemorizationView.tsx"
                       >
                         {word.text}
@@ -527,7 +498,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                       <button
                         key={idx}
                         onClick={() => toggleWordVisibility(word.index)}
-                        className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${speakingClass}`}
+                        className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors`}
                         data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
                       >
                         {displayText}
@@ -537,7 +508,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     return (
                       <span
                         key={idx}
-                        className={`inline-block px-1 py-1 text-gray-800 rounded ${speakingClass}`}
+                        className="inline-block px-1 py-1 text-gray-800 rounded"
                         data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
                       >
                         {word.text}

@@ -12,6 +12,7 @@ interface CreateContentRequest {
   originalText: string;
   selectedWordIndices: number[];
   userId: string;
+  practiceMode?: 'memorization' | 'shuffledGame';
 }
 
 interface DeleteContentRequest {
@@ -181,6 +182,7 @@ Deno.serve(async (req: Request) => {
           original_text: requestData.originalText,
           selected_word_indices: requestData.selectedWordIndices,
           is_published: false,
+          practice_mode: requestData.practiceMode || 'memorization',
         })
         .select()
         .single();
@@ -210,6 +212,7 @@ Deno.serve(async (req: Request) => {
             createdAt: content.created_at,
             isPublished: content.is_published,
             publicId: content.public_id,
+            practiceMode: content.practice_mode,
           }
         }),
         {
@@ -240,7 +243,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: contents, error: fetchError } = await supabase
         .from("saved_contents")
-        .select("id, title, original_text, selected_word_indices, created_at, is_published, public_id")
+        .select("id, title, original_text, selected_word_indices, created_at, is_published, public_id, practice_mode")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
@@ -263,6 +266,7 @@ Deno.serve(async (req: Request) => {
         createdAt: item.created_at,
         isPublished: item.is_published,
         publicId: item.public_id,
+        practiceMode: item.practice_mode,
       })) || [];
 
       const currentCount = formattedContents.length;
