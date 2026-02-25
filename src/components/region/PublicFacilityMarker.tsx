@@ -46,24 +46,40 @@ export function PublicFacilityMarker({
       )}
 
       {/* Main marker circle - Chunky stroke & Pastel Fill */}
-      <circle
-        r={halfSize}
-        fill={displayInfo.color}
-        stroke={isSelected ? '#5D4037' : 'white'}
-        strokeWidth={isSelected ? 3 : 3}
-        filter="drop-shadow(0 4px 6px rgba(93, 64, 55, 0.15))"
-      />
+      {facility.customImageUrl ? (
+        <g transform={`translate(${facility.transform?.offsetX || 0}, ${facility.transform?.offsetY || 0})`}>
+          <image
+            href={facility.customImageUrl}
+            x={-((markerSize * (facility.transform?.scale || 1) * ((facility.transform?.scaleX || 100) / 100)) / 2)}
+            y={-(markerSize * (facility.transform?.scale || 1) * ((facility.transform?.scaleY || 100) / 100))}
+            width={markerSize * (facility.transform?.scale || 1) * ((facility.transform?.scaleX || 100) / 100)}
+            height={markerSize * (facility.transform?.scale || 1) * ((facility.transform?.scaleY || 100) / 100)}
+            preserveAspectRatio="xMidYMax meet"
+            transform={facility.transform?.rotation ? `rotate(${facility.transform.rotation}, 0, 0)` : undefined}
+          />
+        </g>
+      ) : (
+        <>
+          <circle
+            r={halfSize}
+            fill={displayInfo.color}
+            stroke={isSelected ? '#5D4037' : 'white'}
+            strokeWidth={isSelected ? 3 : 3}
+            filter="drop-shadow(0 4px 6px rgba(93, 64, 55, 0.15))"
+          />
 
-      {/* Icon - Slightly playful placement */}
-      <text
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={26}
-        y={-1}
-        filter="drop-shadow(0 2px 0 rgba(0,0,0,0.1))"
-      >
-        {displayInfo.icon}
-      </text>
+          {/* Icon - Slightly playful placement */}
+          <text
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={26}
+            y={-1}
+            filter="drop-shadow(0 2px 0 rgba(0,0,0,0.1))"
+          >
+            {displayInfo.icon}
+          </text>
+        </>
+      )}
 
       {/* Level badge - Cute floating bubble */}
       {facility.level > 1 && (

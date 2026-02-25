@@ -167,7 +167,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
   );
 
   return (
-    <div className="min-h-screen flex bg-background overflow-hidden relative font-bold">
+    <div className="h-screen flex bg-background overflow-hidden relative font-bold">
       {/* Decorative blobs */}
       <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />

@@ -87,6 +87,9 @@ export function useAdminRegionLayout(): UseAdminRegionLayoutReturn {
                     level: row.level,
                     position: { x: row.position_x, y: row.position_y },
                     config: (row.config as any) || {},
+                    customImageUrl: (row.config as any)?.customImageUrl,
+                    customAssetId: (row.config as any)?.customAssetId,
+                    transform: (row.config as any)?.transform,
                     createdAt: row.created_at,
                     updatedAt: row.updated_at,
                 })),
@@ -219,7 +222,12 @@ export function useAdminRegionLayout(): UseAdminRegionLayoutReturn {
                     level: f.level,
                     position_x: f.position.x,
                     position_y: f.position.y,
-                    config: f.config as any
+                    config: {
+                        ...f.config,
+                        customImageUrl: f.customImageUrl,
+                        customAssetId: f.customAssetId,
+                        transform: f.transform
+                    } as any
                 }));
 
                 const { error: insertError } = await supabase

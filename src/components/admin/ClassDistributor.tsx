@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare, BookOpen } from 'lucide-react';
 import { AdminMessageModal } from './notifications/AdminMessageModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -48,6 +48,8 @@ interface ClassDistributorProps {
     onReorder: (newOrder: UserWithCoins[]) => Promise<void>;
     selectedIds: string[];
     onSelectionChange: (ids: string[]) => void;
+    onHomeworkClick: (student: UserWithCoins) => void;
+    isGuestMode?: boolean;
 }
 
 interface SortableUserItemProps {
@@ -59,10 +61,12 @@ interface SortableUserItemProps {
     isRearranging: boolean;
     onToggle: (e: React.MouseEvent, id: string) => void;
     onClick: () => void;
+    onHomeworkClick: () => void;
     onMove: (index: number, direction: 'forward' | 'backward') => void;
+    isGuestMode?: boolean;
 }
 
-function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onMove }: SortableUserItemProps) {
+function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onMove, isGuestMode }: SortableUserItemProps) {
     const {
         attributes,
         listeners,
@@ -158,6 +162,18 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                     <span className="opacity-75 whitespace-nowrap">({user.virtual_coins || 0})</span>
                 </div>
 
+                {/* Homework Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onHomeworkClick();
+                    }}
+                    className="mt-2 w-full flex items-center justify-center gap-2 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
+                >
+                    <BookOpen size={14} />
+                    {isGuestMode ? '早會班務' : 'HOMEWORK'}
+                </button>
+
                 {/* Navigation Buttons - Only Visible when Rearranging */}
                 {isRearranging && (
                     <div className="flex gap-2 mt-3 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
@@ -184,7 +200,7 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
     );
 }
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onReorder, selectedIds, onSelectionChange }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -402,7 +418,9 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     isSelected={selectedIds.includes(user.id)}
                                     onToggle={toggleUser}
                                     onClick={() => onStudentClick(user)}
+                                    onHomeworkClick={() => onHomeworkClick(user)}
                                     onMove={handleMove}
+                                    isGuestMode={isGuestMode}
                                 />
                             ))}
                         </div>

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import type { Building, CityDecoration } from "@/types/city";
 import { INITIAL_CITY_LAYOUT } from "@/constants/cityLevels";
+import { SYSTEM_DEFAULT_USER_ID } from "@/constants/adminDefaults";
 
 // Helper for deep comparison to prevent unnecessary re-renders/loops
 const isDifferent = (a: any, b: any) => JSON.stringify(a) !== JSON.stringify(b);
@@ -46,9 +47,8 @@ export function useCityLayout(): UseCityLayoutReturn {
         setIsLoading(true);
         setError(null);
 
-        // For now, we'll use user_room_data to store city layout
-        // In production, this should be a dedicated city_layouts table
-        const { data, error: fetchError } = await supabase
+        // 1. Try to fetch current user's layout
+        let { data, error: fetchError } = await supabase
           .from("user_room_data")
           .select("*")
           .eq("user_id", user.id)
@@ -56,6 +56,19 @@ export function useCityLayout(): UseCityLayoutReturn {
 
         if (fetchError && fetchError.code !== "PGRST116") {
           throw fetchError;
+        }
+
+        // 2. If current user has no layout data, try to fetch Master Default user's layout
+        if (!data || !(data.custom_catalog as any)?.cityLayout) {
+          const { data: defaultData, error: defaultError } = await supabase
+            .from("user_room_data")
+            .select("*")
+            .eq("user_id", SYSTEM_DEFAULT_USER_ID)
+            .single();
+
+          if (!defaultError && defaultData) {
+            data = defaultData;
+          }
         }
 
         if (data) {

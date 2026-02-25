@@ -110,6 +110,13 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         if (isEditMode || isCustomMode) return;
         if (selectedCount === 0) return;
 
+        // SPECIAL CASE: "完成班務（交齊功課）" should award 20 coins directly
+        // and skip the sub-options overlay as requested.
+        if (item.title === '完成班務（交齊功課）') {
+            onAward(20, item.title);
+            return;
+        }
+
         const effectiveSubs = getEffectiveSubOptions(item);
         const hasSubs = Object.keys(effectiveSubs).length > 0;
 

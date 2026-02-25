@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, User as UserIcon, Activity, Settings, TrendingUp, Bell } from 'lucide-react';
+import { X, User as UserIcon, Activity, Settings, TrendingUp, Bell, ClipboardList } from 'lucide-react';
 import { StudentOverview } from './tabs/StudentOverview';
 import { StudentProgress } from './tabs/StudentProgress';
 import { StudentHistory } from './tabs/StudentHistory';
+import { StudentHomework } from './tabs/StudentHomework';
 import { AvatarRenderer } from '../avatar/AvatarRenderer';
 import { AvatarImageItem, UserAvatarConfig } from '../avatar/avatarParts';
 import { Edit2 } from 'lucide-react';
@@ -31,7 +32,7 @@ interface StudentProfileModalProps {
     onCustomizeAvatar?: () => void;
 }
 
-type TabType = 'overview' | 'progress' | 'notifications' | 'settings';
+type TabType = 'overview' | 'progress' | 'homework' | 'notifications' | 'settings';
 
 export function StudentProfileModal({
     isOpen,
@@ -136,6 +137,12 @@ export function StudentProfileModal({
                             onClick={() => setActiveTab('overview')}
                         />
                         <NavChip
+                            icon={ClipboardList}
+                            label="Homework"
+                            active={activeTab === 'homework'}
+                            onClick={() => setActiveTab('homework')}
+                        />
+                        <NavChip
                             icon={TrendingUp}
                             label="Progress"
                             active={activeTab === 'progress'}
@@ -166,6 +173,9 @@ export function StudentProfileModal({
                             isGuestMode={isGuestMode}
                             guestToken={guestToken}
                         />
+                    )}
+                    {activeTab === 'homework' && (
+                        <StudentHomework studentId={student.id} />
                     )}
                     {activeTab === 'progress' && (
                         <StudentProgress studentId={student.id} />

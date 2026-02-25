@@ -54,32 +54,25 @@ function CustomImageBuilding({
 
   return (
     <g
-      transform={`translate(${isoX + offsetX}, ${isoY + offsetY})`}
+      transform={`translate(${isoX}, ${isoY})`}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{ cursor: isUnlocked ? "pointer" : "not-allowed" }}
       opacity={isUnlocked ? 1 : 0.65}
     >
-      {/* Soft shadow */}
-      <ellipse
-        cx={0}
-        cy={size.depth * tileHeight / 4 + 8}
-        rx={leftWallWidth + rightWallWidth / 2 + 8}
-        ry={size.depth * tileHeight / 4 + 4}
-        fill={CARTOON_PALETTE.shadows.medium}
-      />
-
       {/* Custom image with transform */}
-      <image
-        href={customImageUrl}
-        x={-finalWidth / 2}
-        y={-finalHeight}
-        width={finalWidth}
-        height={finalHeight}
-        preserveAspectRatio="xMidYMax meet"
-        transform={rotation !== 0 ? `rotate(${rotation}, 0, ${-finalHeight / 2})` : undefined}
-      />
+      <g transform={`translate(${offsetX}, ${offsetY})`}>
+        <image
+          href={customImageUrl}
+          x={-finalWidth / 2}
+          y={-finalHeight}
+          width={finalWidth}
+          height={finalHeight}
+          preserveAspectRatio="xMidYMax meet"
+          transform={rotation !== 0 ? `rotate(${rotation}, 0, ${-finalHeight / 2})` : undefined}
+        />
+      </g>
 
       {/* Hover/Selection highlight */}
       {(isHovered || isSelected) && (
@@ -94,7 +87,6 @@ function CustomImageBuilding({
           stroke={isSelected ? "hsl(45, 90%, 60%)" : "hsl(45, 85%, 70%)"}
           strokeWidth={3}
           opacity={0.9}
-          transform={`translate(0, ${size.depth * tileHeight / 4})`}
           strokeLinejoin="round"
         />
       )}
@@ -314,18 +306,8 @@ export function BuildingExterior({
       opacity={isUnlocked ? 1 : 0.65}
       className={isHovered ? "transition-transform" : ""}
     >
-      {/* Soft shadow */}
-      <ellipse
-        cx={0}
-        cy={size.depth * tileHeight / 4 + 8}
-        rx={leftWallWidth + rightWallWidth / 2 + 8}
-        ry={size.depth * tileHeight / 4 + 4}
-        fill={CARTOON_PALETTE.shadows.medium}
-        transform={`translate(0, ${buildingHeight - 5})`}
-      />
-
       {/* Left wall (slightly darker) */}
-      <g transform={`skewY(26.565deg) translate(${-leftWallWidth}, ${-buildingHeight})`}>
+      <g transform={`skewY(26.565) translate(${-leftWallWidth}, ${-buildingHeight})`}>
         <rect
           width={leftWallWidth}
           height={buildingHeight}
@@ -345,7 +327,7 @@ export function BuildingExterior({
       </g>
 
       {/* Right wall (main, brighter) */}
-      <g transform={`skewY(-26.565deg) translate(0, ${-buildingHeight})`}>
+      <g transform={`skewY(-26.565) translate(0, ${-buildingHeight})`}>
         <rect
           width={rightWallWidth}
           height={buildingHeight}

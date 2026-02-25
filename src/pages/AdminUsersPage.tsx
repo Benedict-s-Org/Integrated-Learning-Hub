@@ -36,6 +36,7 @@ interface UserWithProfile {
   class_name?: string | null;
   qr_token?: string;
   managed_by_id?: string | null;
+  spelling_level?: number;
 }
 
 interface AdminUsersPageProps {
@@ -65,15 +66,28 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
   const [filterClass, setFilterClass] = useState<string>('all');
+  const [showAllStudents, setShowAllStudents] = useState(false);
+
+  useEffect(() => {
+    // Sync showAllStudents if super admin
+    if (isSuperAdmin && !forcedAdminId) {
+      setShowAllStudents(true);
+    }
+  }, [isSuperAdmin, forcedAdminId]);
 
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
     try {
+      console.log('Fetching users from public.users...');
       const { data: publicUsers, error: usersError } = await (supabase
         .from('users')
-        .select('id, username, display_name, class, qr_token, role, created_at, managed_by_id') as any);
+        .select('*') as any); // Use * to be safe against missing columns
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.error('Error fetching from users table:', usersError);
+        throw usersError;
+      }
+      console.log(`Fetched ${publicUsers?.length || 0} base user records`);
 
       const { data: profiles, error: profilesError } = await (supabase
         .from('user_profiles')
@@ -102,20 +116,25 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
         const profile = profileMap.get(u.id) as any;
         const roomData = roomDataMap.get(u.id) as any;
+
+        // Safety: ensure current user (admin) has their role reflected correctly in state
+        const role = u.id === currentUser?.id && isSuperAdmin ? 'admin' : (u.role || 'user');
+
         return {
           id: u.id,
           email: u.username || '',
           display_name: u.display_name || 'Unnamed',
           avatar_url: profile?.avatar_url || null,
           created_at: u.created_at || new Date().toISOString(),
-          is_admin: u.role === 'admin',
+          is_admin: role === 'admin',
           coins: roomData?.coins || 0,
           virtual_coins: roomData?.virtual_coins || 0,
           daily_real_earned: roomData?.daily_real_earned || 0,
           seat_number: profile?.seat_number || null,
           class_name: u.class,
           qr_token: u.qr_token,
-          managed_by_id: u.managed_by_id
+          managed_by_id: u.managed_by_id,
+          spelling_level: u.spelling_level
         };
       });
 
@@ -133,10 +152,36 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const visibleUsers = useMemo(() => {
     const activeAdminId = forcedAdminId || currentUser?.id;
-    if (isSuperAdmin && !forcedAdminId) return users;
-    if (!activeAdminId) return [];
-    return users.filter(u => u.managed_by_id === activeAdminId);
-  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId]);
+    const adminEmail = currentUser?.email;
+
+    console.log('visibleUsers memo:', {
+      usersCount: users.length,
+      isSuperAdmin,
+      activeAdminId,
+      adminEmail,
+      forcedAdminId
+    });
+
+    if (showAllStudents || (isSuperAdmin && !forcedAdminId)) {
+      console.log('Showing all users (Super Admin or "Show All" enabled)');
+      return users;
+    }
+
+    if (!activeAdminId) {
+      console.log('No active admin ID, showing zero users');
+      return [];
+    }
+
+    const filtered = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
+    console.log('Filtered users for admin:', {
+      adminId: activeAdminId,
+      totalUsers: users.length,
+      visibleCount: filtered.length,
+      showAllStudents
+    });
+
+    return filtered;
+  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,6 +277,18 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                   <LayoutGrid size={20} />
                 </button>
               </div>
+
+              {!isSuperAdmin && !forcedAdminId && (
+                <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg cursor-pointer hover:bg-slate-200 transition">
+                  <input
+                    type="checkbox"
+                    checked={showAllStudents}
+                    onChange={(e) => setShowAllStudents(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Show All Students</span>
+                </label>
+              )}
             </div>
 
             <button

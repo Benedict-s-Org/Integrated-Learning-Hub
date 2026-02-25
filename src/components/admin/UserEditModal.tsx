@@ -13,6 +13,7 @@ interface UserWithProfile {
   is_admin: boolean;
   seat_number: number | null;
   class_name?: string | null;
+  spelling_level?: number;
 }
 
 interface UserEditModalProps {
@@ -32,6 +33,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [role, setRole] = useState<'admin' | 'user'>(user.is_admin ? 'admin' : 'user');
   const [className, setClassName] = useState(user.class_name || "");
   const [classNumber, setClassNumber] = useState<string>(user.seat_number?.toString() || "");
+  const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +199,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       // Note: We need to pass these to the edge function
       (updateData as any).class = className;
       (updateData as any).classNumber = classNumber ? parseInt(classNumber) : null;
+      (updateData as any).spellingLevel = spellingLevel;
 
       console.log("Sending update request:", updateData);
 
@@ -409,6 +412,39 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             </select>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               管理員可以訪問後台管理界面並更新其他用戶。
+            </p>
+          </div>
+
+          {/* Spelling Level Section */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+              <Lock className="w-4 h-4" />
+              拼寫等級 (Spelling Level)
+            </label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setSpellingLevel(1)}
+                className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 1
+                    ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-blue-200"
+                  }`}
+              >
+                Level 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpellingLevel(2)}
+                className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 2
+                    ? "bg-purple-500 text-white border-purple-500 shadow-lg shadow-purple-500/20"
+                    : "bg-white text-slate-400 border-slate-200 hover:border-purple-200"
+                  }`}
+              >
+                Level 2
+              </button>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Level 1 學生可以嘗試 Level 2 練習；Level 2 學生只能看到 Level 2 練習。
             </p>
           </div>
         </div>

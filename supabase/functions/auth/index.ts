@@ -61,6 +61,7 @@ interface UpdateUserRequest {
   class?: string;
   className?: string; // Support for className aliasing
   classNumber?: number;
+  spellingLevel?: number;
 }
 
 interface AdminResetPasswordRequest {
@@ -623,7 +624,7 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/update-user")) {
       const body = await req.json();
       console.log("Update user request body:", JSON.stringify(body));
-      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber }: UpdateUserRequest = body;
+      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel }: UpdateUserRequest = body;
 
       // Ensure admin role is synced before proceeding
       const isAdmin = await ensureAdminRole(adminUserId);
@@ -648,6 +649,7 @@ Deno.serve(async (req: Request) => {
           new_role: role || null,
           new_class: finalClass || null,
           new_seat_number: classNumber === 0 ? 0 : (classNumber || null),
+          new_spelling_level: spellingLevel || null,
         });
 
         if (error) {
@@ -666,6 +668,7 @@ Deno.serve(async (req: Request) => {
         if (display_name) authUpdates.display_name = display_name;
         if (finalClass) authUpdates.class = finalClass;
         if (classNumber !== undefined) authUpdates.seat_number = classNumber;
+        if (spellingLevel !== undefined) authUpdates.spelling_level = spellingLevel;
 
         if (Object.keys(authUpdates).length > 0) {
           await supabase.auth.admin.updateUserById(userId, {

@@ -26,6 +26,7 @@ interface UpdateAssignmentsRequest {
   practiceId: string;
   userId: string;
   userIds: string[];
+  level?: number;
 }
 
 interface GetAssignmentsRequest {
@@ -317,7 +318,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/update-assignments")) {
-      const { practiceId, userId, userIds }: UpdateAssignmentsRequest = await req.json();
+      const { practiceId, userId, userIds, level }: UpdateAssignmentsRequest = await req.json();
 
       const { data: user, error: userError } = await supabase
         .from("users")
@@ -394,6 +395,7 @@ Deno.serve(async (req: Request) => {
               practice_id: practiceId,
               user_id: assignedUserId,
               assigned_by: userId,
+              level: level || 1,
             }))
           );
 

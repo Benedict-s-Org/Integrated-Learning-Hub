@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, CheckCircle, XCircle } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
@@ -33,10 +33,10 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [assignments, setAssignments] = useState<Set<string>>(new Set());
   const [pendingAssignments, setPendingAssignments] = useState<Set<string>>(new Set());
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null);
+  const [assignmentLevel, setAssignmentLevel] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -116,6 +116,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const openAssignModal = async (practice: Practice) => {
     setSelectedPractice(practice);
     setShowAssignModal(true);
+    setAssignmentLevel(1); // Default to Level 1
     setAssignmentLoading(true);
     setAssignmentSuccess(null);
 
@@ -154,9 +155,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
       const assignmentsData = await assignmentsResponse.json();
       if (!assignmentsResponse.ok) throw new Error(assignmentsData.error);
 
-      const assignedUserIds = new Set(assignmentsData.assignments || []);
-      setAssignments(assignedUserIds);
-      setPendingAssignments(new Set(assignedUserIds));
+      const assignedUserIds = new Set<string>(assignmentsData.assignments || []);
+      setPendingAssignments(new Set<string>(assignedUserIds));
     } catch (err) {
       console.error('Error fetching assignment data:', err);
       setError('Failed to load assignment data');
@@ -195,6 +195,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
           practiceId: selectedPractice.id,
           userId: user!.id,
           userIds: Array.from(pendingAssignments),
+          level: assignmentLevel,
         }),
       });
 
@@ -206,7 +207,6 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         throw new Error(errorMessage);
       }
 
-      setAssignments(new Set(pendingAssignments));
       setAssignmentSuccess(`Successfully updated assignments for ${selectedPractice.title}`);
       await fetchPractices();
       setTimeout(() => setAssignmentSuccess(null), 3000);
@@ -222,7 +222,6 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     setShowAssignModal(false);
     setSelectedPractice(null);
     setUsers([]);
-    setAssignments(new Set());
     setPendingAssignments(new Set());
     setAssignmentSuccess(null);
   };
@@ -410,6 +409,38 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
               Practice: <span className="font-semibold">{selectedPractice.title}</span>
             </p>
 
+            {/* Level Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Difficulty Level
+              </label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setAssignmentLevel(1)}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold transition-all ${assignmentLevel === 1
+                    ? "bg-blue-600 text-white border-blue-600 shadow-lg"
+                    : "bg-white text-gray-400 border-gray-200 hover:border-blue-300"
+                    }`}
+                >
+                  Level 1 (Basic)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentLevel(2)}
+                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold transition-all ${assignmentLevel === 2
+                    ? "bg-purple-600 text-white border-purple-600 shadow-lg"
+                    : "bg-white text-gray-400 border-gray-200 hover:border-purple-300"
+                    }`}
+                >
+                  Level 2 (Advanced)
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Level 1 students can see Level 1 and 2 practices. Level 2 students can only see Level 2 practices.
+              </p>
+            </div>
+
             {assignmentSuccess && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
                 {assignmentSuccess}
@@ -431,8 +462,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                       <div
                         key={user.id}
                         className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all cursor-pointer ${isPending
-                            ? 'bg-green-50 border-green-300'
-                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                          ? 'bg-green-50 border-green-300'
+                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                           }`}
                         onClick={() => togglePendingAssignment(user.id)}
                       >

@@ -58,6 +58,7 @@ interface Assignment {
   completed: boolean;
   completed_at: string | null;
   is_overdue: boolean;
+  assignment_level?: number;
 }
 
 interface Student {
@@ -113,23 +114,23 @@ export const AssignmentManagement: React.FC = () => {
   };
 
   const fetchOverview = async () => {
-    const { data, error } = await supabase.rpc('get_all_assignments_overview');
+    const { data, error } = await (supabase.rpc as any)('get_all_assignments_overview');
 
     if (error) {
       console.error('Error fetching overview:', error);
       throw error;
     }
 
-    setOverview(data);
+    setOverview(data as any);
   };
 
   const fetchAssignments = async () => {
-    const { data, error } = await supabase.rpc('get_all_assignments_admin_view', {
+    const { data, error } = await (supabase.rpc as any)('get_all_assignments_admin_view', {
       filter_type: filterType === 'all' ? null : filterType,
       filter_status: filterStatus === 'all' ? null : filterStatus,
       filter_student_id: filterStudent === 'all' ? null : filterStudent,
       sort_by: sortBy,
-      sort_order: sortOrder,
+      sort_order: (sortOrder as any),
     });
 
     if (error) {
@@ -137,7 +138,7 @@ export const AssignmentManagement: React.FC = () => {
       throw error;
     }
 
-    setAssignments(data || []);
+    setAssignments((data as any) || []);
   };
 
   const fetchStudents = async () => {
@@ -152,7 +153,10 @@ export const AssignmentManagement: React.FC = () => {
       throw error;
     }
 
-    setStudents(data || []);
+    setStudents((data || []).map((s: any) => ({
+      ...s,
+      display_name: s.display_name || s.username
+    })) as Student[]);
   };
 
   const getTypeIcon = (type: string) => {
@@ -430,7 +434,17 @@ export const AssignmentManagement: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="font-medium text-slate-800">{assignment.title}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-slate-800">{assignment.title}</div>
+                            {assignment.assignment_level && (
+                              <span className={`text-[10px] font-black px-1.5 py-0 rounded-md border ${assignment.assignment_level === 1
+                                ? "bg-blue-50 text-blue-600 border-blue-100"
+                                : "bg-purple-50 text-purple-600 border-purple-100"
+                                }`}>
+                                LV{assignment.assignment_level}
+                              </span>
+                            )}
+                          </div>
                           {assignment.assigned_by_username && (
                             <div className="text-xs text-slate-500">by {assignment.assigned_by_username}</div>
                           )}
@@ -487,7 +501,17 @@ export const AssignmentManagement: React.FC = () => {
                     <div key={assignment.assignment_id} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h3 className="font-medium text-slate-800">{assignment.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-slate-800">{assignment.title}</h3>
+                            {assignment.assignment_level && (
+                              <span className={`text-[10px] font-black px-1.5 py-0 rounded-md border ${assignment.assignment_level === 1
+                                ? "bg-blue-50 text-blue-600 border-blue-100"
+                                : "bg-purple-50 text-purple-600 border-purple-100"
+                                }`}>
+                                LV{assignment.assignment_level}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center space-x-1 text-sm text-slate-500 mt-1">
                             <User size={14} />
                             <span>{assignment.student_display_name}</span>

@@ -6,6 +6,7 @@ import { AdminCityMap } from "@/components/city/AdminCityMap";
 import { BuildingStyleEditor } from "@/components/admin/BuildingStyleEditor";
 import { CityTemplateManager, CityTemplate } from "@/components/admin/CityTemplateManager";
 import { BUILDING_CATALOG, CITY_LEVELS } from "@/constants/cityLevels";
+import { SYSTEM_DEFAULT_USER_ID } from "@/constants/adminDefaults";
 import type { Building, CityDecoration } from "@/types/city";
 import {
   Users,
@@ -52,7 +53,7 @@ const DECORATION_LABELS: Record<CityDecoration["type"], string> = {
 export default function AdminCityEditorPage() {
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(SYSTEM_DEFAULT_USER_ID);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -271,10 +272,10 @@ export default function AdminCityEditorPage() {
                   onClick={handleSave}
                   disabled={saveStatus === "saving"}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${saveStatus === "saved"
-                      ? "bg-green-600 text-white"
-                      : saveStatus === "error"
-                        ? "bg-red-600 text-white"
-                        : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    ? "bg-green-600 text-white"
+                    : saveStatus === "error"
+                      ? "bg-red-600 text-white"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
                     }`}
                 >
                   <Save className="w-4 h-4" />
@@ -297,8 +298,8 @@ export default function AdminCityEditorPage() {
                 <button
                   onClick={() => setActivePanel("buildings")}
                   className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "buildings"
-                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                      : "text-slate-400 hover:text-white"
+                    ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                    : "text-slate-400 hover:text-white"
                     }`}
                 >
                   <Building2 className="w-4 h-4 inline mr-1" />
@@ -307,8 +308,8 @@ export default function AdminCityEditorPage() {
                 <button
                   onClick={() => setActivePanel("decorations")}
                   className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "decorations"
-                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                      : "text-slate-400 hover:text-white"
+                    ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                    : "text-slate-400 hover:text-white"
                     }`}
                 >
                   <Trees className="w-4 h-4 inline mr-1" />
@@ -317,8 +318,8 @@ export default function AdminCityEditorPage() {
                 <button
                   onClick={() => setActivePanel("settings")}
                   className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "settings"
-                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                      : "text-slate-400 hover:text-white"
+                    ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                    : "text-slate-400 hover:text-white"
                     }`}
                 >
                   <Coins className="w-4 h-4 inline mr-1" />
@@ -327,8 +328,8 @@ export default function AdminCityEditorPage() {
                 <button
                   onClick={() => setActivePanel("templates")}
                   className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${activePanel === "templates"
-                      ? "bg-slate-800 text-white border-b-2 border-emerald-500"
-                      : "text-slate-400 hover:text-white"
+                    ? "bg-slate-800 text-white border-b-2 border-emerald-500"
+                    : "text-slate-400 hover:text-white"
                     }`}
                 >
                   <FileJson className="w-4 h-4 inline mr-1" />
@@ -350,8 +351,8 @@ export default function AdminCityEditorPage() {
                             onClick={() => handleAddBuilding(item)}
                             disabled={item.requiredCityLevel > cityLevel}
                             className={`p-2 rounded-lg text-xs text-left transition-colors ${item.requiredCityLevel > cityLevel
-                                ? "bg-slate-800/50 text-slate-500 cursor-not-allowed"
-                                : "bg-slate-800 hover:bg-slate-700 text-white"
+                              ? "bg-slate-800/50 text-slate-500 cursor-not-allowed"
+                              : "bg-slate-800 hover:bg-slate-700 text-white"
                               }`}
                           >
                             <div className="font-medium">{item.name}</div>
@@ -378,8 +379,8 @@ export default function AdminCityEditorPage() {
                             <div
                               key={building.id}
                               className={`p-3 rounded-lg transition-colors cursor-pointer ${selectedBuildingId === building.id
-                                  ? "bg-emerald-600/20 border border-emerald-500/50"
-                                  : "bg-slate-800 hover:bg-slate-700"
+                                ? "bg-emerald-600/20 border border-emerald-500/50"
+                                : "bg-slate-800 hover:bg-slate-700"
                                 }`}
                               onClick={() => setSelectedBuildingId(building.id)}
                             >
@@ -512,8 +513,8 @@ export default function AdminCityEditorPage() {
                             <div
                               key={decoration.id}
                               className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${selectedDecorationId === decoration.id
-                                  ? "bg-emerald-600/20 border border-emerald-500/50"
-                                  : "bg-slate-800 hover:bg-slate-700"
+                                ? "bg-emerald-600/20 border border-emerald-500/50"
+                                : "bg-slate-800 hover:bg-slate-700"
                                 }`}
                               onClick={() => setSelectedDecorationId(decoration.id)}
                             >

@@ -26,6 +26,7 @@ interface UnifiedAssignment {
   completed_at: string | null;
   is_overdue: boolean;
   content_data: any;
+  assignment_level?: number;
 }
 
 type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading';
@@ -62,7 +63,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase.rpc('get_student_assignments_unified', {
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_student_assignments_unified', {
         target_user_id: user.id,
       });
 
@@ -303,7 +304,19 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                             {getTypeIcon(assignment.assignment_type)}
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-slate-800">{assignment.title}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg font-semibold text-slate-800">{assignment.title}</h3>
+                              {assignment.assignment_level && (
+                                <Badge
+                                  className={`text-[10px] font-black px-1.5 py-0 ${assignment.assignment_level === 1
+                                      ? "bg-blue-100 text-blue-600 border-blue-200"
+                                      : "bg-purple-100 text-purple-600 border-purple-200"
+                                    }`}
+                                >
+                                  LV {assignment.assignment_level}
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-slate-500 capitalize">{assignment.assignment_type}</p>
                           </div>
                         </div>

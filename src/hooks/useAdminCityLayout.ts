@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Building, CityDecoration } from "@/types/city";
 import { INITIAL_CITY_LAYOUT } from "@/constants/cityLevels";
+import { SYSTEM_DEFAULT_USER_ID } from "@/constants/adminDefaults";
 
 export interface AdminCityLayoutReturn {
   buildings: Building[];
@@ -60,21 +61,37 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
           setDecorations(customData.cityLayout.decorations || INITIAL_CITY_LAYOUT.decorations);
           setCityLevel(customData.cityLayout.cityLevel || 0);
           setCameraSettings(customData.cityLayout.cameraSettings || INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
-        } else {
-          // User has no city layout yet, use defaults
-          setBuildings(INITIAL_CITY_LAYOUT.buildings);
-          setDecorations(INITIAL_CITY_LAYOUT.decorations);
-          setCityLevel(0);
-          setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
+          setIsLoading(false);
+          return;
         }
-      } else {
-        // No user_room_data record, use defaults
-        setBuildings(INITIAL_CITY_LAYOUT.buildings);
-        setDecorations(INITIAL_CITY_LAYOUT.decorations);
-        setCityLevel(0);
-        setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
-        setCoins(0);
       }
+
+      // If user has no city layout yet (or no room record), and we're not loading the system default itself, try master default
+      if (userId !== SYSTEM_DEFAULT_USER_ID) {
+        const { data: defaultData } = await supabase
+          .from("user_room_data")
+          .select("*")
+          .eq("user_id", SYSTEM_DEFAULT_USER_ID)
+          .single();
+
+        if (defaultData && (defaultData.custom_catalog as any)?.cityLayout) {
+          const customData = defaultData.custom_catalog as any;
+          setBuildings(customData.cityLayout.buildings || INITIAL_CITY_LAYOUT.buildings);
+          setDecorations(customData.cityLayout.decorations || INITIAL_CITY_LAYOUT.decorations);
+          setCityLevel(customData.cityLayout.cityLevel || 0);
+          setCameraSettings(customData.cityLayout.cameraSettings || INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
+          setCoins(0); // Use 0 for target user rather than master's coins
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Final fallback to hardcoded defaults
+      setBuildings(INITIAL_CITY_LAYOUT.buildings);
+      setDecorations(INITIAL_CITY_LAYOUT.decorations);
+      setCityLevel(0);
+      setCameraSettings(INITIAL_CITY_LAYOUT.cameraSettings || { zoom: 1, offset: { x: 0, y: 0 } });
+      setCoins(0);
     } catch (err) {
       console.error("Error loading city layout:", err);
       setError("無法載入城市佈局");

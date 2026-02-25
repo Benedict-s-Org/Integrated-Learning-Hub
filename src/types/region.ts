@@ -60,6 +60,9 @@ export interface PublicFacility {
   level: number;
   position: { x: number; y: number };
   config: FacilityConfig;
+  customImageUrl?: string;
+  customAssetId?: string;
+  transform?: import("./city").CityTransformData;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +74,8 @@ export interface FacilityConfig {
   schedule?: Record<string, unknown>;
   rewards?: Record<string, number>;
   description?: string;
+  customImageUrl?: string; // Legacy support or direct override
+  transform?: import("./city").CityTransformData;
 }
 
 // City visit record

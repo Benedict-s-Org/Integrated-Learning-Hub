@@ -15,25 +15,18 @@ import {
     Coins,
     ChevronDown,
     ChevronUp,
-    Palette,
-    Upload,
-    Loader2,
-    Wand2,
-    Sliders,
-    Sparkles,
-    Search,
-    Plus,
-    X,
-    Save
+    Palette
 } from "lucide-react";
 
 // City imports
 import { useAdminCityLayout } from "@/hooks/useAdminCityLayout";
 import { AdminCityMap } from "@/components/city/AdminCityMap";
 import { CityTemplateManager } from "@/components/admin/CityTemplateManager";
+import { BuildingStyleEditor } from "./BuildingStyleEditor";
+import { FacilityStyleEditor } from "./FacilityStyleEditor";
+import { SYSTEM_DEFAULT_USER_ID } from "@/constants/adminDefaults";
 import { BUILDING_CATALOG } from "@/constants/cityLevels";
-import type { CityDecoration, CityStyleAsset, CityAssetType } from "@/types/city";
-import { dataUrlToFile } from "@/utils/imageProcessing";
+import type { CityDecoration } from "@/types/city";
 
 // District imports
 import { useAdminRegionLayout } from "@/hooks/useAdminRegionLayout";
@@ -76,14 +69,6 @@ const DECORATION_LABELS: Record<CityDecoration["type"], string> = {
     butterfly: "蝴蝶",
 };
 
-const ASSET_TYPE_LABELS: Record<CityAssetType, string> = {
-    building: "建築",
-    decoration: "裝飾",
-    ground: "地面",
-    road: "道路",
-    map_element: "地圖元素",
-};
-
 const CITY_TABS: EditorTab[] = [
     { id: "buildings", label: "建築", icon: Building2 },
     { id: "decorations", label: "裝飾", icon: Trees },
@@ -110,7 +95,7 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
 
     // Common selection state
     const [users, setUsers] = useState<UserOption[]>([]);
-    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(SYSTEM_DEFAULT_USER_ID);
     const [regions, setRegions] = useState<Region[]>([]);
     const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -121,21 +106,6 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
     const [selectedDecorationId, setSelectedDecorationId] = useState<string | null>(null);
     const [showBuildingList, setShowBuildingList] = useState(true);
     const [showDecorationList, setShowDecorationList] = useState(true);
-
-    // Style panel state
-    const [styleAssets, setStyleAssets] = useState<CityStyleAsset[]>([]);
-    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
-    const [showAIGenerator, setShowAIGenerator] = useState(false);
-    const [uploadAssetType, setUploadAssetType] = useState<CityAssetType>("building");
-    const [uploadAssetName, setUploadAssetName] = useState("");
-    const [uploadPreview, setUploadPreview] = useState<string | null>(null);
-    const [uploadFile, setUploadFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [showBgRemoval, setShowBgRemoval] = useState(false);
-
-    // City Transform panel state
-    const [showCityTransform, setShowCityTransform] = useState(false);
-    const [cityTransformTarget, setCityTransformTarget] = useState<{ type: 'building' | 'decoration'; id: string } | null>(null);
 
     // --- District Editor State ---
     const districtEditor = useAdminRegionLayout();
@@ -166,7 +136,6 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                 setUsers(userOptions);
             } catch (err) {
                 console.error("Error in fetchUsers:", err);
-            } finally {
             }
         };
 
@@ -210,32 +179,6 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
 
         fetchRegions();
     }, [isOpen, mode]);
-
-    // Load style assets for city mode
-    useEffect(() => {
-        if (!isOpen || activeTab !== "style" || mode !== "city") return;
-
-        const fetchStyleAssets = async () => {
-            setIsLoadingAssets(true);
-            try {
-                const { data, error } = await supabase
-                    .from("city_style_assets")
-                    .select("*")
-                    .order("created_at", { ascending: false });
-
-                if (error) throw error;
-
-                // Cast to correct type since DB uses snake_case and interface uses snake_case too (mostly)
-                setStyleAssets((data || []) as CityStyleAsset[]);
-            } catch (err) {
-                console.error("Error fetching style assets:", err);
-            } finally {
-                setIsLoadingAssets(false);
-            }
-        };
-
-        fetchStyleAssets();
-    }, [isOpen, activeTab, mode]);
 
     // Load city data when selected user changes
     useEffect(() => {
@@ -396,28 +339,15 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setCityTransformTarget({ type: 'building', id: b.id });
-                                                setShowCityTransform(true);
-                                            }}
-                                            className="p-1.5 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
-                                            title="調整位置/縮放"
-                                        >
-                                            <Sliders className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                cityEditor.removeBuilding(b.id);
-                                            }}
-                                            className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            cityEditor.removeBuilding(b.id);
+                                        }}
+                                        className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </div>
                         ))
@@ -450,6 +380,22 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                     ))}
                 </div>
             </div>
+
+            {/* Selected Building Style Editor */}
+            {selectedBuildingId && cityEditor.buildings.find(b => b.id === selectedBuildingId) && (
+                <div className="pt-6 border-t border-slate-700/50 mt-6">
+                    <h3 className="text-sm font-bold text-emerald-400 mb-4 px-1 flex items-center gap-2">
+                        <Palette className="w-4 h-4" />
+                        建築樣式自訂
+                    </h3>
+                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                        <BuildingStyleEditor
+                            building={cityEditor.buildings.find(b => b.id === selectedBuildingId)!}
+                            onUpdate={cityEditor.updateBuilding}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -500,28 +446,15 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setCityTransformTarget({ type: 'decoration', id: d.id });
-                                                setShowCityTransform(true);
-                                            }}
-                                            className="p-1.5 hover:bg-indigo-500/20 text-indigo-400 rounded transition-colors"
-                                            title="調整位置/縮放"
-                                        >
-                                            <Sliders className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                cityEditor.removeDecoration(d.id);
-                                            }}
-                                            className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            cityEditor.removeDecoration(d.id);
+                                        }}
+                                        className="p-1.5 hover:bg-red-500/20 text-red-400 rounded transition-colors"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </div>
                         ))
@@ -649,213 +582,8 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
     );
 
     const renderStylePanel = () => (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-emerald-500" />
-                    城市風格素材
-                </h3>
-                <button
-                    onClick={() => setShowAIGenerator(true)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-600/20"
-                >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    AI 生成
-                </button>
-            </div>
-
-            {/* Upload Area */}
-            <div className="bg-slate-800/50 border-2 border-dashed border-slate-700 rounded-xl p-4">
-                <div className="space-y-3">
-                    <div className="flex gap-2">
-                        <select
-                            value={uploadAssetType}
-                            onChange={(e) => setUploadAssetType(e.target.value as CityAssetType)}
-                            className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 outline-none"
-                        >
-                            {Object.entries(ASSET_TYPE_LABELS).map(([val, label]) => (
-                                <option key={val} value={val}>{label}</option>
-                            ))}
-                        </select>
-                        <input
-                            type="text"
-                            placeholder="素材名稱..."
-                            value={uploadAssetName}
-                            onChange={(e) => setUploadAssetName(e.target.value)}
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white outline-none"
-                        />
-                    </div>
-
-                    <div className="relative group flex items-center justify-center aspect-video bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700 shadow-inner">
-                        {uploadPreview ? (
-                            <>
-                                <img src={uploadPreview} alt="Preview" className="w-full h-full object-contain" />
-                                <button
-                                    onClick={() => { setUploadPreview(null); setUploadFile(null); }}
-                                    className="absolute top-2 right-2 p-1 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </>
-                        ) : (
-                            <label className="flex flex-col items-center gap-2 cursor-pointer text-slate-500 hover:text-emerald-400 transition-colors">
-                                <Upload className="w-8 h-8" />
-                                <span className="text-xs font-medium">點擊或拖放上傳素材</span>
-                                <input
-                                    type="file"
-                                    className="hidden"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            setUploadFile(file);
-                                            const reader = new FileReader();
-                                            reader.onload = (re) => setUploadPreview(re.target?.result as string);
-                                            reader.readAsDataURL(file);
-                                        }
-                                    }}
-                                />
-                            </label>
-                        )}
-                    </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setShowBgRemoval(true)}
-                            disabled={!uploadPreview}
-                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                        >
-                            <Wand2 className="w-3.5 h-3.5" />
-                            去背
-                        </button>
-                        <button
-                            onClick={async () => {
-                                if (!uploadFile || !uploadAssetName) return;
-                                setIsUploading(true);
-                                try {
-                                    const fileName = `${Date.now()}_${uploadFile.name}`;
-                                    const { data: uploadData, error: uploadErr } = await supabase.storage
-                                        .from("city_assets")
-                                        .upload(fileName, uploadFile);
-
-                                    if (uploadErr) throw uploadErr;
-
-                                    const { data: { publicUrl } } = supabase.storage
-                                        .from("city_assets")
-                                        .getPublicUrl(fileName);
-
-                                    const { error: dbErr } = await supabase
-                                        .from("city_style_assets")
-                                        .insert({
-                                            name: uploadAssetName,
-                                            asset_type: uploadAssetType,
-                                            image_url: publicUrl,
-                                            is_default: false,
-                                            config: {}
-                                        });
-
-                                    if (dbErr) throw dbErr;
-
-                                    setUploadPreview(null);
-                                    setUploadFile(null);
-                                    setUploadAssetName("");
-                                    // Refresh style assets
-                                    const { data: newData } = await supabase
-                                        .from("city_style_assets")
-                                        .select("*")
-                                        .order("created_at", { ascending: false });
-                                    if (newData) {
-                                        setStyleAssets(newData as CityStyleAsset[]);
-                                    }
-                                } catch (err) {
-                                    console.error("Upload failed", err);
-                                    alert("上傳失敗");
-                                } finally {
-                                    setIsUploading(false);
-                                }
-                            }}
-                            disabled={!uploadFile || !uploadAssetName || isUploading}
-                            className="flex-[2] flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-lg shadow-emerald-600/20"
-                        >
-                            {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                            儲存素材
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Asset Gallery */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                    <span className="text-xs font-bold text-slate-500 uppercase">現有素材在庫</span>
-                    <span className="text-[10px] text-slate-600">{styleAssets.length} 個物件</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {isLoadingAssets ? (
-                        <div className="col-span-2 flex justify-center py-8">
-                            <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-                        </div>
-                    ) : styleAssets.length === 0 ? (
-                        <p className="col-span-2 text-center text-xs text-slate-500 py-8">尚未上傳任何素材</p>
-                    ) : (
-                        styleAssets.map((asset) => (
-                            <div key={asset.id} className="group relative bg-slate-900 border border-slate-700/50 rounded-xl p-2 hover:border-emerald-500/50 transition-all shadow-sm">
-                                <div className="aspect-square rounded-lg bg-slate-800 flex items-center justify-center mb-2 overflow-hidden border border-slate-700/30">
-                                    <img src={asset.image_url} alt={asset.name} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300" />
-                                </div>
-                                <div className="text-[11px] font-bold text-slate-300 truncate mb-1">{asset.name}</div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-slate-800 text-slate-500 rounded uppercase font-bold tracking-tighter">
-                                        {ASSET_TYPE_LABELS[asset.asset_type] || asset.asset_type}
-                                    </span>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => {
-                                                if (asset.asset_type === "building") {
-                                                    cityEditor.addBuilding({
-                                                        name: asset.name,
-                                                        type: "house",
-                                                        level: 1,
-                                                        position: { x: 4, y: 4 },
-                                                        size: { width: 2, depth: 2 },
-                                                        exteriorStyle: { roofColor: "", wallColor: "", accentColor: "", windowStyle: "modern" },
-                                                        isUnlocked: true,
-                                                        customImageUrl: asset.image_url,
-                                                        customAssetId: asset.id
-                                                    });
-                                                } else {
-                                                    cityEditor.addDecoration({
-                                                        type: "tree",
-                                                        position: { x: 4, y: 4 },
-                                                        customImageUrl: asset.image_url,
-                                                        customAssetId: asset.id
-                                                    });
-                                                }
-                                            }}
-                                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors"
-                                            title="放置到地圖"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (window.confirm("確定要刪除此素材嗎？")) {
-                                                    const { error } = await supabase.from("city_style_assets").delete().eq("id", asset.id);
-                                                    if (!error) setStyleAssets(prev => prev.filter(a => a.id !== asset.id));
-                                                }
-                                            }}
-                                            className="p-1 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
+        <div className="p-4 text-center text-slate-500">
+            風格編輯器開發中...
         </div>
     );
 
@@ -864,7 +592,7 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
         <div className="space-y-6">
             <div className="space-y-4">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input
                         type="text"
                         placeholder="搜尋設施..."
@@ -956,6 +684,22 @@ export const UnifiedMapEditor: React.FC<UnifiedMapEditorProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Selected Facility Style Editor */}
+            {selectedFacilityId && districtEditor.region?.facilities.find(f => f.id === selectedFacilityId) && (
+                <div className="pt-6 border-t border-slate-700/50 mt-6">
+                    <h3 className="text-sm font-bold text-emerald-400 mb-4 px-1 flex items-center gap-2">
+                        <Palette className="w-4 h-4" />
+                        設施樣式自訂
+                    </h3>
+                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                        <FacilityStyleEditor
+                            facility={districtEditor.region.facilities.find(f => f.id === selectedFacilityId)!}
+                            onUpdate={districtEditor.updateFacility}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 

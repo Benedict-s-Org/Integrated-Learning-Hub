@@ -12,6 +12,7 @@ import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarParts';
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
+import { HomeworkModal } from '@/components/admin/HomeworkModal';
 
 interface UserWithCoins {
     id: string;
@@ -60,6 +61,7 @@ export function ClassDashboardPage() {
 
     // Modals State
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
+    const [selectedHomeworkStudent, setSelectedHomeworkStudent] = useState<UserWithCoins | null>(null);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
     const fetchUsers = async () => {
@@ -278,6 +280,32 @@ export function ClassDashboardPage() {
         }
     };
 
+    const handleHomeworkRecord = async (studentId: string, reason: string) => {
+        try {
+            // Check if this specific reason implies a reward (coins)
+            //完成班務（交齊功課）and 完成班務（寫手冊) usually positive
+            //完成班務（欠功課） usually negative or zero
+            let amount = 0;
+            if (reason === '完成班務（交齊功課）') amount = 20;
+            else if (reason === '完成班務（寫手冊）') amount = 2;
+            else if (reason === '完成班務（欠功課）') amount = -2;
+
+            const { error } = await supabase.rpc('increment_room_coins' as any, {
+                target_user_id: studentId,
+                amount: amount,
+                log_reason: reason,
+                log_admin_id: currentUser?.id
+            });
+
+            if (error) throw error;
+            await fetchUsers();
+            playSuccessSound();
+        } catch (err) {
+            console.error('Error recording homework:', err);
+            alert('Failed to record homework');
+        }
+    };
+
     const handleQuickAward = async (userId: string) => {
         if (isGuestMode) return;
         const reason = "回答問題";
@@ -469,9 +497,11 @@ export function ClassDashboardPage() {
                                                 setShowAwardModal(true);
                                             }}
                                             onStudentClick={handleStudentClick}
+                                            onHomeworkClick={(student) => setSelectedHomeworkStudent(student)}
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
+                                            isGuestMode={isGuestMode}
                                         />
                                     </div>
                                 ))
@@ -496,9 +526,11 @@ export function ClassDashboardPage() {
                                                     setShowAwardModal(true);
                                                 }}
                                                 onStudentClick={handleStudentClick}
+                                                onHomeworkClick={(student) => setSelectedHomeworkStudent(student)}
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}
+                                                isGuestMode={isGuestMode}
                                             />
                                         </>
                                     )}
@@ -555,6 +587,13 @@ export function ClassDashboardPage() {
                     fetchUsers();
                 }}
                 userId={selectedStudent?.id || currentUser?.id}
+            />
+            <HomeworkModal
+                isOpen={!!selectedHomeworkStudent}
+                onClose={() => setSelectedHomeworkStudent(null)}
+                studentName={selectedHomeworkStudent?.display_name || ''}
+                onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
+                isGuestMode={isGuestMode}
             />
         </div>
     );
