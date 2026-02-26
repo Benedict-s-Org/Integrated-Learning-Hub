@@ -1,7 +1,21 @@
--- Rename seat_number to class_number in public.users
-ALTER TABLE public.users RENAME COLUMN seat_number TO class_number;
+-- Rename seat_number to class_number in public.users (idempotent)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'seat_number'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'class_number'
+  ) THEN
+    ALTER TABLE public.users RENAME COLUMN seat_number TO class_number;
+  END IF;
+END $$;
 
 -- Update update_user_info RPC
+-- Must drop first because parameter names changed (new_seat_number -> new_class_number)
+DROP FUNCTION IF EXISTS public.update_user_info(uuid, uuid, text, text, text, text, integer, integer, uuid);
+
 CREATE OR REPLACE FUNCTION public.update_user_info(
   caller_user_id uuid,
   target_user_id uuid,

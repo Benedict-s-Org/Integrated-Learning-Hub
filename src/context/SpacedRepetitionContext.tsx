@@ -3,6 +3,16 @@ import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule
 import { supabase } from '../lib/supabase';
 import { calculateNextReview, getQualityRatingFromCorrectness, initializeSchedule, getAchievementUnlocked } from '../utils/spacedRepetitionAlgorithm';
 
+interface AssignedStudent {
+  id: string;
+  display_name: string;
+  username: string;
+}
+
+export interface SetAssignmentInfo {
+  students: AssignedStudent[];
+}
+
 interface SpacedRepetitionContextType {
   sets: SpacedRepetitionSet[];
   currentSet: SpacedRepetitionSet | null;
@@ -13,6 +23,7 @@ interface SpacedRepetitionContextType {
   loading: boolean;
   cardsDueToday: number;
   assignedSets: SpacedRepetitionSet[];
+  setAssignmentMap: Record<string, SetAssignmentInfo>;
 
   createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
@@ -54,6 +65,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const [loading, setLoading] = useState(true);
   const [cardsDueToday, setCardsDueToday] = useState(0);
   const [assignedSets, setAssignedSets] = useState<SpacedRepetitionSet[]>([]);
+  const [setAssignmentMap, setSetAssignmentMap] = useState<Record<string, SetAssignmentInfo>>({});
 
   useEffect(() => {
     if (userId) {
@@ -75,7 +87,8 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         ((supabase as any).from('set_assignments').select('*, spaced_repetition_sets(*)').eq('user_id', userId) as any)
       ]);
 
-      setSets((setsRes.data || []) as unknown as SpacedRepetitionSet[]);
+      const fetchedSets = (setsRes.data || []) as unknown as SpacedRepetitionSet[];
+      setSets(fetchedSets);
       setStreak(streakRes.data as unknown as UserStreak | null);
       setAchievements((achievementsRes.data || []) as unknown as UserAchievement[]);
       setCardsDueToday(cardsDueRes.data || 0);
@@ -86,6 +99,33 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         .map(a => a.spaced_repetition_sets)
         .filter(Boolean) as SpacedRepetitionSet[];
       setAssignedSets(mappedAssignedSets);
+
+      // Fetch assignment info for each set (admin view)
+      if (fetchedSets.length > 0) {
+        try {
+          const setIds = fetchedSets.map(s => s.id);
+          const { data: assignmentsData } = await (supabase as any)
+            .from('set_assignments')
+            .select('set_id, user_id, users!set_assignments_user_id_fkey(id, display_name, username)')
+            .in('set_id', setIds);
+
+          const map: Record<string, SetAssignmentInfo> = {};
+          for (const row of (assignmentsData || []) as any[]) {
+            const sid = row.set_id;
+            if (!map[sid]) map[sid] = { students: [] };
+            if (row.users) {
+              map[sid].students.push({
+                id: row.users.id,
+                display_name: row.users.display_name || row.users.username,
+                username: row.users.username,
+              });
+            }
+          }
+          setSetAssignmentMap(map);
+        } catch (err) {
+          console.error('Failed to fetch set assignments:', err);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch spaced repetition data:', error);
     } finally {
@@ -679,6 +719,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         loading,
         cardsDueToday,
         assignedSets,
+        setAssignmentMap,
         createSet,
         addQuestions,
         updateSet,

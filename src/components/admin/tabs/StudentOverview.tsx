@@ -282,11 +282,10 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {rewards.map(item => (
-                                <button
+                                <div
                                     key={item.id}
-                                    disabled={isSubmitting}
-                                    onClick={() => handleItemClick(item)}
-                                    className="flex flex-col items-center justify-center p-2.5 rounded-[1.5rem] border-2 border-slate-50 hover:border-blue-300 hover:bg-blue-50 transition-all text-center group bg-slate-50/50"
+                                    onClick={() => !isSubmitting && handleItemClick(item)}
+                                    className={`flex flex-col items-center justify-center p-2.5 rounded-[1.5rem] border-2 border-slate-50 hover:border-blue-300 hover:bg-blue-50 transition-all text-center group bg-slate-50/50 cursor-pointer ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <div className={`w-9 h-9 rounded-2xl ${item.color} flex items-center justify-center mb-1 group-hover:scale-110 transition-transform`}>
                                         {React.createElement(REWARD_ICON_MAP[item.icon] || Star, { size: 18 })}
@@ -322,7 +321,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                             </button>
                                         </div>
                                     )}
-                                </button>
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -335,11 +334,10 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {consequences.map(item => (
-                                <button
+                                <div
                                     key={item.id}
-                                    disabled={isSubmitting}
-                                    onClick={() => handleItemClick(item)}
-                                    className="flex flex-col items-center justify-center p-2.5 rounded-[1.5rem] border-2 border-slate-50 hover:border-red-300 hover:bg-red-50 transition-all text-center group bg-slate-50/50"
+                                    onClick={() => !isSubmitting && handleItemClick(item)}
+                                    className={`flex flex-col items-center justify-center p-2.5 rounded-[1.5rem] border-2 border-slate-50 hover:border-red-300 hover:bg-red-50 transition-all text-center group bg-slate-50/50 cursor-pointer ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <div className={`w-9 h-9 rounded-2xl ${item.color} flex items-center justify-center mb-1 group-hover:scale-110 transition-transform`}>
                                         {React.createElement(REWARD_ICON_MAP[item.icon] || AlertTriangle, { size: 18 })}
@@ -375,7 +373,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                             </button>
                                         </div>
                                     )}
-                                </button>
+                                </div>
                             ))}
                         </div>
                     </div>

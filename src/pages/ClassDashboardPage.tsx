@@ -63,6 +63,7 @@ export function ClassDashboardPage() {
     const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
     const [selectedHomeworkStudent, setSelectedHomeworkStudent] = useState<UserWithCoins | null>(null);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+    const [consequenceCounts, setConsequenceCounts] = useState<Record<string, number>>({});
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -219,6 +220,22 @@ export function ClassDashboardPage() {
 
             setGroupedUsers(grouped);
 
+            // Fetch daily consequences (type: negative) to show frequencies
+            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+            const { data: recordData } = await supabase
+                .from('student_records')
+                .select('student_id')
+                .eq('type', 'negative')
+                .gte('created_at', todayStr + 'T00:00:00Z');
+
+            const counts: Record<string, number> = {};
+            recordData?.forEach(r => {
+                if (r.student_id) {
+                    counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+                }
+            });
+            setConsequenceCounts(counts);
+
         } catch (err) {
             console.error('Error in fetchUsers:', err);
         } finally {
@@ -269,6 +286,20 @@ export function ClassDashboardPage() {
                 playSuccessSound();
                 await fetchUsers();
             }
+
+            // If it's a consequence (amount < 0), log to student_records for the broadcast bar
+            if (amount < 0) {
+                const records = userIds.map(id => ({
+                    student_id: id,
+                    message: reason || 'Consequence',
+                    type: 'negative',
+                    created_by: currentUser?.id,
+                    is_internal: true
+                }));
+                await supabase.from('student_records').insert(records);
+                // Refresh logs in toolbar would be handled by its own subscription
+            }
+
             setShowAwardModal(false);
             setSelectedForAward([]);
             if (userIds === selectedStudentIds) {
@@ -310,6 +341,7 @@ export function ClassDashboardPage() {
             if (reason === '完成班務（交齊功課）') amount = 20;
             else if (reason === '完成班務（寫手冊）') amount = 2;
             else if (reason === '完成班務（欠功課）') amount = -2;
+            else if (reason.startsWith('功課:')) amount = -2; // Missing specific items
 
             const { error } = await supabase.rpc('increment_room_coins' as any, {
                 target_user_id: studentId,
@@ -321,6 +353,16 @@ export function ClassDashboardPage() {
             if (error) throw error;
             await fetchUsers();
             playSuccessSound();
+
+            if (amount < 0) {
+                await supabase.from('student_records').insert([{
+                    student_id: studentId,
+                    message: reason,
+                    type: 'negative',
+                    created_by: currentUser?.id,
+                    is_internal: true
+                }]);
+            }
         } catch (err) {
             console.error('Error recording homework:', err);
             alert('Failed to record homework');
@@ -523,6 +565,7 @@ export function ClassDashboardPage() {
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
                                             isGuestMode={isGuestMode}
+                                            consequenceCounts={consequenceCounts}
                                         />
                                     </div>
                                 ))
@@ -552,6 +595,7 @@ export function ClassDashboardPage() {
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}
                                                 isGuestMode={isGuestMode}
+                                                consequenceCounts={consequenceCounts}
                                             />
                                         </>
                                     )}
@@ -584,7 +628,7 @@ export function ClassDashboardPage() {
             />
 
             {
-                !isGuestMode && (
+                (!isGuestMode || activeClass === '4D') && (
                     <UniversalMessageToolbar
                         selectedStudentIds={selectedStudentIds}
                         onClearSelection={() => setSelectedStudentIds([])}
@@ -617,6 +661,7 @@ export function ClassDashboardPage() {
                 studentName={selectedHomeworkStudent?.display_name || ''}
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
                 isGuestMode={isGuestMode}
+                targetClass={selectedHomeworkStudent?.class || undefined}
             />
         </div>
     );

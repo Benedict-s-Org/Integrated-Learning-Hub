@@ -108,7 +108,10 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
             return reward.sub_options;
         }
-        return DEFAULT_SUB_OPTIONS;
+        if (reward.title === '完成班務（欠功課）') {
+            return DEFAULT_SUB_OPTIONS;
+        }
+        return {};
     };
 
     const handleRewardClick = (item: ClassReward) => {
@@ -134,7 +137,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
 
 
     const handleSave = async () => {
-        if (!editForm.title || editForm.coins === undefined || editForm.coins === null) return;
+        if (!editForm.title || editForm.coins === undefined || editForm.coins === null || String(editForm.coins) === '') return;
 
         try {
             const rewardData = {
@@ -382,10 +385,13 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                             />
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={() => handleRewardClick(item)}
-                                            disabled={isEditMode || (selectedCount === 0 && !isEditMode && !isCustomMode)}
-                                            className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-gray-100 transition-all duration-200 shadow-sm
+                                        <div
+                                            onClick={() => {
+                                                if (!(isEditMode || (selectedCount === 0 && !isEditMode && !isCustomMode))) {
+                                                    handleRewardClick(item);
+                                                }
+                                            }}
+                                            className={`w-full flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-gray-100 transition-all duration-200 shadow-sm cursor-pointer
                                                 ${(isEditMode || (selectedCount === 0 && !isEditMode && !isCustomMode)) ? 'opacity-50 cursor-default' : 'hover:bg-blue-50/50 hover:border-blue-200 hover:-translate-y-1 hover:shadow-md'}
                                                 ${isCustomMode ? 'bg-orange-50/50 border-orange-100' : ''}`}
                                         >
@@ -435,7 +441,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                                     </div>
                                                 )}
                                             </div>
-                                        </button>
+                                        </div>
                                     )}
 
                                     {isEditMode && editingId !== item.id && (
@@ -495,7 +501,7 @@ function RewardEditor({ form, onChange, onSave, onCancel }: any) {
                     <input
                         type="number"
                         placeholder="e.g. 5"
-                        value={form.coins || ''}
+                        value={form.coins ?? ''}
                         onChange={e => onChange({ ...form, coins: e.target.value })}
                         className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     />
@@ -624,7 +630,7 @@ function RewardEditor({ form, onChange, onSave, onCancel }: any) {
                 </button>
                 <button
                     onClick={onSave}
-                    disabled={!form.title || (form.coins === undefined || form.coins === null || form.coins === '')}
+                    disabled={!form.title || form.coins === undefined || form.coins === null || String(form.coins) === ''}
                     className="px-6 py-2 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                 >
                     <Check size={16} />

@@ -31,7 +31,8 @@ export function SpacedRepetitionHub({
     restoreSet,
     permanentlyDeleteSet,
     fetchRecycleBin,
-    fetchAllData
+    fetchAllData,
+    setAssignmentMap
   } = useSpacedRepetition();
   const [recycleBin, setRecycleBin] = useState<SpacedRepetitionSet[]>([]);
   const [view, setView] = useState<'active' | 'assigned' | 'bin'>('active');
@@ -305,12 +306,35 @@ export function SpacedRepetitionHub({
                         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{set.description}</p>
                       )}
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
                         <span>{set.total_questions} questions</span>
                         <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
                           {set.difficulty}
                         </span>
                       </div>
+
+                      {/* Assigned Students */}
+                      {user?.role === 'admin' && setAssignmentMap[set.id] && setAssignmentMap[set.id].students.length > 0 && (
+                        <div className="mb-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Users className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="text-xs font-semibold text-indigo-700">
+                              Assigned to {setAssignmentMap[set.id].students.length} student{setAssignmentMap[set.id].students.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {setAssignmentMap[set.id].students.map(s => (
+                              <span
+                                key={s.id}
+                                className="text-[10px] px-1.5 py-0.5 bg-white border border-indigo-200 rounded-full text-indigo-700 font-medium truncate max-w-[120px]"
+                                title={s.display_name}
+                              >
+                                {s.display_name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2 mt-auto">

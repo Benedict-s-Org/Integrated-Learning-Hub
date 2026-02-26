@@ -85,10 +85,10 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
       }
 
-      // Fetch Users
+      // Fetch Users with necessary fields
       let query = supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class")
+        .select("id, username, role, created_at, display_name, class, class_number")
         .order("created_at", { ascending: false });
 
       if (link.target_class) {
@@ -99,24 +99,19 @@ Deno.serve(async (req: Request) => {
 
       if (usersError) throw usersError;
 
-      // Fetch Profiles (Class Numbers)
-      const { data: profiles, error: profileError } = await supabase
-        .from('users')
-        .select('id, class_number, avatar_url');
-      if (profileError) throw profileError;
+      // Extract User IDs for room data
+      const userIds = users?.map((u: any) => u.id) || [];
 
-      const profileMap: Record<string, { class_number: number | null, avatar_url: string | null }> = {};
-      profiles?.forEach((p: any) => {
-        profileMap[p.id] = { class_number: p.class_number, avatar_url: p.avatar_url };
-      });
+      // Fetch Room Data (Coins and Morning Duties) for these specific users
+      const { data: roomData } = await supabase
+        .from("user_room_data")
+        .select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update")
+        .in("user_id", userIds);
 
-      // Fetch Room Data (Coins and Morning Duties)
-      const { data: roomData } = await supabase.from("user_room_data").select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update");
       const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r]));
 
       // Merge
       const mergedUsers = users.map((u: any) => {
-        const profile = profileMap[u.id] || { class_number: null, avatar_url: null };
         const room: any = roomMap.get(u.id) || {};
         return {
           id: u.id,
@@ -124,9 +119,9 @@ Deno.serve(async (req: Request) => {
           display_name: u.display_name,
           role: u.role || 'user',
           class: u.class || null,
-          class_number: profile.class_number,
+          class_number: u.class_number,
           created_at: u.created_at,
-          avatar_url: profile.avatar_url,
+          avatar_url: null, // avatar_url column missing – avatars handled via user_avatar_config in frontend
           coins: room.coins || 0,
           virtual_coins: room.virtual_coins || 0,
           daily_counts: room.daily_counts || {},

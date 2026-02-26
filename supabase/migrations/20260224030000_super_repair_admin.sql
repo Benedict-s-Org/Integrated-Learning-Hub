@@ -12,7 +12,7 @@ SELECT
   COALESCE(raw_user_meta_data->>'display_name', email)
 FROM auth.users
 WHERE email = 'benedictcftsang@gmail.com'
-ON CONFLICT (username) DO UPDATE SET role = 'admin';
+ON CONFLICT (id) DO UPDATE SET role = 'admin';
 
 -- 2. Backfill managed_by_id for students if it's missing or mislinked.
 -- In the multi-admin system, students are only visible to the admin who "manages" them.

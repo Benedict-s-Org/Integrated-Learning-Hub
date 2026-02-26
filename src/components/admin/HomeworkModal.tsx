@@ -9,13 +9,14 @@ interface HomeworkModalProps {
     studentName: string;
     onRecord: (reason: string, coins?: number) => void;
     isGuestMode?: boolean;
+    targetClass?: string;
 }
 
 type TabType = 'general' | 'specific';
 
 const SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
 
-export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestMode }: HomeworkModalProps) {
+export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestMode, targetClass }: HomeworkModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('general');
     const [selectedSubject, setSelectedSubject] = useState<string>(Object.keys(DEFAULT_SUB_OPTIONS)[0]);
     const [selectedItems, setSelectedItems] = useState<Record<string, string[]>>({});
@@ -34,7 +35,13 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
             setSelectedItems({});
             setIsEditing(false);
         }
-    }, [isOpen]);
+
+        if (isOpen && isGuestMode && targetClass === '4D') {
+            setSelectedSubject('英文');
+            setActiveTab('specific');
+            setHasTriggeredSpecific(true);
+        }
+    }, [isOpen, isGuestMode, targetClass]);
 
     const fetchHomeworkOptions = async () => {
         const { data, error } = await supabase
@@ -187,7 +194,7 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
                     <div>
                         <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
                             <BookOpen className="text-blue-600" size={24} />
-                            {isGuestMode ? '早會班務' : 'Homework'}
+                            {isGuestMode ? 'Homework' : 'Homework'}
                         </h3>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
                             Recording for {studentName}

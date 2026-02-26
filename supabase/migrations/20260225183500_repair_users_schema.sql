@@ -105,3 +105,32 @@ BEGIN
   RETURN new_user;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Repair Phonics System
+-- Create missing phonics_sounds table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.phonics_sounds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sound_code TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    audio_url TEXT NOT NULL,
+    category TEXT,
+    sort_order INTEGER,
+    level INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Add RLS for phonics_sounds
+ALTER TABLE public.phonics_sounds ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Everyone can view phonics sounds" ON public.phonics_sounds;
+CREATE POLICY "Everyone can view phonics sounds" ON public.phonics_sounds
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage phonics sounds" ON public.phonics_sounds;
+CREATE POLICY "Admins can manage phonics sounds" ON public.phonics_sounds
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );

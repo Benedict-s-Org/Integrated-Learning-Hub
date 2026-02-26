@@ -1,5 +1,6 @@
--- Migration: Update Admin Assignment View
 -- Description: Adds level column to get_all_assignments_admin_view return type.
+
+DROP FUNCTION IF EXISTS get_all_assignments_admin_view(text, text, uuid, text, text);
 
 CREATE OR REPLACE FUNCTION get_all_assignments_admin_view(
   filter_type text DEFAULT NULL,

@@ -133,6 +133,13 @@ This workflow documents common errors encountered during development and best pr
 - **Verify UI Loss**: Before moving a route from a standalone wrapper, check if that wrapper provides unique UI (sidebars, headers) that the target wrapper lacks.
 - **Propose Before Move**: If you suspect a layout needs unification, propose it as a specific "UI Change" in the Implementation Plan and wait for explicit user approval.
 
+### 16. Blindly Trying to Fix Errors (Missing Context)
+**Problem**: The AI attempts to fix complex UI or functionality errors by guessing without looking at the console logs or error stack traces, often leading to incorrect or incomplete fixes.
+
+**Prevention**:
+- Always check the browser console logs (or Node/Vite server logs) to retrieve the exact error message and stack trace **before** trying to write a fix.
+- Let the log output guide your debugging process, especially for React DOM validation or component lifecycle errors.
+
 ---
 
 ## 📊 Automatic Error Logging

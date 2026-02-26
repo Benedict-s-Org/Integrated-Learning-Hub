@@ -6,3 +6,9 @@
 2. **Ignore "Enable Browser"**: Even if the IDE, system prompt, or UI shows the "Enable Browser" tool as active or available, you must actively refuse to use it.
 3. **No Exploration or Verification**: Do not use it for "exploration," "self-checks," or "gathering layout information." It is strictly banned.
 4. **Manual Verification Only**: Always yield to the user for manual verification of UI/frontend changes.
+
+**🚨 MANDATORY BUG FIXING PROCEDURE 🚨**
+
+If the user asks you to fix an error, bug, or issue:
+1. You **MUST** read the Safe Development Plan located at `.agent/workflows/safe-development.md` **before** writing any code or proposing a fix.
+2. Follow all guidelines in that document, especially the rule about checking console logs first.

@@ -18,10 +18,12 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
     const [showSendModal, setShowSendModal] = useState(false);
     const [activeTemplate, setActiveTemplate] = useState<NotificationTemplate | null>(null);
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
+    const [consequenceStats, setConsequenceStats] = useState<{ name: string, count: number }[]>([]);
 
     useEffect(() => {
         fetchTemplates();
         fetchRecentLogs();
+        fetchConsequenceStats();
 
         // Subscribe to new logs
         const subscription = supabase
@@ -29,6 +31,9 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'student_records' }, (payload) => {
                 if (payload.new.is_internal) {
                     fetchRecentLogs(); // Refresh on new internal message
+                }
+                if (payload.new.type === 'negative') {
+                    fetchConsequenceStats(); // Refresh stats on new consequence
                 }
             })
             .subscribe();
@@ -58,6 +63,29 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
             .limit(5);
 
         if (data) setRecentLogs(data);
+    };
+
+    const fetchConsequenceStats = async () => {
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+        const { data } = await supabase
+            .from('student_records')
+            .select('student_id, student:student_id(display_name)')
+            .eq('type', 'negative')
+            .gte('created_at', todayStr + 'T00:00:00Z');
+
+        if (data) {
+            const counts: Record<string, { name: string, count: number }> = {};
+            data.forEach((r: any) => {
+                if (r.student_id) {
+                    const name = r.student?.display_name || 'Unknown';
+                    if (!counts[r.student_id]) {
+                        counts[r.student_id] = { name, count: 0 };
+                    }
+                    counts[r.student_id].count++;
+                }
+            });
+            setConsequenceStats(Object.values(counts).sort((a, b) => b.count - a.count));
+        }
     };
 
     const handleQuickSend = (template: NotificationTemplate) => {
@@ -90,6 +118,38 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
                                         {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Recess Alert for students with 3+ consequences */}
+                {consequenceStats.some(s => s.count >= 3) && isExpanded && (
+                    <div className="bg-red-600 text-white py-2 px-4 shadow-lg flex items-center justify-center gap-3 animate-pulse border-b border-red-700">
+                        <span className="bg-white text-red-600 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
+                            Recess Alert
+                        </span>
+                        <p className="text-sm font-black tracking-tight">
+                            The following students will stay in the classroom at the recess: {consequenceStats.filter(s => s.count >= 3).map(s => s.name).join(', ')}
+                        </p>
+                    </div>
+                )}
+
+                {/* Daily Consequence Frequency Bar */}
+                {consequenceStats.length > 0 && isExpanded && (
+                    <div className="bg-slate-900 text-slate-400 py-1.5 px-4 text-[10px] flex gap-4 items-center border-b border-slate-800 overflow-x-auto scrollbar-hide">
+                        <span className="font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Daily Status:</span>
+                        <div className="flex gap-4">
+                            {consequenceStats.map((stat, i) => (
+                                <div key={i} className="flex items-center gap-1.5 whitespace-nowrap">
+                                    <span className="text-slate-200 font-bold">{stat.name}</span>
+                                    <span className={`px-1.5 py-0.5 rounded-md font-black
+                                        ${stat.count >= 3 ? 'bg-red-500 text-white' :
+                                            stat.count === 2 ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}
+                                    `}>
+                                        {stat.count}
+                                    </span>
+                                </div>
                             ))}
                         </div>
                     </div>
