@@ -709,16 +709,25 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
   const fetchAllStudents = async (): Promise<any[]> => {
     try {
+      console.log('SpacedRepetitionContext: Fetching all students for assignment...');
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, display_name, class')
-        .eq('role', 'user')
+        .select('*')
         .order('display_name');
 
-      if (error) throw error;
-      return data || [];
+      if (error) {
+        console.error('SpacedRepetitionContext: Error fetching students:', error);
+        throw error;
+      }
+
+      // Filter for students (role is 'user' or null/undefined)
+      // This matches the logic in AdminUsersPage which defaults missing roles to 'user'
+      const students = (data || []).filter(u => !u.role || u.role === 'user');
+      console.log(`SpacedRepetitionContext: Found ${students.length} students`);
+
+      return students;
     } catch (error) {
-      console.error('Failed to fetch students:', error);
+      console.error('SpacedRepetitionContext: Failed to fetch students:', error);
       return [];
     }
   };
