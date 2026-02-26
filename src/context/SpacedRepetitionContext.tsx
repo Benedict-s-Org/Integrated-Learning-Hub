@@ -106,22 +106,38 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
           const setIds = fetchedSets.map(s => s.id);
           const { data: assignmentsData } = await (supabase as any)
             .from('set_assignments')
-            .select('set_id, user_id, users!set_assignments_user_id_fkey(id, display_name, username)')
+            .select('set_id, user_id')
             .in('set_id', setIds);
 
-          const map: Record<string, SetAssignmentInfo> = {};
-          for (const row of (assignmentsData || []) as any[]) {
-            const sid = row.set_id;
-            if (!map[sid]) map[sid] = { students: [] };
-            if (row.users) {
-              map[sid].students.push({
-                id: row.users.id,
-                display_name: row.users.display_name || row.users.username,
-                username: row.users.username,
-              });
+          const assignmentRows = (assignmentsData || []) as any[];
+          if (assignmentRows.length > 0) {
+            // Fetch student details for all assigned user IDs
+            const userIds = [...new Set(assignmentRows.map((r: any) => r.user_id))];
+            const { data: usersData } = await supabase
+              .from('users')
+              .select('id, display_name, username')
+              .in('id', userIds);
+
+            const usersMap: Record<string, { id: string; display_name: string; username: string }> = {};
+            for (const u of (usersData || []) as any[]) {
+              usersMap[u.id] = u;
             }
+
+            const map: Record<string, SetAssignmentInfo> = {};
+            for (const row of assignmentRows) {
+              const sid = row.set_id;
+              if (!map[sid]) map[sid] = { students: [] };
+              const student = usersMap[row.user_id];
+              if (student) {
+                map[sid].students.push({
+                  id: student.id,
+                  display_name: student.display_name || student.username,
+                  username: student.username,
+                });
+              }
+            }
+            setSetAssignmentMap(map);
           }
-          setSetAssignmentMap(map);
         } catch (err) {
           console.error('Failed to fetch set assignments:', err);
         }
