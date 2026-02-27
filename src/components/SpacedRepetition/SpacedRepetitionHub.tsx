@@ -11,8 +11,8 @@ interface SpacedRepetitionHubProps {
   onEditSet: (setId: string) => void;
   onViewAnalytics: () => void;
   onViewSettings: () => void;
-  isMasterMode: boolean;
-  setIsMasterMode: (val: boolean) => void;
+  masterModeSetId: string | null;
+  setMasterModeSetId: (val: string | null) => void;
 }
 
 export function SpacedRepetitionHub({
@@ -21,8 +21,8 @@ export function SpacedRepetitionHub({
   onEditSet,
   onViewAnalytics,
   onViewSettings,
-  isMasterMode,
-  setIsMasterMode,
+  masterModeSetId,
+  setMasterModeSetId,
 }: SpacedRepetitionHubProps) {
   const { user } = useAuth();
   const {
@@ -344,16 +344,16 @@ export function SpacedRepetitionHub({
                     {user?.role === 'admin' && (
                       <div className="mb-4 p-2 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <Star size={14} className={isMasterMode ? "text-blue-600 fill-blue-600" : "text-gray-400"} />
+                          <Star size={14} className={masterModeSetId === set.id ? "text-blue-600 fill-blue-600" : "text-gray-400"} />
                           <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">Master Mode</span>
                         </div>
                         <button
-                          onClick={() => setIsMasterMode(!isMasterMode)}
-                          className={`relative inline-flex h-4 w-8 items-center rounded-full transition-all focus:outline-none ${isMasterMode ? 'bg-blue-600' : 'bg-gray-200'
+                          onClick={() => setMasterModeSetId(masterModeSetId === set.id ? null : set.id)}
+                          className={`relative inline-flex h-4 w-8 items-center rounded-full transition-all focus:outline-none ${masterModeSetId === set.id ? 'bg-blue-600' : 'bg-gray-200'
                             }`}
                         >
                           <span
-                            className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isMasterMode ? 'translate-x-4' : 'translate-x-1'
+                            className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${masterModeSetId === set.id ? 'translate-x-4' : 'translate-x-1'
                               }`}
                           />
                         </button>

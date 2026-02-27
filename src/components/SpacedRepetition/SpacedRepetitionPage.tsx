@@ -53,7 +53,7 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
   const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
-  const [isMasterMode, setIsMasterMode] = useState(false);
+  const [masterModeSetId, setMasterModeSetId] = useState<string | null>(null);
 
   // If user is not logged in or authorized
   if (!user) return <Login />;
@@ -187,6 +187,8 @@ export const SpacedRepetitionPage: React.FC = () => {
       }
 
       const now = Date.now();
+      const isActiveMasterMode = setId ? (masterModeSetId === setId) : (masterModeSetId === 'global');
+
       const newSessionState: SpacedRepetitionSessionState = {
         currentQuestionIndex: 0,
         questions: sessionQuestions,
@@ -194,13 +196,18 @@ export const SpacedRepetitionPage: React.FC = () => {
         isCompleted: false,
         sessionStartTime: now,
         currentQuestionStartTime: now,
-        isMasterMode: isMasterMode
+        isMasterMode: isActiveMasterMode
       };
 
       setSessionState(newSessionState);
-      setIsMasterMode(false); // Reset Hub toggle for next use
-      // Save initial session only if not in master mode
-      if (!isMasterMode) {
+
+      // If we just started a session that matches our Hub toggle, reset it
+      if (masterModeSetId === effectiveSetId || (masterModeSetId === 'global' && !setId)) {
+        setMasterModeSetId(null);
+      }
+
+      // Save initial session only if not in master mode (using the session's captured state)
+      if (!newSessionState.isMasterMode) {
         await saveActiveSession(effectiveSetId, newSessionState);
       }
 
@@ -327,7 +334,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       await saveActiveSession(state.setId, sessionState);
     }
 
-    setIsMasterMode(false);
+    setMasterModeSetId(null);
     setState({ view: 'hub' });
   };
 
@@ -666,7 +673,7 @@ export const SpacedRepetitionPage: React.FC = () => {
               setPrepSession({ setId: id });
             }}
             onBackToHub={() => {
-              setIsMasterMode(false);
+              setMasterModeSetId(null);
               setState({ view: 'hub' });
             }}
           />
@@ -806,8 +813,8 @@ export const SpacedRepetitionPage: React.FC = () => {
         onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}
-        isMasterMode={isMasterMode}
-        setIsMasterMode={setIsMasterMode}
+        masterModeSetId={masterModeSetId}
+        setMasterModeSetId={setMasterModeSetId}
       />
     </>
   );
