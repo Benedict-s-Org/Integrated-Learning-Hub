@@ -42,9 +42,7 @@ export const SpacedRepetitionPage: React.FC = () => {
     streak,
     saveActiveSession,
     fetchActiveSession,
-    clearActiveSession,
-    sets,
-    assignedSets
+    clearActiveSession
   } = useSpacedRepetition();
 
   const [state, setState] = useState<PageState>({ view: 'hub' });
@@ -54,7 +52,7 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
-  const [lastUsedLimit, setLastUsedLimit] = useState<number>(20);
+  const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
   const [isMasterMode, setIsMasterMode] = useState(false);
 
   // If user is not logged in or authorized
@@ -72,9 +70,8 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string) => {
+  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string, excludeIds: string[] = []) => {
     setLoadingSession(true);
-    setLastUsedLimit(limit);
     const effectiveSetId = setId || 'global';
 
     try {
@@ -144,8 +141,17 @@ export const SpacedRepetitionPage: React.FC = () => {
         // Include questions that aren't due and haven't been reviewed today
         const otherQuestions = setQuestions.filter((q: any) => !dueIds.includes(q.id) && !alreadyReviewedIds.includes(q.id));
 
+        // Filter out excluded IDs for Master Mode streaks
+        const filteredDue = dueQuestions.filter((q: any) => !excludeIds.includes(q.id));
+        const filteredOther = otherQuestions.filter((q: any) => !excludeIds.includes(q.id));
+
         // Session order: Due first, then the rest
-        sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, limit);
+        sessionQuestions = [...filteredDue, ...filteredOther].slice(0, limit);
+
+        // If we ran out of new content because of exclusion, recycle from excluding list
+        if (sessionQuestions.length === 0 && excludeIds.length > 0) {
+          sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, limit);
+        }
       } else {
         // Global Review Session: Fetch top cards from ALL sets based on limit
         sessionQuestions = (schedulesRes || [])
@@ -187,10 +193,12 @@ export const SpacedRepetitionPage: React.FC = () => {
         results: [],
         isCompleted: false,
         sessionStartTime: now,
-        currentQuestionStartTime: now
+        currentQuestionStartTime: now,
+        isMasterMode: isMasterMode
       };
 
       setSessionState(newSessionState);
+      setIsMasterMode(false); // Reset Hub toggle for next use
       // Save initial session only if not in master mode
       if (!isMasterMode) {
         await saveActiveSession(effectiveSetId, newSessionState);
@@ -278,7 +286,7 @@ export const SpacedRepetitionPage: React.FC = () => {
     });
 
     // 2. Perform and track the actual DB save if not in Master Mode
-    if (!isMasterMode) {
+    if (!sessionState.isMasterMode) {
       setIsSaving(true);
       try {
         await recordAttempt(currentQ.id, answerIndex, timeSpent);
@@ -330,7 +338,7 @@ export const SpacedRepetitionPage: React.FC = () => {
     if (isLast) {
       setSessionState(prev => prev ? { ...prev, isCompleted: true } : null);
       // Clear persistent session on success only if not in master mode
-      if (state.view === 'learning' && !isMasterMode) {
+      if (state.view === 'learning' && !sessionState.isMasterMode) {
         clearActiveSession(state.setId);
       }
     } else {
@@ -343,7 +351,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       setSessionState(updatedSession);
 
       // Update persistent index only if not in master mode
-      if (state.view === 'learning' && !isMasterMode) {
+      if (state.view === 'learning' && !sessionState.isMasterMode) {
         saveActiveSession(state.setId, updatedSession);
       }
     }
@@ -616,7 +624,7 @@ export const SpacedRepetitionPage: React.FC = () => {
                   const setId = prepSession.setId;
                   const setTitle = prepSession.setTitle;
                   setPrepSession(null);
-                  startSession(setId, false, limit, setTitle);
+                  startSession(setId, false, limit, setTitle, excludedQuestionIds);
                 }}
                 className="w-full px-4 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
               >
@@ -648,20 +656,11 @@ export const SpacedRepetitionPage: React.FC = () => {
             onContinue={() => {
               const id = state.setId === 'global' ? undefined : state.setId;
 
-              if (isMasterMode && id) {
-                // Find next set in the list
-                const allSets = [...sets, ...assignedSets];
-                const currentIndex = allSets.findIndex(s => s.id === id);
-                let nextSet = allSets[0]; // Wrap around by default
-
-                if (currentIndex !== -1 && currentIndex < allSets.length - 1) {
-                  nextSet = allSets[currentIndex + 1];
-                }
-
-                if (nextSet) {
-                  startSession(nextSet.id, true, lastUsedLimit, nextSet.title);
-                  return;
-                }
+              if (sessionState.isMasterMode && id) {
+                // track seen questions to avoid looping
+                setExcludedQuestionIds(prev => [...prev, ...sessionState.questions.map(q => q.id)]);
+                setPrepSession({ setId: id, setTitle: state.setTitle });
+                return;
               }
 
               setPrepSession({ setId: id });
@@ -692,7 +691,7 @@ export const SpacedRepetitionPage: React.FC = () => {
           onPrevious={handlePrevious}
           onSaveAndExit={handleSaveAndExit}
           canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
-          isMasterMode={isMasterMode}
+          isMasterMode={sessionState.isMasterMode}
         />
         {renderModals()}
       </>
@@ -799,8 +798,11 @@ export const SpacedRepetitionPage: React.FC = () => {
 
       {renderModals()}
       <SpacedRepetitionHub
-        onCreateNew={() => setState({ view: 'createNew' })}
-        onStartLearning={(id, title) => setPrepSession({ setId: id, setTitle: title })}
+        onCreateNew={() => setState({ view: 'hub' })}
+        onStartLearning={(id, title) => {
+          setExcludedQuestionIds([]); // Reset seen questions on manual start
+          setPrepSession({ setId: id, setTitle: title });
+        }}
         onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}

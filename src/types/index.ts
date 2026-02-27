@@ -407,6 +407,7 @@ export interface SpacedRepetitionSessionState {
   isCompleted: boolean;
   sessionStartTime: number;
   currentQuestionStartTime: number;
+  isMasterMode?: boolean;
 }
 
 export interface SpacedRepetitionStats {
