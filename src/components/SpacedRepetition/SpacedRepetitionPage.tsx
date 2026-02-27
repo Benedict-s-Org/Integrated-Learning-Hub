@@ -49,7 +49,7 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [sessionState, setSessionState] = useState<SpacedRepetitionSessionState | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
   const [resumptionData, setResumptionData] = useState<{ setId: string; sessionData: any; intendedLimit: number; setTitle?: string } | null>(null);
-  const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string } | null>(null);
+  const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string; isMasterMode?: boolean } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
   const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
@@ -70,7 +70,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string, excludeIds: string[] = []) => {
+  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string, excludeIds: string[] = [], isMasterModeOverride?: boolean) => {
     setLoadingSession(true);
     const effectiveSetId = setId || 'global';
 
@@ -187,7 +187,9 @@ export const SpacedRepetitionPage: React.FC = () => {
       }
 
       const now = Date.now();
-      const isActiveMasterMode = setId ? (masterModeSetId === setId) : (masterModeSetId === 'global');
+      const isActiveMasterMode = isMasterModeOverride !== undefined
+        ? isMasterModeOverride
+        : (setId ? (masterModeSetId === setId) : (masterModeSetId === 'global'));
 
       const newSessionState: SpacedRepetitionSessionState = {
         currentQuestionIndex: 0,
@@ -630,8 +632,9 @@ export const SpacedRepetitionPage: React.FC = () => {
                   const limit = selectedSize === 'custom' ? customSize : selectedSize;
                   const setId = prepSession.setId;
                   const setTitle = prepSession.setTitle;
+                  const isModeOverride = prepSession.isMasterMode;
                   setPrepSession(null);
-                  startSession(setId, false, limit, setTitle, excludedQuestionIds);
+                  startSession(setId, false, limit, setTitle, excludedQuestionIds, isModeOverride);
                 }}
                 className="w-full px-4 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
               >
@@ -666,7 +669,7 @@ export const SpacedRepetitionPage: React.FC = () => {
               if (sessionState.isMasterMode && id) {
                 // track seen questions to avoid looping
                 setExcludedQuestionIds(prev => [...prev, ...sessionState.questions.map(q => q.id)]);
-                setPrepSession({ setId: id, setTitle: state.setTitle });
+                setPrepSession({ setId: id, setTitle: state.setTitle, isMasterMode: true });
                 return;
               }
 
