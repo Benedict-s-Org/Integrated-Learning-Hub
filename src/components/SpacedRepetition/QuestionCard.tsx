@@ -15,6 +15,7 @@ interface QuestionCardProps {
   onPrevious: () => void;
   onSaveAndExit: () => void;
   canGoNext: boolean;
+  isMasterMode?: boolean;
 }
 
 export function QuestionCard({
@@ -27,6 +28,7 @@ export function QuestionCard({
   onPrevious,
   onSaveAndExit,
   canGoNext,
+  isMasterMode = false,
 }: QuestionCardProps) {
   const { profile } = useAuth();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -229,7 +231,9 @@ export function QuestionCard({
                       : 'border-red-500 bg-red-50'
                     : showFeedback && idx === question.correct_answer_index
                       ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                      : isMasterMode && idx === question.correct_answer_index
+                        ? 'border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-100'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                     } ${showFeedback || isHelpMode ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                 >
                   <div className="flex items-start gap-2 sm:gap-3">
@@ -240,7 +244,9 @@ export function QuestionCard({
                           : 'bg-red-500 text-white'
                         : showFeedback && idx === question.correct_answer_index
                           ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-700'
+                          : isMasterMode && idx === question.correct_answer_index
+                            ? 'bg-blue-500 text-white animate-pulse'
+                            : 'bg-gray-200 text-gray-700'
                         }`}
                     >
                       {String.fromCharCode(65 + idx)}

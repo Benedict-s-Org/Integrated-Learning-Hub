@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw, Users, GraduationCap } from 'lucide-react';
+import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw, Users, GraduationCap, Star } from 'lucide-react';
 import { SetAssignmentModal } from './SetAssignmentModal';
 import { SpacedRepetitionSet } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +11,8 @@ interface SpacedRepetitionHubProps {
   onEditSet: (setId: string) => void;
   onViewAnalytics: () => void;
   onViewSettings: () => void;
+  isMasterMode: boolean;
+  setIsMasterMode: (val: boolean) => void;
 }
 
 export function SpacedRepetitionHub({
@@ -19,6 +21,8 @@ export function SpacedRepetitionHub({
   onEditSet,
   onViewAnalytics,
   onViewSettings,
+  isMasterMode,
+  setIsMasterMode,
 }: SpacedRepetitionHubProps) {
   const { user } = useAuth();
   const {
@@ -337,6 +341,25 @@ export function SpacedRepetitionHub({
                       )}
                     </div>
 
+                    {user?.role === 'admin' && (
+                      <div className="mb-4 p-2 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Star size={14} className={isMasterMode ? "text-blue-600 fill-blue-600" : "text-gray-400"} />
+                          <span className="text-[10px] font-bold text-gray-700 uppercase tracking-tight">Master Mode</span>
+                        </div>
+                        <button
+                          onClick={() => setIsMasterMode(!isMasterMode)}
+                          className={`relative inline-flex h-4 w-8 items-center rounded-full transition-all focus:outline-none ${isMasterMode ? 'bg-blue-600' : 'bg-gray-200'
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isMasterMode ? 'translate-x-4' : 'translate-x-1'
+                              }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 mt-auto">
                       <button
                         onClick={() => onStartLearning(set.id, set.title)}
@@ -455,42 +478,46 @@ export function SpacedRepetitionHub({
       </div>
 
       {/* Confirmation Modal */}
-      {confirmingSetId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <Trash2 className="w-6 h-6 text-red-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete this set?</h3>
-            <p className="text-gray-600 mb-6">
-              This set will be moved to the Recycle Bin for 7 days before being permanently deleted.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmingSetId(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
+      {
+        confirmingSetId && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete this set?</h3>
+              <p className="text-gray-600 mb-6">
+                This set will be moved to the Recycle Bin for 7 days before being permanently deleted.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmingSetId(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Assignment Modal */}
-      {assigningSet && (
-        <SetAssignmentModal
-          setId={assigningSet.id}
-          setTitle={assigningSet.title}
-          onClose={() => setAssigningSet(null)}
-        />
-      )}
-    </div>
+      {
+        assigningSet && (
+          <SetAssignmentModal
+            setId={assigningSet.id}
+            setTitle={assigningSet.title}
+            onClose={() => setAssigningSet(null)}
+          />
+        )
+      }
+    </div >
   );
 }

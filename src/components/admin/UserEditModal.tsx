@@ -7,6 +7,7 @@ import { dataUrlToFile } from "@/utils/imageProcessing";
 interface UserWithProfile {
   id: string;
   email: string;
+  auth_email?: string;
   display_name: string | null;
   avatar_url?: string | null;
   created_at: string;
@@ -352,6 +353,17 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
               onChange={(e) => setDisplayName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             />
+          </div>
+
+          {/* Login Email (Read-only) */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--muted-foreground))]">
+              <Mail className="w-4 h-4" />
+              登入電郵 (Login Email)
+            </label>
+            <div className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] text-sm select-all cursor-default">
+              {user.auth_email || user.email || '—'}
+            </div>
           </div>
 
           {/* Email */}

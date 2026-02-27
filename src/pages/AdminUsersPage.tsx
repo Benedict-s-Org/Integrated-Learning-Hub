@@ -31,6 +31,7 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 interface UserWithProfile {
   id: string;
   email: string;
+  auth_email?: string;
   display_name: string | null;
   avatar_url: string | null;
   created_at: string;
@@ -66,8 +67,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [gender, setGender] = useState<'male' | 'female' | 'unspecified'>('unspecified');
   const [isCreating, setIsCreating] = useState(false);
 
-  const [editingUser, setEditingUser] = useState<UserWithProfile | null>(null);
-  const [selectedHomeworkStudent, setSelectedHomeworkStudent] = useState<UserWithProfile | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [selectedHomeworkStudentId, setSelectedHomeworkStudentId] = useState<string | null>(null);
   const [showBulkCreate, setShowBulkCreate] = useState(false);
   const [showDefaultSettings, setShowDefaultSettings] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
@@ -125,6 +126,23 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         }];
       }));
 
+      // Fetch real auth emails using a secure RPC function (SECURITY DEFINER reads auth.users)
+      let authEmailMap: Record<string, string> = {};
+      try {
+        const { data: authEmailRows, error: rpcError } = await (supabase as any).rpc('get_auth_emails');
+        if (rpcError) {
+          console.warn('Failed to fetch auth emails via RPC:', rpcError.message);
+        } else if (Array.isArray(authEmailRows)) {
+          for (const row of authEmailRows) {
+            if (row.user_id && row.auth_email) {
+              authEmailMap[row.user_id] = row.auth_email;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch auth emails:', err);
+      }
+
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
         const avatar = avatarMap.get(u.id) as any;
         const roomData = roomDataMap.get(u.id) as any;
@@ -135,6 +153,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         return {
           id: u.id,
           email: u.username || '',
+          auth_email: authEmailMap[u.id] || '',
           display_name: u.display_name || 'Unnamed',
           avatar_url: avatar ? "CUSTOM" : null,
           created_at: u.created_at || new Date().toISOString(),
@@ -220,6 +239,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     });
   }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents]);
 
+  const editingUser = useMemo(() => {
+    if (!editingUserId) return null;
+    return users.find(u => u.id === editingUserId) || null;
+  }, [editingUserId, users]);
+
+  const selectedHomeworkStudent = useMemo(() => {
+    if (!selectedHomeworkStudentId) return null;
+    return users.find(u => u.id === selectedHomeworkStudentId) || null;
+  }, [selectedHomeworkStudentId, users]);
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
@@ -286,7 +315,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     try {
       let amount = 0;
       if (reason === '完成班務（交齊功課）') amount = 20;
-      else if (reason === '完成班務（寫手冊）') amount = 2;
+      else if (reason === '完成班務（寫手冊）') amount = 10;
       else if (reason === '完成班務（欠功課）') amount = -2;
 
       const { error } = await (supabase as any).rpc('increment_room_coins', {
@@ -497,8 +526,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                       setSelectedForAward(ids);
                       setShowAwardModal(true);
                     }}
-                    onStudentClick={(student) => setEditingUser(student as UserWithProfile)}
-                    onHomeworkClick={(student) => setSelectedHomeworkStudent(student as UserWithProfile)}
+                    onStudentClick={(student) => setEditingUserId(student.id)}
+                    onHomeworkClick={(student) => setSelectedHomeworkStudentId(student.id)}
                     onReorder={async (newOrder) => {
                       try {
                         const updates = newOrder.map((user, index) => ({
@@ -515,6 +544,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                       }
                     }}
                     avatarCatalog={[]}
+                    showEmail={true}
                   />
                 </div>
               ) : (
@@ -568,7 +598,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                                 </td>
                                 <td className="px-6 py-4">
                                   <div className="font-bold text-slate-800">{user.display_name}</div>
-                                  <div className="text-sm text-slate-500">{user.email}</div>
+                                  <div className="text-sm text-gray-500 block mt-1 font-normal">{user.auth_email || user.email}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                   <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
@@ -583,7 +613,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                                     <QrCode size={18} />
                                   </button>
                                   <button
-                                    onClick={() => setEditingUser(user)}
+                                    onClick={() => setEditingUserId(user.id)}
                                     className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
                                   >
                                     <Pencil size={18} />
@@ -610,15 +640,17 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
       />
 
-      {editingUser && (
-        <UserEditModal
-          user={editingUser}
-          isOpen={!!editingUser}
-          onClose={() => setEditingUser(null)}
-          onSuccess={fetchUsers}
-          adminUserId={forcedAdminId || currentUser?.id || ""}
-        />
-      )}
+      {
+        editingUser && (
+          <UserEditModal
+            user={editingUser!}
+            isOpen={!!editingUserId}
+            onClose={() => setEditingUserId(null)}
+            onSuccess={fetchUsers}
+            adminUserId={forcedAdminId || currentUser?.id || ""}
+          />
+        )
+      }
 
       <DefaultUserSettingsModal
         isOpen={showDefaultSettings}
@@ -650,8 +682,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       />
 
       <HomeworkModal
-        isOpen={!!selectedHomeworkStudent}
-        onClose={() => setSelectedHomeworkStudent(null)}
+        isOpen={!!selectedHomeworkStudentId}
+        onClose={() => setSelectedHomeworkStudentId(null)}
         studentName={selectedHomeworkStudent?.display_name || ''}
         onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
       />

@@ -51,6 +51,7 @@ interface ClassDistributorProps {
     onHomeworkClick: (student: UserWithCoins) => void;
     isGuestMode?: boolean;
     consequenceCounts?: Record<string, number>;
+    showEmail?: boolean;
 }
 
 interface SortableUserItemProps {
@@ -66,9 +67,10 @@ interface SortableUserItemProps {
     onMove: (index: number, direction: 'forward' | 'backward') => void;
     isGuestMode?: boolean;
     consequenceCount?: number;
+    showEmail?: boolean;
 }
 
-function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onMove, isGuestMode, consequenceCount = 0 }: SortableUserItemProps) {
+function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onMove, isGuestMode, consequenceCount = 0, showEmail }: SortableUserItemProps) {
     const {
         attributes,
         listeners,
@@ -170,6 +172,13 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                     {user.display_name || 'Unnamed Student'}
                 </span>
 
+                {/* Login Email */}
+                {showEmail && (
+                    <span className="text-[10px] text-gray-500 text-center truncate w-full px-2">
+                        {user.email || 'No email'}
+                    </span>
+                )}
+
                 {/* Coin Bubble */}
                 <div className="mt-1 px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-[10px] flex items-center gap-1 border border-green-200">
                     <span className="text-xs">🪙</span>
@@ -215,7 +224,7 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
     );
 }
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {} }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -437,6 +446,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     onMove={handleMove}
                                     isGuestMode={isGuestMode}
                                     consequenceCount={consequenceCounts[user.id] || 0}
+                                    showEmail={showEmail}
                                 />
                             ))}
                         </div>

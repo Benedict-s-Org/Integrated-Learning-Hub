@@ -60,8 +60,8 @@ export function ClassDashboardPage() {
     const [activeClass, setActiveClass] = useState<string>('all');
 
     // Modals State
-    const [selectedStudent, setSelectedStudent] = useState<UserWithCoins | null>(null);
-    const [selectedHomeworkStudent, setSelectedHomeworkStudent] = useState<UserWithCoins | null>(null);
+    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+    const [selectedHomeworkStudentId, setSelectedHomeworkStudentId] = useState<string | null>(null);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [consequenceCounts, setConsequenceCounts] = useState<Record<string, number>>({});
 
@@ -292,7 +292,7 @@ export function ClassDashboardPage() {
                 const records = userIds.map(id => ({
                     student_id: id,
                     message: reason || 'Consequence',
-                    type: 'negative',
+                    type: 'negative' as 'negative' | 'positive' | 'neutral',
                     created_by: currentUser?.id,
                     is_internal: true
                 }));
@@ -339,7 +339,7 @@ export function ClassDashboardPage() {
             //完成班務（欠功課） usually negative or zero
             let amount = 0;
             if (reason === '完成班務（交齊功課）') amount = 20;
-            else if (reason === '完成班務（寫手冊）') amount = 2;
+            else if (reason === '完成班務（寫手冊）') amount = 10;
             else if (reason === '完成班務（欠功課）') amount = -2;
             else if (reason.startsWith('功課:')) amount = -2; // Missing specific items
 
@@ -414,11 +414,21 @@ export function ClassDashboardPage() {
     };
 
     const handleStudentClick = (student: UserWithCoins) => {
-        setSelectedStudent(student);
+        setSelectedStudentId(student.id);
     };
 
+    const selectedStudent = useMemo(() => {
+        if (!selectedStudentId) return null;
+        return Object.values(groupedUsers).flat().find(u => u.id === selectedStudentId) || null;
+    }, [selectedStudentId, groupedUsers]);
+
+    const selectedHomeworkStudent = useMemo(() => {
+        if (!selectedHomeworkStudentId) return null;
+        return Object.values(groupedUsers).flat().find(u => u.id === selectedHomeworkStudentId) || null;
+    }, [selectedHomeworkStudentId, groupedUsers]);
+
     const handleCloseProfile = () => {
-        setSelectedStudent(null);
+        setSelectedStudentId(null);
     };
 
     const sortedClassNames = useMemo(() => {
@@ -560,7 +570,7 @@ export function ClassDashboardPage() {
                                                 setShowAwardModal(true);
                                             }}
                                             onStudentClick={handleStudentClick}
-                                            onHomeworkClick={(student) => setSelectedHomeworkStudent(student)}
+                                            onHomeworkClick={(student) => setSelectedHomeworkStudentId(student.id)}
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
@@ -590,7 +600,7 @@ export function ClassDashboardPage() {
                                                     setShowAwardModal(true);
                                                 }}
                                                 onStudentClick={handleStudentClick}
-                                                onHomeworkClick={(student) => setSelectedHomeworkStudent(student)}
+                                                onHomeworkClick={(student) => setSelectedHomeworkStudentId(student.id)}
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}
@@ -656,8 +666,8 @@ export function ClassDashboardPage() {
                 userId={selectedStudent?.id || currentUser?.id}
             />
             <HomeworkModal
-                isOpen={!!selectedHomeworkStudent}
-                onClose={() => setSelectedHomeworkStudent(null)}
+                isOpen={!!selectedHomeworkStudentId}
+                onClose={() => setSelectedHomeworkStudentId(null)}
                 studentName={selectedHomeworkStudent?.display_name || ''}
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
                 isGuestMode={isGuestMode}

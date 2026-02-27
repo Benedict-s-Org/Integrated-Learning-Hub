@@ -96,7 +96,7 @@ export function RewardPage() {
             .order('title', { ascending: true }) as any);
 
         const allItems = (data || []) as any[];
-        setRewards(allItems.filter((i: any) => i.coins >= 0));
+        setRewards(allItems.filter((i: any) => i.coins > 0));
         setConsequences(allItems.filter((i: any) => i.coins <= 0));
     };
 

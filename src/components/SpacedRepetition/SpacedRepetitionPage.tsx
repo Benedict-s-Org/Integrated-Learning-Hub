@@ -52,6 +52,7 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
+  const [isMasterMode, setIsMasterMode] = useState(false);
 
   // If user is not logged in or authorized
   if (!user) return <Login />;
@@ -180,8 +181,10 @@ export const SpacedRepetitionPage: React.FC = () => {
       };
 
       setSessionState(newSessionState);
-      // Save initial session
-      await saveActiveSession(effectiveSetId, newSessionState);
+      // Save initial session only if not in master mode
+      if (!isMasterMode) {
+        await saveActiveSession(effectiveSetId, newSessionState);
+      }
 
       setState({
         view: 'learning',
@@ -264,31 +267,33 @@ export const SpacedRepetitionPage: React.FC = () => {
       };
     });
 
-    // 2. Perform and track the actual DB save
-    setIsSaving(true);
-    try {
-      await recordAttempt(currentQ.id, answerIndex, timeSpent);
+    // 2. Perform and track the actual DB save if not in Master Mode
+    if (!isMasterMode) {
+      setIsSaving(true);
+      try {
+        await recordAttempt(currentQ.id, answerIndex, timeSpent);
 
-      // Update persistent session state
-      if (state.view === 'learning' && sessionState) {
-        const isLastQuestion = sessionState.currentQuestionIndex === newQuestionsList.length - 1;
-        const updatedSession = {
-          ...sessionState,
-          questions: newQuestionsList,
-          results: [...sessionState.results, {
-            question_id: currentQ.id,
-            selected_answer_index: answerIndex,
-            is_correct: isCorrect,
-            response_time_ms: timeSpent,
-          }],
-          isCompleted: isLastQuestion
-        };
-        await saveActiveSession(state.setId, updatedSession);
+        // Update persistent session state
+        if (state.view === 'learning' && sessionState) {
+          const isLastQuestion = sessionState.currentQuestionIndex === newQuestionsList.length - 1;
+          const updatedSession = {
+            ...sessionState,
+            questions: newQuestionsList,
+            results: [...sessionState.results, {
+              question_id: currentQ.id,
+              selected_answer_index: answerIndex,
+              is_correct: isCorrect,
+              response_time_ms: timeSpent,
+            }],
+            isCompleted: isLastQuestion
+          };
+          await saveActiveSession(state.setId, updatedSession);
+        }
+      } catch (err) {
+        console.error("Failed to record attempt or save session:", err);
+      } finally {
+        setIsSaving(false);
       }
-    } catch (err) {
-      console.error("Failed to record attempt or save session:", err);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -302,6 +307,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       await saveActiveSession(state.setId, sessionState);
     }
 
+    setIsMasterMode(false);
     setState({ view: 'hub' });
   };
 
@@ -311,8 +317,8 @@ export const SpacedRepetitionPage: React.FC = () => {
 
     if (isLast) {
       setSessionState(prev => prev ? { ...prev, isCompleted: true } : null);
-      // Clear persistent session on success
-      if (state.view === 'learning') {
+      // Clear persistent session on success only if not in master mode
+      if (state.view === 'learning' && !isMasterMode) {
         clearActiveSession(state.setId);
       }
     } else {
@@ -324,8 +330,8 @@ export const SpacedRepetitionPage: React.FC = () => {
       };
       setSessionState(updatedSession);
 
-      // Update persistent index
-      if (state.view === 'learning') {
+      // Update persistent index only if not in master mode
+      if (state.view === 'learning' && !isMasterMode) {
         saveActiveSession(state.setId, updatedSession);
       }
     }
@@ -590,6 +596,7 @@ export const SpacedRepetitionPage: React.FC = () => {
               </button>
             </div>
 
+
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
@@ -630,7 +637,10 @@ export const SpacedRepetitionPage: React.FC = () => {
               const id = state.setId === 'global' ? undefined : state.setId;
               setPrepSession({ setId: id });
             }}
-            onBackToHub={() => setState({ view: 'hub' })}
+            onBackToHub={() => {
+              setIsMasterMode(false);
+              setState({ view: 'hub' });
+            }}
           />
           {renderModals()}
         </>
@@ -653,6 +663,7 @@ export const SpacedRepetitionPage: React.FC = () => {
           onPrevious={handlePrevious}
           onSaveAndExit={handleSaveAndExit}
           canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
+          isMasterMode={isMasterMode}
         />
         {renderModals()}
       </>
@@ -764,6 +775,8 @@ export const SpacedRepetitionPage: React.FC = () => {
         onEditSet={handleEditSet}
         onViewAnalytics={() => setState({ view: 'analytics' })}
         onViewSettings={() => console.log('Settings clicked')}
+        isMasterMode={isMasterMode}
+        setIsMasterMode={setIsMasterMode}
       />
     </>
   );

@@ -129,6 +129,11 @@ Deno.serve(async (req: Request) => {
 
     // Helper to ensure admin role is synced
     const ensureAdminRole = async (adminUserId: string) => {
+      if (!adminUserId || typeof adminUserId !== 'string') {
+        console.warn("ensureAdminRole: Invalid or missing adminUserId");
+        return false;
+      }
+
       // 1. Check if admin in public.users
       const { data: publicAdmin } = await supabase
         .from("users")
@@ -1090,6 +1095,61 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // ── List Auth Emails ──────────────────────────────────────────────────
+    if (path.endsWith("/list-auth-emails")) {
+      const { adminUserId } = await req.json();
+
+      const isAdmin = await ensureAdminRole(adminUserId);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      try {
+        const authResponse = await supabase.auth.admin.listUsers({
+          perPage: 1000,
+        });
+
+        const authUsers = authResponse.data?.users || [];
+        const emailMap: Record<string, string> = {};
+
+        authUsers.forEach((au: any) => {
+          if (au.id && au.email) {
+            emailMap[au.id] = au.email;
+          }
+        });
+
+        return new Response(
+          JSON.stringify({
+            emailMap,
+            debug: {
+              authError: authResponse.error,
+              usersFound: authUsers.length,
+              hasData: !!authResponse.data
+            }
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      } catch (err: any) {
+        console.error("Error fetching auth emails:", err);
+        return new Response(
+          JSON.stringify({ error: err.message || "Failed to fetch auth emails" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
 
     return new Response(
       JSON.stringify({ error: "Not found" }),
@@ -1098,10 +1158,14 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in auth function:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -50,6 +50,9 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
         if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
             return reward.sub_options;
         }
+        if (reward.title === '完成班務（寫手冊）') {
+            return {};
+        }
         return DEFAULT_SUB_OPTIONS;
     };
 
@@ -81,7 +84,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
             if (rError) throw rError;
 
             const allItems: ClassReward[] = rewardsData || [];
-            setRewards(allItems.filter(item => item.coins >= 0));
+            setRewards(allItems.filter(item => item.coins > 0));
             setConsequences(allItems.filter(item => item.coins <= 0));
 
             setTransactions(txData || []);
@@ -312,8 +315,25 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    const amount = parseInt(customValues[item.id]);
-                                                    handleAwardCoins(isNaN(amount) ? item.coins : amount, item.title);
+                                                    const valStr = customValues[item.id];
+
+                                                    if (valStr === undefined || valStr === '') {
+                                                        alert('Please enter a valid number');
+                                                        return;
+                                                    }
+
+                                                    const amount = Number(valStr);
+                                                    if (isNaN(amount)) {
+                                                        alert('Please enter a valid number');
+                                                        return;
+                                                    }
+
+                                                    const effectiveSubs = getEffectiveSubOptions(item);
+                                                    if (Object.keys(effectiveSubs).length > 0) {
+                                                        setPendingSubOptions({ reward: { ...item, coins: amount }, selected: [] });
+                                                    } else {
+                                                        handleAwardCoins(amount, item.title);
+                                                    }
                                                 }}
                                                 className="p-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                                             >
@@ -364,8 +384,25 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    const amount = parseInt(customValues[item.id]);
-                                                    handleAwardCoins(isNaN(amount) ? item.coins : amount, item.title);
+                                                    const valStr = customValues[item.id];
+
+                                                    if (valStr === undefined || valStr === '') {
+                                                        alert('Please enter a valid number');
+                                                        return;
+                                                    }
+
+                                                    const amount = Number(valStr);
+                                                    if (isNaN(amount)) {
+                                                        alert('Please enter a valid number');
+                                                        return;
+                                                    }
+
+                                                    const effectiveSubs = getEffectiveSubOptions(item);
+                                                    if (Object.keys(effectiveSubs).length > 0) {
+                                                        setPendingSubOptions({ reward: { ...item, coins: amount }, selected: [] });
+                                                    } else {
+                                                        handleAwardCoins(amount, item.title);
+                                                    }
                                                 }}
                                                 className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
                                             >

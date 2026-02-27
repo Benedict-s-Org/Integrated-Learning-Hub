@@ -121,7 +121,7 @@ export function QuickRewardPage() {
                     .order('created_at', { ascending: true }) as any);
 
                 const allItems = (rewardsData || []) as any[];
-                setRewards(allItems.filter(i => i.coins >= 0));
+                setRewards(allItems.filter(i => i.coins > 0));
                 setConsequences(allItems.filter(i => i.coins <= 0));
 
             } catch (err) {

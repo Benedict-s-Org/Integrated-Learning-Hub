@@ -106,7 +106,7 @@ export function QRScannerPage() {
             if (rError) return;
 
             const allItems: ClassReward[] = data || [];
-            setRewards(allItems.filter(i => i.coins >= 0));
+            setRewards(allItems.filter(i => i.coins > 0));
             setConsequences(allItems.filter(i => i.coins <= 0));
         };
         if (user) fetchRewards();

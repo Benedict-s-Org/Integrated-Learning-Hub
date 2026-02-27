@@ -415,10 +415,29 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (selectedCount > 0) {
-                                                                    onAward(customValues[item.id] ?? item.coins, item.title);
-                                                                } else {
+                                                                if (selectedCount === 0) {
                                                                     alert('Please select students first');
+                                                                    return;
+                                                                }
+
+                                                                const val = customValues[item.id];
+
+                                                                if (val === undefined || String(val).trim() === '') {
+                                                                    alert('Please enter a valid number');
+                                                                    return;
+                                                                }
+
+                                                                const amount = Number(val);
+                                                                if (isNaN(amount)) {
+                                                                    alert('Please enter a valid number');
+                                                                    return;
+                                                                }
+
+                                                                const effectiveSubs = getEffectiveSubOptions(item);
+                                                                if (Object.keys(effectiveSubs).length > 0) {
+                                                                    setPendingSubOptions({ reward: { ...item, coins: amount }, selected: [] });
+                                                                } else {
+                                                                    onAward(amount, item.title);
                                                                 }
                                                             }}
                                                             className="p-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
