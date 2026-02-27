@@ -42,7 +42,9 @@ export const SpacedRepetitionPage: React.FC = () => {
     streak,
     saveActiveSession,
     fetchActiveSession,
-    clearActiveSession
+    clearActiveSession,
+    sets,
+    assignedSets
   } = useSpacedRepetition();
 
   const [state, setState] = useState<PageState>({ view: 'hub' });
@@ -52,6 +54,7 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
+  const [lastUsedLimit, setLastUsedLimit] = useState<number>(20);
   const [isMasterMode, setIsMasterMode] = useState(false);
 
   // If user is not logged in or authorized
@@ -71,6 +74,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string) => {
     setLoadingSession(true);
+    setLastUsedLimit(limit);
     const effectiveSetId = setId || 'global';
 
     try {
@@ -88,10 +92,16 @@ export const SpacedRepetitionPage: React.FC = () => {
         }
       }
 
-      const { data: schedulesRes, error: schedulesError } = await (supabase as any)
+      let schedulesQuery = (supabase as any)
         .from('spaced_repetition_schedules')
-        .select('*, spaced_repetition_questions(*)')
+        .select('*, spaced_repetition_questions!inner(*)')
         .eq('user_id', user.id);
+
+      if (setId) {
+        schedulesQuery = schedulesQuery.eq('spaced_repetition_questions.set_id', setId);
+      }
+
+      const { data: schedulesRes, error: schedulesError } = await schedulesQuery;
 
       if (schedulesError) throw schedulesError;
 
@@ -294,6 +304,8 @@ export const SpacedRepetitionPage: React.FC = () => {
       } finally {
         setIsSaving(false);
       }
+    } else {
+      console.log("[Master Mode] Skipping analytics recording for Q:", currentQ.id);
     }
   };
 
@@ -635,6 +647,23 @@ export const SpacedRepetitionPage: React.FC = () => {
             newStreak={streak?.current_streak_days || 0}
             onContinue={() => {
               const id = state.setId === 'global' ? undefined : state.setId;
+
+              if (isMasterMode && id) {
+                // Find next set in the list
+                const allSets = [...sets, ...assignedSets];
+                const currentIndex = allSets.findIndex(s => s.id === id);
+                let nextSet = allSets[0]; // Wrap around by default
+
+                if (currentIndex !== -1 && currentIndex < allSets.length - 1) {
+                  nextSet = allSets[currentIndex + 1];
+                }
+
+                if (nextSet) {
+                  startSession(nextSet.id, true, lastUsedLimit, nextSet.title);
+                  return;
+                }
+              }
+
               setPrepSession({ setId: id });
             }}
             onBackToHub={() => {

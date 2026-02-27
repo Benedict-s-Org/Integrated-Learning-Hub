@@ -57,7 +57,7 @@ export function QuestionCard({
     const timer = setTimeout(() => {
       onAnswer(index, time);
       setAnswerTimer(null);
-    }, 800);
+    }, isMasterMode ? 100 : 800);
     setAnswerTimer(timer);
   };
 
@@ -216,6 +216,22 @@ export function QuestionCard({
                 alt="Question Attachment Fullscreen"
                 className="max-w-full max-h-full object-contain"
               />
+            </div>
+          )}
+
+          {isMasterMode && (
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={onNext}
+                disabled={!canGoNext}
+                className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all shadow-lg active:scale-95 ${canGoNext
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                {questionNumber === totalQuestions ? 'Finish Session' : 'Next Question'}
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           )}
 
