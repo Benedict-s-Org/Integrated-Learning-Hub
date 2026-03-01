@@ -25,6 +25,7 @@ interface ShuffledGameViewProps {
     words: Word[];
     onBack: () => void;
     isPractice?: boolean;
+    onSaveGame?: () => void;
 }
 
 interface GameWord {
@@ -71,45 +72,101 @@ const SortableWord = ({ id, text, isCorrect, isDragging }: { id: string; text: s
     );
 };
 
-const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPractice = false }) => {
+const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPractice = false, onSaveGame }) => {
     const [gameWords, setGameWords] = useState<GameWord[]>([]);
     const [isComplete, setIsComplete] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
+    const [level, setLevel] = useState<number>(3); // 1 = Sentence, 2 = Paragraph, 3 = All
 
-    // Initialize game
-    useEffect(() => {
-        // Only shuffle the selected words (the ones intended for the game)
-        // Actually, usually we'd want to shuffle ALL words if it's a "Sentence Scramble"
-        // But based on the selection, maybe only some are "blanks"?
-        // The user said: "arrange shuffled words from a paragraph into their correct order"
-        // Usually that means ALL words.
-
+    const shuffleWords = (currentLevel: number) => {
         const initialWords: GameWord[] = words.map((w, idx) => ({
-            id: `word-${idx}-${w.text}`,
+            id: `word-${idx}-${Date.now()}-${w.text}`,
             text: w.text,
             originalIndex: idx,
             isPunctuation: w.isPunctuation || false,
             isParagraphBreak: w.isParagraphBreak || false
         }));
 
-        // Identify which words to shuffle (exclude punctuation and paragraph breaks)
-        const wordsToShuffle = initialWords
-            .filter(w => !w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0);
+        let buckets: { startIndex: number, endIndex: number, words: GameWord[] }[] = [];
+        let currentBucketWords: GameWord[] = [];
+        let startIndex = 0;
 
-        const shuffled = [...wordsToShuffle].sort(() => Math.random() - 0.5);
-
-        // Reconstruct the array with shuffled words in word-positions and punctuation in place
-        let shuffledIdx = 0;
-        const finalWords = initialWords.map(w => {
+        for (let i = 0; i < initialWords.length; i++) {
+            const w = initialWords[i];
             if (!w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0) {
-                return shuffled[shuffledIdx++];
+                currentBucketWords.push(w);
             }
-            return w;
+
+            let isBoundary = false;
+            if (currentLevel === 1) {
+                // Sentence boundary (., ?, !) or paragraph break
+                if ((w.isPunctuation && /^[.?!]+$/.test(w.text)) || w.isParagraphBreak || w.text.includes('\n') || i === initialWords.length - 1) {
+                    isBoundary = true;
+                }
+            } else if (currentLevel === 2) {
+                // Paragraph boundary
+                if (w.isParagraphBreak || w.text.includes('\n') || i === initialWords.length - 1) {
+                    isBoundary = true;
+                }
+            } else {
+                // Level 3: All words are in a single bucket ends at the very end
+                if (i === initialWords.length - 1) {
+                    isBoundary = true;
+                }
+            }
+
+            if (isBoundary && currentBucketWords.length > 0) {
+                buckets.push({
+                    startIndex: startIndex,
+                    endIndex: i,
+                    words: currentBucketWords
+                });
+                currentBucketWords = [];
+                startIndex = i + 1;
+            } else if (isBoundary) {
+                startIndex = i + 1;
+            }
+        }
+
+        // Shuffle each bucket
+        buckets.forEach(b => {
+            b.words = b.words.sort(() => Math.random() - 0.5);
         });
+
+        // Reconstruct
+        const finalWords: GameWord[] = [];
+        let bucketIdx = 0;
+        let wordInBucketIdx = 0;
+
+        for (let i = 0; i < initialWords.length; i++) {
+            const w = initialWords[i];
+            if (!w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0) {
+                // Find correct bucket
+                let currentBucket = buckets[bucketIdx];
+                while (currentBucket && i > currentBucket.endIndex) {
+                    bucketIdx++;
+                    currentBucket = buckets[bucketIdx];
+                    wordInBucketIdx = 0;
+                }
+
+                if (currentBucket && wordInBucketIdx < currentBucket.words.length) {
+                    finalWords.push(currentBucket.words[wordInBucketIdx++]);
+                } else {
+                    finalWords.push(w);
+                }
+            } else {
+                finalWords.push(w);
+            }
+        }
 
         setGameWords(finalWords);
         setIsComplete(false);
-    }, [words]);
+    };
+
+    // Initialize game
+    useEffect(() => {
+        shuffleWords(level);
+    }, [words, level]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -168,28 +225,7 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
     }, [gameWords, words, isComplete]);
 
     const handleReset = () => {
-        // Simple reset logic:
-        const initialWords: GameWord[] = words.map((w, idx) => ({
-            id: `word-${idx}-${Date.now()}`, // New IDs to force refresh
-            text: w.text,
-            originalIndex: idx,
-            isPunctuation: w.isPunctuation || false,
-            isParagraphBreak: w.isParagraphBreak || false
-        }));
-
-        const wordsToShuffleList = initialWords.filter(w => !w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0);
-        const shuffledList = [...wordsToShuffleList].sort(() => Math.random() - 0.5);
-
-        let sIdx = 0;
-        const finalWords = initialWords.map(w => {
-            if (!w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0) {
-                return shuffledList[sIdx++];
-            }
-            return w;
-        });
-
-        setGameWords(finalWords);
-        setIsComplete(false);
+        shuffleWords(level);
     };
 
     return (
@@ -212,15 +248,31 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
                                 </p>
                             </div>
                         </div>
-                        {!isComplete && (
-                            <button
-                                onClick={handleReset}
-                                className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors font-medium border border-blue-400"
-                            >
-                                <RotateCcw size={18} />
-                                <span>Reset</span>
-                            </button>
-                        )}
+                        <div className="flex items-center space-x-3">
+                            {!isComplete && (
+                                <div className="flex items-center bg-blue-700/50 rounded-lg px-2 py-1 border border-blue-500/30">
+                                    <label className="text-sm font-medium text-blue-100 mr-2">Level:</label>
+                                    <select
+                                        value={level}
+                                        onChange={(e) => setLevel(Number(e.target.value))}
+                                        className="bg-transparent text-white text-sm font-bold focus:outline-none cursor-pointer"
+                                    >
+                                        <option value={1} className="text-gray-900">1 (Sentence)</option>
+                                        <option value={2} className="text-gray-900">2 (Paragraph)</option>
+                                        <option value={3} className="text-gray-900">3 (All)</option>
+                                    </select>
+                                </div>
+                            )}
+                            {!isComplete && (
+                                <button
+                                    onClick={handleReset}
+                                    className="flex items-center space-x-2 px-3 py-1.5 bg-blue-500/80 hover:bg-blue-400 rounded-lg transition-colors font-medium border border-blue-400 shadow-sm text-sm"
+                                >
+                                    <RotateCcw size={16} />
+                                    <span>Reset</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Game Area */}
@@ -290,13 +342,23 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
 
                     {/* Footer Info */}
                     {!isComplete && (
-                        <div className="px-8 py-4 bg-gray-50 border-t flex justify-between items-center">
+                        <div className="px-8 py-4 bg-gray-50 border-t flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 text-sm">
                             <div className="flex items-center space-x-2 text-gray-500">
                                 <PartyPopper size={18} className="text-blue-500" />
-                                <span className="text-sm">Hint: Green words are in the correct position!</span>
+                                <span>Hint: Green words are in the correct position!</span>
                             </div>
-                            <div className="text-gray-400 text-sm italic">
-                                {isPractice ? 'Practice Mode' : 'Training'}
+                            <div className="flex items-center space-x-4">
+                                {onSaveGame && (
+                                    <button
+                                        onClick={onSaveGame}
+                                        className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg shadow-sm transition-colors"
+                                    >
+                                        Save Game
+                                    </button>
+                                )}
+                                <span className="text-gray-400 italic">
+                                    {isPractice ? 'Practice Mode' : 'Training'}
+                                </span>
                             </div>
                         </div>
                     )}

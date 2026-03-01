@@ -747,8 +747,9 @@ function AppContent() {
           case 'shuffledGame':
             return (
               <ShuffledGameView
-                words={appState.words}
+                words={(appState as any).words}
                 onBack={handleBackToSelection}
+                onSaveGame={isAdmin ? () => handleSaveGame((appState as any).words, (appState as any).selectedIndices) : undefined}
               />
             );
         }

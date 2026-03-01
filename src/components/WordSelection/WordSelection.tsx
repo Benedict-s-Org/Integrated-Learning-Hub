@@ -60,7 +60,7 @@ const WordSelection: React.FC<WordSelectionProps> = ({
 
     setWords(prevWords => {
       const updatedWords = prevWords.map(word =>
-        word.index === index ? { ...word, isMemorized: !word.isMemorized } : word
+        word.index === index && !word.isPunctuation ? { ...word, isMemorized: !word.isMemorized } : word
       );
       return updatedWords;
     });

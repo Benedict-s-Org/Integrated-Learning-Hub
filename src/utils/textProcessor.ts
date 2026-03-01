@@ -3,8 +3,14 @@ import { Word } from '../types';
 // 定義可作為「詞」的字符模式（英文字母、數字、各種中日韓字符）
 const wordCharPattern = '[A-Za-z\\d\\u4e00-\\u9fff\\u3400-\\u4dbf\\u20000-\\u2a6df\\u2a700-\\u2b73f\\u2b740-\\u2b81f\\u2b820-\\u2ceaf\\u2ceb0-\\u2ebef\\u30000-\\u3134f]';
 
-// 可以被選作詞的特殊標點符號
-const selectableSpecialChars = new Set(['，', '（', '）', ',', '？', '：', '！', '+']);
+// 可以被選作詞的特殊標點符號 (目前不允許選擇任何標點符號)
+const selectableSpecialChars = new Set<string>();
+
+// 用於識別標點符號的字元列表
+const PUNCTUATION_CHARS = new Set([
+  ',', '.', ';', ':', '—', '-', '(', ')', '?', '!', "'", '"', '…', '/', '\\', '[', ']',
+  '，', '。', '；', '：', '——', '（', '）', '？', '！', '‘', '’', '“', '”', '……', '／', '＼', '［', '］',
+]);
 
 // 判斷是否為中文字符（涵蓋多個 CJK 區段與相關標點）
 const isChineseChar = (char: string): boolean => {
@@ -33,6 +39,7 @@ const isChineseChar = (char: string): boolean => {
 // 判斷文本是否為有效可選文字（僅包含詞字符的完整標記）
 const isActualWord = (text: string): boolean => {
   if (selectableSpecialChars.has(text)) return true;  // treat listed punctuations as words
+  if (text.length === 1 && PUNCTUATION_CHARS.has(text)) return false;
   // Allow words with hyphens (e.g., self-esteem, code-switching)
   return new RegExp(`^${wordCharPattern}+$`).test(text) || /^[A-Za-z]+(?:-[A-Za-z]+)+$/.test(text);
 };
@@ -62,10 +69,10 @@ export const processText = (text: string): Word[] => {
   // [^\s${wordCharPattern}]   => 任何非空白且非詞字符的符號
   // \s+                      => 空白字符
   //
-const regex = new RegExp(
-  `\\r\\n\\r\\n|\\n\\n|[A-Za-z]+(?:-[A-Za-z]+)*|\\d+|${wordCharPattern}|[.,!?;:，。？！；：""''""''()（）\\[\\]【】]|\\r\\n|\\n|[^\\s${wordCharPattern}.,!?;:，。？！；：""''""''()（）\\[\\]【】]|\\s+`,
-  'g'
-);
+  const regex = new RegExp(
+    `\\r\\n\\r\\n|\\n\\n|[A-Za-z]+(?:-[A-Za-z]+)*|\\d+|${wordCharPattern}|[.,!?;:，。？！；：""''""''()（）\\[\\]【】—\\-/?!\\'\\"…/\\\\\\\[\\\]]|\\r\\n|\\n|[^\\s${wordCharPattern}.,!?;:，。？！；：""''""''()（）\\[\\]【】—\\-/?!\\'\\"…/\\\\\\\[\\\]]|\\s+`,
+    'g'
+  );
 
   let match;
   let currentIndex = 0;
@@ -124,7 +131,7 @@ const getWordAtPosition = (words: Word[], position: number): Word | null => {
 
 const toggleWordSelection = (words: Word[], index: number): Word[] => {
   return words.map(word =>
-    word.index === index && !word.isPunctuation
+    word.index === index && !word.isPunctuation && !word.isParagraphBreak
       ? { ...word, isMemorized: !word.isMemorized }
       : word
   );

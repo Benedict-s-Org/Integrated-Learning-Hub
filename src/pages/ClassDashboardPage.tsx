@@ -251,7 +251,7 @@ export function ClassDashboardPage() {
         }
     }, [isAdmin, currentUser, isGuestMode, guestToken]);
 
-    const handleAwardCoins = async (userIds: string[], amount: number, reason?: string) => {
+    const handleAwardCoins = async (userIds: string[], amount: number, reason?: string, kind?: 'reward' | 'consequence') => {
         // Confirmation for Absent
         if (reason && (reason.includes('缺席') || reason.toLowerCase().includes('absent'))) {
             const confirmed = window.confirm(`Confirm moving ${userIds.length} student(s) to Absent? This will move them to 'Done' in morning duties.`);
@@ -287,8 +287,8 @@ export function ClassDashboardPage() {
                 await fetchUsers();
             }
 
-            // If it's a consequence (amount < 0), log to student_records for the broadcast bar
-            if (amount < 0) {
+            // If it's a consequence, log a negative record even if amount is 0
+            if (kind === 'consequence') {
                 const records = userIds.map(id => ({
                     student_id: id,
                     message: reason || 'Consequence',
@@ -340,8 +340,8 @@ export function ClassDashboardPage() {
             let amount = 0;
             if (reason === '完成班務（交齊功課）') amount = 20;
             else if (reason === '完成班務（寫手冊）') amount = 10;
-            else if (reason === '完成班務（欠功課）') amount = -2;
-            else if (reason.startsWith('功課:')) amount = -2; // Missing specific items
+            else if (reason === '完成班務（欠功課）') amount = 10;
+            else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
             const { error } = await supabase.rpc('increment_room_coins' as any, {
                 target_user_id: studentId,
@@ -621,7 +621,7 @@ export function ClassDashboardPage() {
                 onClose={() => setShowAwardModal(false)}
                 selectedCount={selectedForAward.length}
                 selectedStudentIds={selectedForAward}
-                onAward={(amount, reason) => handleAwardCoins(selectedForAward, amount, reason)}
+                onAward={(amount, reason, kind) => handleAwardCoins(selectedForAward, amount, reason, kind)}
                 onAwardBulk={handleAwardBulk}
                 students={Object.values(groupedUsers).flat()}
             />

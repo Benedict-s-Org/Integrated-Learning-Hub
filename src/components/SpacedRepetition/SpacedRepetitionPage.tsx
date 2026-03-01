@@ -25,7 +25,7 @@ type PageState =
       questions: any[];
     }
   }
-  | { view: 'learning'; setId: string; setTitle?: string }
+  | { view: 'learning'; setId: string | string[]; setTitle?: string }
   | { view: 'edit'; setId: string; initialData: { title: string; description: string; questions: any[] } }
   | { view: 'analytics' };
 
@@ -48,8 +48,8 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [state, setState] = useState<PageState>({ view: 'hub' });
   const [sessionState, setSessionState] = useState<SpacedRepetitionSessionState | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
-  const [resumptionData, setResumptionData] = useState<{ setId: string; sessionData: any; intendedLimit: number; setTitle?: string } | null>(null);
-  const [prepSession, setPrepSession] = useState<{ setId?: string; setTitle?: string; isMasterMode?: boolean } | null>(null);
+  const [resumptionData, setResumptionData] = useState<{ setId: string | string[]; sessionData: any; intendedLimit: number; setTitle?: string } | null>(null);
+  const [prepSession, setPrepSession] = useState<{ setId?: string | string[]; setTitle?: string; isMasterMode?: boolean } | null>(null);
   const [selectedSize, setSelectedSize] = useState<number | 'custom'>(20);
   const [customSize, setCustomSize] = useState<number>(10);
   const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
@@ -70,9 +70,16 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   // ─── Session Logic ───────────────────────────────────────────────────
 
-  const startSession = async (setId?: string, forceFresh = false, limit = 20, setTitle?: string, excludeIds: string[] = [], isMasterModeOverride?: boolean) => {
+  const getSessionIdStr = (id?: string | string[]): string => {
+    if (!id) return 'global';
+    if (Array.isArray(id)) return `plan_${[...id].sort().join('_').substring(0, 30)}`;
+    return id;
+  };
+
+  const startSession = async (setId?: string | string[], forceFresh = false, limit = 20, setTitle?: string, excludeIds: string[] = [], isMasterModeOverride?: boolean) => {
     setLoadingSession(true);
-    const effectiveSetId = setId || 'global';
+    // Use a composite key or "global" for the active session identifier
+    const effectiveSetId = getSessionIdStr(setId);
 
     try {
       if (!forceFresh) {
@@ -95,7 +102,11 @@ export const SpacedRepetitionPage: React.FC = () => {
         .eq('user_id', user.id);
 
       if (setId) {
-        schedulesQuery = schedulesQuery.eq('spaced_repetition_questions.set_id', setId);
+        if (Array.isArray(setId)) {
+          schedulesQuery = schedulesQuery.in('spaced_repetition_questions.set_id', setId);
+        } else {
+          schedulesQuery = schedulesQuery.eq('spaced_repetition_questions.set_id', setId);
+        }
       }
 
       const { data: schedulesRes, error: schedulesError } = await schedulesQuery;
@@ -105,11 +116,15 @@ export const SpacedRepetitionPage: React.FC = () => {
       let sessionQuestions: any[] = [];
 
       if (setId) {
-        // Specific Set Session: Prioritize due cards within this set
-        const setQuestions = await getQuestionsForSet(setId);
-        const setSchedules = (schedulesRes || []).filter((s: any) => s.spaced_repetition_questions?.set_id === setId);
+        // Specific Set(s) Session: Prioritize due cards within these sets
+        const idArray = Array.isArray(setId) ? setId : [setId];
+        let setQuestions: any[] = [];
+        for (const sid of idArray) {
+          const qs = await getQuestionsForSet(sid);
+          setQuestions = setQuestions.concat(qs);
+        }
 
-
+        const setSchedules = (schedulesRes || []).filter((s: any) => idArray.includes(s.spaced_repetition_questions?.set_id));
 
         const dueIds = (setSchedules || [])
           .filter((s: any) => {
@@ -189,7 +204,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       const now = Date.now();
       const isActiveMasterMode = isMasterModeOverride !== undefined
         ? isMasterModeOverride
-        : (setId ? (masterModeSetId === setId) : (masterModeSetId === 'global'));
+        : (setId ? (Array.isArray(setId) ? false : masterModeSetId === setId) : (masterModeSetId === 'global'));
 
       const newSessionState: SpacedRepetitionSessionState = {
         currentQuestionIndex: 0,
@@ -204,7 +219,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       setSessionState(newSessionState);
 
       // If we just started a session that matches our Hub toggle, reset it
-      if (masterModeSetId === effectiveSetId || (masterModeSetId === 'global' && !setId)) {
+      if ((!Array.isArray(setId) && masterModeSetId === setId) || (masterModeSetId === 'global' && !setId)) {
         setMasterModeSetId(null);
       }
 
@@ -215,7 +230,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
       setState({
         view: 'learning',
-        setId: effectiveSetId,
+        setId: setId || effectiveSetId, // Keep original setId parameter for state tracking
         setTitle: setTitle || (setId ? 'Loading Set...' : 'Global Review')
       });
       setLoadingSession(false);
@@ -246,11 +261,11 @@ export const SpacedRepetitionPage: React.FC = () => {
         currentQuestionStartTime: Date.now()
       };
       // Save the advanced index so we don't need to do this check again
-      await saveActiveSession(resumptionData.setId, sessionData);
+      await saveActiveSession(getSessionIdStr(resumptionData.setId), sessionData);
     } else if (isFactuallyCompleted) {
       // It was the last question and it was answered
       sessionData = { ...sessionData, isCompleted: true };
-      await saveActiveSession(resumptionData.setId, sessionData);
+      await saveActiveSession(getSessionIdStr(resumptionData.setId), sessionData);
     }
 
     setSessionState(sessionData);
@@ -314,7 +329,7 @@ export const SpacedRepetitionPage: React.FC = () => {
             }],
             isCompleted: isLastQuestion
           };
-          await saveActiveSession(state.setId, updatedSession);
+          await saveActiveSession(getSessionIdStr(state.setId), updatedSession);
         }
       } catch (err) {
         console.error("Failed to record attempt or save session:", err);
@@ -333,7 +348,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
     // Explicitly save state before exiting if possible
     if (state.view === 'learning' && sessionState) {
-      await saveActiveSession(state.setId, sessionState);
+      await saveActiveSession(getSessionIdStr(state.setId), sessionState);
     }
 
     setMasterModeSetId(null);
@@ -348,7 +363,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       setSessionState(prev => prev ? { ...prev, isCompleted: true } : null);
       // Clear persistent session on success only if not in master mode
       if (state.view === 'learning' && !sessionState.isMasterMode) {
-        clearActiveSession(state.setId);
+        clearActiveSession(getSessionIdStr(state.setId));
       }
     } else {
       const nextIndex = sessionState.currentQuestionIndex + 1;
@@ -361,7 +376,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
       // Update persistent index only if not in master mode
       if (state.view === 'learning' && !sessionState.isMasterMode) {
-        saveActiveSession(state.setId, updatedSession);
+        saveActiveSession(getSessionIdStr(state.setId), updatedSession);
       }
     }
   };
@@ -554,11 +569,17 @@ export const SpacedRepetitionPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  const id = resumptionData.setId === 'global' ? undefined : resumptionData.setId;
+                  let startId: string | string[] | undefined = resumptionData.setId;
+                  if (typeof startId === 'string' && startId.startsWith('plan_')) {
+                    // Can't reconstruct perfectly without saving original array, 
+                    // but the key handles overwrite. We pass undefined to fallback, or let id = effectiveSetId
+                  } else if (startId === 'global') {
+                    startId = undefined;
+                  }
                   const limit = resumptionData.intendedLimit;
                   const setTitle = resumptionData.setTitle;
                   setResumptionData(null);
-                  startSession(id, true, limit, setTitle); // `true` here means ignore completed sessions
+                  startSession(startId, true, limit, setTitle); // `true` here means ignore completed sessions
                 }}
                 className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all active:scale-95"
               >

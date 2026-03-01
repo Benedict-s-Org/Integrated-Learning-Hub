@@ -48,13 +48,22 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label
-                  htmlFor="text-input"
-                  className="block text-lg font-medium text-gray-700 mb-2"
-                  data-source-tsx="TextInput Label|src/components/TextInput/TextInput.tsx"
-                >
-                  Paste or type the paragraph you want to memorize:
-                </label>
+                <div className="flex justify-between items-end mb-2">
+                  <label
+                    htmlFor="text-input"
+                    className="block text-lg font-medium text-gray-700"
+                    data-source-tsx="TextInput Label|src/components/TextInput/TextInput.tsx"
+                  >
+                    Paste or type the paragraph you want to memorize:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setText(`Wait—did you say, "All punctuation: commas, periods, semicolons; colons: dashes—parentheses (yes), quotes 'and' "double", plus ellipses…"? I laughed, then wrote: Please stop! \nHowever, if you must, add a question? an exclamation! and a slash/ or backslash\\; finally, end this sixty-word paragraph with numbers (3), symbols & brackets [like these], and a calm period. Right now; okay: done, truly, Benedict.`)}
+                    className="text-sm px-3 py-1 font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 rounded-md transition-colors"
+                  >
+                    Load Sample
+                  </button>
+                </div>
                 <textarea
                   id="text-input"
                   value={text}

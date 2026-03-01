@@ -20,6 +20,7 @@ export const ASSET_CATEGORIES: Record<AssetContext, AssetCategory[]> = {
     ],
     user: [
         { id: 'avatar', label: '頭像' },
+        { id: 'character', label: 'Avatar' },
         { id: 'profile', label: '個人檔案背景' },
     ],
     city: [

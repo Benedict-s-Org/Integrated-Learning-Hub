@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw, Users, GraduationCap, Star } from 'lucide-react';
+import { Plus, BookOpen, BarChart3, Flame, Zap, Play, Trash2, Pencil, RotateCcw, Trash, AlertTriangle, Loader2, RefreshCw, Users, GraduationCap, Star, CalendarDays } from 'lucide-react';
 import { SetAssignmentModal } from './SetAssignmentModal';
+import { StudyPlanModal } from './StudyPlanModal';
 import { SpacedRepetitionSet } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
 interface SpacedRepetitionHubProps {
   onCreateNew: () => void;
-  onStartLearning: (setId?: string, setTitle?: string) => void;
+  onStartLearning: (setId?: string | string[], setTitle?: string) => void;
   onEditSet: (setId: string) => void;
   onViewAnalytics: () => void;
   onViewSettings: () => void;
@@ -43,6 +44,7 @@ export function SpacedRepetitionHub({
   const [confirmingSetId, setConfirmingSetId] = useState<string | null>(null);
   const [assigningSet, setAssigningSet] = useState<{ id: string, title: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showStudyPlanModal, setShowStudyPlanModal] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -209,6 +211,14 @@ export function SpacedRepetitionHub({
           >
             <BarChart3 className="w-5 h-5" />
             Analytics
+          </button>
+
+          <button
+            onClick={() => setShowStudyPlanModal(true)}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors w-full sm:w-auto"
+          >
+            <CalendarDays className="w-5 h-5 text-indigo-600" />
+            Study Plan
           </button>
 
           <button
@@ -518,6 +528,16 @@ export function SpacedRepetitionHub({
           />
         )
       }
+
+      {/* Study Plan Modal */}
+      {showStudyPlanModal && (
+        <StudyPlanModal
+          onClose={() => setShowStudyPlanModal(false)}
+          onStartStudyPlan={(setIds) => {
+            onStartLearning(setIds, "Study Plan Practice");
+          }}
+        />
+      )}
     </div >
   );
 }

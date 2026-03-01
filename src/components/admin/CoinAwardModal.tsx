@@ -12,7 +12,7 @@ import { UserWithCoins } from '@/pages/ClassDashboardPage';
 interface CoinAwardModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAward: (amount: number, reason: string) => void;
+    onAward: (amount: number, reason: string, kind: 'reward' | 'consequence') => void;
     selectedCount: number;
     selectedStudentIds?: string[];
     students?: UserWithCoins[];
@@ -121,7 +121,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         // SPECIAL CASE: "完成班務（交齊功課）" should award 20 coins directly
         // and skip the sub-options overlay as requested.
         if (item.title === '完成班務（交齊功課）') {
-            onAward(20, item.title);
+            onAward(20, item.title, item.type);
             return;
         }
 
@@ -131,7 +131,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
-            onAward(item.coins, item.title);
+            onAward(item.coins, item.title, item.type);
         }
     };
 
@@ -139,11 +139,31 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     const handleSave = async () => {
         if (!editForm.title || editForm.coins === undefined || editForm.coins === null || String(editForm.coins) === '') return;
 
+        const coinsValue = Number(editForm.coins);
+        const itemType = editForm.type || activeTab; // Use form type, fallback to tab
+
+        // Strict Validation
+        if (itemType === 'reward') {
+            if (coinsValue < 0) {
+                alert('Rewards cannot have a negative coin value.');
+                return;
+            }
+            if (coinsValue % 10 !== 0) {
+                alert('Rewards must be a multiple of 10 (e.g., 0, 10, 20).');
+                return;
+            }
+        } else if (itemType === 'consequence') {
+            if (coinsValue > 0) {
+                alert('Consequences cannot have a positive coin value. Must be 0 or negative.');
+                return;
+            }
+        }
+
         try {
             const rewardData = {
                 title: editForm.title,
-                coins: Number(editForm.coins),
-                type: activeTab,
+                coins: coinsValue,
+                type: itemType,
                 icon: editForm.icon || 'Star',
                 color: editForm.color || 'text-yellow-500 bg-yellow-100',
                 sub_options: editForm.sub_options || null
@@ -196,7 +216,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
             setEditingId('new');
             setEditForm({
                 type: activeTab,
-                coins: activeTab === 'reward' ? 1 : -1,
+                coins: undefined, // Force explicit input
                 icon: activeTab === 'reward' ? 'Star' : 'AlertCircle',
                 color: activeTab === 'reward' ? 'text-yellow-500 bg-yellow-100' : 'text-red-500 bg-red-100'
             });
@@ -275,7 +295,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                         onClose={() => setPendingSubOptions(null)}
                         onSubmit={(selectedItems) => {
                             const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
-                            onAward(pendingSubOptions.reward.coins, reason);
+                            onAward(pendingSubOptions.reward.coins, reason, pendingSubOptions.reward.type);
                             setPendingSubOptions(null);
                         }}
                     />
@@ -437,7 +457,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                                                 if (Object.keys(effectiveSubs).length > 0) {
                                                                     setPendingSubOptions({ reward: { ...item, coins: amount }, selected: [] });
                                                                 } else {
-                                                                    onAward(amount, item.title);
+                                                                    onAward(amount, item.title, item.type);
                                                                 }
                                                             }}
                                                             className="p-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"

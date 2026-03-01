@@ -419,6 +419,29 @@ export interface SpacedRepetitionStats {
   today_accuracy: number;
 }
 
+export interface SpacedRepetitionStudyPlan {
+  id: string;
+  creator_id: string;
+  title: string;
+  set_ids: string[];
+  target_date: string;
+  strategy: 'balanced' | 'sequential';
+  is_template: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudyPlanAssignment {
+  id: string;
+  plan_id: string;
+  user_id: string;
+  assigned_by: string;
+  is_active: boolean;
+  created_at: string;
+  plan?: SpacedRepetitionStudyPlan;
+}
+
 // Memory Palace Types
 export * from "./furniture";
 export * from "./room";

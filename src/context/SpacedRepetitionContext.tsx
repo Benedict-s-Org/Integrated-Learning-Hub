@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, UserStreak, UserAchievement, SpacedRepetitionSessionState } from '../types';
+import { SpacedRepetitionSet, SpacedRepetitionQuestion, SpacedRepetitionSchedule, UserStreak, UserAchievement, SpacedRepetitionSessionState, SpacedRepetitionStudyPlan, StudyPlanAssignment } from '../types';
 import { supabase } from '../lib/supabase';
 import { calculateNextReview, getQualityRatingFromCorrectness, initializeSchedule, getAchievementUnlocked } from '../utils/spacedRepetitionAlgorithm';
 
@@ -24,6 +24,8 @@ interface SpacedRepetitionContextType {
   cardsDueToday: number;
   assignedSets: SpacedRepetitionSet[];
   setAssignmentMap: Record<string, SetAssignmentInfo>;
+  studyPlanTemplates: SpacedRepetitionStudyPlan[];
+  activeStudyPlanAssignment: StudyPlanAssignment | null;
 
   createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
@@ -46,6 +48,10 @@ interface SpacedRepetitionContextType {
   clearActiveSession: (setId: string) => Promise<void>;
   assignSet: (setId: string, userIds: string[], dueDate?: string) => Promise<boolean>;
   fetchAllStudents: () => Promise<any[]>;
+  fetchStudyPlansAndAssignments: () => Promise<void>;
+  createStudyPlanTemplate: (title: string, setIds: string[], targetDate: string, strategy: 'balanced' | 'sequential') => Promise<SpacedRepetitionStudyPlan | null>;
+  assignStudyPlan: (planId: string, userIds: string[]) => Promise<boolean>;
+  deleteStudyPlanTemplate: (planId: string) => Promise<boolean>;
 }
 
 const SpacedRepetitionContextInstance = createContext<SpacedRepetitionContextType | undefined>(undefined);
@@ -66,6 +72,8 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
   const [cardsDueToday, setCardsDueToday] = useState(0);
   const [assignedSets, setAssignedSets] = useState<SpacedRepetitionSet[]>([]);
   const [setAssignmentMap, setSetAssignmentMap] = useState<Record<string, SetAssignmentInfo>>({});
+  const [studyPlanTemplates, setStudyPlanTemplates] = useState<SpacedRepetitionStudyPlan[]>([]);
+  const [activeStudyPlanAssignment, setActiveStudyPlanAssignment] = useState<StudyPlanAssignment | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -79,12 +87,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return;
 
     try {
-      const [setsRes, streakRes, achievementsRes, cardsDueRes, assignedRes] = await Promise.all([
+      const [setsRes, streakRes, achievementsRes, cardsDueRes, assignedRes, templatesRes, assignmentRes] = await Promise.all([
         ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId).is('deleted_at', null),
         ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
         ((supabase as any).from('user_achievements').select('*') as any).eq('user_id', userId),
         (supabase as any).rpc('get_cards_due_today', { p_user_id: userId }),
-        ((supabase as any).from('set_assignments').select('*, spaced_repetition_sets(*)').eq('user_id', userId) as any)
+        ((supabase as any).from('set_assignments').select('*, spaced_repetition_sets(*)').eq('user_id', userId) as any),
+        ((supabase as any).from('spaced_repetition_study_plans').select('*').eq('creator_id', userId).eq('is_template', true)),
+        ((supabase as any).from('study_plan_assignments').select('*, plan:spaced_repetition_study_plans(*)').eq('user_id', userId).eq('is_active', true).maybeSingle())
       ]);
 
       const fetchedSets = (setsRes.data || []) as unknown as SpacedRepetitionSet[];
@@ -92,6 +102,8 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
       setStreak(streakRes.data as unknown as UserStreak | null);
       setAchievements((achievementsRes.data || []) as unknown as UserAchievement[]);
       setCardsDueToday(cardsDueRes.data || 0);
+      setStudyPlanTemplates((templatesRes.data || []) as unknown as SpacedRepetitionStudyPlan[]);
+      setActiveStudyPlanAssignment(assignmentRes.data as unknown as StudyPlanAssignment | null);
 
       // Process assigned sets
       const assignedData = (assignedRes.data || []) as any[];
@@ -732,6 +744,105 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     }
   };
 
+  const fetchStudyPlansAndAssignments = async () => {
+    if (!userId) return;
+    try {
+      const [templatesRes, assignmentRes] = await Promise.all([
+        ((supabase as any).from('spaced_repetition_study_plans').select('*').eq('creator_id', userId).eq('is_template', true)),
+        ((supabase as any).from('study_plan_assignments').select('*, plan:spaced_repetition_study_plans(*)').eq('user_id', userId).eq('is_active', true).maybeSingle())
+      ]);
+
+      setStudyPlanTemplates((templatesRes.data || []) as unknown as SpacedRepetitionStudyPlan[]);
+      setActiveStudyPlanAssignment(assignmentRes.data as unknown as StudyPlanAssignment | null);
+    } catch (error) {
+      console.error('Failed to fetch study plans:', error);
+    }
+  };
+
+  const createStudyPlanTemplate = async (title: string, setIds: string[], targetDate: string, strategy: 'balanced' | 'sequential'): Promise<SpacedRepetitionStudyPlan | null> => {
+    if (!userId) return null;
+    try {
+      const { data, error } = await (supabase as any)
+        .from('spaced_repetition_study_plans')
+        .insert([{
+          creator_id: userId,
+          title: title,
+          set_ids: setIds,
+          target_date: targetDate,
+          strategy: strategy,
+          is_template: true,
+          is_active: true
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      const newPlan = data as unknown as SpacedRepetitionStudyPlan;
+      setStudyPlanTemplates([...studyPlanTemplates, newPlan]);
+      return newPlan;
+    } catch (error) {
+      console.error('Failed to create study plan template:', error);
+      return null;
+    }
+  };
+
+  const deleteStudyPlanTemplate = async (planId: string): Promise<boolean> => {
+    if (!userId) return false;
+    try {
+      const { error } = await (supabase as any)
+        .from('spaced_repetition_study_plans')
+        .delete()
+        .eq('id', planId)
+        .eq('creator_id', userId);
+
+      if (error) throw error;
+      setStudyPlanTemplates(studyPlanTemplates.filter(p => p.id !== planId));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete study plan template:', error);
+      return false;
+    }
+  };
+
+  const assignStudyPlan = async (planId: string, userIds: string[]): Promise<boolean> => {
+    if (!userId) return false;
+    try {
+      // For each user, deactivate their current active assignment first
+      for (const targetUserId of userIds) {
+        const { error: deactivateError } = await (supabase as any)
+          .from('study_plan_assignments')
+          .update({ is_active: false })
+          .eq('user_id', targetUserId)
+          .eq('is_active', true);
+
+        if (deactivateError) console.error(`Failed to deactivate plan for user ${targetUserId}:`, deactivateError);
+      }
+
+      const assignmentRecords = userIds.map(uid => ({
+        plan_id: planId,
+        user_id: uid,
+        assigned_by: userId,
+        is_active: true
+      }));
+
+      const { error: insertError } = await (supabase as any)
+        .from('study_plan_assignments')
+        .insert(assignmentRecords);
+
+      if (insertError) throw insertError;
+
+      // If we assigned to ourselves, refresh our active plan state
+      if (userIds.includes(userId)) {
+        fetchStudyPlansAndAssignments();
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to assign study plan:', error);
+      return false;
+    }
+  };
+
   return (
     <SpacedRepetitionContextInstance.Provider
       value={{
@@ -766,6 +877,12 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         clearActiveSession,
         assignSet,
         fetchAllStudents,
+        studyPlanTemplates,
+        activeStudyPlanAssignment,
+        fetchStudyPlansAndAssignments,
+        createStudyPlanTemplate,
+        assignStudyPlan,
+        deleteStudyPlanTemplate,
       }}
     >
       {children}

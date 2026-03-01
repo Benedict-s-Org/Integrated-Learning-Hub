@@ -219,6 +219,18 @@ export function QuestionCard({
             </div>
           )}
 
+          {!showFeedback && (
+            <div className="mb-4">
+              <button
+                onClick={() => handleSelectAnswer(-1)}
+                className="w-1/3 py-2 px-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 shadow-sm active:scale-95"
+              >
+                <HelpCircle size={16} />
+                Not sure
+              </button>
+            </div>
+          )}
+
           {isMasterMode && (
             <div className="mb-4 flex justify-end">
               <button
@@ -289,16 +301,26 @@ export function QuestionCard({
 
           {showFeedback && (
             <div
-              className={`mt-6 p-4 rounded-lg ${isCorrect
-                ? 'bg-green-50 border border-green-200'
-                : 'bg-red-50 border border-red-200'
+              className={`mt-6 p-4 rounded-lg ${selectedIndex === -1
+                ? 'bg-amber-50 border border-amber-200'
+                : isCorrect
+                  ? 'bg-green-50 border border-green-200'
+                  : 'bg-red-50 border border-red-200'
                 }`}
             >
               <p
-                className={`font-semibold mb-2 ${isCorrect ? 'text-green-900' : 'text-red-900'
+                className={`font-semibold mb-2 ${selectedIndex === -1
+                  ? 'text-amber-900'
+                  : isCorrect
+                    ? 'text-green-900'
+                    : 'text-red-900'
                   }`}
               >
-                {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
+                {selectedIndex === -1
+                  ? '? Review Requested'
+                  : isCorrect
+                    ? '✓ Correct!'
+                    : '✗ Incorrect'}
               </p>
               {question.explanation && (
                 <p className="text-sm text-gray-700">{question.explanation}</p>

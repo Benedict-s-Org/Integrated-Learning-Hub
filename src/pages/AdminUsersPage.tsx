@@ -316,7 +316,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       let amount = 0;
       if (reason === '完成班務（交齊功課）') amount = 20;
       else if (reason === '完成班務（寫手冊）') amount = 10;
-      else if (reason === '完成班務（欠功課）') amount = -2;
+      else if (reason === '完成班務（欠功課）') amount = 10;
+      else if (reason.startsWith('功課:')) amount = 10;
 
       const { error } = await (supabase as any).rpc('increment_room_coins', {
         target_user_id: studentId,
