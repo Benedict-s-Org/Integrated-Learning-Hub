@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Check, ArrowLeft, Loader2, AlertCircle, Settings2, Star, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
+import { coinService } from '@/services/coinService';
 import { CoinAwardModal, ClassReward } from '@/components/admin/CoinAwardModal';
 import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import React from 'react';
@@ -24,12 +25,7 @@ export function RewardPage() {
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
 
-    const getEffectiveSubOptions = (reward: ClassReward) => {
-        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
-            return reward.sub_options;
-        }
-        return DEFAULT_SUB_OPTIONS;
-    };
+
 
     // Check if current user is admin and fetch student info
     useEffect(() => {
@@ -101,28 +97,25 @@ export function RewardPage() {
     };
 
     // Award coins to the student
-    const handleAward = async (amount: number, reason: string) => {
+    const handleAward = async (amount: number, reason: string, type: 'reward' | 'consequence' = 'reward') => {
         if (!student || awarding) return;
 
         setAwarding(true);
         setSuccessMessage(null);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Not authenticated');
-
-            // 1. Update student's coins using RPC
-            const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
-                target_user_id: student.id,
-                amount: amount,
-                log_reason: reason,
-                log_admin_id: user.id
+            const result = await coinService.awardCoins({
+                userId: student.id,
+                amount,
+                reason,
+                type
             });
 
-            if (rpcError) throw rpcError;
+            if (!result.success) throw result.error;
 
             // 2. Success feedback
-            setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
+            const displayAmount = amount > 0 ? `+${amount}` : `${amount}`;
+            setSuccessMessage(`${displayAmount} coins for ${reason}!`);
 
             // Clear success message after 2 seconds
             setTimeout(() => setSuccessMessage(null), 2000);
@@ -143,7 +136,8 @@ export function RewardPage() {
         if (hasSubs) {
             setPendingSubOptions({ reward, selected: [] });
         } else {
-            handleAward(reward.coins, reward.title);
+            if (reward.coins === 0) return;
+            handleAward(reward.coins, reward.title, reward.coins > 0 ? 'reward' : 'consequence');
         }
     };
 
@@ -188,7 +182,7 @@ export function RewardPage() {
                     onClose={() => setPendingSubOptions(null)}
                     onSubmit={(selectedItems) => {
                         const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
-                        handleAward(pendingSubOptions.reward.coins, reason);
+                        handleAward(pendingSubOptions.reward.coins, reason, pendingSubOptions.reward.coins > 0 ? 'reward' : 'consequence');
                         setPendingSubOptions(null);
                     }}
                 />

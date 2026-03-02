@@ -106,7 +106,12 @@ export function StudentProfileModal({
                                 </div>
                                 <div className="absolute -bottom-1 -right-1 flex items-center gap-1.5 px-3 py-1 bg-yellow-100 text-yellow-700 font-bold rounded-full text-xs border border-yellow-200 shadow-sm">
                                     <span className="text-sm">🪙</span>
-                                    <span>{student.coins - (student.daily_real_earned || 0)}+{student.daily_real_earned || 0}</span>
+                                    <span>
+                                        {student.coins - (student.daily_real_earned || 0)}
+                                        {(student.daily_real_earned ?? 0) > 0 && (
+                                            <span className="text-yellow-600 ml-1">(+{student.daily_real_earned})</span>
+                                        )}
+                                    </span>
                                     <span className="text-[10px] opacity-75">({student.virtual_coins || 0})</span>
                                 </div>
                             </div>

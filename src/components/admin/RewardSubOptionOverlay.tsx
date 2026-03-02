@@ -18,16 +18,29 @@ export function RewardSubOptionOverlay({
     accentColor = "blue",
     isDark = false
 }: RewardSubOptionOverlayProps) {
+    const SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
+
     const getEffectiveSubOptions = (r: ClassReward) => {
-        if (r.sub_options && Object.keys(r.sub_options).length > 0) {
-            return r.sub_options;
+        // If the reward itself has sub-options (from DB), use them but merge with defaults for "欠功課"
+        if (r.title === '完成班務（欠功課）' || r.title === '完成班務（欠交功課）') {
+            return {
+                ...DEFAULT_SUB_OPTIONS,
+                ...(r.sub_options || {})
+            };
         }
-        return DEFAULT_SUB_OPTIONS;
+
+        // For other custom rewards, use their own sub-options if they have any
+        return r.sub_options || {};
     };
 
     const effectiveSubs = getEffectiveSubOptions(reward);
     const [selected, setSelected] = useState<Record<string, string[]>>({});
-    const [activeTab, setActiveTab] = useState<string>(Object.keys(effectiveSubs)[0] || "中文");
+
+    // Ensure we pick an active tab that actually exists in effectiveSubs
+    const availableSubjects = SUBJECT_ORDER.filter(s => effectiveSubs[s]);
+    const [activeTab, setActiveTab] = useState<string>(
+        availableSubjects[0] || Object.keys(effectiveSubs)[0] || "中文"
+    );
 
     const currentItems = effectiveSubs[activeTab] || [];
 
@@ -74,7 +87,8 @@ export function RewardSubOptionOverlay({
                 <div className="mb-6">
                     <label className={`text-[10px] font-bold ${subTextColor} uppercase tracking-widest mb-3 block text-center`}>1. Select Subject</label>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide justify-center">
-                        {Object.keys(effectiveSubs).map(sub => {
+                        {SUBJECT_ORDER.map(sub => {
+                            if (!effectiveSubs[sub]) return null;
                             const count = selected[sub]?.length || 0;
                             return (
                                 <button

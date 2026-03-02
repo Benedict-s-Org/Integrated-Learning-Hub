@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { coinService } from '@/services/coinService';
 import { UserEditModal } from '@/components/admin/UserEditModal';
 import { DefaultUserSettingsModal } from '@/components/admin/DefaultUserSettingsModal';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -319,14 +320,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       else if (reason === '完成班務（欠功課）') amount = 10;
       else if (reason.startsWith('功課:')) amount = 10;
 
-      const { error } = await (supabase as any).rpc('increment_room_coins', {
-        target_user_id: studentId,
+      const result = await coinService.awardCoins({
+        userId: studentId,
         amount: amount,
-        log_reason: reason,
-        log_admin_id: forcedAdminId || currentUser?.id
+        reason: reason,
+        type: amount > 0 ? 'reward' : 'consequence',
+        adminId: forcedAdminId || currentUser?.id,
+        batchId: crypto.randomUUID()
       });
 
-      if (error) throw error;
+      if (!result.success) throw result.error;
       fetchUsers();
     } catch (err) {
       console.error('Error recording homework:', err);
@@ -335,15 +338,21 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const handleAwardCoins = async (ids: string[], amount: number, reason: string) => {
     try {
-      const { error } = await (supabase as any).from('coin_logs').insert(
-        ids.map((userId: string) => ({
-          target_user_id: userId,
+      const batchId = crypto.randomUUID();
+      for (const userId of ids) {
+        const result = await coinService.awardCoins({
+          userId,
           amount,
-          log_reason: reason,
-          log_admin_id: forcedAdminId || currentUser?.id
-        }))
-      );
-      if (error) throw error;
+          reason,
+          type: amount >= 0 ? 'reward' : 'consequence',
+          adminId: forcedAdminId || currentUser?.id,
+          batchId: batchId
+        });
+        if (!result.success) {
+          console.error(`Failed to award coins to ${userId}:`, result.error);
+          throw result.error;
+        }
+      }
       alert(`Successfully awarded ${amount} coins!`);
       fetchUsers();
     } catch (err) {

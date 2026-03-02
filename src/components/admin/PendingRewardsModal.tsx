@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, X, Clock, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { coinService } from '@/services/coinService';
 
 interface PendingReward {
     id: string;
@@ -57,13 +58,15 @@ export function PendingRewardsModal({ isOpen, onClose, onProcessed }: PendingRew
     const handleApprove = async (reward: PendingReward) => {
         try {
             // 1. Give Coins
-            const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
-                target_user_id: reward.target_user_id,
+            const { data: { user } } = await supabase.auth.getUser();
+            const result = await coinService.awardCoins({
+                userId: reward.target_user_id,
                 amount: reward.amount,
-                log_reason: reward.reason || 'Guest Reward Request',
-                log_admin_id: (await supabase.auth.getUser()).data.user?.id
+                reason: reward.reason || 'Guest Reward Request',
+                type: reward.amount >= 0 ? 'reward' : 'consequence',
+                adminId: user?.id
             });
-            if (rpcError) throw rpcError;
+            if (!result.success) throw result.error;
 
             // 2. Mark as Approved
             const { error: updateError } = await supabase

@@ -31,6 +31,12 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
     const [isCalculating, setIsCalculating] = useState(false);
     const [masteredCount, setMasteredCount] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
+    const [viewingTemplateId, setViewingTemplateId] = useState<string | null>(null);
+
+    const viewingTemplate = useMemo(() =>
+        studyPlanTemplates.find(t => t.id === viewingTemplateId),
+        [viewingTemplateId, studyPlanTemplates]
+    );
 
     const allAvailableSets = [...sets, ...assignedSets].reduce((acc, current) => {
         const x = acc.find(item => item.id === current.id);
@@ -70,8 +76,8 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
     useEffect(() => {
         async function fetchMastered() {
             // If viewing assigned plan, use its sets
-            const setsToCount = activeTab === 'saved' && activeStudyPlanAssignment?.plan
-                ? activeStudyPlanAssignment.plan.set_ids
+            const setsToCount = activeTab === 'saved'
+                ? (viewingTemplate ? viewingTemplate.set_ids : activeStudyPlanAssignment?.plan?.set_ids || [])
                 : selectedSetIds;
 
             if (!user || setsToCount.length === 0) {
@@ -112,16 +118,16 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
     };
 
     // Calculation logic uses either planner state or active assignment state
-    const effectiveSetIds = activeTab === 'saved' && activeStudyPlanAssignment?.plan
-        ? activeStudyPlanAssignment.plan.set_ids
+    const effectiveSetIds = activeTab === 'saved'
+        ? (viewingTemplate ? viewingTemplate.set_ids : activeStudyPlanAssignment?.plan?.set_ids || [])
         : selectedSetIds;
 
-    const effectiveTargetDate = activeTab === 'saved' && activeStudyPlanAssignment?.plan
-        ? activeStudyPlanAssignment.plan.target_date
+    const effectiveTargetDate = activeTab === 'saved'
+        ? (viewingTemplate ? viewingTemplate.target_date : activeStudyPlanAssignment?.plan?.target_date || '')
         : targetDate;
 
-    const effectiveStrategy = activeTab === 'saved' && activeStudyPlanAssignment?.plan
-        ? activeStudyPlanAssignment.plan.strategy
+    const effectiveStrategy = activeTab === 'saved'
+        ? (viewingTemplate ? viewingTemplate.strategy : activeStudyPlanAssignment?.plan?.strategy || 'balanced')
         : strategy;
 
     const totalQuestionsInSelected = useMemo(() => {
@@ -498,6 +504,22 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                             </div>
                                                             <div className="flex gap-2">
                                                                 <button
+                                                                    onClick={() => setViewingTemplateId(viewingTemplateId === template.id ? null : template.id)}
+                                                                    className={`px-4 py-2 border font-semibold rounded-lg transition-colors flex items-center gap-2 ${viewingTemplateId === template.id
+                                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                                        : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+                                                                        }`}
+                                                                >
+                                                                    <LayoutTemplate className="w-4 h-4" /> {viewingTemplateId === template.id ? 'Hide Details' : 'Details'}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => onStartStudyPlan(template.set_ids)}
+                                                                    className="px-4 py-2 bg-green-50 text-green-700 font-semibold rounded-lg hover:bg-green-100 transition-colors flex items-center gap-2"
+                                                                    title="Practice this plan"
+                                                                >
+                                                                    <Play className="w-4 h-4" /> Practice
+                                                                </button>
+                                                                <button
                                                                     onClick={() => setAssigningPlanId(template.id)}
                                                                     className="px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2"
                                                                 >
@@ -510,6 +532,71 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
                                                             </div>
+
+                                                            {/* Inline Template Details View */}
+                                                            {viewingTemplateId === template.id && (
+                                                                <div className="w-full mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                    <div className="mb-4">
+                                                                        <h5 className="font-bold text-sm text-gray-700 mb-2">Included Question Sets:</h5>
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            {allAvailableSets
+                                                                                .filter(s => template.set_ids.includes(s.id))
+                                                                                .map(s => (
+                                                                                    <span key={s.id} className="px-2 py-1 bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-gray-700">
+                                                                                        {s.title} ({s.total_questions} cards)
+                                                                                    </span>
+                                                                                ))
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Reuse Step 3 Snapshot Visualization */}
+                                                                    <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                                                                        <div className="p-4 border-b border-gray-200">
+                                                                            <h5 className="font-bold text-sm text-gray-800">Plan Projection</h5>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-3 gap-2 p-3">
+                                                                            <div className="bg-white p-2 rounded-lg border border-gray-100">
+                                                                                <p className="text-[10px] text-gray-500 font-bold uppercase">Mastered</p>
+                                                                                <p className="text-sm font-black text-green-600">{masteredCount}/{totalQuestionsInSelected}</p>
+                                                                            </div>
+                                                                            <div className="bg-white p-2 rounded-lg border border-gray-100">
+                                                                                <p className="text-[10px] text-gray-500 font-bold uppercase">Days Left</p>
+                                                                                <p className="text-sm font-black text-blue-600">{daysRemaining}</p>
+                                                                            </div>
+                                                                            <div className="bg-blue-600 p-2 rounded-lg text-white">
+                                                                                <p className="text-[10px] text-blue-200 font-bold uppercase">Daily New</p>
+                                                                                <p className="text-sm font-black">{dailyNewTarget}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="max-h-40 overflow-y-auto overflow-x-hidden p-3 pt-0">
+                                                                            <table className="w-full text-[10px] text-left">
+                                                                                <thead className="bg-gray-100 sticky top-0">
+                                                                                    <tr>
+                                                                                        <th className="p-1 px-2 font-bold text-gray-600">Date</th>
+                                                                                        <th className="p-1 px-2 font-bold text-gray-600">New</th>
+                                                                                        <th className="p-1 px-2 font-bold text-gray-600">Total</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-gray-100">
+                                                                                    {simulatedSchedule.slice(0, 14).map((day, idx) => (
+                                                                                        <tr key={idx}>
+                                                                                            <td className="p-1 px-2 text-gray-600">{day.dateStr}</td>
+                                                                                            <td className="p-1 px-2 font-bold text-blue-600">+{day.newCards}</td>
+                                                                                            <td className="p-1 px-2 font-black text-gray-900">{day.total}</td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                    {simulatedSchedule.length > 14 && (
+                                                                                        <tr>
+                                                                                            <td colSpan={3} className="p-1 px-2 text-center text-gray-400 italic">... and {simulatedSchedule.length - 14} more days</td>
+                                                                                        </tr>
+                                                                                    )}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
 
                                                             {/* Inline Assignment UI */}
                                                             {assigningPlanId === template.id && (
@@ -568,7 +655,7 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                     <div className="relative z-10">
                                                         <h4 className="font-black text-2xl text-gray-900 mb-2">{activeStudyPlanAssignment.plan.title}</h4>
 
-                                                        <div className="flex flex-wrap gap-4 mb-6">
+                                                        <div className="flex flex-wrap gap-4 mb-4">
                                                             <div className="bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
                                                                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Target Date</p>
                                                                 <p className="font-bold text-gray-900">{new Date(activeStudyPlanAssignment.plan.target_date).toLocaleDateString()}</p>
@@ -576,6 +663,21 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                             <div className="bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100">
                                                                 <p className="text-xs text-orange-600 font-bold uppercase tracking-wider">Strategy</p>
                                                                 <p className="font-bold text-gray-900 capitalize">{activeStudyPlanAssignment.plan.strategy}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="mb-6">
+                                                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Question Sets</p>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {allAvailableSets
+                                                                    .filter(s => activeStudyPlanAssignment.plan!.set_ids.includes(s.id))
+                                                                    .map(s => (
+                                                                        <div key={s.id} className="px-2 py-1 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                                            {s.title}
+                                                                        </div>
+                                                                    ))
+                                                                }
                                                             </div>
                                                         </div>
 

@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
+import { getHKTodayString, getHKTodayStartISO } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
+import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
 import { Settings2, LayoutGrid, Users, Activity } from 'lucide-react';
@@ -13,6 +15,7 @@ import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarPar
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
+import { coinService } from '@/services/coinService';
 
 export interface UserWithCoins {
     id: string;
@@ -154,7 +157,7 @@ export function ClassDashboardPage() {
                 usersData = (usersData || []).map((u: any) => {
                     const roomInfo = morningStatuses[u.id];
                     const dailyCounts = roomInfo?.daily_counts as any;
-                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+                    const today = getHKTodayString();
                     const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
 
                     return {
@@ -182,7 +185,7 @@ export function ClassDashboardPage() {
             if (isGuestMode) {
                 finalUsers = usersData.map((u: any) => {
                     const dailyCounts = u.daily_counts || {};
-                    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+                    const today = getHKTodayString();
                     const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
 
                     return {
@@ -221,12 +224,11 @@ export function ClassDashboardPage() {
             setGroupedUsers(grouped);
 
             // Fetch daily consequences (type: negative) to show frequencies
-            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
             const { data: recordData } = await supabase
                 .from('student_records')
                 .select('student_id')
                 .eq('type', 'negative')
-                .gte('created_at', todayStr + 'T00:00:00Z');
+                .gte('created_at', getHKTodayStartISO());
 
             const counts: Record<string, number> = {};
             recordData?.forEach(r => {
@@ -274,32 +276,26 @@ export function ClassDashboardPage() {
                 playSuccessSound();
                 alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
             } else {
+                const batchId = crypto.randomUUID();
                 for (const userId of userIds) {
-                    const { error } = await supabase.rpc('increment_room_coins' as any, {
-                        target_user_id: userId,
-                        amount: amount,
-                        log_reason: reason || 'Class Reward',
-                        log_admin_id: currentUser?.id
+                    const result = await coinService.awardCoins({
+                        userId,
+                        amount,
+                        reason: reason || REWARD_REASONS.CLASS_REWARD,
+                        type: kind === 'consequence' ? 'consequence' : 'reward',
+                        batchId: batchId
                     });
-                    if (error) console.error(`Failed to award coins to ${userId}:`, error);
+                    if (!result.success) {
+                        console.error(`Failed to award coins to ${userId}:`, result.error);
+                        alert(`Database error when rewarding ${userId}: ${result.error.message}`);
+                        throw result.error;
+                    }
                 }
                 playSuccessSound();
                 await fetchUsers();
             }
 
-            // If it's a consequence, log a negative record even if amount is 0
-            if (kind === 'consequence') {
-                const records = userIds.map(id => ({
-                    student_id: id,
-                    message: reason || 'Consequence',
-                    type: 'negative' as 'negative' | 'positive' | 'neutral',
-                    created_by: currentUser?.id,
-                    is_internal: true
-                }));
-                await supabase.from('student_records').insert(records);
-                // Refresh logs in toolbar would be handled by its own subscription
-            }
-
+            // Log specific record update is now handled above for all kinds
             setShowAwardModal(false);
             setSelectedForAward([]);
             if (userIds === selectedStudentIds) {
@@ -313,14 +309,16 @@ export function ClassDashboardPage() {
 
     const handleAwardBulk = async (awards: { userId: string, amount: number, reason?: string }[]) => {
         try {
+            const batchId = crypto.randomUUID();
             for (const award of awards) {
-                const { error } = await supabase.rpc('increment_room_coins' as any, {
-                    target_user_id: award.userId,
+                const result = await coinService.awardCoins({
+                    userId: award.userId,
                     amount: award.amount,
-                    log_reason: award.reason || 'Dictation Bonus',
-                    log_admin_id: currentUser?.id
+                    reason: award.reason || REWARD_REASONS.DICTATION_BONUS,
+                    type: award.amount > 0 ? 'reward' : 'consequence',
+                    batchId: batchId
                 });
-                if (error) console.error(`Failed to award bonus to ${award.userId}:`, error);
+                if (!result.success) console.error(`Failed to award bonus to ${award.userId}:`, result.error);
             }
             playSuccessSound();
             await fetchUsers();
@@ -338,31 +336,22 @@ export function ClassDashboardPage() {
             //完成班務（交齊功課）and 完成班務（寫手冊) usually positive
             //完成班務（欠功課） usually negative or zero
             let amount = 0;
-            if (reason === '完成班務（交齊功課）') amount = 20;
-            else if (reason === '完成班務（寫手冊）') amount = 10;
-            else if (reason === '完成班務（欠功課）') amount = 10;
+            if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) amount = 20;
+            else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) amount = 10;
+            else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 10;
             else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
-            const { error } = await supabase.rpc('increment_room_coins' as any, {
-                target_user_id: studentId,
+            const result = await coinService.awardCoins({
+                userId: studentId,
                 amount: amount,
-                log_reason: reason,
-                log_admin_id: currentUser?.id
+                reason: reason,
+                type: amount > 0 ? 'reward' : 'consequence',
+                batchId: crypto.randomUUID()
             });
 
-            if (error) throw error;
+            if (!result.success) throw result.error;
             await fetchUsers();
             playSuccessSound();
-
-            if (amount < 0) {
-                await supabase.from('student_records').insert([{
-                    student_id: studentId,
-                    message: reason,
-                    type: 'negative',
-                    created_by: currentUser?.id,
-                    is_internal: true
-                }]);
-            }
         } catch (err) {
             console.error('Error recording homework:', err);
             alert('Failed to record homework');
@@ -371,20 +360,22 @@ export function ClassDashboardPage() {
 
     const handleQuickAward = async (userId: string) => {
         if (isGuestMode) return;
-        const reason = "回答問題";
+        const reason = REWARD_REASONS.ANSWER_QUESTION;
         const amount = 10;
         try {
-            const { error } = await supabase.rpc('increment_room_coins' as any, {
-                target_user_id: userId,
-                amount: amount,
-                log_reason: reason,
-                log_admin_id: currentUser?.id
+            const result = await coinService.awardCoins({
+                userId,
+                amount,
+                reason,
+                type: 'reward',
+                batchId: crypto.randomUUID()
             });
-            if (error) throw error;
+            if (!result.success) throw result.error;
             playSuccessSound();
             await fetchUsers();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Quick award failed:', err);
+            alert(`Quick award failed: ${err.message || 'Unknown error'}`);
         }
     };
 

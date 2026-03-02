@@ -49,10 +49,40 @@ export const REWARD_COLOR_OPTIONS = [
     { name: 'Indigo', class: 'text-indigo-500 bg-indigo-100' },
 ];
 
+export const SUBJECT_NAMES = {
+    CHINESE: "中文",
+    ENGLISH: "英文",
+    MATH: "數學",
+    GENERAL: "常識",
+    OTHER: "其他"
+};
+
 export const DEFAULT_SUB_OPTIONS: Record<string, string[]> = {
-    "中文": ["預習冊", "詞語", "語基冊", "課練冊", "視聽冊", "實用冊", "作文", "補充", "閱補", "閱讀理解工作紙", "書練習"],
-    "英文": ["WS1", "WS2", "WS3", "Pen", "GE(A)", "GE(B)", "Word Bank", "RWD", "Dict C/S", "Writing WS", "All-in-One", "Handwriting"],
-    "數學": ["A簿", "B簿", "作業", "補充", "複工", "難工", "知多啲", "3下A 工", "3下b 工", "書"],
-    "常識": [],
-    "其他": []
+    [SUBJECT_NAMES.CHINESE]: ["預習冊", "詞語", "語基冊", "課練冊", "視聽冊", "實用冊", "作文", "補充", "閱補", "閱讀理解工作紙", "書練習"],
+    [SUBJECT_NAMES.ENGLISH]: ["WS1", "WS2", "WS3", "Pen", "GE(A)", "GE(B)", "Word Bank", "RWD", "Dict C/S", "Writing WS", "All-in-One", "Handwriting"],
+    [SUBJECT_NAMES.MATH]: ["A簿", "B簿", "作業", "補充", "複工", "難工", "知多啲", "3下A 工", "3下b 工", "書"],
+    [SUBJECT_NAMES.GENERAL]: [],
+    [SUBJECT_NAMES.OTHER]: []
+};
+
+export const MISSING_HOMEWORK_TITLES = ['完成班務（欠功課）', '完成班務（欠交功課）'];
+
+export const REWARD_REASONS = {
+    ANSWER_QUESTION: "回答問題",
+    COMPLETE_ALL_HOMEWORK: "完成班務（交齊功課）",
+    HANDBOOK_ENTRY: "完成班務（寫手冊）",
+    MISSING_HOMEWORK: "完成班務（欠功課）",
+    DICTATION_BONUS: "Dictation Bonus",
+    CLASS_REWARD: "Class Reward"
+};
+
+/**
+ * Shared logic to determine if an item should show the homework sub-options overlay.
+ * Strictly enforced: only specific homework titles trigger the overlay.
+ */
+export const getEffectiveSubOptions = (item: { title: string }) => {
+    if (MISSING_HOMEWORK_TITLES.includes(item.title)) {
+        return DEFAULT_SUB_OPTIONS;
+    }
+    return {};
 };

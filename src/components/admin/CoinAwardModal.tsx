@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP, REWARD_COLOR_OPTIONS, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, REWARD_COLOR_OPTIONS, getEffectiveSubOptions } from '@/constants/rewardConfig';
 import { RewardSubOptionOverlay } from './RewardSubOptionOverlay';
 import { DictationBonusOverlay } from './DictationBonusOverlay';
 import { UserWithCoins } from '@/pages/ClassDashboardPage';
@@ -104,26 +104,11 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     }, [isOpen, selectedCount, selectedStudentIds]);
 
 
-    const getEffectiveSubOptions = (reward: ClassReward) => {
-        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
-            return reward.sub_options;
-        }
-        if (reward.title === '完成班務（欠功課）') {
-            return DEFAULT_SUB_OPTIONS;
-        }
-        return {};
-    };
+
 
     const handleRewardClick = (item: ClassReward) => {
         if (isEditMode || isCustomMode) return;
         if (selectedCount === 0) return;
-
-        // SPECIAL CASE: "完成班務（交齊功課）" should award 20 coins directly
-        // and skip the sub-options overlay as requested.
-        if (item.title === '完成班務（交齊功課）') {
-            onAward(20, item.title, item.type);
-            return;
-        }
 
         const effectiveSubs = getEffectiveSubOptions(item);
         const hasSubs = Object.keys(effectiveSubs).length > 0;

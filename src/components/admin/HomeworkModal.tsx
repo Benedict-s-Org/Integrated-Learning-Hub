@@ -56,7 +56,10 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
         }
 
         if (data?.sub_options) {
-            setHomeworkOptions(data.sub_options);
+            setHomeworkOptions({
+                ...DEFAULT_SUB_OPTIONS,
+                ...data.sub_options
+            });
         }
     };
 

@@ -137,8 +137,15 @@ This workflow documents common errors encountered during development and best pr
 **Problem**: The AI attempts to fix complex UI or functionality errors by guessing without looking at the console logs or error stack traces, often leading to incorrect or incomplete fixes.
 
 **Prevention**:
-- Always check the browser console logs (or Node/Vite server logs) to retrieve the exact error message and stack trace **before** trying to write a fix.
 - Let the log output guide your debugging process, especially for React DOM validation or component lifecycle errors.
+
+### 17. Respecting User-Defined Item Nature (Rewards vs Consequences)
+**Problem**: The AI tries to "correct" or interpret the literal meaning of a custom reward/consequence title (e.g., forcing "欠交功課" to be a consequence just because it sounds negative), overriding the user's explicit configuration.
+
+**Prevention**:
+- **Ignore Literal Meaning**: Ignore the literal meaning of the options.
+- **Strict Adherence**: If the user makes it a reward, it is a reward permanently. If the user makes it a consequence, it is a consequence permanently.
+- **No Nature Editing**: The system should not edit the nature in all circumstances. Never hardcode logic that changes an item's behavior or type purely based on assumptions about its title.
 
 ---
 

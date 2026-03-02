@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Check, Loader2, AlertCircle, KeyRound, LogIn, Star, AlertTriangle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { getHKTodayString } from '@/utils/dateUtils';
+import { coinService } from '@/services/coinService';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
 import { ClassReward } from '@/components/admin/CoinAwardModal';
 import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import { playSuccessSound } from '@/utils/audio';
-import React from 'react';
 
 const SCANNER_EMAIL = 'scanner@system.local';
 
@@ -44,12 +45,7 @@ export function QuickRewardPage() {
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
 
-    const getEffectiveSubOptions = (reward: ClassReward) => {
-        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
-            return reward.sub_options;
-        }
-        return DEFAULT_SUB_OPTIONS;
-    };
+
 
     // Initialize: Check Auth & Fetch Student & Rewards
     useEffect(() => {
@@ -103,7 +99,7 @@ export function QuickRewardPage() {
                     .eq('user_id', studentData.id)
                     .single() as any);
 
-                const today = new Date().toISOString().split('T')[0];
+                const today = getHKTodayString();
                 const dailyRealEarned = (roomData as any)?.daily_counts?.date === today ? ((roomData as any)?.daily_counts?.real_earned || 0) : 0;
 
                 setStudent({
@@ -170,36 +166,30 @@ export function QuickRewardPage() {
         if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
-            handleAward(item.coins, item.title);
+            handleAward(item.coins, item.title, item.coins > 0 ? 'reward' : 'consequence');
         }
     };
 
     // Award coins
-    const handleAward = async (amount: number, reason: string) => {
+    const handleAward = async (amount: number, reason: string, type: 'reward' | 'consequence' = 'reward') => {
         if (!student || awarding) return;
 
         setAwarding(true);
         setSuccessMessage(null);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                window.location.reload();
-                return;
-            }
-
-            // 1. Update student's coins using RPC
-            const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
-                target_user_id: student.id,
-                amount: amount,
-                log_reason: reason,
-                log_admin_id: user.id
+            const result = await coinService.awardCoins({
+                userId: student.id,
+                amount,
+                reason,
+                type
             });
 
-            if (rpcError) throw rpcError;
+            if (!result.success) throw result.error;
 
             playSuccessSound();
-            setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
+            const displayAmount = amount > 0 ? `+${amount}` : `${amount}`;
+            setSuccessMessage(`${displayAmount} coins for ${reason}!`);
             setTimeout(() => setSuccessMessage(null), 2000);
         } catch (err) {
             console.error('Failed to award coins:', err);
@@ -280,7 +270,7 @@ export function QuickRewardPage() {
                     onClose={() => setPendingSubOptions(null)}
                     onSubmit={(selectedItems) => {
                         const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
-                        handleAward(pendingSubOptions.reward.coins, reason);
+                        handleAward(pendingSubOptions.reward.coins, reason, pendingSubOptions.reward.coins > 0 ? 'reward' : 'consequence');
                         setPendingSubOptions(null);
                     }}
                 />
@@ -308,7 +298,12 @@ export function QuickRewardPage() {
                     </p>
                     <div className="px-3 py-1 bg-yellow-100 text-yellow-700 font-bold rounded-full text-xs flex items-center gap-1">
                         <span>🪙</span>
-                        <span>{(student?.coins || 0) - (student?.daily_real_earned || 0)}+{student?.daily_real_earned || 0}</span>
+                        <span>
+                            {(student?.coins || 0) - (student?.daily_real_earned || 0)}
+                            {(student?.daily_real_earned ?? 0) > 0 && (
+                                <span className="text-yellow-600 ml-1">(+{student?.daily_real_earned})</span>
+                            )}
+                        </span>
                         <span className="opacity-75">({student?.virtual_coins || 0})</span>
                     </div>
                 </div>
@@ -368,7 +363,7 @@ export function QuickRewardPage() {
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 const amount = parseInt(customValues[reward.id]);
-                                                handleAward(isNaN(amount) ? reward.coins : amount, reward.title);
+                                                handleAward(isNaN(amount) ? reward.coins : amount, reward.title, (isNaN(amount) ? reward.coins : amount) > 0 ? 'reward' : 'consequence');
                                             }}
                                             className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
                                         >
@@ -426,7 +421,7 @@ export function QuickRewardPage() {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     const amount = parseInt(customValues[item.id]);
-                                                    handleAward(isNaN(amount) ? item.coins : amount, item.title);
+                                                    handleAward(isNaN(amount) ? item.coins : amount, item.title, (isNaN(amount) ? item.coins : amount) > 0 ? 'reward' : 'consequence');
                                                 }}
                                                 className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-sm"
                                             >

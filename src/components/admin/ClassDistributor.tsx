@@ -182,8 +182,15 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                 {/* Coin Bubble */}
                 <div className="mt-1 px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-[10px] flex items-center gap-1 border border-green-200">
                     <span className="text-xs">🪙</span>
-                    <span>{user.coins - (user.daily_real_earned || 0)}+{user.daily_real_earned || 0}</span>
-                    <span className="opacity-75 whitespace-nowrap">({user.virtual_coins || 0})</span>
+                    <span className="text-sm">
+                        {(user.coins || 0) - (user.daily_real_earned || 0)}
+                        {(user.daily_real_earned ?? 0) > 0 && (
+                            <span className="text-green-600 ml-1">(+{user.daily_real_earned})</span>
+                        )}
+                    </span>
+                    {(user.virtual_coins ?? 0) > 0 && (
+                        <span className="opacity-75 whitespace-nowrap ml-1 text-[9px]">({user.virtual_coins})</span>
+                    )}
                 </div>
 
                 {/* Homework Button */}

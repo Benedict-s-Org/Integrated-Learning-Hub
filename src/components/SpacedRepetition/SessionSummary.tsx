@@ -29,7 +29,7 @@ export function SessionSummary({
   const avgTime = Math.round(totalTime / results.length);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-6">
+    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-6 pb-32 sm:pb-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
@@ -83,9 +83,8 @@ export function SessionSummary({
             {results.map((result, idx) => (
               <div
                 key={idx}
-                className={`p-3 rounded-lg flex items-center justify-between ${
-                  result.is_correct ? 'bg-green-50' : 'bg-red-50'
-                }`}
+                className={`p-3 rounded-lg flex items-center justify-between ${result.is_correct ? 'bg-green-50' : 'bg-red-50'
+                  }`}
               >
                 <span className="text-sm text-gray-700">
                   Q{idx + 1}: {result.is_correct ? '✓' : '✗'}

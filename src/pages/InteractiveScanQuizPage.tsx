@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getHKTodayString } from '@/utils/dateUtils';
 import { useAuth } from '@/context/AuthContext';
 import { ArrowLeft, Play, Square, Settings, Users, X, Plus, ChevronRight, Video, FileText, CheckCircle2, SlidersHorizontal, Trash2, Camera } from 'lucide-react';
 
@@ -114,7 +115,7 @@ export function InteractiveScanQuizPage() {
     };
 
     const handleCreateNewSession = () => {
-        setSessionTitle(`Class Quiz ${new Date().toLocaleDateString()}`);
+        setSessionTitle(`Class Quiz ${getHKTodayString()}`);
         setDraftQuestions([{ id: Date.now(), text: '', a: '', b: '', c: '', d: '', correct: 'A' }]);
         setIsSubmittingSession(false);
         setCreateSessionMode('selector');
@@ -138,7 +139,13 @@ export function InteractiveScanQuizPage() {
             .select()
             .single();
 
-        if (data && !error) {
+        if (error) {
+            console.error('Failed to start session:', error);
+            alert('Failed to start session. Please try again.');
+            return;
+        }
+
+        if (data) {
             const _data = data as unknown as QuizSession;
             setActiveSession(_data);
             await loadQuestions(_data.id);

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, Star, AlertTriangle, Trash2, Plus, Check } from 'lucide-react';
-import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
 import { RewardSubOptionOverlay } from '../RewardSubOptionOverlay';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { coinService } from '@/services/coinService';
 import React from 'react';
 
 interface StudentOverviewProps {
@@ -46,15 +47,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
 
-    const getEffectiveSubOptions = (reward: ClassReward) => {
-        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
-            return reward.sub_options;
-        }
-        if (reward.title === '完成班務（寫手冊）') {
-            return {};
-        }
-        return DEFAULT_SUB_OPTIONS;
-    };
+
 
     useEffect(() => {
         if (student?.id) {
@@ -164,14 +157,14 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                 const { data: { user } } = await supabase.auth.getUser();
 
                 // Update Room Data via Admin RPC
-                const { error: roomError } = await (supabase.rpc as any)('increment_room_coins', {
-                    target_user_id: student.id,
+                const result = await coinService.awardCoins({
+                    userId: student.id,
                     amount: amount,
-                    log_reason: reason,
-                    log_admin_id: user?.id
+                    reason: reason,
+                    type: amount >= 0 ? 'reward' : 'consequence',
+                    adminId: user?.id
                 });
-
-                if (roomError) throw roomError;
+                if (!result.success) throw result.error;
 
                 playSuccessSound();
                 if (onSuccess) onSuccess();

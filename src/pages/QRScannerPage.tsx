@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getHKTodayString } from '@/utils/dateUtils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import {
@@ -18,7 +19,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { REWARD_ICON_MAP, DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { coinService } from '@/services/coinService';
+import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
 import { ClassReward } from '@/components/admin/CoinAwardModal';
 import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import React from 'react';
@@ -30,6 +32,9 @@ interface ScannedStudent {
     username: string;
     display_name: string | null;
     class: string | null;
+    coins: number;
+    virtual_coins?: number;
+    daily_real_earned?: number;
 }
 
 export function QRScannerPage() {
@@ -49,12 +54,7 @@ export function QRScannerPage() {
     // Sub-options selection
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
 
-    const getEffectiveSubOptions = (reward: ClassReward) => {
-        if (reward.sub_options && Object.keys(reward.sub_options).length > 0) {
-            return reward.sub_options;
-        }
-        return DEFAULT_SUB_OPTIONS;
-    };
+
 
     // Login State
     const [accessCode, setAccessCode] = useState('');
@@ -145,9 +145,22 @@ export function QRScannerPage() {
                 .eq('id', studentData.id)
                 .single();
 
+            // Fetch coins from user_room_data
+            const { data: roomData } = await (supabase
+                .from('user_room_data' as any)
+                .select('coins, virtual_coins, daily_counts')
+                .eq('user_id', studentData.id)
+                .single() as any);
+
+            const today = getHKTodayString();
+            const dailyRealEarned = (roomData as any)?.daily_counts?.date === today ? ((roomData as any)?.daily_counts?.real_earned || 0) : 0;
+
             setStudent({
                 ...studentData,
                 display_name: profile?.display_name || null,
+                coins: roomData?.coins || 0,
+                virtual_coins: roomData?.virtual_coins || 0,
+                daily_real_earned: dailyRealEarned,
             });
             setScannerState('found');
         } catch (err) {
@@ -305,21 +318,23 @@ export function QRScannerPage() {
         if (hasSubs) {
             setPendingSubOptions({ reward: item, selected: [] });
         } else {
-            handleAward(item.coins, item.title);
+            handleAward(item.coins, item.title, item.coins > 0 ? 'reward' : 'consequence');
         }
     };
 
-    const handleAward = async (amount: number, reason: string) => {
+    const handleAward = async (amount: number, reason: string, type: 'reward' | 'consequence' = 'reward') => {
         if (!student || awarding) return;
         setAwarding(true);
         try {
-            const { error: rpcError } = await (supabase.rpc as any)('increment_room_coins', {
-                target_user_id: student.id,
-                amount: amount,
-                log_reason: reason,
-                log_admin_id: user?.id
+            const result = await coinService.awardCoins({
+                userId: student.id,
+                amount,
+                reason,
+                type
             });
-            if (rpcError) throw rpcError;
+
+            if (!result.success) throw result.error;
+
             setSuccessMessage(`${amount > 0 ? '+' : ''}${amount} coins for ${reason}!`);
             setTimeout(() => resetScanner(), 1500);
         } catch (err) {
@@ -380,7 +395,7 @@ export function QRScannerPage() {
                     onClose={() => setPendingSubOptions(null)}
                     onSubmit={(selectedItems) => {
                         const reason = `${pendingSubOptions.reward.title}: ${selectedItems.join(', ')}`;
-                        handleAward(pendingSubOptions.reward.coins, reason);
+                        handleAward(pendingSubOptions.reward.coins, reason, pendingSubOptions.reward.coins > 0 ? 'reward' : 'consequence');
                         setPendingSubOptions(null);
                     }}
                     isDark={true}
@@ -447,6 +462,20 @@ export function QRScannerPage() {
                             </div>
                             <h2 className="text-2xl font-bold">{student.display_name || student.username}</h2>
                             {student.class && <p className="text-white/60 mt-1 uppercase tracking-widest text-[10px] font-bold">Class: {student.class}</p>}
+
+                            {/* Coin Display */}
+                            <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 bg-yellow-500/20 text-yellow-400 font-bold rounded-full border border-yellow-500/30">
+                                <span>🪙</span>
+                                <span>
+                                    {(student.coins || 0) - (student.daily_real_earned || 0)}
+                                    {(student.daily_real_earned ?? 0) > 0 && (
+                                        <span className="opacity-70 ml-1">(+{student.daily_real_earned})</span>
+                                    )}
+                                </span>
+                                {(student.virtual_coins ?? 0) > 0 && (
+                                    <span className="opacity-60 text-[10px] ml-1">({student.virtual_coins})</span>
+                                )}
+                            </div>
                         </div>
                         {successMessage && <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300"><div className="bg-green-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"><Check size={20} /> <span className="font-semibold">{successMessage}</span></div></div>}
                         <div className="w-full mt-6 space-y-10">

@@ -1,0 +1,218 @@
+[dotenv@17.3.1] injecting env (2) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+[
+  {
+    "id": "5041be54-3a75-4628-91f5-190e0a1ef9a9",
+    "title": "Helping Others",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Heart",
+    "color": "text-pink-500 bg-pink-100",
+    "created_at": "2026-02-08T14:39:08.946444+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "1429c7b5-4bc3-4317-8511-82d16d8d04c3",
+    "title": "寫好手冊",
+    "description": null,
+    "coins": 5,
+    "type": "reward",
+    "icon": "BookOpen",
+    "color": "text-green-500 bg-green-100",
+    "created_at": "2026-02-08T14:39:08.946444+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "a2f4c306-cc61-4457-828b-c40040a4fca0",
+    "title": "Answering questions",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Star",
+    "color": "text-yellow-500 bg-yellow-100",
+    "created_at": "2026-02-08T14:39:08.946444+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "c0b0bc48-f737-4516-862f-e66d51c4b38d",
+    "title": "Teamwork",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Users",
+    "color": "text-blue-500 bg-blue-100",
+    "created_at": "2026-02-08T14:39:08.946444+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "85a556ba-7893-41fe-a34d-92c4868f8982",
+    "title": "Working Hard",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Trophy",
+    "color": "text-orange-500 bg-orange-100",
+    "created_at": "2026-02-08T14:39:08.946444+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "ccb1f20d-8669-4b9c-ac8e-40c196334733",
+    "title": "Adjustment",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Zap",
+    "color": "text-yellow-500 bg-yellow-100",
+    "created_at": "2026-02-09T23:50:08.631768+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "70c22637-94e7-4b7f-8623-9bf0331210a1",
+    "title": "Absent",
+    "description": null,
+    "coins": 0,
+    "type": "reward",
+    "icon": "Clock",
+    "color": "text-gray-500 bg-gray-100",
+    "created_at": "2026-02-10T02:23:40.944923+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "7e467958-3de4-4694-94bb-93c4725fe5fc",
+    "title": "Reading book in the lesson",
+    "description": null,
+    "coins": 0,
+    "type": "consequence",
+    "icon": "BookOpen",
+    "color": "text-pink-500 bg-pink-100",
+    "created_at": "2026-02-25T03:31:38.992946+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "0732b18f-7029-4ec3-8c57-e9fb07fbbac0",
+    "title": "Keep Using Cantonese in lesson",
+    "description": null,
+    "coins": 0,
+    "type": "consequence",
+    "icon": "AlertCircle",
+    "color": "text-red-500 bg-red-100",
+    "created_at": "2026-02-25T20:21:37.809631+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "6ba1e168-3ead-49e1-a1ea-d9f2041cce72",
+    "title": "Responding to or Building on Off-Topic / Silly Ideas ",
+    "description": null,
+    "coins": 0,
+    "type": "consequence",
+    "icon": "ThumbsDown",
+    "color": "text-red-500 bg-red-100",
+    "created_at": "2026-02-25T20:24:00.403988+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "bc22b4e7-618d-471c-a037-ffea94839b4c",
+    "title": "Off-task / Not Attending to the lesson",
+    "description": null,
+    "coins": 0,
+    "type": "consequence",
+    "icon": "Eye",
+    "color": "text-yellow-500 bg-yellow-100",
+    "created_at": "2026-02-25T20:24:53.601532+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "aca3ebad-8bd9-401c-b87c-82b235b40761",
+    "title": "Introducing Off-Topic / Silly Ideas  ",
+    "description": null,
+    "coins": -3,
+    "type": "consequence",
+    "icon": "Frown",
+    "color": "text-red-500 bg-red-100",
+    "created_at": "2026-02-25T20:23:05.989962+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "6ee0a498-d8f0-4246-a243-b027c83fa8ad",
+    "title": "完成班務（交齊功課）",
+    "description": null,
+    "coins": 20,
+    "type": "reward",
+    "icon": "BookOpen",
+    "color": "text-blue-500 bg-blue-100",
+    "created_at": "2026-02-09T00:04:56.271274+00:00",
+    "sub_options": null
+  },
+  {
+    "id": "daa352df-cac1-4840-baa5-321f59e618e3",
+    "title": "完成班務（欠功課）",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "BookOpen",
+    "color": "text-pink-500 bg-pink-100",
+    "created_at": "2026-02-09T00:05:16.340496+00:00",
+    "sub_options": {
+      "中文": [
+        "預習冊",
+        "詞語",
+        "語基冊",
+        "課練冊",
+        "視聽冊",
+        "實用冊",
+        "作文",
+        "補充",
+        "閱補",
+        "閱讀理解工作紙",
+        "書練習",
+        "小練筆"
+      ],
+      "其他": [
+        "其他"
+      ],
+      "常識": [
+        "作業",
+        "時工",
+        "生工",
+        "專題研習"
+      ],
+      "數學": [
+        "A簿",
+        "B簿",
+        "作業",
+        "補充",
+        "複工",
+        "難工",
+        "知多啲",
+        "3下A工",
+        "3下B工",
+        "書"
+      ],
+      "英文": [
+        "WS1",
+        "WS2",
+        "WS3",
+        "Pen",
+        "GE(A)",
+        "GE(B)",
+        "Word Bank",
+        "RWD",
+        "Dict C/S",
+        "Writing WS",
+        "All-in-One",
+        "Handwriting"
+      ]
+    }
+  },
+  {
+    "id": "9a9a9771-0eae-46d3-8c0f-99290a5e1e27",
+    "title": "完成班務（寫手冊）",
+    "description": null,
+    "coins": 10,
+    "type": "reward",
+    "icon": "Check",
+    "color": "text-green-500 bg-green-100",
+    "created_at": "2026-02-09T22:34:49.310357+00:00",
+    "sub_options": {}
+  }
+]

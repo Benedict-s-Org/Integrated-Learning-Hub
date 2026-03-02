@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Settings, ChevronUp, ChevronDown } from 'lucide-react';
+import { Send, Settings, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { getHKTodayStartISO } from '@/utils/dateUtils';
+import { coinService } from '@/services/coinService';
 import { NotificationTemplate } from '@/types/notifications';
 import { NotificationTemplateModal } from './NotificationTemplateModal';
 import { SendNotificationModal } from './SendNotificationModal';
@@ -66,12 +68,12 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
     };
 
     const fetchConsequenceStats = async () => {
-        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+
         const { data } = await supabase
             .from('student_records')
             .select('student_id, student:student_id(display_name)')
             .eq('type', 'negative')
-            .gte('created_at', todayStr + 'T00:00:00Z');
+            .gte('created_at', getHKTodayStartISO());
 
         if (data) {
             const counts: Record<string, { name: string, count: number }> = {};
@@ -181,6 +183,24 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
                             className="px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] rounded-lg transition-colors"
                         >
                             Clear
+                        </button>
+                        <button
+                            onClick={async () => {
+                                if (window.confirm('確定要復原上一次的金幣調整嗎？')) {
+                                    const result = await coinService.revertLastAction();
+                                    if (result.success) {
+                                        onRefresh();
+                                        alert('已成功復原！');
+                                    } else {
+                                        alert(`復原失敗: ${result.error?.message || '未知錯誤'}`);
+                                    }
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-orange-100 ml-auto"
+                            title="Undo last coin adjustment"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            Undo
                         </button>
                     </div>
 

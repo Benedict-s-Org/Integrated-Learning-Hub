@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { getHKTodayString } from '@/utils/dateUtils';
 
 interface UserWithCoins {
     id: string;
@@ -18,7 +19,7 @@ interface MorningDutiesBoardProps {
 
 export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ users, onReviewClick }) => {
     // Use HK time to match backend
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+    const today = getHKTodayString();
 
     // Categorize users
     const todoUsers = users.filter(u =>

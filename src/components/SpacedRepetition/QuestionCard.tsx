@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronLeft, Clock, LifeBuoy, HelpCircle, Save, Loader2, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Clock, LifeBuoy, HelpCircle, Save, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { SpacedRepetitionQuestion } from '../../types';
 import { InteractiveText } from './InteractiveText';
 import { supabase } from '../../lib/supabase';
@@ -108,8 +108,8 @@ export function QuestionCard({
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 sm:p-6 pb-24 md:pb-8">
-      <div className="max-w-2xl mx-auto flex flex-col h-full">
+    <div className="min-h-full bg-gradient-to-b from-blue-50 to-white p-4 sm:p-6 pb-32 md:pb-8">
+      <div className="max-w-2xl mx-auto flex flex-col">
         <div className="mb-4 sm:mb-8 flex items-center justify-between gap-4">
           <div className="flex-1">
             <div className="relative h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -294,6 +294,14 @@ export function QuestionCard({
                       />
                     </span>
                   </div>
+                  {showFeedback && idx === question.correct_answer_index && question.explanation && (
+                    <div className="mt-2 ml-10 sm:ml-11 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50 animate-in fade-in slide-in-from-top-1 text-sm text-blue-800 italic leading-relaxed">
+                      <div className="flex gap-2">
+                        <Info size={14} className="shrink-0 mt-0.5" />
+                        <span>{question.explanation}</span>
+                      </div>
+                    </div>
+                  )}
                 </button>
               </div>
             ))}
@@ -322,9 +330,6 @@ export function QuestionCard({
                     ? '✓ Correct!'
                     : '✗ Incorrect'}
               </p>
-              {question.explanation && (
-                <p className="text-sm text-gray-700">{question.explanation}</p>
-              )}
               <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
                 <Clock className="w-4 h-4" />
                 <span>{(responseTime / 1000).toFixed(1)}s</span>

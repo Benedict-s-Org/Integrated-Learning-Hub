@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Trophy, Check, Plus, Minus } from 'lucide-react';
+import { X, Trophy, Check } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -77,55 +77,55 @@ export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }
                     </button>
                 </div>
 
-                {/* Grid */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {students.map(student => (
-                            <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-yellow-200 transition-all">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-50">
-                                        {student.avatar_url ? (
-                                            <img src={student.avatar_url} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="text-slate-300 font-bold text-xl">
-                                                {student.display_name?.[0] || '?'}
+                {/* Table Layout */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/10">
+                    <table className="w-full border-collapse">
+                        <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md z-10">
+                            <tr>
+                                <th className="px-8 py-4 text-left text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">Student Name</th>
+                                <th className="px-8 py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100 w-48">Bonus Coins</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {students.map(student => (
+                                <tr key={student.id} className="bg-white hover:bg-blue-50/30 transition-colors group">
+                                    <td className="px-8 py-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-100 group-hover:border-blue-200 transition-colors">
+                                                {student.avatar_url ? (
+                                                    <img src={student.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="text-slate-300 font-bold text-lg">
+                                                        {student.display_name?.[0] || '?'}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="font-black text-slate-800 truncate max-w-[120px]">
-                                            {student.display_name || 'Guest Student'}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                            {student.class || 'No Class'} {student.class_number ? `#${student.class_number}` : ''}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100">
-                                    <button
-                                        onClick={() => handleAmountChange(student.id, (amounts[student.id] || 0) - 1)}
-                                        className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-red-500 transition-all active:scale-90"
-                                    >
-                                        <Minus size={16} />
-                                    </button>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={amounts[student.id] ?? 0}
-                                        onChange={(e) => handleAmountChange(student.id, parseInt(e.target.value) || 0)}
-                                        className="w-12 text-center bg-transparent font-black text-blue-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <button
-                                        onClick={() => handleAmountChange(student.id, (amounts[student.id] || 0) + 1)}
-                                        className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-green-500 transition-all active:scale-90"
-                                    >
-                                        <Plus size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-slate-700 text-base">
+                                                    {student.display_name || 'Guest Student'}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {student.class || 'No Class'} {student.class_number ? `#${student.class_number}` : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-4 text-center">
+                                        <div className="inline-flex items-center gap-0 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all overflow-hidden w-24">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={amounts[student.id] === 0 ? '' : (amounts[student.id] ?? '')}
+                                                placeholder="0"
+                                                onChange={(e) => handleAmountChange(student.id, parseInt(e.target.value) || 0)}
+                                                className="w-full h-12 text-center bg-transparent font-black text-blue-600 focus:outline-none text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* Footer */}
