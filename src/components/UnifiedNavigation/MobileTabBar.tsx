@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { BookOpen, TrendingUp, Shield, Menu, LucideIcon } from 'lucide-react';
 import { MobileMoreSheet } from './MobileMoreSheet';
-import { PageType } from './UnifiedNavigation';
+import { PageType } from '@/types';
 
 /* ─── Customizable Tab Configuration ─────────────────────────────────
  *  To add/remove/reorder tabs, just edit the arrays below.
@@ -110,7 +110,7 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
     onOpenHistory,
     onOpenMemory,
 }) => {
-    const { isMobileEmulator, isAdmin: authIsAdmin } = useAuth();
+    const { isMobileEmulator, isAdmin: authIsAdmin, isUserView } = useAuth();
     const [isMoreOpen, setIsMoreOpen] = useState(false);
 
     // Filter tabs based on role
@@ -165,7 +165,7 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
                     >
                         <div className="relative">
                             <Menu size={22} strokeWidth={1.8} />
-                            {pendingCount > 0 && (
+                            {isAdmin && !isUserView && pendingCount > 0 && (
                                 <span className="absolute -top-1 -right-2 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                                     {pendingCount > 9 ? '9+' : pendingCount}
                                 </span>

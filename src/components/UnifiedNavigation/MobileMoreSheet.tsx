@@ -8,7 +8,7 @@ import {
     LogOut, LogIn, User, X,
     LucideIcon,
 } from 'lucide-react';
-import { PageType } from './UnifiedNavigation';
+import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 
 interface MoreSheetItem {
@@ -136,7 +136,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     sections.push({ title: 'My Progress', items: progressItems });
 
     // ─── Admin Section ──────────────────────────────────────────
-    if (isAdmin) {
+    if (isAdmin && !isUserView) {
         sections.push({
             title: 'Admin Tools',
             items: [
