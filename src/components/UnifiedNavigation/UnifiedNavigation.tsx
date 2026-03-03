@@ -361,12 +361,6 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={window.location.pathname === '/admin/scanner'}
                                 onClick={() => navigate('/admin/scanner')}
                             />
-                            <NavItem
-                                icon={Bell}
-                                label="Notifications"
-                                onClick={onOpenNotifications}
-                                badge={pendingCount}
-                            />
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
@@ -481,6 +475,26 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                         <p className="text-xs text-gray-400 capitalize">{user.role}</p>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Notifications */}
+                            {isAdmin && !isUserView && (
+                                <button
+                                    onClick={onOpenNotifications}
+                                    className={`w-full flex items-center gap-3 py-2.5 mb-2 rounded-xl transition-all duration-200 relative ${isNavOpen ? 'px-3' : 'justify-center'
+                                        } text-gray-500 hover:bg-gray-100 hover:text-orange-600`}
+                                    title="Notifications"
+                                >
+                                    <div className="relative">
+                                        <Bell size={18} />
+                                        {pendingCount > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse border-2 border-white">
+                                                {pendingCount > 9 ? '9+' : pendingCount}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {isNavOpen && <span className="text-sm font-medium">Notifications</span>}
+                                </button>
                             )}
 
                             {/* View Mode Toggle */}
