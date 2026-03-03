@@ -443,6 +443,28 @@ export function ClassDashboardPage() {
         }
     };
 
+    const handleGetGuestLink = async (className: string) => {
+        try {
+            const { data, error } = await supabase.functions.invoke('public-access/create-link', {
+                body: {
+                    adminUserId: currentUser?.id,
+                    targetClass: className
+                }
+            });
+
+            if (error) throw error;
+
+            const token = data.token;
+            const guestUrl = `${window.location.origin}/class-dashboard?token=${token}`;
+
+            await navigator.clipboard.writeText(guestUrl);
+            alert(`Guest link for class ${className} copied to clipboard!`);
+        } catch (err) {
+            console.error('Failed to create guest link:', err);
+            alert('Failed to generate guest link');
+        }
+    };
+
     const handleStudentClick = (student: UserWithCoins) => {
         setSelectedStudentId(student.id);
     };
@@ -606,6 +628,8 @@ export function ClassDashboardPage() {
                                             onSelectionChange={setSelectedStudentIds}
                                             isGuestMode={isGuestMode}
                                             consequenceCounts={consequenceCounts}
+                                            className={className}
+                                            onGetGuestLink={handleGetGuestLink}
                                         />
                                     </div>
                                 ))
@@ -636,6 +660,8 @@ export function ClassDashboardPage() {
                                                 onSelectionChange={setSelectedStudentIds}
                                                 isGuestMode={isGuestMode}
                                                 consequenceCounts={consequenceCounts}
+                                                className={activeClass}
+                                                onGetGuestLink={handleGetGuestLink}
                                             />
                                         </>
                                     )}

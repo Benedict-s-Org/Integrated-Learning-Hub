@@ -52,6 +52,8 @@ interface ClassDistributorProps {
     isGuestMode?: boolean;
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
+    className?: string;
+    onGetGuestLink?: (className: string) => Promise<void>;
 }
 
 interface SortableUserItemProps {
@@ -231,11 +233,12 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
     );
 }
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail, className, onGetGuestLink }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [isRearranging, setIsRearranging] = useState(false);
+    const [isCreatingLink, setIsCreatingLink] = useState(false);
 
     // Admin Message Modal State
     const [showAdminMessageModal, setShowAdminMessageModal] = useState(false);
@@ -355,6 +358,16 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
         }
     };
 
+    const handleLinkClick = async () => {
+        if (!onGetGuestLink || !className) return;
+        setIsCreatingLink(true);
+        try {
+            await onGetGuestLink(className);
+        } finally {
+            setIsCreatingLink(false);
+        }
+    };
+
     // Check if all local users are selected for button text
     const areAllLocalSelected = localUsers.length > 0 && localUsers.every(u => selectedIds.includes(u.id));
 
@@ -377,6 +390,23 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                         >
                             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                             Save Order
+                        </button>
+                    )}
+
+                    {/* Guest Link Button */}
+                    {!isGuestMode && onGetGuestLink && (
+                        <button
+                            onClick={handleLinkClick}
+                            disabled={isCreatingLink}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                            title="Copy Guest Link for this class"
+                        >
+                            {isCreatingLink ? (
+                                <Loader2 size={16} className="animate-spin text-blue-500" />
+                            ) : (
+                                <BookOpen size={16} className="text-blue-500" />
+                            )}
+                            Link
                         </button>
                     )}
 
