@@ -144,7 +144,8 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                         token: guestToken,
                         targetUserIds: [student.id],
                         amount: amount,
-                        reason: reason
+                        reason: reason,
+                        isInstant: true
                     }
                 });
 

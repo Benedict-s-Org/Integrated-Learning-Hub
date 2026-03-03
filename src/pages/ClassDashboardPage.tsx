@@ -271,7 +271,8 @@ export function ClassDashboardPage() {
                         token: guestToken,
                         targetUserIds: userIds,
                         amount: amount,
-                        reason: reason || 'Class Reward'
+                        reason: reason || 'Class Reward',
+                        isInstant: true
                     }
                 });
 
@@ -319,7 +320,8 @@ export function ClassDashboardPage() {
                     token: guestToken,
                     targetUserIds: [userId],
                     amount: 10,
-                    reason: REWARD_REASONS.ANSWER_QUESTION
+                    reason: REWARD_REASONS.ANSWER_QUESTION,
+                    isInstant: true
                 }
             });
 
