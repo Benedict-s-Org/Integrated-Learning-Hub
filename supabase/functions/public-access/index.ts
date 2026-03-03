@@ -135,6 +135,7 @@ Deno.serve(async (req: Request) => {
 
     // 4. Submit Reward (Guest)
     if (path === "submit-reward") {
+      const { token, targetUserIds, amount, reason, isInstant } = await req.json();
       if (!token || !targetUserIds || !amount) throw new Error("Missing required fields");
 
       // Verify Token first
@@ -143,19 +144,36 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
       }
 
-      const isAnsweringQuestion = reason === '回答問題';
-      const submissions = targetUserIds.map((userId: string) => ({
-        target_user_id: userId,
-        amount: amount,
-        reason: reason || 'Class Reward',
-        submitted_by_token: token,
-        status: 'pending',
-        metadata: isAnsweringQuestion ? { daily_count_updated: true } : {}
-      }));
+      if (isInstant) {
+        console.log(`Instant reward processing for ${targetUserIds.length} users`);
+        // Use RPC with Service Role for instant application
+        for (const userId of targetUserIds) {
+          const { error: rpcError } = await supabase.rpc('increment_room_coins', {
+            target_user_id: userId,
+            amount: amount,
+            log_reason: reason || 'Homework Record (Instant)',
+            p_skip_daily_count: true
+          });
+          if (rpcError) {
+            console.error(`RPC Error for ${userId}:`, rpcError);
+            throw new Error(`RPC Error for ${userId}: ${rpcError.message}`);
+          }
+        }
+      } else {
+        // Standard Pending Reward logic
+        const isAnsweringQuestion = reason === '回答問題';
+        const pendingSubmissions = targetUserIds.map((userId: string) => ({
+          target_user_id: userId,
+          amount: amount,
+          reason: reason || 'Class Reward',
+          submitted_by_token: token,
+          status: 'pending',
+          metadata: isAnsweringQuestion ? { daily_count_updated: true } : {}
+        }));
 
-      const { error } = await supabase.from("pending_rewards").insert(submissions);
-
-      if (error) throw error;
+        const { error } = await supabase.from("pending_rewards").insert(pendingSubmissions);
+        if (error) throw error;
+      }
 
       // --- IMMEDIATE STATUS / COUNT UPDATE LOGIC ---
       // 1. Morning Status
@@ -171,6 +189,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+      const isAnsweringQuestion = reason === '回答問題';
 
       for (const userId of targetUserIds) {
         let updateData: any = {
@@ -184,7 +203,6 @@ Deno.serve(async (req: Request) => {
 
         // 2. Daily Counts Optimization (Instant feedback for "Answering Questions")
         if (isAnsweringQuestion) {
-          // We need to fetch current counts to increment properly (same logic as RPC but in edge function for instant UI feedback)
           const { data: currentData } = await supabase
             .from("user_room_data")
             .select("daily_counts")
@@ -214,10 +232,8 @@ Deno.serve(async (req: Request) => {
           .update(updateData)
           .eq("user_id", userId);
       }
-      // --------------------------------------
-      // --------------------------------------
 
-      return new Response(JSON.stringify({ success: true, count: submissions.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ success: true, count: targetUserIds.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });

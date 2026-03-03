@@ -358,24 +358,34 @@ export function ClassDashboardPage() {
 
     const handleHomeworkRecord = async (studentId: string, reason: string) => {
         try {
-            // Check if this specific reason implies a reward (coins)
-            //完成班務（交齊功課）and 完成班務（寫手冊) usually positive
-            //完成班務（欠功課） usually negative or zero
             let amount = 0;
             if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) amount = 20;
             else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) amount = 10;
             else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 10;
             else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
-            const result = await coinService.awardCoins({
-                userId: studentId,
-                amount: amount,
-                reason: reason,
-                type: amount >= 0 ? 'reward' : 'consequence',
-                batchId: crypto.randomUUID()
-            });
+            if (isGuestMode) {
+                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
+                    body: {
+                        token: guestToken,
+                        targetUserIds: [studentId],
+                        amount: amount,
+                        reason: reason,
+                        isInstant: true // Critical for immediate balance update
+                    }
+                });
+                if (error) throw error;
+            } else {
+                const result = await coinService.awardCoins({
+                    userId: studentId,
+                    amount: amount,
+                    reason: reason,
+                    type: amount >= 0 ? 'reward' : 'consequence',
+                    batchId: crypto.randomUUID()
+                });
+                if (!result.success) throw result.error;
+            }
 
-            if (!result.success) throw result.error;
             await fetchUsers();
             playSuccessSound();
         } catch (err: any) {
