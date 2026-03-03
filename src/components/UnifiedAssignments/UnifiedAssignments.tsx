@@ -151,6 +151,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         words: [],
         title: assignment.title,
         assignmentId: assignment.assignment_id,
+        practiceMode: assignment.content_data.practice_mode || 'memorization',
       };
       onLoadMemorization(memorizationState);
     } else if (assignment.assignment_type === 'spelling') {
@@ -309,8 +310,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                               {assignment.assignment_level && (
                                 <Badge
                                   className={`text-[10px] font-black px-1.5 py-0 ${assignment.assignment_level === 1
-                                      ? "bg-blue-100 text-blue-600 border-blue-200"
-                                      : "bg-purple-100 text-purple-600 border-purple-200"
+                                    ? "bg-blue-100 text-blue-600 border-blue-200"
+                                    : "bg-purple-100 text-purple-600 border-purple-200"
                                     }`}
                                 >
                                   LV {assignment.assignment_level}

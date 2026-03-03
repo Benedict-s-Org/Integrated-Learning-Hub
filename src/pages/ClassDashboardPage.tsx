@@ -364,23 +364,24 @@ export function ClassDashboardPage() {
             let amount = 0;
             if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) amount = 20;
             else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) amount = 10;
-            else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 10;
-            else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
+            else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 0; // Changed from 10 to 0 as it's a negative behavior
+            else if (reason.startsWith('功課:')) amount = 0; // Missing specific items
 
             const result = await coinService.awardCoins({
                 userId: studentId,
                 amount: amount,
                 reason: reason,
-                type: amount > 0 ? 'reward' : 'consequence',
+                type: amount >= 0 ? 'reward' : 'consequence',
                 batchId: crypto.randomUUID()
             });
 
             if (!result.success) throw result.error;
             await fetchUsers();
             playSuccessSound();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error recording homework:', err);
-            alert('Failed to record homework');
+            const errorMsg = err?.message || err?.details || JSON.stringify(err);
+            alert(`Failed to record homework: ${errorMsg}`);
         }
     };
 

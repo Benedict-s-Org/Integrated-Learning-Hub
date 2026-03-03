@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowRight, ArrowLeft, RotateCcw, Layers } from 'lucide-react';
 import { Word } from '../../types';
 import { processText, getSelectedWordIndices } from '../../utils/textProcessor';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +15,8 @@ interface WordSelectionProps {
   onViewSaved?: () => void;
   onStartGame?: (words: Word[], selectedIndices: number[]) => void;
   onSaveGame?: (words: Word[], selectedIndices: number[]) => void;
+  onStartDictation?: (words: Word[], selectedIndices: number[]) => void;
+  onSaveDictation?: (words: Word[], selectedIndices: number[]) => void;
   isAdmin?: boolean;
 }
 
@@ -26,6 +28,8 @@ const WordSelection: React.FC<WordSelectionProps> = ({
   onViewSaved,
   onStartGame,
   onSaveGame,
+  onStartDictation,
+  onSaveDictation,
   isAdmin = false
 }) => {
   const [words, setWords] = useState<Word[]>([]);
@@ -259,7 +263,7 @@ const WordSelection: React.FC<WordSelectionProps> = ({
                 <button
                   onClick={() => onStartGame(words, getSelectedWordIndices(words))}
                   disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                   title="Start shuffled word game"
                 >
                   <RotateCcw size={20} />
@@ -267,14 +271,37 @@ const WordSelection: React.FC<WordSelectionProps> = ({
                 </button>
               )}
 
+              {isAdmin && onStartDictation && (
+                <button
+                  onClick={() => onStartDictation(words, getSelectedWordIndices(words))}
+                  disabled={selectedCount === 0}
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  title="Start dictation mode"
+                >
+                  <Layers size={20} />
+                  <span>Dictation Mode</span>
+                </button>
+              )}
+
               {isAdmin && onSaveGame && (
                 <button
                   onClick={() => onSaveGame(words, getSelectedWordIndices(words))}
                   disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-md"
-                  title="Save this configuration as a game practice"
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  title="Save configuration as game"
                 >
                   <span>Save as Game</span>
+                </button>
+              )}
+
+              {isAdmin && onSaveDictation && (
+                <button
+                  onClick={() => onSaveDictation(words, getSelectedWordIndices(words))}
+                  disabled={selectedCount === 0}
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  title="Save configuration as dictation"
+                >
+                  <span>Save as Dictation</span>
                 </button>
               )}
             </div>

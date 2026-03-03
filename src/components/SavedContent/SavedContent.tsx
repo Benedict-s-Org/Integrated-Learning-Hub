@@ -79,6 +79,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
       words: wordsWithSelection,
       selectedWordIndices: savedContent.selectedWordIndices,
       hiddenWords: new Set(savedContent.selectedWordIndices),
+      practiceMode: savedContent.practiceMode,
     };
 
     onLoadContent(memorizationState);
@@ -132,12 +133,19 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <h3
-                          className="text-lg font-semibold text-gray-800 mb-2 truncate"
-                          data-source-tsx="SavedContent Item Title|src/components/SavedContent/SavedContent.tsx"
-                        >
-                          {content.title}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3
+                            className="text-lg font-semibold text-gray-800 truncate"
+                            data-source-tsx="SavedContent Item Title|src/components/SavedContent/SavedContent.tsx"
+                          >
+                            {content.title}
+                          </h3>
+                          {content.practiceMode === 'dictation' && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">
+                              Dictation
+                            </span>
+                          )}
+                        </div>
                         <p
                           className="text-gray-600 text-sm mb-3 line-clamp-2"
                           data-source-tsx="SavedContent Item Original Text|src/components/SavedContent/SavedContent.tsx"

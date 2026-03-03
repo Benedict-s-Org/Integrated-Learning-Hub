@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield, Hash, Save, GraduationCap, Coins, Key } from "lucide-react";
+import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield, Hash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
@@ -250,9 +250,9 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] w-full sm:max-w-lg md:max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col transition-all">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))]">
+        <div className="flex items-center justify-between p-4 sm:px-6 border-b border-[hsl(var(--border))]">
           <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">編輯用戶</h2>
           <button
             onClick={onClose}
@@ -263,7 +263,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
           {error && (
             <div className="p-3 rounded-lg bg-[hsl(var(--destructive)/0.1)] text-[hsl(var(--destructive))] text-sm">
               {error}
@@ -481,7 +481,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-[hsl(var(--border))]">
+        <div className="flex items-center justify-end gap-3 p-4 sm:px-6 border-t border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)]">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] transition-colors"

@@ -6,7 +6,7 @@ export interface SavedContent {
   createdAt: Date;
   isPublished: boolean;
   publicId?: string | null;
-  practiceMode?: 'memorization' | 'shuffledGame';
+  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
 }
 
 export interface Word {
@@ -23,7 +23,7 @@ export interface MemorizationState {
   words: Word[];
   selectedWordIndices: number[];
   hiddenWords: Set<number>;
-  practiceMode?: 'memorization' | 'shuffledGame';
+  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
 }
 
 export interface AppContextType {
@@ -199,6 +199,10 @@ export interface MemorizationSession {
   total_words: number;
   hidden_words_count: number;
   session_duration_seconds: number;
+  practice_mode?: 'memorization' | 'shuffledGame' | 'dictation';
+  correct_count?: number;
+  accuracy_percentage?: number;
+  user_answers?: any;
   completed_at: string;
   created_at: string;
 }

@@ -160,8 +160,17 @@ export const SpacedRepetitionPage: React.FC = () => {
         const filteredDue = dueQuestions.filter((q: any) => !excludeIds.includes(q.id));
         const filteredOther = otherQuestions.filter((q: any) => !excludeIds.includes(q.id));
 
-        // Session order: Due first, then the rest
-        sessionQuestions = [...filteredDue, ...filteredOther].slice(0, limit);
+        const newDueQuestions = filteredDue.filter(q => {
+          const s = setSchedules.find((s: any) => s.question_id === q.id);
+          return s && s.repetitions === 0;
+        });
+        const oldDueQuestions = filteredDue.filter(q => {
+          const s = setSchedules.find((s: any) => s.question_id === q.id);
+          return !s || s.repetitions > 0;
+        });
+
+        // Session order: Newest Due (reps=0) first, then older Due, then the rest
+        sessionQuestions = [...newDueQuestions, ...oldDueQuestions, ...filteredOther].slice(0, limit);
 
         // If we ran out of new content because of exclusion, recycle from excluding list
         if (sessionQuestions.length === 0 && excludeIds.length > 0) {
@@ -185,7 +194,13 @@ export const SpacedRepetitionPage: React.FC = () => {
 
             return isDue && (!reviewedToday || s.interval_days === 0);
           })
-          .sort((a: any, b: any) => new Date(a.next_review_date).getTime() - new Date(b.next_review_date).getTime())
+          .sort((a: any, b: any) => {
+            // Priority 1: New cards (0 repetitions)
+            if (a.repetitions === 0 && b.repetitions > 0) return -1;
+            if (a.repetitions > 0 && b.repetitions === 0) return 1;
+            // Priority 2: Oldest scheduled cards first
+            return new Date(a.next_review_date).getTime() - new Date(b.next_review_date).getTime();
+          })
           .slice(0, limit)
           .map((s: any) => ({
             ...s.spaced_repetition_questions,

@@ -41,6 +41,7 @@ import WordSelection from './components/WordSelection/WordSelection';
 import MemorizationView from './components/MemorizationView/MemorizationView';
 import SavedContent from './components/SavedContent/SavedContent';
 import ShuffledGameView from './components/ShuffledGameView/ShuffledGameView';
+import DictationView from './components/MemorizationView/DictationView';
 import AdminPanel from './components/AdminPanel/AdminPanel';
 import ContentDatabase from './components/ContentDatabase/ContentDatabase';
 import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
@@ -77,6 +78,7 @@ type AppState =
   | { page: 'new'; step: 'selection'; text: string; words?: Word[] }
   | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string }
+  | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
   | { page: 'admin' }
@@ -512,6 +514,40 @@ function AppContent() {
     }
   };
 
+  const handleStartDictation = (words: Word[], selectedIndices: number[]) => {
+    if (appState.page === 'new' && appState.step === 'selection') {
+      setAppState({
+        page: 'new',
+        step: 'dictation',
+        words,
+        selectedIndices,
+        text: appState.text,
+      });
+    }
+  };
+
+  const handleSaveDictation = async (_words: Word[], selectedIndices: number[]) => {
+    if (!isAdmin) return;
+
+    const title = prompt('Enter a title for this Dictation Practice:');
+    if (!title) return;
+
+    try {
+      await addSavedContent({
+        title,
+        originalText: appState.page === 'new' && 'text' in appState ? (appState as any).text : '',
+        selectedWordIndices: selectedIndices,
+        practiceMode: 'dictation',
+        isPublished: false
+      });
+      alert('Dictation saved successfully!');
+      setAppState({ page: 'saved' });
+    } catch (error) {
+      console.error('Failed to save dictation:', error);
+      alert('Failed to save dictation. Please try again.');
+    }
+  };
+
   const handleSaveGame = async (_words: Word[], selectedIndices: number[]) => {
     if (!isAdmin) return;
 
@@ -543,7 +579,7 @@ function AppContent() {
   };
 
   const handleBackToSelection = () => {
-    if (appState.page === 'new' && (appState.step === 'memorization' || appState.step === 'shuffledGame')) {
+    if (appState.page === 'new' && (appState.step === 'memorization' || appState.step === 'shuffledGame' || appState.step === 'dictation')) {
       setAppState({ page: 'new', step: 'selection', text: appState.text, words: appState.words });
     }
   };
@@ -730,6 +766,8 @@ function AppContent() {
                 onViewSaved={handleViewSavedMemorization}
                 onStartGame={handleStartGame}
                 onSaveGame={handleSaveGame}
+                onStartDictation={handleStartDictation}
+                onSaveDictation={handleSaveDictation}
                 isAdmin={isAdmin}
               />
             );
@@ -750,6 +788,15 @@ function AppContent() {
                 words={(appState as any).words}
                 onBack={handleBackToSelection}
                 onSaveGame={isAdmin ? () => handleSaveGame((appState as any).words, (appState as any).selectedIndices) : undefined}
+              />
+            );
+          case 'dictation':
+            return (
+              <DictationView
+                words={(appState as any).words}
+                selectedIndices={(appState as any).selectedIndices}
+                originalText={(appState as any).text}
+                onBack={handleBackToSelection}
               />
             );
         }
@@ -817,6 +864,17 @@ function AppContent() {
             />
           );
         }
+        if (appState.memorizationState.practiceMode === 'dictation') {
+          return (
+            <DictationView
+              words={appState.memorizationState.words}
+              selectedIndices={appState.memorizationState.selectedWordIndices}
+              originalText={appState.memorizationState.originalText}
+              onBack={handleBackFromPractice}
+              isPractice={true}
+            />
+          );
+        }
         return (
           <MemorizationView
             words={appState.memorizationState.words}
@@ -832,6 +890,20 @@ function AppContent() {
           return (
             <ShuffledGameView
               words={appState.memorizationState.words}
+              onBack={() => {
+                window.location.hash = '';
+                setAppState({ page: 'new', step: 'input' });
+              }}
+              isPractice={true}
+            />
+          );
+        }
+        if (appState.memorizationState.practiceMode === 'dictation') {
+          return (
+            <DictationView
+              words={appState.memorizationState.words}
+              selectedIndices={appState.memorizationState.selectedWordIndices}
+              originalText={appState.memorizationState.originalText}
               onBack={() => {
                 window.location.hash = '';
                 setAppState({ page: 'new', step: 'input' });
@@ -1024,6 +1096,17 @@ function AppContent() {
               words={appState.memorizationState.words}
               onBack={handleBackFromAssignedPractice}
               isPractice={true}
+            />
+          );
+        }
+        if (appState.memorizationState.practiceMode === 'dictation') {
+          return (
+            <DictationView
+              words={appState.memorizationState.words}
+              selectedIndices={appState.memorizationState.selectedWordIndices}
+              originalText={appState.memorizationState.originalText}
+              onBack={handleBackFromAssignedPractice}
+              assignmentId={appState.assignmentId}
             />
           );
         }
