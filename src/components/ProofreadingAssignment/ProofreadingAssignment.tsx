@@ -9,6 +9,9 @@ interface User {
   id: string;
   username: string;
   role: string;
+  display_name?: string;
+  class?: string;
+  class_number?: number;
 }
 
 interface ProofreadingAssignmentProps {
@@ -248,71 +251,101 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
                 <p className="text-gray-600">No students found. Create student accounts first.</p>
               </div>
             ) : (
-              <>
-                <div className="space-y-2 mb-4">
-                  {users.map((user) => {
-                    const isAssigned = assignments.has(user.id);
-                    const isSelected = selectedUsers.has(user.id);
-                    return (
-                      <div
-                        key={user.id}
-                        onClick={() => toggleUserSelection(user.id)}
-                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${isAssigned
-                          ? 'bg-green-50 border-green-300'
-                          : isSelected
-                            ? 'bg-blue-50 border-blue-300'
-                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleUserSelection(user.id)}
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="flex items-center flex-1 ml-3 space-x-3">
-                          {isAssigned && <CheckCircle size={20} className="text-green-600" />}
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-800">{user.username}</p>
-                            <p className="text-sm text-gray-500 capitalize">{user.role}</p>
-                          </div>
-                          {isAssigned && (
-                            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
-                              Already Assigned
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="space-y-6">
+                {(() => {
+                  const groups: Record<string, User[]> = {};
+                  users.forEach(u => {
+                    const className = u.class || 'Unassigned';
+                    if (!groups[className]) groups[className] = [];
+                    groups[className].push(u);
+                  });
 
-                {selectedUsers.size > 0 && (
-                  <div className="flex items-center justify-between p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                    <p className="text-blue-800 font-medium">
-                      {selectedUsers.size} student{selectedUsers.size !== 1 ? 's' : ''} selected
-                    </p>
-                    <button
-                      onClick={handleBulkAssign}
-                      disabled={assigning}
-                      className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      data-source-tsx="ProofreadingAssignment Assign Button|src/components/ProofreadingAssignment/ProofreadingAssignment.tsx"
-                    >
-                      {assigning ? (
-                        <>
-                          <span>Assigning...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Users size={20} />
-                          <span>Assign to Selected</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </>
+                  const sortedClassNames = Object.keys(groups).sort((a, b) => {
+                    if (a === 'Unassigned') return 1;
+                    if (b === 'Unassigned') return -1;
+                    return a.localeCompare(b);
+                  });
+
+                  return sortedClassNames.map(className => (
+                    <div key={className} className="space-y-2">
+                      <div className="flex items-center gap-2 px-2">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">{className}</h3>
+                        <div className="h-px bg-gray-200 flex-1" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {groups[className]
+                          .sort((a, b) => (a.class_number || 99) - (b.class_number || 99))
+                          .map((u) => {
+                            const isAssigned = assignments.has(u.id);
+                            const isSelected = selectedUsers.has(u.id);
+                            const displayName = u.display_name || u.username;
+
+                            return (
+                              <div
+                                key={u.id}
+                                onClick={() => toggleUserSelection(u.id)}
+                                className={`flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer ${isAssigned
+                                  ? 'bg-green-50 border-green-300'
+                                  : isSelected
+                                    ? 'bg-blue-50 border-blue-300'
+                                    : 'bg-gray-50 border-gray-100 hover:border-gray-200'
+                                  }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleUserSelection(u.id)}
+                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <div className="flex items-center flex-1 ml-3 min-w-0">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-baseline gap-2">
+                                      {u.class_number && (
+                                        <span className="text-xs font-bold text-gray-400">#{u.class_number}</span>
+                                      )}
+                                      <p className="font-bold text-gray-800 truncate">
+                                        {displayName}
+                                      </p>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 truncate font-medium uppercase">{u.username}</p>
+                                  </div>
+                                  {isAssigned && (
+                                    <CheckCircle size={16} className="text-green-500 shrink-0 ml-2" />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+
+            {selectedUsers.size > 0 && (
+              <div className="mt-6 flex items-center justify-between p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                <p className="text-blue-800 font-medium">
+                  {selectedUsers.size} student{selectedUsers.size !== 1 ? 's' : ''} selected
+                </p>
+                <button
+                  onClick={handleBulkAssign}
+                  disabled={assigning}
+                  className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {assigning ? (
+                    <>
+                      <span>Assigning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users size={20} />
+                      <span>Assign to Selected</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 

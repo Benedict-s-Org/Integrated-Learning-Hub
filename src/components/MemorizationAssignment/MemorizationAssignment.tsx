@@ -6,11 +6,17 @@ import { useAuth } from '../../context/AuthContext';
 interface User {
   id: string;
   username: string;
+  display_name?: string;
+  class?: string;
+  class_number?: number;
 }
 
 interface Assignment {
   user_id: string;
   username: string;
+  display_name?: string;
+  class?: string;
+  class_number?: number;
   assigned_at: string;
   completed: boolean;
 }
@@ -46,11 +52,11 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
     setError(null);
     try {
       console.log('Fetching students for contentId:', contentId);
-      const { data: studentsData, error: studentsError } = await supabase
+      const { data: studentsData, error: studentsError } = await (supabase
         .from('users')
-        .select('id, username')
+        .select('id, username, display_name, class, class_number')
         .eq('role', 'user')
-        .order('username');
+        .order('username') as any);
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
@@ -75,10 +81,13 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
       console.log('Raw assignments count:', assignmentsData?.length || 0);
 
       const formattedAssignments = (assignmentsData || []).map((a: any) => {
-        const student = studentsList.find(s => s.id === a.user_id);
+        const student = studentsList.find((s: User) => s.id === a.user_id);
         return {
           user_id: a.user_id,
           username: student?.username || 'Unknown Student',
+          display_name: student?.display_name,
+          class: student?.class,
+          class_number: student?.class_number,
           assigned_at: a.assigned_at,
           completed: a.completed,
         };
@@ -221,21 +230,56 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
                       />
                     </div>
 
-                    <div className="border border-gray-200 rounded-lg divide-y divide-gray-200 max-h-64 overflow-y-auto">
-                      {availableStudents.map((student) => (
-                        <label
-                          key={student.id}
-                          className="flex items-center p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedStudents.has(student.id)}
-                            onChange={() => handleToggleStudent(student.id)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className="ml-3 text-gray-800">{student.username}</span>
-                        </label>
-                      ))}
+                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+                      {(() => {
+                        const groups: Record<string, User[]> = {};
+                        availableStudents.forEach(u => {
+                          const className = u.class || 'Unassigned';
+                          if (!groups[className]) groups[className] = [];
+                          groups[className].push(u);
+                        });
+
+                        return Object.keys(groups).sort((a, b) => {
+                          if (a === 'Unassigned') return 1;
+                          if (b === 'Unassigned') return -1;
+                          return a.localeCompare(b);
+                        }).map(className => (
+                          <div key={className} className="space-y-2">
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">{className}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {groups[className]
+                                .sort((a, b) => (a.class_number || 99) - (b.class_number || 99))
+                                .map((student) => (
+                                  <label
+                                    key={student.id}
+                                    className={`flex items-center p-3 rounded-lg border transition-all cursor-pointer ${selectedStudents.has(student.id)
+                                      ? 'bg-blue-50 border-blue-200'
+                                      : 'bg-white border-gray-100 hover:border-gray-200'
+                                      }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedStudents.has(student.id)}
+                                      onChange={() => handleToggleStudent(student.id)}
+                                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <div className="ml-3 min-w-0">
+                                      <div className="flex items-baseline gap-2">
+                                        {student.class_number && (
+                                          <span className="text-[10px] font-bold text-gray-400">#{student.class_number}</span>
+                                        )}
+                                        <span className="text-sm font-bold text-gray-800 truncate">
+                                          {student.display_name || student.username}
+                                        </span>
+                                      </div>
+                                      <span className="text-[9px] text-gray-400 block truncate font-medium uppercase">{student.username}</span>
+                                    </div>
+                                  </label>
+                                ))}
+                            </div>
+                          </div>
+                        ));
+                      })()}
                     </div>
 
                     <button
