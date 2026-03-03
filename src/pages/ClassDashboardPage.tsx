@@ -158,7 +158,9 @@ export function ClassDashboardPage() {
                     const roomInfo = morningStatuses[u.id];
                     const dailyCounts = roomInfo?.daily_counts as any;
                     const today = getHKTodayString();
-                    const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
+                    const dailyRealEarned = dailyCounts?.date === today
+                        ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0)
+                        : 0;
 
                     return {
                         id: u.id,
@@ -186,7 +188,9 @@ export function ClassDashboardPage() {
                 finalUsers = usersData.map((u: any) => {
                     const dailyCounts = u.daily_counts || {};
                     const today = getHKTodayString();
-                    const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0;
+                    const dailyRealEarned = dailyCounts?.date === today
+                        ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0)
+                        : 0;
 
                     return {
                         id: u.id,
@@ -304,6 +308,28 @@ export function ClassDashboardPage() {
         } catch (err) {
             console.error('Error awarding/requesting coins:', err);
             alert('Failed to process request');
+        }
+    };
+
+    const handleGuestQuickAward = async (userId: string) => {
+        if (!isGuestMode || !guestToken) return;
+        try {
+            const { error } = await supabase.functions.invoke('public-access/submit-reward', {
+                body: {
+                    token: guestToken,
+                    targetUserIds: [userId],
+                    amount: 10,
+                    reason: REWARD_REASONS.ANSWER_QUESTION
+                }
+            });
+
+            if (error) throw error;
+            playSuccessSound();
+            // Optimistic-ish update: refresh from DB to see the instant count update from edge function
+            await fetchUsers();
+        } catch (err) {
+            console.error('Guest quick award failed:', err);
+            alert('Failed to request reward');
         }
     };
 
@@ -431,7 +457,7 @@ export function ClassDashboardPage() {
     }
 
     return (
-        <div className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-52' : ''}`}>
+        <div className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-16 md:pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}>
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
@@ -638,14 +664,15 @@ export function ClassDashboardPage() {
                 )
             }
 
-            {showNameSidebar && !isGuestMode && (
+            {showNameSidebar && (
                 <StudentNameSidebar
                     users={
                         activeClass === 'all'
                             ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
                             : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
                     }
-                    onQuickAward={handleQuickAward}
+                    onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
+                    onClose={() => setShowNameSidebar(false)}
                 />
             )}
             <AvatarCustomizationModal

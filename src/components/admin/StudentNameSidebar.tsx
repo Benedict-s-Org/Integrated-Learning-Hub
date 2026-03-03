@@ -1,5 +1,5 @@
 import React from 'react';
-import { User } from 'lucide-react';
+import { User, X } from 'lucide-react';
 
 interface UserWithCoins {
     id: string;
@@ -11,9 +11,10 @@ interface UserWithCoins {
 interface StudentNameSidebarProps {
     users: UserWithCoins[];
     onQuickAward: (userId: string) => void;
+    onClose?: () => void;
 }
 
-export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward }) => {
+export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose }) => {
     // Sort logic: Students with 10+ coins drop to the bottom, then sort by class number
     const sortedUsers = [...users].sort((a, b) => {
         const aCompleted = (a.daily_real_earned || 0) >= 10;
@@ -26,13 +27,24 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
     });
 
     return (
-        <div className="fixed right-0 top-0 bottom-0 w-48 flex flex-col z-50 bg-white border-l border-slate-200 shadow-xl animate-in slide-in-from-right duration-300">
-            <div className="pt-24 pb-4 px-4 border-b border-slate-100 bg-slate-50/50">
-                <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-                    <h3 className="font-bold text-slate-900 text-sm">Quick Rewards</h3>
+        <div className="fixed right-0 top-0 bottom-0 w-full md:w-48 flex flex-col z-[100] bg-white border-l border-slate-200 shadow-xl animate-in slide-in-from-right duration-300">
+            <div className="pt-6 md:pt-24 pb-4 px-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                        <h3 className="font-bold text-slate-900 text-sm">Quick Rewards</h3>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>
                 </div>
-                <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-200 rounded-full md:hidden"
+                        aria-label="Close sidebar"
+                    >
+                        <X size={20} className="text-slate-500" />
+                    </button>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1.5 scrollbar-hide hover:scrollbar-default">

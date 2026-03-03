@@ -143,20 +143,22 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
       }
 
+      const isAnsweringQuestion = reason === '回答問題';
       const submissions = targetUserIds.map((userId: string) => ({
         target_user_id: userId,
         amount: amount,
         reason: reason || 'Class Reward',
         submitted_by_token: token,
-        status: 'pending'
+        status: 'pending',
+        metadata: isAnsweringQuestion ? { daily_count_updated: true } : {}
       }));
 
       const { error } = await supabase.from("pending_rewards").insert(submissions);
 
       if (error) throw error;
 
-      // --- IMMEDIATE STATUS UPDATE LOGIC ---
-      // If the reason matches a morning duty, update the status immediately even if coins are pending.
+      // --- IMMEDIATE STATUS / COUNT UPDATE LOGIC ---
+      // 1. Morning Status
       let newMorningStatus: string | null = null;
       if (reason === '完成班務（交齊功課）') {
         newMorningStatus = 'completed';
@@ -168,18 +170,51 @@ Deno.serve(async (req: Request) => {
         newMorningStatus = 'absent';
       }
 
-      if (newMorningStatus) {
-        const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+      const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+
+      for (const userId of targetUserIds) {
+        let updateData: any = {
+          last_morning_update: todayDateStr,
+          updated_at: new Date().toISOString()
+        };
+
+        if (newMorningStatus) {
+          updateData.morning_status = newMorningStatus;
+        }
+
+        // 2. Daily Counts Optimization (Instant feedback for "Answering Questions")
+        if (isAnsweringQuestion) {
+          // We need to fetch current counts to increment properly (same logic as RPC but in edge function for instant UI feedback)
+          const { data: currentData } = await supabase
+            .from("user_room_data")
+            .select("daily_counts")
+            .eq("user_id", userId)
+            .single();
+
+          const currentCounts = currentData?.daily_counts || {};
+          let dailyRealCount = 0;
+          let dailyRealAmount = 0;
+
+          if (currentCounts.date === todayDateStr) {
+            dailyRealCount = currentCounts.real_earned_count || currentCounts.count || 0;
+            dailyRealAmount = currentCounts.real_earned_amount || currentCounts.real_earned || 0;
+          }
+
+          if (dailyRealCount < 3) {
+            updateData.daily_counts = {
+              date: todayDateStr,
+              real_earned_count: dailyRealCount + 1,
+              real_earned_amount: dailyRealAmount + amount
+            };
+          }
+        }
 
         await supabase
           .from("user_room_data")
-          .update({
-            morning_status: newMorningStatus,
-            last_morning_update: todayDateStr,
-            updated_at: new Date().toISOString()
-          })
-          .in("user_id", targetUserIds);
+          .update(updateData)
+          .eq("user_id", userId);
       }
+      // --------------------------------------
       // --------------------------------------
 
       return new Response(JSON.stringify({ success: true, count: submissions.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

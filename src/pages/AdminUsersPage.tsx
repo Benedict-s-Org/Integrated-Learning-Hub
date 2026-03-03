@@ -123,7 +123,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         return [r.user_id, {
           coins: r.coins,
           virtual_coins: r.virtual_coins,
-          daily_real_earned: dailyCounts?.date === today ? (dailyCounts?.real_earned || 0) : 0
+          daily_real_earned: dailyCounts?.date === today ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0) : 0
         }];
       }));
 

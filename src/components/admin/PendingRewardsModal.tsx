@@ -14,6 +14,9 @@ interface PendingReward {
         display_name: string;
         avatar_url?: string;
     };
+    metadata?: {
+        daily_count_updated?: boolean;
+    };
 }
 
 interface PendingRewardsModalProps {
@@ -64,7 +67,8 @@ export function PendingRewardsModal({ isOpen, onClose, onProcessed }: PendingRew
                 amount: reward.amount,
                 reason: reward.reason || 'Guest Reward Request',
                 type: reward.amount >= 0 ? 'reward' : 'consequence',
-                adminId: user?.id
+                adminId: user?.id,
+                skipDailyCount: reward.metadata?.daily_count_updated
             });
             if (!result.success) throw result.error;
 

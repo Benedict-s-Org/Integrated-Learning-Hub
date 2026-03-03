@@ -153,7 +153,9 @@ export function QRScannerPage() {
                 .single() as any);
 
             const today = getHKTodayString();
-            const dailyRealEarned = (roomData as any)?.daily_counts?.date === today ? ((roomData as any)?.daily_counts?.real_earned || 0) : 0;
+            const dailyRealEarned = (roomData as any)?.daily_counts?.date === today
+                ? ((roomData as any)?.daily_counts?.real_earned_amount || (roomData as any)?.daily_counts?.real_earned || 0)
+                : 0;
 
             setStudent({
                 ...studentData,

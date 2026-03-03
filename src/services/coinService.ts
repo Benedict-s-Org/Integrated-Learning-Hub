@@ -25,8 +25,9 @@ export const coinService = {
         type: 'reward' | 'consequence';
         adminId?: string;
         batchId?: string;
+        skipDailyCount?: boolean;
     }): Promise<AwardResult> {
-        const { userId, amount, reason, type, adminId, batchId } = params;
+        const { userId, amount, reason, type, adminId, batchId, skipDailyCount } = params;
 
         // If a batchId is provided, track it as the most recent action
         if (batchId) {
@@ -59,7 +60,8 @@ export const coinService = {
                 amount: amount,
                 log_reason: reason,
                 log_admin_id: adminId,
-                p_batch_id: batchId
+                p_batch_id: batchId,
+                p_skip_daily_count: skipDailyCount
             });
 
             if (rpcError) {
