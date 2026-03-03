@@ -379,8 +379,8 @@ export function ClassDashboardPage() {
             await fetchUsers();
             playSuccessSound();
         } catch (err: any) {
-            console.error('Error recording homework:', err);
-            const errorMsg = err?.message || err?.details || JSON.stringify(err);
+            console.error('Error recording homework FULL:', err);
+            const errorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);
             alert(`Failed to record homework: ${errorMsg}`);
         }
     };

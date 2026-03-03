@@ -65,7 +65,10 @@ export const coinService = {
             });
 
             if (rpcError) {
-                console.error('RPC Error awarding coins:', rpcError);
+                console.error('RPC Error awarding coins FULL:', {
+                    error: rpcError,
+                    params: { userId, amount, reason, adminId, batchId, skipDailyCount }
+                });
                 return { success: false, error: rpcError };
             }
 
