@@ -16,6 +16,8 @@ import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizatio
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { coinService } from '@/services/coinService';
+import { useDocumentPiP } from '@/hooks/useDocumentPiP';
+import { PipWindow } from '@/components/common/PipWindow';
 
 export interface UserWithCoins {
     id: string;
@@ -58,6 +60,10 @@ export function ClassDashboardPage() {
     });
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
+
+    // PiP State
+    const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
+    const isSidebarPoppedOut = !!pipWindow;
 
     // Class Tabs State
     const [activeClass, setActiveClass] = useState<string>('all');
@@ -360,6 +366,55 @@ export function ClassDashboardPage() {
 
     const handleHomeworkRecord = async (studentId: string, reason: string) => {
         try {
+            // Check for existing records today for "交齊功課" or "欠功課"
+            const isHomeworkReason =
+                reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK ||
+                reason === REWARD_REASONS.MISSING_HOMEWORK ||
+                reason.startsWith('功課:');
+
+            if (isHomeworkReason) {
+                // Today's start in HK time
+                const todayStart = getHKTodayStartISO();
+
+                const { data: existingRecords, error: fetchError } = await supabase
+                    .from('student_records')
+                    .select('id, message')
+                    .eq('student_id', studentId)
+                    .gte('created_at', todayStart)
+                    .or(`message.like.完成班務（交齊功課）%,message.like.完成班務（欠功課）%,message.like.功課:%`);
+
+                if (fetchError) {
+                    console.error('Error checking existing homework records:', fetchError);
+                } else if (existingRecords && existingRecords.length > 0) {
+                    const confirmChange = window.confirm("You have record in the system. Do you want to change the record?");
+                    if (!confirmChange) return;
+
+                    // Revert the previous record
+                    if (isGuestMode) {
+                        const { error: revertError } = await supabase.functions.invoke('public-access/revert-homework', {
+                            body: {
+                                token: guestToken,
+                                p_student_id: studentId
+                            }
+                        });
+                        if (revertError) {
+                            console.error('Error reverting homework record (Guest):', revertError);
+                            alert(`Failed to reset previous record: ${revertError.message}`);
+                            return;
+                        }
+                    } else {
+                        const { error: revertError } = await supabase.rpc('revert_homework_record', {
+                            p_student_id: studentId
+                        });
+                        if (revertError) {
+                            console.error('Error reverting homework record (Admin):', revertError);
+                            alert(`Failed to reset previous record: ${revertError.message}`);
+                            return;
+                        }
+                    }
+                }
+            }
+
             let amount = 0;
             if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) amount = 20;
             else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) amount = 10;
@@ -516,16 +571,22 @@ export function ClassDashboardPage() {
                             {showMorningDuties ? 'Hide Morning Duties' : 'Show Morning Duties'}
                         </button>
                         <button
-                            onClick={() => setShowNameSidebar(!showNameSidebar)}
+                            onClick={() => {
+                                if (isSidebarPoppedOut) {
+                                    closePip();
+                                } else {
+                                    setShowNameSidebar(!showNameSidebar);
+                                }
+                            }}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
-                            ${showNameSidebar
+                            ${(showNameSidebar || isSidebarPoppedOut)
                                     ? 'bg-blue-100 text-blue-700 border-blue-200'
                                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
                             title="Quick award for answering questions"
                         >
-                            <Activity size={18} className={showNameSidebar ? 'text-blue-600' : 'text-slate-400'} />
-                            {showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar'}
+                            <Activity size={18} className={(showNameSidebar || isSidebarPoppedOut) ? 'text-blue-600' : 'text-slate-400'} />
+                            {isSidebarPoppedOut ? 'Close Desktop Bar' : (showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar')}
                         </button>
                         {activeClass !== 'all' && !isGuestMode && (
                             <button
@@ -703,7 +764,7 @@ export function ClassDashboardPage() {
                 )
             }
 
-            {showNameSidebar && (
+            {showNameSidebar && !isSidebarPoppedOut && (
                 <StudentNameSidebar
                     users={
                         activeClass === 'all'
@@ -712,8 +773,27 @@ export function ClassDashboardPage() {
                     }
                     onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
                     onClose={() => setShowNameSidebar(false)}
+                    onPopOut={isPipSupported ? async () => {
+                        await requestPip({ width: 200, height: window.screen.availHeight });
+                        setShowNameSidebar(false); // Hide the in-app sidebar when popped out
+                    } : undefined}
                 />
             )}
+
+            {isSidebarPoppedOut && (
+                <PipWindow pipWindow={pipWindow}>
+                    <StudentNameSidebar
+                        users={
+                            activeClass === 'all'
+                                ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
+                                : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
+                        }
+                        onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
+                        isPoppedOut={true}
+                    />
+                </PipWindow>
+            )}
+
             <AvatarCustomizationModal
                 isOpen={isAvatarModalOpen}
                 onClose={() => {

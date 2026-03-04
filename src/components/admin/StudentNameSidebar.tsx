@@ -12,9 +12,11 @@ interface StudentNameSidebarProps {
     users: UserWithCoins[];
     onQuickAward: (userId: string) => void;
     onClose?: () => void;
+    onPopOut?: () => void;
+    isPoppedOut?: boolean;
 }
 
-export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose }) => {
+export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose, onPopOut, isPoppedOut }) => {
     // Sort logic: Students with 10+ coins drop to the bottom, then sort by class number
     const sortedUsers = [...users].sort((a, b) => {
         const aCompleted = (a.daily_real_earned || 0) >= 10;
@@ -27,7 +29,10 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
     });
 
     return (
-        <div className="fixed right-0 top-0 bottom-0 w-full md:w-48 flex flex-col z-[100] bg-white border-l border-slate-200 shadow-xl animate-in slide-in-from-right duration-300">
+        <div className={isPoppedOut
+            ? "flex flex-col w-full h-screen bg-white"
+            : "fixed right-0 top-0 bottom-0 w-full md:w-48 flex flex-col z-[100] bg-white border-l border-slate-200 shadow-xl animate-in slide-in-from-right duration-300"
+        }>
             <div className="pt-6 md:pt-24 pb-4 px-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -36,7 +41,16 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                     </div>
                     <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>
                 </div>
-                {onClose && (
+                {onPopOut && !isPoppedOut && (
+                    <button
+                        onClick={onPopOut}
+                        className="p-1 hover:bg-blue-100 rounded-lg text-blue-600 ml-auto mr-1 hidden md:block"
+                        title="Pop out to floating window"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </button>
+                )}
+                {onClose && !isPoppedOut && (
                     <button
                         onClick={onClose}
                         className="p-2 hover:bg-slate-200 rounded-full md:hidden"

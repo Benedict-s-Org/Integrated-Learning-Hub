@@ -236,6 +236,30 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ success: true, count: targetUserIds.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // 5. Revert Homework (Guest)
+    if (path === "revert-homework") {
+      const { token, p_student_id } = await req.json();
+      if (!token || !p_student_id) throw new Error("Missing required fields");
+
+      // Verify Token first
+      const { data: link } = await supabase.from("shared_links").select("token").eq("token", token).eq("is_active", true).single();
+      if (!link) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
+      }
+
+      // Call the RPC using service role
+      const { error: rpcError } = await supabase.rpc('revert_homework_record', {
+        p_student_id: p_student_id
+      });
+
+      if (rpcError) {
+        console.error('RPC Error in Edge Function:', rpcError);
+        throw rpcError;
+      }
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });
 
   } catch (error: any) {
