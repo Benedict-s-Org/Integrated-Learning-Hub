@@ -48,7 +48,7 @@ interface ClassDistributorProps {
     onReorder: (newOrder: UserWithCoins[]) => Promise<void>;
     selectedIds: string[];
     onSelectionChange: (ids: string[]) => void;
-    onHomeworkClick: (student: UserWithCoins) => void;
+    onHomeworkClick?: (student: UserWithCoins) => void;
     isGuestMode?: boolean;
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
@@ -65,7 +65,7 @@ interface SortableUserItemProps {
     isRearranging: boolean;
     onToggle: (e: React.MouseEvent, id: string) => void;
     onClick: () => void;
-    onHomeworkClick: () => void;
+    onHomeworkClick?: () => void;
     onMove: (index: number, direction: 'forward' | 'backward') => void;
     isGuestMode?: boolean;
     consequenceCount?: number;
@@ -196,16 +196,18 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                 </div>
 
                 {/* Homework Button */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onHomeworkClick();
-                    }}
-                    className="mt-2 w-full flex items-center justify-center gap-2 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
-                >
-                    <BookOpen size={14} />
-                    {isGuestMode ? 'Homework' : 'HOMEWORK'}
-                </button>
+                {onHomeworkClick && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onHomeworkClick();
+                        }}
+                        className="mt-2 w-full flex items-center justify-center gap-2 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
+                    >
+                        <BookOpen size={14} />
+                        {isGuestMode ? 'Homework' : 'HOMEWORK'}
+                    </button>
+                )}
 
                 {/* Navigation Buttons - Only Visible when Rearranging */}
                 {isRearranging && (
@@ -479,7 +481,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     isSelected={selectedIds.includes(user.id)}
                                     onToggle={toggleUser}
                                     onClick={() => onStudentClick(user)}
-                                    onHomeworkClick={() => onHomeworkClick(user)}
+                                    onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
                                     onMove={handleMove}
                                     isGuestMode={isGuestMode}
                                     consequenceCount={consequenceCounts[user.id] || 0}

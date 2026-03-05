@@ -50,7 +50,7 @@ export const DEFAULT_TABS: TabConfig[] = [
         label: 'Admin',
         page: 'admin',
         adminOnly: true,
-        activePages: ['admin', 'database', 'assignmentManagement', 'assetUpload', 'assetGenerator', 'flowithTest', 'interactiveScanner'],
+        activePages: ['admin', 'database', 'assignmentManagement', 'assetUpload', 'assetGenerator', 'flowithTest', 'interactiveScanner', 'adminHomeworkRecord'],
     },
 ];
 

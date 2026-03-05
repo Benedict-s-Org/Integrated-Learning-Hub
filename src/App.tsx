@@ -116,7 +116,8 @@ type AppState =
   | { page: 'adminAvatarUploader' }
   | { page: 'avatarBuilder' }
   | { page: 'markerGenerator' }
-  | { page: 'interactiveScanner' };
+  | { page: 'interactiveScanner' }
+  | { page: 'adminHomeworkRecord' };
 
 function AppContent() {
   const location = useLocation();
@@ -396,7 +397,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord')) {
       setShowLoginModal(true);
       return;
     }
@@ -478,6 +479,8 @@ function AppContent() {
     } else if (page === 'interactiveScanner') {
       setAppState({ page: 'interactiveScanner' });
       setIsNavOpen(false); // Auto-collapse when opening
+    } else if (page === 'adminHomeworkRecord') {
+      setAppState({ page: 'adminHomeworkRecord' });
     }
   };
 
@@ -1176,6 +1179,12 @@ function AppContent() {
             </div>
           </Suspense>
         );
+      case 'adminHomeworkRecord':
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <AdminHomeworkRecordPage />
+          </Suspense>
+        );
     }
   };
 
@@ -1499,6 +1508,7 @@ const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m 
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
 const InteractiveScanQuizPage = lazy(() => import('./pages/InteractiveScanQuizPage').then(module => ({ default: module.InteractiveScanQuizPage })));
 const AdminCityEditorPage = lazy(() => import('./pages/AdminCityEditorPage.tsx'));
+const AdminHomeworkRecordPage = lazy(() => import('./pages/AdminHomeworkRecordPage.tsx'));
 const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
 const PhonicsLayout = lazy(() => import('./components/phonics/PhonicsLayout.tsx').then(m => ({ default: m.PhonicsLayout })));
 const PhonicsSoundWall = lazy(() => import('./pages/PhonicsSoundWall.tsx').then(m => ({ default: m.PhonicsSoundWall })));
@@ -1607,6 +1617,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminCityEditorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/homework-record"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminHomeworkRecordPage />
               </Suspense>
             }
           />

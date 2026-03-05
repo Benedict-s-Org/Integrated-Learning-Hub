@@ -141,6 +141,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
             title: 'Admin Tools',
             items: [
                 { icon: Shield, label: 'Admin Panel', onClick: () => onPageChange('admin'), isActive: currentPage === 'admin' },
+                { icon: ClipboardList, label: 'Homework Record', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
                 { icon: FolderKanban, label: 'Assignment Management', onClick: () => onPageChange('assignmentManagement'), isActive: currentPage === 'assignmentManagement' },
                 { icon: Database, label: 'Database', onClick: () => onPageChange('database'), isActive: currentPage === 'database' },
                 { icon: Sparkles, label: 'AI Illustrator', onClick: () => onPageChange('flowithTest'), isActive: currentPage === 'flowithTest' },

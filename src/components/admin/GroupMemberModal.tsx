@@ -101,14 +101,22 @@ export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: Gr
                 return;
             }
 
-            const { error } = await supabase.functions.invoke('auth/bulk-update-users', {
+            console.log('[GroupMemberModal] Sending updates:', JSON.stringify(updates, null, 2));
+
+            const { data, error } = await supabase.functions.invoke('auth/bulk-update-users', {
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates
                 }
             });
 
+            console.log('[GroupMemberModal] Response:', JSON.stringify({ data, error }, null, 2));
+
             if (error) throw error;
+            if (data && data.errors && data.errors.length > 0) {
+                console.error("Bulk update errors:", data.errors);
+                throw new Error(data.errors[0].error || "Failed to update some members");
+            }
 
             onUpdate();
             onClose();

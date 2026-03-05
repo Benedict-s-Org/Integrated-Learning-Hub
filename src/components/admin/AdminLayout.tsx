@@ -17,6 +17,7 @@ import {
   Camera,
   Crown,
   Layers,
+  ClipboardList,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
 import { useAuth } from "@/context/AuthContext";
@@ -65,6 +66,11 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       path: "/admin/groups",
       label: "Groups Management",
       icon: <Layers className="w-4 h-4" />,
+    },
+    {
+      path: "/admin/homework-record",
+      label: "Homework Record",
+      icon: <ClipboardList size={18} className="w-4 h-4" />,
     },
     {
       label: "Map Editor",

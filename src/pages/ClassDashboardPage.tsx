@@ -6,7 +6,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { Settings2, LayoutGrid, Users, Activity } from 'lucide-react';
+import { Settings2, LayoutGrid, Users, Activity, Layers, Save } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
@@ -18,6 +18,23 @@ import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { PipWindow } from '@/components/common/PipWindow';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    horizontalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export interface UserWithCoins {
     id: string;
@@ -36,6 +53,57 @@ export interface UserWithCoins {
     equipped_item_ids?: string[];
     custom_offsets?: UserAvatarConfig;
     ecas?: string[];
+}
+
+interface SortableTabProps {
+    id: string;
+    label: string;
+    isActive: boolean;
+    onClick: () => void;
+    isEditMode: boolean;
+    count?: number;
+}
+
+function SortableTab({ id, label, isActive, onClick, isEditMode, count }: SortableTabProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+    };
+
+    return (
+        <button
+            ref={setNodeRef}
+            style={style}
+            {...(isEditMode ? { ...attributes, ...listeners } : {})}
+            onClick={isEditMode ? undefined : onClick}
+            className={`
+                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap
+                ${isActive
+                    ? 'bg-blue-600 text-white shadow-md scale-105'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
+                ${isEditMode ? 'cursor-grab active:cursor-grabbing border-dashed border-blue-400 bg-blue-50/30' : ''}
+                ${isDragging ? 'opacity-50' : ''}
+            `}
+        >
+            <Users size={16} />
+            {label === 'Unassigned' ? 'Unassigned' : label}
+            {count !== undefined && (
+                <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                    {count}
+                </span>
+            )}
+        </button>
+    );
 }
 
 export function ClassDashboardPage() {
@@ -63,15 +131,26 @@ export function ClassDashboardPage() {
     const [showQuizBoard, setShowQuizBoard] = useState(false);
 
     // Predefined Groups
-    const [predefinedClasses, setPredefinedClasses] = useState<string[]>([]);
-    const [predefinedActivities, setPredefinedActivities] = useState<string[]>([]);
+    const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
+    const [orderedActivities, setOrderedActivities] = useState<{ id: string, name: string }[]>([]);
 
     // PiP State
     const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
     const isSidebarPoppedOut = !!pipWindow;
 
-    // Class Tabs State
+    // Nav State
+    const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
+    const [isEditMode, setIsEditMode] = useState(false);
     const [activeClass, setActiveClass] = useState<string>('all');
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 8 },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     // Modals State
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -188,7 +267,8 @@ export function ClassDashboardPage() {
                         morning_status: roomInfo?.morning_status,
                         last_morning_update: roomInfo?.last_morning_update,
                         equipped_item_ids: avatarMap.get(u.id)?.items,
-                        custom_offsets: avatarMap.get(u.id)?.offsets
+                        custom_offsets: avatarMap.get(u.id)?.offsets,
+                        ecas: u.ecas || []
                     };
                 });
             }
@@ -216,7 +296,8 @@ export function ClassDashboardPage() {
                         created_at: u.created_at || new Date().toISOString(),
                         is_admin: u.role === 'admin',
                         morning_status: u.morning_status || 'todo',
-                        last_morning_update: u.last_morning_update
+                        last_morning_update: u.last_morning_update,
+                        ecas: u.ecas || []
                     };
                 });
             } else {
@@ -226,13 +307,48 @@ export function ClassDashboardPage() {
             // Fetch Predefined Groups
             if (isAdmin) {
                 const [classesRes, activitiesRes] = await Promise.all([
-                    supabase.from('classes').select('name').order('name'),
-                    supabase.from('activities').select('name').order('name')
+                    (supabase as any).from('classes').select('id, name').order('order_index'),
+                    (supabase as any).from('activities').select('id, name').order('order_index')
                 ]);
-                const classNames = classesRes.data?.map(c => c.name) || [];
-                const activityNames = activitiesRes.data?.map(a => a.name) || [];
-                setPredefinedClasses(classNames);
-                setPredefinedActivities(activityNames);
+                let classData = (classesRes.data || []) as { id: string, name: string }[];
+                const activityData = (activitiesRes.data || []) as { id: string, name: string }[];
+
+                // Auto-populate classes table from distinct user class names
+                const existingClassNames = new Set(classData.map(c => c.name));
+                const userClassNames = [...new Set(
+                    finalUsers
+                        .map(u => u.class)
+                        .filter((c): c is string => !!c && c !== 'Unassigned')
+                )];
+                const missingClasses = userClassNames.filter(name => !existingClassNames.has(name));
+
+                if (missingClasses.length > 0) {
+                    console.log('[fetchUsers] Auto-creating missing classes:', missingClasses);
+                    const inserts = missingClasses.map((name, i) => ({
+                        name,
+                        order_index: classData.length + i
+                    }));
+                    const { error: insertError } = await (supabase as any)
+                        .from('classes')
+                        .insert(inserts);
+
+                    if (!insertError) {
+                        // Re-fetch to get the new IDs
+                        const { data: refreshed } = await (supabase as any)
+                            .from('classes')
+                            .select('id, name')
+                            .order('order_index');
+                        classData = (refreshed || []) as { id: string, name: string }[];
+                    } else {
+                        console.error('[fetchUsers] Failed to auto-create classes:', insertError);
+                    }
+                }
+
+                setOrderedClasses(classData);
+                setOrderedActivities(activityData);
+
+                const classNames = classData.map(c => c.name);
+                const activityNames = activityData.map(a => a.name);
 
                 const grouped: Record<string, UserWithCoins[]> = {};
 
@@ -257,10 +373,12 @@ export function ClassDashboardPage() {
                     grouped[className].push(user);
 
                     user.ecas?.forEach(eca => {
-                        if (!grouped[eca]) grouped[eca] = [];
-                        if (eca !== className) {
-                            grouped[eca].push(user);
-                        }
+                        // Normalize ECA name to match predefined activity if possible
+                        const matchedActivity = activityData.find(a => a.name.toLowerCase() === eca.toLowerCase());
+                        const normalizedEca = matchedActivity ? matchedActivity.name : eca;
+
+                        if (!grouped[normalizedEca]) grouped[normalizedEca] = [];
+                        grouped[normalizedEca].push(user);
                     });
                 });
 
@@ -458,7 +576,7 @@ export function ClassDashboardPage() {
                             return;
                         }
                     } else {
-                        const { error: revertError } = await supabase.rpc('revert_homework_record', {
+                        const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
                             p_student_id: studentId
                         });
                         if (revertError) {
@@ -498,7 +616,7 @@ export function ClassDashboardPage() {
                 if (!result.success) throw result.error;
             }
 
-            await fetchUsers();
+            // await fetchUsers(); // Remove redundant fetch that causes bounce-back
             playSuccessSound();
         } catch (err: any) {
             console.error('Error recording homework FULL:', err);
@@ -594,15 +712,80 @@ export function ClassDashboardPage() {
     };
 
     const sortedClassNames = useMemo(() => {
+        const isClassesView = viewMode === 'classes';
+        const currentOrderedItems = isClassesView ? orderedClasses : orderedActivities;
+        const otherPredefinedNames = (isClassesView ? orderedActivities : orderedClasses).map(i => i.name.toLowerCase());
         const allKeys = Object.keys(groupedUsers);
-        if (isAdmin && (predefinedClasses.length > 0 || predefinedActivities.length > 0)) {
-            // Keep predefined order but include any extra classes found in data
-            const baseOrder = [...predefinedClasses, ...predefinedActivities, 'Unassigned'];
-            const extras = allKeys.filter(k => !baseOrder.includes(k));
-            return [...baseOrder, ...extras].filter(name => groupedUsers[name] !== undefined);
+
+        if (isAdmin) {
+            // Priority 1: Current ordered items (from state, allows DND to work)
+            const baseOrder = currentOrderedItems.map(item => item.name);
+
+            // Priority 2: Extra keys found in groupedUsers but not in any predefined state
+            const extras = allKeys.filter(k => {
+                const kLower = k.toLowerCase();
+                const isInBase = baseOrder.some(b => b.toLowerCase() === kLower);
+                const isInOther = otherPredefinedNames.includes(kLower);
+                return !isInBase && !isInOther && k !== 'Unassigned';
+            });
+
+            // Combine based on view mode
+            if (isClassesView) {
+                return [...baseOrder, ...extras, 'Unassigned'].filter(name => groupedUsers[name] !== undefined);
+            } else {
+                return baseOrder.filter(name => (groupedUsers[name] !== undefined && (groupedUsers[name]?.length || 0) > 0));
+            }
         }
-        return allKeys.sort((a, b) => a.localeCompare(b));
-    }, [groupedUsers, predefinedClasses, predefinedActivities, isAdmin]);
+
+        // Guest mode restricted to a single class
+        return allKeys.filter(k => k === activeClass);
+    }, [groupedUsers, orderedClasses, orderedActivities, isAdmin, viewMode, activeClass]);
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        if (viewMode === 'classes') {
+            setOrderedClasses((items) => {
+                const oldIndex = items.findIndex(item => item.id === active.id);
+                const newIndex = items.findIndex(item => item.id === over.id);
+                if (oldIndex === -1 || newIndex === -1) return items;
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        } else {
+            setOrderedActivities((items) => {
+                const oldIndex = items.findIndex(item => item.id === active.id);
+                const newIndex = items.findIndex(item => item.id === over.id);
+                if (oldIndex === -1 || newIndex === -1) return items;
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
+    const handleSaveOrder = async () => {
+        setIsLoading(true);
+        try {
+            const items = viewMode === 'classes' ? orderedClasses : orderedActivities;
+            const table = viewMode === 'classes' ? 'classes' : 'activities';
+
+            const updates = items.map((item, index) =>
+                (supabase as any).from(table).update({ order_index: index }).eq('id', item.id)
+            );
+
+            const results = await Promise.all(updates);
+            const errors = results.filter(r => r.error).map(r => r.error);
+
+            if (errors.length > 0) throw errors[0];
+
+            setIsEditMode(false);
+            await fetchUsers(); // Re-fetch to confirm order
+        } catch (err) {
+            console.error('Failed to save order:', err);
+            alert('Failed to save preferred order');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     if (!isAdmin && !isGuestMode) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
@@ -678,10 +861,20 @@ export function ClassDashboardPage() {
 
                 {showMorningDuties && (
                     <MorningDutiesBoard
-                        users={activeClass === 'all'
-                            ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
-                            : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
-                        }
+                        users={(() => {
+                            const rawUsers = activeClass === 'all'
+                                ? Object.values(groupedUsers).flat()
+                                : (groupedUsers[activeClass] || []);
+
+                            // Deduplicate by ID to avoid composite key issues in MorningDutiesBoard
+                            const uniqueUsersMap = new Map();
+                            rawUsers.forEach(u => {
+                                if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
+                                    uniqueUsersMap.set(u.id, u);
+                                }
+                            });
+                            return Array.from(uniqueUsersMap.values());
+                        })()}
                         onReviewClick={(id) => {
                             const student = Object.values(groupedUsers).flat().find(u => u.id === id);
                             if (student) handleStudentClick(student);
@@ -689,38 +882,105 @@ export function ClassDashboardPage() {
                     />
                 )}
 
-                {(!isGuestMode || !groupedUsers[activeClass] || sortedClassNames.length > 1) && (
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-                        <button
-                            onClick={() => setActiveClass('all')}
-                            className={`
-                            flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
-                            ${activeClass === 'all'
-                                    ? 'bg-slate-900 text-white shadow-md scale-105'
-                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                        `}
-                        >
-                            <LayoutGrid size={16} />
-                            All Classes
-                        </button>
-                        {sortedClassNames.map(className => (
+                {(!isGuestMode) && (
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
                             <button
-                                key={className}
-                                onClick={() => setActiveClass(className)}
-                                className={`
-                                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap
-                                ${activeClass === className
-                                        ? 'bg-blue-600 text-white shadow-md scale-105'
-                                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                            `}
+                                onClick={() => {
+                                    setViewMode('classes');
+                                    setActiveClass('all');
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'classes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                <Users size={16} />
-                                {className === 'Unassigned' ? 'Unassigned' : className}
-                                <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeClass === className ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                    {groupedUsers[className]?.length || 0}
-                                </span>
+                                Classes
                             </button>
-                        ))}
+                            <button
+                                onClick={() => {
+                                    setViewMode('activities');
+                                    setActiveClass((orderedActivities[0]?.name) || 'all');
+                                }}
+                                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'activities' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Activities
+                            </button>
+                        </div>
+
+                        {isAdmin && (
+                            <div className="flex gap-2">
+                                {isEditMode ? (
+                                    <>
+                                        <button
+                                            onClick={handleSaveOrder}
+                                            className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-all flex items-center gap-2"
+                                        >
+                                            <Save size={16} />
+                                            Save Order
+                                        </button>
+                                        <button
+                                            onClick={() => setIsEditMode(false)}
+                                            className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsEditMode(true)}
+                                        className="px-4 py-1.5 bg-white border border-slate-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-all flex items-center gap-2"
+                                    >
+                                        <Layers size={16} />
+                                        Edit Order
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {(!isGuestMode) && (
+                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                        {viewMode === 'classes' && (
+                            <button
+                                onClick={() => setActiveClass('all')}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
+                                    ${activeClass === 'all'
+                                        ? 'bg-slate-900 text-white shadow-md scale-105'
+                                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
+                                `}
+                            >
+                                <LayoutGrid size={16} />
+                                All Classes
+                            </button>
+                        )}
+
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={sortedClassNames.map(className =>
+                                    (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className
+                                )}
+                                strategy={horizontalListSortingStrategy}
+                            >
+                                {sortedClassNames.map(className => {
+                                    const id = (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className;
+                                    return (
+                                        <SortableTab
+                                            key={className}
+                                            id={id}
+                                            label={className}
+                                            isActive={activeClass === className}
+                                            onClick={() => setActiveClass(className)}
+                                            isEditMode={isEditMode}
+                                            count={groupedUsers[className]?.length}
+                                        />
+                                    );
+                                })}
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 )}
 
@@ -745,7 +1005,7 @@ export function ClassDashboardPage() {
                                                 setShowAwardModal(true);
                                             }}
                                             onStudentClick={handleStudentClick}
-                                            onHomeworkClick={(student) => setSelectedHomeworkStudentId(student.id)}
+                                            onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
@@ -777,7 +1037,7 @@ export function ClassDashboardPage() {
                                                     setShowAwardModal(true);
                                                 }}
                                                 onStudentClick={handleStudentClick}
-                                                onHomeworkClick={(student) => setSelectedHomeworkStudentId(student.id)}
+                                                onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}

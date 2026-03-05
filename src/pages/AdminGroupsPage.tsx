@@ -30,8 +30,8 @@ export function AdminGroupsPage() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const { data: classesData } = await (supabase as any).from('classes').select('*').order('name');
-            const { data: activitiesData } = await (supabase as any).from('activities').select('*').order('name');
+            const { data: classesData } = await (supabase as any).from('classes').select('*').order('order_index');
+            const { data: activitiesData } = await (supabase as any).from('activities').select('*').order('order_index');
 
             if (classesData) setClasses(classesData as GroupItem[]);
             if (activitiesData) setActivities(activitiesData as GroupItem[]);

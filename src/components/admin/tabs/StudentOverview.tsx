@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Activity, Star, AlertTriangle, Trash2, Plus, Check } from 'lucide-react';
+import { Activity, Star, AlertTriangle, Trash2, Plus, Check, ClipboardList } from 'lucide-react';
 import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
 import { RewardSubOptionOverlay } from '../RewardSubOptionOverlay';
@@ -29,10 +29,19 @@ interface Transaction {
     created_at: string;
 }
 
+interface StudentRecord {
+    id: string;
+    message: string;
+    type: 'positive' | 'neutral' | 'negative';
+    created_at: string;
+}
+
+type FeedItem = (Transaction & { feedType: 'transaction' }) | (StudentRecord & { feedType: 'homework' });
+
 
 export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode = false, guestToken }: StudentOverviewProps) {
     const { isAdmin } = useAuth();
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [feed, setFeed] = useState<FeedItem[]>([]);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
     const [consequences, setConsequences] = useState<ClassReward[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +77,16 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
             if (txError) throw txError;
 
+            // Fetch Student Records (Homework records etc)
+            const { data: recordsData, error: recordsError } = await supabase
+                .from('student_records')
+                .select('*')
+                .eq('student_id', student.id)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (recordsError) throw recordsError;
+
             // Fetch Rewards/Consequences from class_rewards
             const { data: rewardsData, error: rError } = await (supabase
                 .from('class_rewards' as any)
@@ -80,7 +99,15 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
             setRewards(allItems.filter(item => item.coins > 0));
             setConsequences(allItems.filter(item => item.coins <= 0));
 
-            setTransactions(txData || []);
+            // Merge and sort feed
+            const txItems: FeedItem[] = (txData || []).map((t: any) => ({ ...t, feedType: 'transaction' }));
+            const recItems: FeedItem[] = (recordsData || []).map((r: any) => ({ ...r, feedType: 'homework' }));
+
+            const combinedFeed = [...txItems, ...recItems]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 30);
+
+            setFeed(combinedFeed);
         } catch (err) {
             console.error('Error fetching student data:', err);
         } finally {
@@ -218,39 +245,57 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                         Recent Progress
                     </h3>
 
-                    <div className="overflow-y-auto pr-1 space-y-3 max-h-[180px] no-scrollbar">
+                    <div className="overflow-y-auto pr-1 space-y-3 max-h-[220px] no-scrollbar">
                         {isLoading ? (
                             <div className="text-center py-4 text-slate-400 animate-pulse text-xs">Syncing history...</div>
-                        ) : transactions.length === 0 ? (
+                        ) : feed.length === 0 ? (
                             <div className="text-center py-6 text-slate-400 bg-slate-100/50 rounded-2xl border-2 border-dashed border-slate-200/50">
                                 <p className="text-[10px] font-bold uppercase tracking-widest">No activity yet</p>
                             </div>
                         ) : (
-                            transactions.map(tx => (
-                                <div key={tx.id} className="flex gap-3 items-center p-3 bg-white/40 rounded-2xl border border-white/60">
-                                    <div className={`
-                                        w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black
-                                        ${tx.amount >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}
-                                    `}>
-                                        {tx.amount > 0 ? '+' : ''}{tx.amount}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-slate-700 text-xs truncate leading-none mb-1">{tx.reason.replace(' (Virtual)', '')}</p>
-                                        <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                            {formatDate(tx.created_at)}
-                                            {tx.reason.includes('(Virtual)') && (
-                                                <span className="text-purple-500 ml-1">VIRTUAL</span>
+                            feed.map(item => (
+                                <div key={item.id} className="flex gap-3 items-center p-3 bg-white/40 rounded-2xl border border-white/60">
+                                    {item.feedType === 'transaction' ? (
+                                        <>
+                                            <div className={`
+                                                w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black
+                                                ${item.amount >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}
+                                            `}>
+                                                {item.amount > 0 ? '+' : ''}{item.amount}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-slate-700 text-xs truncate leading-none mb-1">{item.reason.replace(' (Virtual)', '')}</p>
+                                                <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                                                    {formatDate(item.created_at)}
+                                                    {item.reason.includes('(Virtual)') && (
+                                                        <span className="text-purple-500 ml-1">VIRTUAL</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {!isGuestMode && isAdmin && (
+                                                <button
+                                                    onClick={() => handleRevertTransaction(item.id)}
+                                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                    title="Revert transaction"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
                                             )}
-                                        </div>
-                                    </div>
-                                    {!isGuestMode && isAdmin && (
-                                        <button
-                                            onClick={() => handleRevertTransaction(tx.id)}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                            title="Revert transaction"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className={`
+                                                w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black
+                                                ${item.type === 'positive' ? 'bg-emerald-100 text-emerald-600' :
+                                                    item.type === 'negative' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}
+                                            `}>
+                                                <ClipboardList size={14} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-slate-700 text-xs leading-tight">{item.message}</p>
+                                                {/* Date hidden for homeworkRecords as per request */}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             ))

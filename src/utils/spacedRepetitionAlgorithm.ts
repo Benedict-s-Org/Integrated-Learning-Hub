@@ -37,7 +37,14 @@ export function calculateNextReview(
       interval = 3;
     } else {
       interval = Math.round(interval * easeFactor);
+      // Boost interval for mastered cards (consistently correct, 3+ reps)
+      // so they don't crowd out new cards in sessions
+      if (qualityRating >= 4 && repetitions >= 3) {
+        interval = Math.round(interval * 1.3);
+      }
     }
+    // Cap maximum interval at 180 days
+    interval = Math.min(interval, 180);
     repetitions += 1;
   }
 

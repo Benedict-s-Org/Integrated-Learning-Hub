@@ -340,6 +340,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('classDashboard')}
                             />
                             <NavItem
+                                icon={ClipboardList}
+                                label="Homework Record"
+                                isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
+                                onClick={() => navigate('/admin/homework-record')}
+                            />
+                            <NavItem
                                 icon={FolderKanban}
                                 label="Assignment Management"
                                 isActive={currentPage === 'assignmentManagement'}

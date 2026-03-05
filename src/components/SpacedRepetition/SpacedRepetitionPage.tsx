@@ -116,7 +116,7 @@ export const SpacedRepetitionPage: React.FC = () => {
       let sessionQuestions: any[] = [];
 
       if (setId) {
-        // Specific Set(s) Session: Prioritize due cards within these sets
+        // ── Specific Set(s) / Study Plan Session ──────────────────────
         const idArray = Array.isArray(setId) ? setId : [setId];
         let setQuestions: any[] = [];
         for (const sid of idArray) {
@@ -126,88 +126,143 @@ export const SpacedRepetitionPage: React.FC = () => {
 
         const setSchedules = (schedulesRes || []).filter((s: any) => idArray.includes(s.spaced_repetition_questions?.set_id));
 
-        const dueIds = (setSchedules || [])
-          .filter((s: any) => {
-            const nextReviewDate = new Date(s.next_review_date);
-            nextReviewDate.setHours(0, 0, 0, 0);
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
+        // Build lookup of question_id → schedule for quick access
+        const scheduleMap = new Map<string, any>();
+        setSchedules.forEach((s: any) => scheduleMap.set(s.question_id, s));
 
-            const isDue = nextReviewDate.getTime() <= now.getTime();
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
 
-            const hoursSinceReview = s.last_reviewed_at
-              ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
-              : Infinity;
-            const reviewedToday = hoursSinceReview < 16;
+        // ── Tier 1: Brand-new cards (no schedule entry at all) ──
+        const brandNewCards = setQuestions.filter((q: any) => !scheduleMap.has(q.id));
 
-            return isDue && (!reviewedToday || s.interval_days === 0);
-          })
-          .map((s: any) => s.question_id);
+        // ── Tier 2 & 3: Cards that HAVE a schedule ──
+        const scheduledQuestions = setQuestions.filter((q: any) => scheduleMap.has(q.id));
 
-        const alreadyReviewedIds = (setSchedules || [])
-          .filter((s: any) => {
-            if (!s.last_reviewed_at || s.interval_days === 0) return false;
-            const hoursSinceReview = (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60);
-            return hoursSinceReview < 16;
-          })
-          .map((s: any) => s.question_id);
+        const dueScheduledCards: any[] = [];
+        const alreadyReviewedIds = new Set<string>();
 
-        const dueQuestions = setQuestions.filter((q: any) => dueIds.includes(q.id));
-        // Include questions that aren't due and haven't been reviewed today
-        const otherQuestions = setQuestions.filter((q: any) => !dueIds.includes(q.id) && !alreadyReviewedIds.includes(q.id));
+        for (const q of scheduledQuestions) {
+          const s = scheduleMap.get(q.id)!;
+          const reviewDate = new Date(s.next_review_date);
+          reviewDate.setHours(0, 0, 0, 0);
+          const isDue = reviewDate.getTime() <= now.getTime();
+
+          const hoursSinceReview = s.last_reviewed_at
+            ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
+            : Infinity;
+          const reviewedToday = hoursSinceReview < 16;
+
+          if (isDue && (!reviewedToday || s.interval_days === 0)) {
+            dueScheduledCards.push({ question: q, schedule: s });
+          } else if (reviewedToday && s.interval_days > 0) {
+            alreadyReviewedIds.add(q.id);
+          }
+        }
+
+        // Tier 2: Due cards with repetitions === 0 (failed/reset, need re-learning)
+        const failedDueCards = dueScheduledCards
+          .filter(d => d.schedule.repetitions === 0)
+          .map(d => d.question);
+
+        // Tier 3: Due review cards with repetitions > 0, sorted by interval ascending
+        // (struggling cards with short intervals before mastered cards with long intervals)
+        const reviewDueCards = dueScheduledCards
+          .filter(d => d.schedule.repetitions > 0)
+          .sort((a, b) => a.schedule.interval_days - b.schedule.interval_days)
+          .map(d => d.question);
+
+        // Non-due, non-reviewed-today cards as fallback
+        const otherCards = scheduledQuestions.filter(
+          (q: any) => !dueScheduledCards.some(d => d.question.id === q.id) && !alreadyReviewedIds.has(q.id)
+        );
 
         // Filter out excluded IDs for Master Mode streaks
-        const filteredDue = dueQuestions.filter((q: any) => !excludeIds.includes(q.id));
-        const filteredOther = otherQuestions.filter((q: any) => !excludeIds.includes(q.id));
+        const filterExcluded = (arr: any[]) => arr.filter((q: any) => !excludeIds.includes(q.id));
 
-        const newDueQuestions = filteredDue.filter(q => {
-          const s = setSchedules.find((s: any) => s.question_id === q.id);
-          return s && s.repetitions === 0;
-        });
-        const oldDueQuestions = filteredDue.filter(q => {
-          const s = setSchedules.find((s: any) => s.question_id === q.id);
-          return !s || s.repetitions > 0;
-        });
+        // ── Final queue: New first → Failed → Reviews → Other ──
+        sessionQuestions = [
+          ...filterExcluded(brandNewCards),
+          ...filterExcluded(failedDueCards),
+          ...filterExcluded(reviewDueCards),
+          ...filterExcluded(otherCards)
+        ].slice(0, limit);
 
-        // Session order: Newest Due (reps=0) first, then older Due, then the rest
-        sessionQuestions = [...newDueQuestions, ...oldDueQuestions, ...filteredOther].slice(0, limit);
-
-        // If we ran out of new content because of exclusion, recycle from excluding list
+        // If we ran out of new content because of exclusion, recycle from unfiltered list
         if (sessionQuestions.length === 0 && excludeIds.length > 0) {
-          sessionQuestions = [...dueQuestions, ...otherQuestions].slice(0, limit);
+          sessionQuestions = [...brandNewCards, ...failedDueCards, ...reviewDueCards, ...otherCards].slice(0, limit);
         }
       } else {
-        // Global Review Session: Fetch top cards from ALL sets based on limit
-        sessionQuestions = (schedulesRes || [])
-          .filter((s: any) => {
-            const nextReviewDate = new Date(s.next_review_date);
-            nextReviewDate.setHours(0, 0, 0, 0);
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
+        // ── Global Review Session ─────────────────────────────────────
+        // First: get all the user's sets to find unseen cards
+        const { data: userSets } = await (supabase as any)
+          .from('spaced_repetition_sets')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('is_deleted', false);
 
-            const isDue = nextReviewDate.getTime() <= now.getTime();
+        const allSetIds = (userSets || []).map((s: any) => s.id);
 
-            const hoursSinceReview = s.last_reviewed_at
-              ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
-              : Infinity;
-            const reviewedToday = hoursSinceReview < 16;
+        // Fetch ALL questions from user's sets
+        let allQuestions: any[] = [];
+        if (allSetIds.length > 0) {
+          const { data: qData } = await (supabase as any)
+            .from('spaced_repetition_questions')
+            .select('*')
+            .in('set_id', allSetIds);
+          allQuestions = (qData || []) as any[];
+        }
 
-            return isDue && (!reviewedToday || s.interval_days === 0);
-          })
-          .sort((a: any, b: any) => {
-            // Priority 1: New cards (0 repetitions)
-            if (a.repetitions === 0 && b.repetitions > 0) return -1;
-            if (a.repetitions > 0 && b.repetitions === 0) return 1;
-            // Priority 2: Oldest scheduled cards first
-            return new Date(a.next_review_date).getTime() - new Date(b.next_review_date).getTime();
-          })
-          .slice(0, limit)
-          .map((s: any) => ({
-            ...s.spaced_repetition_questions,
-            // Ensure ID is the question ID, not the schedule ID if there's any confusion
-            id: s.question_id
-          }))
-          .filter((q: any) => q.question_text); // filter out any broken joins
+        // Build schedule lookup
+        const globalScheduleMap = new Map<string, any>();
+        (schedulesRes || []).forEach((s: any) => globalScheduleMap.set(s.question_id, s));
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        // Tier 1: Brand-new cards (no schedule entry)
+        const brandNewCards = allQuestions.filter(q => !globalScheduleMap.has(q.id));
+
+        // Tier 2 & 3: Scheduled cards
+        const dueScheduledCards: { question: any; schedule: any }[] = [];
+
+        (schedulesRes || []).forEach((s: any) => {
+          const reviewDate = new Date(s.next_review_date);
+          reviewDate.setHours(0, 0, 0, 0);
+          const isDue = reviewDate.getTime() <= now.getTime();
+
+          const hoursSinceReview = s.last_reviewed_at
+            ? (Date.now() - new Date(s.last_reviewed_at).getTime()) / (1000 * 60 * 60)
+            : Infinity;
+          const reviewedToday = hoursSinceReview < 16;
+
+          if (isDue && (!reviewedToday || s.interval_days === 0)) {
+            dueScheduledCards.push({
+              question: s.spaced_repetition_questions,
+              schedule: s
+            });
+          }
+        });
+
+        // Tier 2: Failed/reset
+        const failedDueCards = dueScheduledCards
+          .filter(d => d.schedule.repetitions === 0)
+          .map(d => ({ ...d.question, id: d.schedule.question_id }));
+
+        // Tier 3: Review cards sorted by interval ascending
+        const reviewDueCards = dueScheduledCards
+          .filter(d => d.schedule.repetitions > 0)
+          .sort((a, b) => a.schedule.interval_days - b.schedule.interval_days)
+          .map(d => ({ ...d.question, id: d.schedule.question_id }));
+
+        // ── Final queue: New first → Failed → Reviews ──
+        sessionQuestions = [
+          ...brandNewCards,
+          ...failedDueCards,
+          ...reviewDueCards
+        ]
+          .filter((q: any) => q && q.question_text) // filter out broken joins
+          .slice(0, limit);
       }
 
       if (sessionQuestions.length === 0) {
