@@ -125,26 +125,28 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                     )}
                 </button>
 
-                {/* Header */}
-                <div className={`p-4 border-b border-orange-100 ${isNavOpen ? 'px-5' : 'px-2'}`}>
-                    {isNavOpen ? (
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-400 rounded-xl flex items-center justify-center shadow-md">
-                                <Heart size={20} className="text-white" fill="white" />
+                {/* Header - Only visible on main pages */}
+                {['classDashboard', 'new'].includes(currentPage) && (
+                    <div className={`p-4 border-b border-orange-100 ${isNavOpen ? 'px-5' : 'px-2'}`}>
+                        {isNavOpen ? (
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-400 rounded-xl flex items-center justify-center shadow-md">
+                                    <Heart size={20} className="text-white" fill="white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
+                                        Mr Tsang's
+                                    </h1>
+                                    <p className="text-xs text-gray-400">Learning Hub</p>
+                                </div>
                             </div>
-                            <div>
-                                <h1 className="text-lg font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
-                                    Mr Tsang's
-                                </h1>
-                                <p className="text-xs text-gray-400">Learning Hub</p>
+                        ) : (
+                            <div className="w-12 h-12 mx-auto bg-gradient-to-br from-orange-400 to-pink-400 rounded-xl flex items-center justify-center shadow-md">
+                                <Heart size={22} className="text-white" fill="white" />
                             </div>
-                        </div>
-                    ) : (
-                        <div className="w-12 h-12 mx-auto bg-gradient-to-br from-orange-400 to-pink-400 rounded-xl flex items-center justify-center shadow-md">
-                            <Heart size={22} className="text-white" fill="white" />
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Navigation Content */}
                 <div className="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin scrollbar-thumb-orange-200">

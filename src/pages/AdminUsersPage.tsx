@@ -45,6 +45,7 @@ interface UserWithProfile {
   qr_token?: string;
   managed_by_id?: string | null;
   spelling_level?: number;
+  ecas?: string[];
 }
 
 interface AdminUsersPageProps {
@@ -166,7 +167,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           class_name: u.class,
           qr_token: u.qr_token,
           managed_by_id: u.managed_by_id,
-          spelling_level: u.spelling_level
+          spelling_level: u.spelling_level,
+          ecas: u.ecas || []
         };
       });
 

@@ -1494,6 +1494,7 @@ const RewardPage = lazy(() => import('./pages/RewardPage.tsx'));
 const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
+const AdminGroupsPage = lazy(() => import('./pages/AdminGroupsPage.tsx').then(m => ({ default: m.AdminGroupsPage })));
 const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m => ({ default: m.SuperAdminPanel })));
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
 const InteractiveScanQuizPage = lazy(() => import('./pages/InteractiveScanQuizPage').then(module => ({ default: module.InteractiveScanQuizPage })));
@@ -1558,6 +1559,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/groups"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminGroupsPage />
               </Suspense>
             }
           />

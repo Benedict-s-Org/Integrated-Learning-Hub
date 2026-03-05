@@ -35,6 +35,7 @@ export interface UserWithCoins {
     last_morning_update?: string;
     equipped_item_ids?: string[];
     custom_offsets?: UserAvatarConfig;
+    ecas?: string[];
 }
 
 export function ClassDashboardPage() {
@@ -60,6 +61,10 @@ export function ClassDashboardPage() {
     });
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
+
+    // Predefined Groups
+    const [predefinedClasses, setPredefinedClasses] = useState<string[]>([]);
+    const [predefinedActivities, setPredefinedActivities] = useState<string[]>([]);
 
     // PiP State
     const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
@@ -218,20 +223,70 @@ export function ClassDashboardPage() {
                 finalUsers = usersData as UserWithCoins[];
             }
 
-            const grouped = finalUsers.reduce((acc, user) => {
-                const className = user.class || 'Unassigned';
-                if (!acc[className]) {
-                    acc[className] = [];
-                }
-                acc[className].push(user);
-                return acc;
-            }, {} as Record<string, UserWithCoins[]>);
+            // Fetch Predefined Groups
+            if (isAdmin) {
+                const [classesRes, activitiesRes] = await Promise.all([
+                    supabase.from('classes').select('name').order('name'),
+                    supabase.from('activities').select('name').order('name')
+                ]);
+                const classNames = classesRes.data?.map(c => c.name) || [];
+                const activityNames = activitiesRes.data?.map(a => a.name) || [];
+                setPredefinedClasses(classNames);
+                setPredefinedActivities(activityNames);
 
-            Object.keys(grouped).forEach(key => {
-                grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
-            });
+                const grouped: Record<string, UserWithCoins[]> = {};
 
-            setGroupedUsers(grouped);
+                // Initialize with predefined ones
+                [...classNames, ...activityNames].forEach(name => {
+                    grouped[name] = [];
+                });
+
+                // Safety: Collect any classes present in users but not in predefined list
+                finalUsers.forEach(user => {
+                    const className = user.class;
+                    if (className && className !== 'Unassigned' && !grouped[className]) {
+                        grouped[className] = [];
+                    }
+                });
+
+                grouped['Unassigned'] = [];
+
+                finalUsers.forEach(user => {
+                    const className = user.class || 'Unassigned';
+                    if (!grouped[className]) grouped[className] = [];
+                    grouped[className].push(user);
+
+                    user.ecas?.forEach(eca => {
+                        if (!grouped[eca]) grouped[eca] = [];
+                        if (eca !== className) {
+                            grouped[eca].push(user);
+                        }
+                    });
+                });
+
+                Object.keys(grouped).forEach(key => {
+                    grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
+                });
+                setGroupedUsers(grouped);
+            } else {
+                // Guest mode
+                const grouped = finalUsers.reduce((acc, user) => {
+                    const className = user.class || 'Unassigned';
+                    if (!acc[className]) acc[className] = [];
+                    acc[className].push(user);
+
+                    user.ecas?.forEach(eca => {
+                        if (!acc[eca]) acc[eca] = [];
+                        if (eca !== className) acc[eca].push(user);
+                    });
+                    return acc;
+                }, {} as Record<string, UserWithCoins[]>);
+
+                Object.keys(grouped).forEach(key => {
+                    grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
+                });
+                setGroupedUsers(grouped);
+            }
 
             // Fetch daily consequences (type: negative) to show frequencies
             const { data: recordData } = await supabase
@@ -539,8 +594,15 @@ export function ClassDashboardPage() {
     };
 
     const sortedClassNames = useMemo(() => {
-        return Object.keys(groupedUsers).sort((a, b) => a.localeCompare(b));
-    }, [groupedUsers]);
+        const allKeys = Object.keys(groupedUsers);
+        if (isAdmin && (predefinedClasses.length > 0 || predefinedActivities.length > 0)) {
+            // Keep predefined order but include any extra classes found in data
+            const baseOrder = [...predefinedClasses, ...predefinedActivities, 'Unassigned'];
+            const extras = allKeys.filter(k => !baseOrder.includes(k));
+            return [...baseOrder, ...extras].filter(name => groupedUsers[name] !== undefined);
+        }
+        return allKeys.sort((a, b) => a.localeCompare(b));
+    }, [groupedUsers, predefinedClasses, predefinedActivities, isAdmin]);
 
     if (!isAdmin && !isGuestMode) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;

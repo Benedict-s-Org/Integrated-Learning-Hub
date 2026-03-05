@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   Camera,
   Crown,
+  Layers,
 } from "lucide-react";
 import { UnifiedMapEditor } from "./UnifiedMapEditor";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +60,11 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       path: "/design",
       label: "Space Design",
       icon: <Palette className="w-4 h-4" />,
+    },
+    {
+      path: "/admin/groups",
+      label: "Groups Management",
+      icon: <Layers className="w-4 h-4" />,
     },
     {
       label: "Map Editor",

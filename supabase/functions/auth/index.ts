@@ -62,6 +62,7 @@ interface UpdateUserRequest {
   className?: string; // Support for className aliasing
   classNumber?: number;
   spellingLevel?: number;
+  ecas?: string[];
 }
 
 interface AdminResetPasswordRequest {
@@ -87,6 +88,7 @@ interface BulkUpdateUsersRequest {
     display_name?: string;
     class?: string;
     classNumber?: string | number;
+    ecas?: string[];
   }>;
 }
 
@@ -529,7 +531,7 @@ Deno.serve(async (req: Request) => {
       // 1. Fetch users and their core fields from public.users
       const { data: users, error: usersError } = await supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level")
+        .select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level, ecas")
         .order("created_at", { ascending: false });
 
       if (usersError) {
@@ -756,7 +758,7 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/update-user")) {
       const body = await req.json();
       console.log("Update user request body:", JSON.stringify(body));
-      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel }: UpdateUserRequest = body;
+      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, ecas }: UpdateUserRequest = body;
 
       // Ensure admin role is synced before proceeding
       const isAdmin = await ensureAdminRole(adminUserId);
@@ -782,6 +784,7 @@ Deno.serve(async (req: Request) => {
         if (finalClass !== undefined) updatePayload.class = finalClass || null;
         if (spellingLevel !== undefined) updatePayload.spelling_level = spellingLevel || null;
         if (classNumber !== undefined) updatePayload.class_number = classNumberValue;
+        if (ecas !== undefined) updatePayload.ecas = ecas || [];
 
         console.log("DEBUG update-user: userId=", userId, "updatePayload=", JSON.stringify(updatePayload));
 
@@ -1049,9 +1052,10 @@ Deno.serve(async (req: Request) => {
           const { error: dbError } = await supabase
             .from("users")
             .update({
-              display_name: update.display_name || undefined,
-              class: update.class || undefined,
-              class_number: classNumVal,
+              ...(update.display_name !== undefined ? { display_name: update.display_name } : {}),
+              ...(update.class !== undefined ? { class: update.class } : {}),
+              ...(update.classNumber !== undefined ? { class_number: classNumVal } : {}),
+              ...(update.ecas !== undefined ? { ecas: update.ecas } : {}),
               managed_by_id: adminUserId
             })
             .eq("id", update.id);
@@ -1066,6 +1070,7 @@ Deno.serve(async (req: Request) => {
               ...(update.display_name ? { display_name: update.display_name } : {}),
               ...(update.class !== undefined ? { class: update.class } : {}),
               ...(update.classNumber !== undefined && update.classNumber !== "" ? { class_number: Number(update.classNumber) } : { class_number: null }),
+              ...(update.ecas !== undefined ? { ecas: update.ecas } : {}),
               managed_by_id: adminUserId
             }
           });

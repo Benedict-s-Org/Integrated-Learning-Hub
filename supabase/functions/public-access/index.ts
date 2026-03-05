@@ -88,11 +88,11 @@ Deno.serve(async (req: Request) => {
       // Fetch Users with necessary fields
       let query = supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class, class_number")
+        .select("id, username, role, created_at, display_name, class, class_number, ecas")
         .order("created_at", { ascending: false });
 
       if (link.target_class) {
-        query = query.eq("class", link.target_class);
+        query = query.or(`class.eq.${link.target_class},ecas.cs.{${link.target_class}}`);
       }
 
       const { data: users, error: usersError } = await query;
@@ -122,6 +122,7 @@ Deno.serve(async (req: Request) => {
           class_number: u.class_number,
           created_at: u.created_at,
           avatar_url: null, // avatar_url column missing – avatars handled via user_avatar_config in frontend
+          ecas: u.ecas || [],
           coins: room.coins || 0,
           virtual_coins: room.virtual_coins || 0,
           daily_counts: room.daily_counts || {},

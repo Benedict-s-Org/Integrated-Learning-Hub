@@ -15,6 +15,7 @@ interface UserWithProfile {
   class_number: number | null;
   class_name?: string | null;
   spelling_level?: number;
+  ecas?: string[];
 }
 
 interface UserEditModalProps {
@@ -35,13 +36,33 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [className, setClassName] = useState(user.class_name || "");
   const [classNumber, setClassNumber] = useState<string>(user.class_number?.toString() || "");
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
+  const [ecas, setEcas] = useState<string[]>(user.ecas || []);
+  const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBgRemoval, setShowBgRemoval] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      const fetchActivities = async () => {
+        const { data } = await supabase.from('activities').select('id, name').order('name');
+        if (data) setAvailableActivities(data);
+      };
+      fetchActivities();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const toggleEca = (activityName: string) => {
+    setEcas(prev =>
+      prev.includes(activityName)
+        ? prev.filter(name => name !== activityName)
+        : [...prev, activityName]
+    );
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -203,6 +224,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       const parsedClassNumber = classNumber !== "" ? parseInt(classNumber) : null;
       (updateData as any).classNumber = parsedClassNumber;
       (updateData as any).spellingLevel = spellingLevel;
+      (updateData as any).ecas = ecas;
 
       console.log("Sending update request:", updateData);
 
@@ -228,6 +250,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (className !== undefined) directUpdate.class = className || null;
       if (parsedClassNumber !== undefined) directUpdate.class_number = parsedClassNumber;
       if (spellingLevel !== undefined) directUpdate.spelling_level = spellingLevel;
+      if (ecas !== undefined) directUpdate.ecas = ecas;
 
       const { error: directError } = await supabase
         .from('users')
@@ -444,6 +467,35 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               管理員可以訪問後台管理界面並更新其他用戶。
             </p>
+          </div>
+
+          {/* Extracurricular Activities */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+              <Shield className="w-4 h-4" />
+              Extracurricular Activities (ECAs)
+            </label>
+            <div className="grid grid-cols-2 gap-3 p-4 border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--muted)/0.3)]">
+              {availableActivities.length === 0 ? (
+                <p className="text-sm text-[hsl(var(--muted-foreground))] col-span-2">
+                  尚未建立任何課外活動。請到群組管理頁面新增。
+                </p>
+              ) : (
+                availableActivities.map((activity) => (
+                  <label key={activity.id} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-[hsl(var(--border))] cursor-pointer hover:border-blue-400 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={ecas.includes(activity.name)}
+                      onChange={() => toggleEca(activity.name)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-[hsl(var(--foreground))]">
+                      {activity.name}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Spelling Level Section */}
