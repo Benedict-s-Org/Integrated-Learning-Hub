@@ -8,14 +8,17 @@ import { CoinAwardModal, ClassReward } from '@/components/admin/CoinAwardModal';
 import { RewardSubOptionOverlay } from '@/components/admin/RewardSubOptionOverlay';
 import React from 'react';
 
+// Simple global cache for rewards
+let cachedRewards: ClassReward[] | null = null;
+
 export function RewardPage() {
     const { qrToken } = useParams<{ qrToken: string }>();
     const navigate = useNavigate();
 
     const [student, setStudent] = useState<any | null>(null);
-    const [rewards, setRewards] = useState<ClassReward[]>([]);
-    const [consequences, setConsequences] = useState<ClassReward[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rewards, setRewards] = useState<ClassReward[]>(cachedRewards?.filter((i: ClassReward) => i.coins > 0) || []);
+    const [consequences, setConsequences] = useState<ClassReward[]>(cachedRewards?.filter((i: ClassReward) => i.coins <= 0) || []);
+    const [loading, setLoading] = useState(!student);
     const [error, setError] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [awarding, setAwarding] = useState(false);
@@ -91,7 +94,8 @@ export function RewardPage() {
             .select('*')
             .order('title', { ascending: true }) as any);
 
-        const allItems = (data || []) as any[];
+        const allItems = (data || []) as ClassReward[];
+        cachedRewards = allItems;
         setRewards(allItems.filter((i: any) => i.coins > 0));
         setConsequences(allItems.filter((i: any) => i.coins <= 0));
     };

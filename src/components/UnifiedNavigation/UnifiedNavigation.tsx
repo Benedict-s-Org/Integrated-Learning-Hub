@@ -347,6 +347,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             />
                             <NavItem
                                 icon={Layout}
+                                label="Timetable Management"
+                                isActive={window.location.pathname === '/admin/timetable' || currentPage === 'adminTimetable' as any}
+                                onClick={() => navigate('/admin/timetable')}
+                            />
+                            <NavItem
+                                icon={Layout}
                                 label="Broadcast Management"
                                 isActive={window.location.pathname === '/admin/broadcast' || currentPage === 'broadcastManagement'}
                                 onClick={() => navigate('/admin/broadcast')}

@@ -18,7 +18,8 @@
 | **Spaced Repetition**| `SpacedRepetitionPage.tsx` & Algorithm - Question tracking, algorithm logic. | L107-L111 |
 | **Core Utilities** | `roomGeometry.ts`, `importParsers.ts` - Isometric math and data ingestion. | L113-L116 |
 | **Error Logger** | `errorLogger.ts` - Auto-logs development errors securely to DB. | L118-L121 |
-| **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L123-L128 |
+| **Timetable System** | `AdminTimetablePage.tsx`, `TimetableBoard.tsx` - Notion cycle sync & grid management. | L123-L128 |
+| **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L130-L135 |
 
 ---
 
@@ -47,13 +48,13 @@
   - `selectedStudentIds`: Current selection for bulk actions.
   - `showMorningDuties`: Toggled to show morning checklist (default on between 7-9 AM HK time).
 - **Core Dependencies**: `coinService` for rewards, `UniversalMessageToolbar` for broadcasts.
-- **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter.
+- **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter. **Default class is set to '3A'**.
 
 ### Admin Users (L49-L53)
 - **Path**: `src/pages/AdminUsersPage.tsx`
 - **Purpose**: Manage all student and admin accounts.
 - **Key Logic**: Generates QR tokens upon user creation. Homework records log directly via modal logic. Supports bulk awarding and batch reverting.
-- **Gotchas**: Only Super Admins can manage other Admins. Relies heavily on Supabase `auth.users` combined with public `users` table logic implemented via Edge Functions.
+- **Gotchas**: Only Super Admins can manage other Admins. Relies heavily on Supabase `auth.users` combined with public `users` table logic implemented via Edge Functions. **Default class filter is '3A'**.
 
 ### Admin Progress (L55-L59)
 - **Path**: `src/pages/AdminProgressPage.tsx`
@@ -64,7 +65,7 @@
 ### Homework Records (L61-L64)
 - **Path**: `src/pages/AdminHomeworkRecordPage.tsx`
 - **Concept**: A bulk-marking tool. Admin selects multiple students and clicks specific assignment items ("ProblemOptions" like Dictation, Workbooks).
-- **Mechanism**: Saves directly to `homework_records` table and optionally dispenses coins using `coinService`. Also triggers visual and audio success indicators via `playSuccessSound`.
+- **Mechanism**: Saves directly to `homework_records` table and optionally dispenses coins using `coinService`. Also triggers visual and audio success indicators via `playSuccessSound`. **Default class selection is '3A'**.
 
 ### Super Admin (L66-L70)
 - **Path**: `src/pages/SuperAdminPanel.tsx`
@@ -123,7 +124,16 @@
 - **Concept**: Development tool that parses exceptions and lint errors, sending them to the `dev_error_log` database table.
 - **Security Check**: Strips patterns like API keys, Supabase tokens, passwords from error messages before saving.
 
-### DB & RPCs (L123-L128)
+### Timetable & Cycle System (L123-L128)
+- **Path**: `src/pages/AdminTimetablePage.tsx`, `src/components/admin/TimetableBoard.tsx`
+- **Concept**: Integrates school cycle data from Notion with customized class schedules.
+- **Mechanism**:
+  - **Notion Sync**: Edge Function `notion-api/get-cycle-day` fetches today's Cycle Day (1-6) and Cycle Number from a Notion database.
+  - **Admin Table**: A comprehensive grid-based editor for Lessons 1-7 (Cycle-based) and Lessons 8-9 (Weekday-based).
+  - **Dashboard Board**: Interactive board on the class dashboard that displays the current day's routine (English Reading, Recess, Lunch) and lesson subjects.
+- **Database**: `class_timetables` stores subjects by `(class_name, lesson_number, day_index)`.
+
+### DB & RPCs (L130-L135)
 - **coin_transactions / student_records**: Unifies all point changes. 
 - **`increment_room_coins(user_id, amount, reason, ...)`**: High-availability Postgres RPC that ensures atomicity when adding coins and logging. Overcomes concurrent request race conditions.
 - **`revert_student_record(record_id)`**: Backs out a previous transaction exactly. Supports bulk via `revert_student_records_batch`.

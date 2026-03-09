@@ -9,7 +9,8 @@ interface AvatarRendererProps {
     showBackground?: boolean;
 }
 
-export const AvatarRenderer: React.FC<AvatarRendererProps> = ({
+// Define the component logic first, separate from memo
+const AvatarRendererComponent: React.FC<AvatarRendererProps> = ({
     equippedItems = [],
     userConfig = {},
     size = 200,
@@ -62,3 +63,19 @@ export const AvatarRenderer: React.FC<AvatarRendererProps> = ({
     );
 };
 
+export const AvatarRenderer = React.memo(AvatarRendererComponent, (prevProps, nextProps) => {
+    // Custom equality check to prevent unnecessary deep re-renders
+    if (prevProps.size !== nextProps.size) return false;
+    if (prevProps.className !== nextProps.className) return false;
+    if (prevProps.showBackground !== nextProps.showBackground) return false;
+
+    // Fast check for equipped items via IDs
+    const prevIds = prevProps.equippedItems.map(i => i.id).sort().join(',');
+    const nextIds = nextProps.equippedItems.map(i => i.id).sort().join(',');
+    if (prevIds !== nextIds) return false;
+
+    // Deep check for user config offsets
+    if (JSON.stringify(prevProps.userConfig) !== JSON.stringify(nextProps.userConfig)) return false;
+
+    return true; // Props are identical for rendering purposes
+});

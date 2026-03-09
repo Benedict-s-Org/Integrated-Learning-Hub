@@ -262,6 +262,104 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ results: allResults });
     }
 
+    // ── Get Cycle Day ───────────────────────────────────────────────────
+    if (path.endsWith("/get-cycle-day")) {
+      let providedDbId = null;
+      try {
+        const body = await req.json();
+        providedDbId = body?.databaseId;
+      } catch (err) {
+        // Body might be empty, ignore
+      }
+      const databaseId = providedDbId || "2579baca6fa3806f9c6ef193f7d81213";
+
+      // Today's date in YYYY-MM-DD format (Hong Kong Time)
+      const now = new Date();
+      const hkOffset = 8 * 60; // HK is GMT+8
+      const hkTime = new Date(now.getTime() + (hkOffset + now.getTimezoneOffset()) * 60000);
+      const todayStr = hkTime.toISOString().split('T')[0];
+
+      console.log(`[notion-api] Querying Notion DB ${databaseId} for date: ${todayStr}`);
+
+      const resp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
+        method: "POST",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({
+          filter: {
+            property: "Date",
+            date: { equals: todayStr }
+          },
+          page_size: 1
+        })
+      });
+
+      if (!resp.ok) {
+        const errorBody = await resp.text();
+        console.error("Notion cycle query failed:", resp.status, errorBody);
+        return jsonResponse(
+          { error: `Notion API error (${resp.status}): ${errorBody}` },
+          resp.status
+        );
+      }
+
+      const data = await resp.json();
+      let page = data.results?.[0] as NotionPage | undefined;
+
+      // DEBUG: If not found, log some entries to see what's in the DB
+      if (!page) {
+        console.warn(`[notion-api] No entry found for ${todayStr}. Fetching sample entries for debugging...`);
+        const sampleResp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
+          method: "POST",
+          headers: notionHeaders(notionToken),
+          body: JSON.stringify({ page_size: 5 })
+        });
+        if (sampleResp.ok) {
+          const sampleData = await sampleResp.json();
+          console.log("[notion-api] Sample entries properties:",
+            sampleData.results.map((r: any) => Object.keys(r.properties))
+          );
+          // Also check if "Date" property values
+          console.log("[notion-api] Sample Date values:",
+            sampleData.results.map((r: any) => r.properties["Date"] || "MISSING")
+          );
+        }
+
+        return jsonResponse({
+          success: true,
+          found: false,
+          date: todayStr,
+          message: "No cycle entry found for today in Notion."
+        });
+      }
+
+      const props = page.properties;
+      console.log("[notion-api] Found page props keys:", Object.keys(props));
+
+      // Attempt to extract properties
+      const cycleNumber = extractSelect(props, "Cycle") ||
+        extractText(props, "Cycle") ||
+        (props["Cycle"] as any)?.number?.toString() ||
+        extractText(props, "Current Cycle Number") || "";
+
+      const cycleDay = extractSelect(props, "Day of the cycle") ||
+        extractText(props, "Day of the cycle") ||
+        extractText(props, "Day of Cycle / Activity Name") || "";
+
+      const studentOnDuty = (props["Student on Duty"] as any)?.number?.toString() || "";
+
+      const title = extractText(props, "Date and Day") || "";
+
+      return jsonResponse({
+        success: true,
+        found: true,
+        date: todayStr,
+        cycleNumber,
+        cycleDay,
+        studentOnDuty,
+        title
+      });
+    }
+
     // ── Save Unknown Item ───────────────────────────────────────────────
     if (path.endsWith("/save-unknown")) {
       const { text, type, context, setId, userName, databaseId: targetDatabaseId } = await req.json();

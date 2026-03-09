@@ -41,6 +41,21 @@ export default defineConfig(async ({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
     },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules')) {
+              if (id.includes('@supabase')) return 'vendor-supabase';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor-react';
+              return 'vendor';
+            }
+          }
+        }
+      }
+    },
     server: {
       host: true,
       port: 5173,

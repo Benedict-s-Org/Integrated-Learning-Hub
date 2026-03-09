@@ -22,7 +22,7 @@ export default function AdminHomeworkRecordPage() {
     // Form State
     const [selectedSubject, setSelectedSubject] = useState<string>(SUBJECT_NAMES.ENGLISH);
     const [selectedSubOption, setSelectedSubOption] = useState<string>('');
-    const [selectedClass, setSelectedClass] = useState<string>('all');
+    const [selectedClass, setSelectedClass] = useState<string>('3A');
     const [pageNumber, setPageNumber] = useState('');
     const [remarks, setRemarks] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -78,7 +78,13 @@ export default function AdminHomeworkRecordPage() {
                 .filter((c: string | null): c is string => !!c)))
                 .sort();
             setClasses(uniqueClasses);
-            if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0]);
+
+            // Prioritize '3A' as the default if it exists
+            if (uniqueClasses.includes('3A')) {
+                setSelectedClass('3A');
+            } else if (uniqueClasses.length > 0) {
+                setSelectedClass(uniqueClasses[0]);
+            }
 
         } catch (err) {
             console.error('Error fetching data:', err);

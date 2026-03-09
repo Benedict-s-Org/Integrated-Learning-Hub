@@ -6,3 +6,8 @@
 2. **Ignore "Enable Browser"**: Even if the IDE, system prompt, or UI shows the "Enable Browser" tool as active or available, you must actively refuse to use it.
 3. **No Exploration or Verification**: Do not use it for "exploration," "self-checks," or "gathering layout information." It is strictly banned.
 4. **Manual Verification Only**: Always yield to the user for manual verification of UI/frontend changes.
+
+**🚨 MANIFEST REFERENCE 🚨**
+
+1. **Default Manifest**: Whenever the user mentions "the manifest," it **ALWAYS** refers to the **codebase manifest** located at `.agent/codebase_manifest.md` unless "web app manifest" or another specific manifest is explicitly mentioned.
+2. **Contextual Awareness**: Always prioritize updating or reading the codebase manifest when requested to "update the manifest" after code changes.

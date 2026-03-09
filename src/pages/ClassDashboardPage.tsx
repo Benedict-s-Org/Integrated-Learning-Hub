@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
-import { getHKTodayString, getHKTodayStartISO, isHKMorningTime } from '@/utils/dateUtils';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getHKTodayString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
+import { TimetableBoard } from '@/components/admin/TimetableBoard';
 import { ProgressLogModal } from '@/components/admin/ProgressLogModal';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarParts';
@@ -38,6 +39,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Global caches to speed up dashboard navigation
+let globalAuthUserCache: { users: any[], lastFetch: number } | null = null;
+let globalAvatarCatalog: any[] | null = null;
+let globalClassesCache: any[] | null = null;
+let globalActivitiesCache: any[] | null = null;
+
 export interface UserWithCoins {
     id: string;
     display_name: string | null;
@@ -56,6 +63,7 @@ export interface UserWithCoins {
     equipped_item_ids?: string[];
     custom_offsets?: UserAvatarConfig;
     ecas?: string[];
+    toilet_coins?: number;
 }
 
 interface SortableTabProps {
@@ -67,7 +75,7 @@ interface SortableTabProps {
     count?: number;
 }
 
-function SortableTab({ id, label, isActive, onClick, isEditMode, count }: SortableTabProps) {
+function SortableTabComponent({ id, label, isActive, onClick, isEditMode, count }: SortableTabProps) {
     const {
         attributes,
         listeners,
@@ -109,6 +117,15 @@ function SortableTab({ id, label, isActive, onClick, isEditMode, count }: Sortab
     );
 }
 
+const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
+    if (prevProps.id !== nextProps.id) return false;
+    if (prevProps.label !== nextProps.label) return false;
+    if (prevProps.isActive !== nextProps.isActive) return false;
+    if (prevProps.isEditMode !== nextProps.isEditMode) return false;
+    if (prevProps.count !== nextProps.count) return false;
+    return true; // Ignore changes to the inline onClick function
+});
+
 export function ClassDashboardPage() {
     const { isAdmin, user: currentUser } = useAuth();
 
@@ -131,6 +148,47 @@ export function ClassDashboardPage() {
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
     const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
+    const [showTimetable, setShowTimetable] = useState(false);
+    const [cycleData, setCycleData] = useState<{ day: string, cycle: string, date: string, studentOnDuty: string } | null>(null);
+    const [isCycleLoading, setIsCycleLoading] = useState(false);
+
+    const fetchCycleData = async () => {
+        setIsCycleLoading(true);
+        try {
+            console.log('[Dashboard] Fetching cycle data...');
+            const { data, error } = await supabase.functions.invoke('notion-api/get-cycle-day', {
+                body: {}
+            });
+
+            if (error) {
+                console.error('[Dashboard] Edge Function error:', error);
+                throw error;
+            }
+
+            console.log('[Dashboard] received cycle data:', data);
+
+            if (data && data.found) {
+                setCycleData({
+                    day: data.cycleDay || '-',
+                    cycle: data.cycleNumber || '-',
+                    studentOnDuty: data.studentOnDuty || '-',
+                    date: data.title || data.date || new Date().toLocaleDateString('en-HK')
+                });
+            } else if (data && !data.found) {
+                console.warn('[Dashboard] No cycle found for today:', data.date);
+                setCycleData({
+                    day: '-',
+                    cycle: '-',
+                    studentOnDuty: '-',
+                    date: data.date || new Date().toLocaleDateString('en-HK')
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching cycle data:', err);
+        } finally {
+            setIsCycleLoading(false);
+        }
+    };
 
     // Predefined Groups
     const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
@@ -143,7 +201,7 @@ export function ClassDashboardPage() {
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
     const [isEditMode, setIsEditMode] = useState(false);
-    const [activeClass, setActiveClass] = useState<string>('all');
+    const [activeClass, setActiveClass] = useState<string>('3A');
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -160,290 +218,247 @@ export function ClassDashboardPage() {
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [consequenceCounts, setConsequenceCounts] = useState<Record<string, number>>({});
 
-    const fetchUsers = async () => {
-        setIsLoading(true);
+    const fetchUsers = async (options?: { silent?: boolean, forceRefresh?: boolean }) => {
+        if (!options?.silent) setIsLoading(true);
+        console.time('fetchUsers-total');
         try {
             let usersData: any[] = [];
+            let classData: { id: string, name: string }[] = [];
+            let activityData: { id: string, name: string }[] = [];
+            let catalogData: any[] = [];
 
+            // 1. Parallel Phase 1: High-level data (Auth, Classes, Activities, Avatar Catalog)
+            console.time('fetchUsers-phase1');
+            const phase1Promises: Promise<any>[] = [];
+
+            // Auth/List Users (with cache)
+            const now = Date.now();
+            const useAuthCache = globalAuthUserCache && (now - globalAuthUserCache.lastFetch < 120000) && !options?.forceRefresh;
             if (isGuestMode && guestToken) {
-                const { data: verifyData, error: verifyError } = await supabase.functions.invoke('public-access/verify', {
-                    body: { token: guestToken }
-                });
-
-                if (verifyError || !verifyData.valid) {
-                    setIsGuestMode(false);
-                    alert("Invalid or expired link");
-                    return;
-                }
-
-                // Auto-set class if provided by token
-                if (verifyData.targetClass) {
-                    setActiveClass(verifyData.targetClass);
-                }
-
-                const { data: listData, error: listError } = await supabase.functions.invoke('public-access/list-users', {
-                    body: { token: guestToken }
-                });
-                if (listError) throw listError;
-                usersData = listData.users;
-
+                // Guest mode still needs verify + list-users (mostly sequential due to dependency, but we can parallelize others)
+                phase1Promises.push((async () => {
+                    const { data: verifyData } = await supabase.functions.invoke('public-access/verify', { body: { token: guestToken } });
+                    if (verifyData?.targetClass) setActiveClass(verifyData.targetClass);
+                    const { data: listData } = await supabase.functions.invoke('public-access/list-users', { body: { token: guestToken } });
+                    return { type: 'users', data: listData?.users || [] };
+                })());
+            } else if (useAuthCache) {
+                phase1Promises.push(Promise.resolve({ type: 'users', data: globalAuthUserCache!.users }));
             } else {
-                const { data: authData, error: authError } = await supabase.functions.invoke('auth/list-users', {
-                    body: { adminUserId: currentUser?.id }
-                });
-                if (authError) throw authError;
-                usersData = authData.users;
-
-                // Fetch avatar configs
-                const userIds: string[] = usersData?.map((u: any) => u.id) || [];
-
-                // Chunk userIds to avoid 400 Bad Request URI Too Long
-                const chunkedUserIds: string[][] = [];
-                for (let i = 0; i < userIds.length; i += 30) {
-                    chunkedUserIds.push(userIds.slice(i, i + 30));
-                }
-
-                const [{ data: catalogData }, ...avatarDataChunks] = await Promise.all([
-                    supabase.from('avatar_items').select('*'),
-                    ...chunkedUserIds.map(chunk =>
-                        supabase
-                            .from('user_avatar_config')
-                            .select('user_id, equipped_items, custom_offsets')
-                            .in('user_id', chunk)
-                    )
-                ]);
-
-                const avatarData: any[] = avatarDataChunks.flatMap(chunk => chunk.data || []);
-
-                if (catalogData) {
-                    setAvatarCatalog((catalogData as any[]).map(item => ({
-                        ...item,
-                        category: item.category as any
-                    })));
-                }
-                const avatarMap = new Map((avatarData as any[])?.map(a => [a.user_id, {
-                    items: a.equipped_items as string[],
-                    offsets: a.custom_offsets as UserAvatarConfig
-                }]) || []);
-
-                // If user is logged in, check their morning status for today
-                let morningStatuses: Record<string, any> = {};
-                if (userIds.length > 0) {
-                    const roomDataChunks = await Promise.all(
-                        chunkedUserIds.map(chunk =>
-                            supabase
-                                .from('user_room_data')
-                                .select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update')
-                                .in('user_id', chunk)
-                        )
-                    );
-
-                    const roomData = roomDataChunks.flatMap(chunk => chunk.data || []);
-                    if (roomData.length > 0) {
-                        roomData.forEach((d: any) => {
-                            morningStatuses[d.user_id] = d;
-                        });
-                    }
-                }
-
-                usersData = (usersData || []).map((u: any) => {
-                    const roomInfo = morningStatuses[u.id];
-                    const dailyCounts = roomInfo?.daily_counts as any;
-                    const today = getHKTodayString();
-                    const dailyRealEarned = dailyCounts?.date === today
-                        ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0)
-                        : 0;
-                    const dailyRewardCount = dailyCounts?.date === today
-                        ? (dailyCounts?.real_earned_count || 0)
-                        : 0;
-
-                    // Improved: Reset morning_status if the update date is not today
-                    const lastUpdateStr = roomInfo?.last_morning_update;
-                    const isTodayUpdate = lastUpdateStr === today;
-                    const morningStatus = isTodayUpdate ? (roomInfo?.morning_status || 'todo') : 'todo';
-
-                    return {
-                        id: u.id,
-                        display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                        avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                        coins: roomInfo?.coins || 0,
-                        virtual_coins: roomInfo?.virtual_coins || 0,
-                        daily_real_earned: dailyRealEarned,
-                        daily_reward_count: dailyRewardCount,
-                        class: u.class || u.user_metadata?.class || 'Unassigned',
-                        class_number: u.class_number || null,
-                        email: u.email || '',
-                        created_at: u.created_at || new Date().toISOString(),
-                        is_admin: u.role === 'admin',
-                        morning_status: morningStatus,
-                        last_morning_update: lastUpdateStr,
-                        equipped_item_ids: avatarMap.get(u.id)?.items,
-                        custom_offsets: avatarMap.get(u.id)?.offsets,
-                        ecas: u.ecas || []
-                    };
-                });
+                phase1Promises.push(supabase.functions.invoke('auth/list-users', { body: { adminUserId: currentUser?.id } })
+                    .then(res => ({ type: 'users', data: res.data?.users || [] })) as any);
             }
 
-            let finalUsers: UserWithCoins[] = [];
-
-            if (isGuestMode) {
-                finalUsers = usersData.map((u: any) => {
-                    const dailyCounts = u.daily_counts || {};
-                    const today = getHKTodayString();
-                    const dailyRealEarned = dailyCounts?.date === today
-                        ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0)
-                        : 0;
-
-                    return {
-                        id: u.id,
-                        display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                        avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                        coins: u.coins || 0,
-                        virtual_coins: u.virtual_coins || 0,
-                        daily_real_earned: dailyRealEarned,
-                        class: u.class || u.user_metadata?.class || 'Unassigned',
-                        class_number: u.class_number || null,
-                        email: u.email || '',
-                        created_at: u.created_at || new Date().toISOString(),
-                        is_admin: u.role === 'admin',
-                        morning_status: u.morning_status || 'todo',
-                        last_morning_update: u.last_morning_update,
-                        ecas: u.ecas || []
-                    };
-                });
+            // Classes (with global cache)
+            if (globalClassesCache && !options?.forceRefresh) {
+                phase1Promises.push(Promise.resolve({ type: 'classes', data: globalClassesCache }));
             } else {
-                finalUsers = usersData as UserWithCoins[];
+                phase1Promises.push((supabase as any).from('classes').select('id, name').order('order_index')
+                    .then((res: any) => ({ type: 'classes', data: res.data || [] })));
             }
 
-            // Fetch Predefined Groups
+            // Activities (with global cache)
+            if (globalActivitiesCache && !options?.forceRefresh) {
+                phase1Promises.push(Promise.resolve({ type: 'activities', data: globalActivitiesCache }));
+            } else {
+                phase1Promises.push((supabase as any).from('activities').select('id, name').order('order_index')
+                    .then((res: any) => ({ type: 'activities', data: res.data || [] })));
+            }
+
+            // Avatar Catalog (with global cache)
+            if (globalAvatarCatalog) {
+                phase1Promises.push(Promise.resolve({ type: 'catalog', data: globalAvatarCatalog }));
+            } else {
+                phase1Promises.push(supabase.functions.invoke('avatars/get-catalog')
+                    .then(res => ({ type: 'catalog', data: res.data?.items || [] })) as any);
+            }
+
+            const phase1Results = await Promise.all(phase1Promises);
+            console.timeEnd('fetchUsers-phase1');
+
+            phase1Results.forEach(res => {
+                if (res.type === 'users') usersData = res.data;
+                if (res.type === 'classes') classData = res.data;
+                if (res.type === 'activities') activityData = res.data;
+                if (res.type === 'catalog') catalogData = res.data;
+            });
+
+            // Refresh global caches
+            if (usersData.length > 0 && !useAuthCache) globalAuthUserCache = { users: usersData, lastFetch: now };
+            globalClassesCache = classData;
+            globalActivitiesCache = activityData;
+            globalAvatarCatalog = catalogData;
+
+            const userIds: string[] = usersData?.map((u: any) => u.id) || [];
+            if (userIds.length === 0) {
+                setGroupedUsers({});
+                setIsLoading(false);
+                console.timeEnd('fetchUsers-total');
+                return;
+            }
+
+            // 2. Parallel Phase 2: User-specific data (Avatar Config, Room Data, Consequence Counts)
+            console.time('fetchUsers-phase2');
+            const chunkedUserIds: string[][] = [];
+            for (let i = 0; i < userIds.length; i += 30) {
+                chunkedUserIds.push(userIds.slice(i, i + 30));
+            }
+
+            const phase2Promises: Promise<any>[] = [
+                // Daily consequences counts (Single query, fast)
+                supabase.from('student_records').select('student_id').eq('type', 'negative').gte('created_at', getHKTodayStartISO()) as any
+            ];
+
+            // Add Avatar Config chunks
+            chunkedUserIds.forEach(chunk => {
+                phase2Promises.push(supabase.from('user_avatar_config').select('user_id, equipped_items, custom_offsets').in('user_id', chunk) as any);
+            });
+
+            // Add Room Data chunks
+            chunkedUserIds.forEach(chunk => {
+                phase2Promises.push(supabase.from('user_room_data').select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update, toilet_coins').in('user_id', chunk) as any);
+            });
+
+            const phase2Results = await Promise.all(phase2Promises);
+            console.timeEnd('fetchUsers-phase2');
+
+            // Process results
+            const recordData = phase2Results[0].data || [];
+            const avatarData: any[] = [];
+            const roomData: any[] = [];
+
+            // Dissect results based on chunks (phase2Results[1] onwards are chunks)
+            let currentIdx = 1;
+            // Avatar config chunks
+            for (let i = 0; i < chunkedUserIds.length; i++) {
+                avatarData.push(...(phase2Results[currentIdx++].data || []));
+            }
+            // Room data chunks
+            for (let i = 0; i < chunkedUserIds.length; i++) {
+                roomData.push(...(phase2Results[currentIdx++].data || []));
+            }
+
+            // Map processing
+            console.time('fetchUsers-mapping');
+            const avatarMap = new Map(avatarData.map(a => [a.user_id, {
+                items: a.equipped_items as string[],
+                offsets: a.custom_offsets as UserAvatarConfig
+            }]));
+
+            const roomDataMap = new Map(roomData.map(d => [d.user_id, d]));
+
+            const counts: Record<string, number> = {};
+            recordData.forEach((r: any) => {
+                if (r.student_id) counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+            });
+            setConsequenceCounts(counts);
+
+            if (catalogData.length > 0) {
+                setAvatarCatalog(catalogData.map(item => ({ ...item, category: item.category as any })));
+            }
+
+            const today = getHKTodayString();
+            const finalUsers: UserWithCoins[] = usersData.map((u: any) => {
+                const roomInfo = roomDataMap.get(u.id);
+                const dailyCounts = roomInfo?.daily_counts as any;
+                const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0) : 0;
+                const dailyRewardCount = dailyCounts?.date === today ? (dailyCounts?.real_earned_count || 0) : 0;
+                const isTodayUpdate = roomInfo?.last_morning_update === today;
+                const morningStatus = isTodayUpdate ? (roomInfo?.morning_status || 'todo') : 'todo';
+
+                return {
+                    id: u.id,
+                    display_name: u.display_name || u.user_metadata?.display_name || u.email,
+                    avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
+                    coins: roomInfo?.coins || 0,
+                    virtual_coins: roomInfo?.virtual_coins || 0,
+                    toilet_coins: roomInfo?.toilet_coins ?? 100,
+                    daily_real_earned: dailyRealEarned,
+                    daily_reward_count: dailyRewardCount,
+                    class: u.class || u.user_metadata?.class || 'Unassigned',
+                    class_number: u.class_number || null,
+                    email: u.email || '',
+                    created_at: u.created_at || new Date().toISOString(),
+                    is_admin: u.role === 'admin',
+                    morning_status: morningStatus,
+                    last_morning_update: roomInfo?.last_morning_update,
+                    equipped_item_ids: avatarMap.get(u.id)?.items,
+                    custom_offsets: avatarMap.get(u.id)?.offsets,
+                    ecas: u.ecas || []
+                };
+            });
+
+            // 3. Predefined Groups & Auto-populate logic
             if (isAdmin) {
-                const [classesRes, activitiesRes] = await Promise.all([
-                    (supabase as any).from('classes').select('id, name').order('order_index'),
-                    (supabase as any).from('activities').select('id, name').order('order_index')
-                ]);
-                let classData = (classesRes.data || []) as { id: string, name: string }[];
-                const activityData = (activitiesRes.data || []) as { id: string, name: string }[];
-
                 // Auto-populate classes table from distinct user class names
                 const existingClassNames = new Set(classData.map(c => c.name));
-                const userClassNames = [...new Set(
-                    finalUsers
-                        .map(u => u.class)
-                        .filter((c): c is string => !!c && c !== 'Unassigned')
-                )];
+                const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
                 const missingClasses = userClassNames.filter(name => !existingClassNames.has(name));
 
                 if (missingClasses.length > 0) {
-                    console.log('[fetchUsers] Auto-creating missing classes:', missingClasses);
-                    const inserts = missingClasses.map((name, i) => ({
-                        name,
-                        order_index: classData.length + i
-                    }));
-                    const { error: insertError } = await (supabase as any)
-                        .from('classes')
-                        .insert(inserts);
-
+                    const inserts = missingClasses.map((name, i) => ({ name, order_index: classData.length + i }));
+                    const { error: insertError } = await (supabase as any).from('classes').insert(inserts);
                     if (!insertError) {
-                        // Re-fetch to get the new IDs
-                        const { data: refreshed } = await (supabase as any)
-                            .from('classes')
-                            .select('id, name')
-                            .order('order_index');
+                        const { data: refreshed } = await (supabase as any).from('classes').select('id, name').order('order_index');
                         classData = (refreshed || []) as { id: string, name: string }[];
-                    } else {
-                        console.error('[fetchUsers] Failed to auto-create classes:', insertError);
+                        globalClassesCache = classData;
                     }
                 }
 
                 setOrderedClasses(classData);
                 setOrderedActivities(activityData);
 
+                const grouped: Record<string, UserWithCoins[]> = {};
                 const classNames = classData.map(c => c.name);
                 const activityNames = activityData.map(a => a.name);
 
-                const grouped: Record<string, UserWithCoins[]> = {};
-
-                // Initialize with predefined ones
-                [...classNames, ...activityNames].forEach(name => {
-                    grouped[name] = [];
-                });
-
-                // Safety: Collect any classes present in users but not in predefined list
-                finalUsers.forEach(user => {
-                    const className = user.class;
-                    if (className && className !== 'Unassigned' && !grouped[className]) {
-                        grouped[className] = [];
-                    }
-                });
-
-                grouped['Unassigned'] = [];
+                [...classNames, ...activityNames, 'Unassigned'].forEach(name => { grouped[name] = []; });
 
                 finalUsers.forEach(user => {
                     const className = user.class || 'Unassigned';
                     if (!grouped[className]) grouped[className] = [];
                     grouped[className].push(user);
-
                     user.ecas?.forEach(eca => {
-                        // Normalize ECA name to match predefined activity if possible
-                        const matchedActivity = activityData.find(a => a.name.toLowerCase() === eca.toLowerCase());
-                        const normalizedEca = matchedActivity ? matchedActivity.name : eca;
-
+                        const matched = activityData.find(a => a.name.toLowerCase() === eca.toLowerCase());
+                        const normalizedEca = matched ? matched.name : eca;
                         if (!grouped[normalizedEca]) grouped[normalizedEca] = [];
                         grouped[normalizedEca].push(user);
                     });
                 });
 
-                Object.keys(grouped).forEach(key => {
-                    grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
-                });
+                Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
                 setGroupedUsers(grouped);
             } else {
-                // Guest mode
+                // Guest mode grouping
                 const grouped = finalUsers.reduce((acc, user) => {
                     const className = user.class || 'Unassigned';
                     if (!acc[className]) acc[className] = [];
                     acc[className].push(user);
-
                     user.ecas?.forEach(eca => {
                         if (!acc[eca]) acc[eca] = [];
                         if (eca !== className) acc[eca].push(user);
                     });
                     return acc;
                 }, {} as Record<string, UserWithCoins[]>);
-
-                Object.keys(grouped).forEach(key => {
-                    grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999));
-                });
+                Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
                 setGroupedUsers(grouped);
             }
-
-            // Fetch daily consequences (type: negative) to show frequencies
-            const { data: recordData } = await supabase
-                .from('student_records')
-                .select('student_id')
-                .eq('type', 'negative')
-                .gte('created_at', getHKTodayStartISO());
-
-            const counts: Record<string, number> = {};
-            recordData?.forEach(r => {
-                if (r.student_id) {
-                    counts[r.student_id] = (counts[r.student_id] || 0) + 1;
-                }
-            });
-            setConsequenceCounts(counts);
-
+            console.timeEnd('fetchUsers-mapping');
         } catch (err) {
             console.error('Error in fetchUsers:', err);
         } finally {
             setIsLoading(false);
+            console.timeEnd('fetchUsers-total');
         }
     };
 
     useEffect(() => {
         if (isGuestMode && guestToken) {
             fetchUsers();
+            fetchCycleData();
         } else if (isAdmin && currentUser) {
             fetchUsers();
+            fetchCycleData();
         }
     }, [isAdmin, currentUser, isGuestMode, guestToken]);
 
@@ -452,10 +467,10 @@ export function ClassDashboardPage() {
         const channel = supabase
             .channel('dashboard-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'user_room_data' }, () => {
-                fetchUsers();
+                fetchUsers({ silent: true });
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'student_records' }, () => {
-                fetchUsers();
+                fetchUsers({ silent: true });
             })
             .subscribe();
 
@@ -484,10 +499,34 @@ export function ClassDashboardPage() {
                 });
 
                 if (error) throw error;
-                await fetchUsers(); // Refresh data immediately
+
+                // Refresh data silently
+                fetchUsers({ silent: true });
                 playSuccessSound();
                 alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
             } else {
+                // Optimistic UI updates for local admin
+                setGroupedUsers(prev => {
+                    const newGrouped = { ...prev };
+                    userIds.forEach(id => {
+                        Object.keys(newGrouped).forEach(cls => {
+                            const userIdx = newGrouped[cls].findIndex(u => u.id === id);
+                            if (userIdx !== -1) {
+                                const user = newGrouped[cls][userIdx];
+                                const isReward = kind !== 'consequence' && (reason?.includes('回答問題') || reason === REWARD_REASONS.ANSWER_QUESTION);
+
+                                newGrouped[cls][userIdx] = {
+                                    ...user,
+                                    coins: (user.coins || 0) + (amount > 0 ? amount : 0),
+                                    daily_reward_count: isReward ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
+                                    daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 10) // Mocking balance logic
+                                };
+                            }
+                        });
+                    });
+                    return newGrouped;
+                });
+
                 const batchId = crypto.randomUUID();
                 for (const userId of userIds) {
                     const result = await coinService.awardCoins({
@@ -504,7 +543,7 @@ export function ClassDashboardPage() {
                     }
                 }
                 playSuccessSound();
-                await fetchUsers();
+                fetchUsers({ silent: true });
             }
 
             // Log specific record update is now handled above for all kinds
@@ -534,8 +573,8 @@ export function ClassDashboardPage() {
 
             if (error) throw error;
             playSuccessSound();
-            // Optimistic-ish update: refresh from DB to see the instant count update from edge function
-            await fetchUsers();
+            // Silent refresh since count is already updated or will be via realtime
+            fetchUsers({ silent: true });
         } catch (err) {
             console.error('Guest quick award failed:', err);
             alert('Failed to request reward');
@@ -623,6 +662,26 @@ export function ClassDashboardPage() {
             else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
             if (isGuestMode) {
+                // Optimistic UI updates for Homework (Guest)
+                setGroupedUsers(prev => {
+                    const newGrouped = { ...prev };
+                    Object.keys(newGrouped).forEach(cls => {
+                        const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
+                        if (userIdx !== -1) {
+                            const user = newGrouped[cls][userIdx];
+                            const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
+
+                            newGrouped[cls][userIdx] = {
+                                ...user,
+                                coins: (user.coins || 0) + (amount > 0 ? amount : 0),
+                                daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
+                                daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
+                            };
+                        }
+                    });
+                    return newGrouped;
+                });
+
                 const { error } = await supabase.functions.invoke('public-access/submit-reward', {
                     body: {
                         token: guestToken,
@@ -634,6 +693,26 @@ export function ClassDashboardPage() {
                 });
                 if (error) throw error;
             } else {
+                // Optimistic UI updates for Homework
+                setGroupedUsers(prev => {
+                    const newGrouped = { ...prev };
+                    Object.keys(newGrouped).forEach(cls => {
+                        const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
+                        if (userIdx !== -1) {
+                            const user = newGrouped[cls][userIdx];
+                            const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
+
+                            newGrouped[cls][userIdx] = {
+                                ...user,
+                                coins: (user.coins || 0) + (amount > 0 ? amount : 0),
+                                daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
+                                daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
+                            };
+                        }
+                    });
+                    return newGrouped;
+                });
+
                 const result = await coinService.awardCoins({
                     userId: studentId,
                     amount: amount,
@@ -644,7 +723,7 @@ export function ClassDashboardPage() {
                 if (!result.success) throw result.error;
             }
 
-            await fetchUsers(); // Re-enable to ensure student moves to "Review" status instantly
+            await fetchUsers({ silent: true, forceRefresh: true }); // Ensure synchronization
             playSuccessSound();
         } catch (err: any) {
             console.error('Error recording homework FULL:', err);
@@ -667,10 +746,116 @@ export function ClassDashboardPage() {
             });
             if (!result.success) throw result.error;
             playSuccessSound();
-            await fetchUsers();
+            await fetchUsers({ silent: true });
         } catch (err: any) {
             console.error('Quick award failed:', err);
             alert(`Quick award failed: ${err.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleToiletBreakClick = async (student: UserWithCoins) => {
+        const isAllowedTime = isWithinToiletAllowanceTime();
+
+        if (isGuestMode) {
+            try {
+                // Optimistic UI Update (Guest)
+                setGroupedUsers(prev => {
+                    const newGrouped = { ...prev };
+                    Object.keys(newGrouped).forEach(cls => {
+                        const idx = newGrouped[cls].findIndex(u => u.id === student.id);
+                        if (idx !== -1) {
+                            newGrouped[cls][idx] = {
+                                ...student,
+                                toilet_coins: isAllowedTime ? (student.toilet_coins ?? 100) - 20 : (student.toilet_coins ?? 100)
+                            };
+                        }
+                    });
+                    return newGrouped;
+                });
+
+                const { data, error } = await supabase.functions.invoke('public-access/deduct-toilet-coins', {
+                    body: {
+                        token: guestToken,
+                        p_student_id: student.id
+                    }
+                });
+
+                if (error) {
+                    // Revert on failure
+                    await fetchUsers({ silent: true });
+                    throw error;
+                }
+
+                playSuccessSound();
+                if (data?.isLessonTime) {
+                    await fetchUsers({ silent: true });
+                }
+                return;
+            } catch (err: any) {
+                console.error('Failed to deduct toilet coins (Guest):', err);
+                alert(`Failed to request Toilet/Break: ${err.message || 'Unknown error'}`);
+                return;
+            }
+        }
+
+        if (!isAllowedTime) {
+            // Free time logic - Do not deduct coins, just log a neutral record
+            try {
+                const { error } = await supabase.from('student_records').insert({
+                    student_id: student.id,
+                    message: 'Toilet/Break (Recess/After School)',
+                    type: 'neutral',
+                    created_by: currentUser?.id,
+                    is_internal: true,
+                    is_read: false
+                } as any);
+
+                if (error) throw error;
+                playSuccessSound();
+                return;
+            } catch (err: any) {
+                console.error('Failed to log free time break:', err);
+                alert(`Failed to log record: ${err.message || 'Unknown error'}`);
+                return;
+            }
+        }
+
+        const currentToiletCoins = student.toilet_coins ?? 100;
+        if (currentToiletCoins < 20) {
+            alert('Going out in lesson time is not allowed for the rest of the week. Please make good use of recess time.');
+            return;
+        }
+
+        try {
+            // Optimistic UI Update
+            setGroupedUsers(prev => {
+                const newGrouped = { ...prev };
+                Object.keys(newGrouped).forEach(cls => {
+                    const idx = newGrouped[cls].findIndex(u => u.id === student.id);
+                    if (idx !== -1) {
+                        newGrouped[cls][idx] = {
+                            ...student,
+                            toilet_coins: currentToiletCoins - 20
+                        };
+                    }
+                });
+                return newGrouped;
+            });
+
+            const result = await coinService.deductToiletCoins(student.id);
+            if (!result.success) {
+                // Revert on failure
+                await fetchUsers({ silent: true });
+                throw result.error;
+            }
+            // Success sound could be different or just use playSuccessSound
+            playSuccessSound();
+
+            // Confirm the update via fetch
+            await fetchUsers({ silent: true });
+        } catch (err: any) {
+            console.error('Failed to deduct toilet coins:', err);
+            alert(`Failed to deduct Toilet/Break limit: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -821,7 +1006,58 @@ export function ClassDashboardPage() {
 
     return (
         <div className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-16 md:pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}>
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto space-y-6">
+
+                {/* Modern Cycle & Date Header */}
+                <div className="relative overflow-hidden bg-white/40 backdrop-blur-xl border border-white/60 p-6 md:p-8 rounded-[2.5rem] shadow-2xl shadow-blue-500/5 animate-in fade-in slide-in-from-top-4 duration-1000">
+                    {/* Decorative Background Elements */}
+                    <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-400/10 blur-[80px] rounded-full" />
+                    <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-indigo-400/10 blur-[80px] rounded-full" />
+
+                    <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex flex-col items-center md:items-start text-center md:text-left gap-1">
+                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100/50 mb-2">
+                                <Sparkles size={14} className="animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">School Session</span>
+                            </div>
+                            <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
+                                {isCycleLoading ? (
+                                    <span className="inline-block w-48 h-10 bg-slate-100 animate-pulse rounded-lg" />
+                                ) : (
+                                    <span>{cycleData?.date || '-'}</span>
+                                )}
+                            </h2>
+                        </div>
+
+                        <div className="flex items-center gap-4 md:gap-8">
+                            <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Current Cycle</span>
+                                <div className="text-3xl md:text-5xl font-black text-blue-600 tracking-tighter tabular-nums drop-shadow-sm">
+                                    {isCycleLoading ? '...' : (cycleData?.cycle || '-')}
+                                </div>
+                            </div>
+
+                            <div className="w-px h-12 bg-slate-200" />
+
+                            <div className="flex flex-col items-center px-6 py-3 bg-slate-900 rounded-3xl shadow-xl shadow-slate-200 border border-slate-800 transition-transform active:scale-95 group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10">Today Is</span>
+                                <div className="text-3xl md:text-5xl font-black text-white tracking-tighter relative z-10 flex items-center gap-2">
+                                    {isCycleLoading ? '...' : (cycleData?.day || '-')}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col items-center px-6 py-3 bg-slate-900 rounded-3xl shadow-xl shadow-slate-200 border border-slate-800 transition-transform active:scale-95 group overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10">Student on Duty</span>
+                                <div className="text-3xl md:text-5xl font-black text-white tracking-tighter relative z-10 flex items-center gap-2">
+                                    {isCycleLoading ? '...' : (cycleData?.studentOnDuty || '-')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
@@ -855,11 +1091,25 @@ export function ClassDashboardPage() {
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
                             ${showMorningDuties
-                                    ? 'bg-orange-100 text-orange-700 border-orange-200'
+                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
                                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
+                            title="Toggle Morning Duties Board"
                         >
-                            {showMorningDuties ? 'Hide Morning Duties' : 'Show Morning Duties'}
+                            <UserCheck size={18} className={showMorningDuties ? 'text-blue-600' : 'text-slate-400'} />
+                            {showMorningDuties ? 'Hide Morning Duties' : 'Morning Duties'}
+                        </button>
+                        <button
+                            onClick={() => setShowTimetable(!showTimetable)}
+                            className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
+                            ${showTimetable
+                                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                        `}
+                            title="Toggle Timetable"
+                        >
+                            <CalendarDays size={18} className={showTimetable ? 'text-indigo-600' : 'text-slate-400'} />
+                            {showTimetable ? 'Hide Timetable' : 'Timetable'}
                         </button>
                         <button
                             onClick={() => {
@@ -926,6 +1176,12 @@ export function ClassDashboardPage() {
                             if (student) handleStudentClick(student);
                         }}
                     />
+                )}
+
+                {showTimetable && activeClass !== 'all' && (
+                    <div className="mb-6">
+                        <TimetableBoard className={activeClass} />
+                    </div>
                 )}
 
                 {(!isGuestMode) && (
@@ -1052,6 +1308,7 @@ export function ClassDashboardPage() {
                                             }}
                                             onStudentClick={handleStudentClick}
                                             onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
+                                            onToiletBreakClick={handleToiletBreakClick}
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
@@ -1084,6 +1341,7 @@ export function ClassDashboardPage() {
                                                 }}
                                                 onStudentClick={handleStudentClick}
                                                 onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
+                                                onToiletBreakClick={handleToiletBreakClick}
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}

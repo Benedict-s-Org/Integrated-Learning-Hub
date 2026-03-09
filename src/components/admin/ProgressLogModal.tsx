@@ -76,7 +76,7 @@ export function ProgressLogModal({ isOpen, onClose }: ProgressLogModalProps) {
                     )
                 `)
                 .eq('is_reverted', activeTab === 'reverted')
-                .not('coin_amount', 'eq', 0) // Only show records with coin impact in the progress log
+                .or('coin_amount.neq.0,message.ilike.%Toilet/Break%') // Show valid coin impacts OR toilet time logs
                 .order(activeTab === 'active' ? 'created_at' : 'reverted_at', { ascending: false })
                 .limit(100);
 

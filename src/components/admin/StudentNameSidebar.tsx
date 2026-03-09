@@ -6,6 +6,7 @@ interface UserWithCoins {
     display_name: string | null;
     class_number: number | null;
     daily_real_earned?: number;
+    daily_reward_count?: number;
 }
 
 interface StudentNameSidebarProps {
@@ -19,8 +20,8 @@ interface StudentNameSidebarProps {
 export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose, onPopOut, isPoppedOut }) => {
     // Sort logic: Students with 10+ coins drop to the bottom, then sort by class number
     const sortedUsers = [...users].sort((a, b) => {
-        const aCompleted = (a.daily_real_earned || 0) >= 10;
-        const bCompleted = (b.daily_real_earned || 0) >= 10;
+        const aCompleted = (a.daily_reward_count || 0) >= 3;
+        const bCompleted = (b.daily_reward_count || 0) >= 3;
 
         if (aCompleted && !bCompleted) return 1;
         if (!aCompleted && bCompleted) return -1;
@@ -35,11 +36,22 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
         }>
             <div className="pt-6 md:pt-24 pb-4 px-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-                        <h3 className="font-bold text-slate-900 text-sm">Quick Rewards</h3>
-                    </div>
                     <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>
+                </div>
+                {/* Legend */}
+                <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-slate-100/50 rounded-lg border border-slate-200/50">
+                    <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-700" />
+                        <span className="text-[8px] font-bold text-slate-500">+1</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        <span className="text-[8px] font-bold text-slate-500">+2</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <span className="text-[8px] font-bold text-slate-500">+3</span>
+                    </div>
                 </div>
                 {onPopOut && !isPoppedOut && (
                     <button
@@ -63,9 +75,8 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
 
             <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1.5 scrollbar-hide hover:scrollbar-default">
                 {sortedUsers.map((user) => {
-                    const dailyCoins = user.daily_real_earned || 0;
-                    const rewardCount = Math.floor(dailyCoins / 10);
-                    const isCompleted = dailyCoins >= 10;
+                    const rewardCount = user.daily_reward_count || 0;
+                    const isCompleted = rewardCount >= 3;
 
                     // Progress and Colors based on reward count
                     let progressWidth = '0%';
@@ -74,16 +85,16 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
 
                     if (rewardCount === 1) {
                         progressWidth = '33.3%';
-                        iconColorClass = 'bg-green-100 text-green-700';
-                        barColorClass = 'bg-green-500';
+                        iconColorClass = 'bg-orange-100 text-orange-800';
+                        barColorClass = 'bg-orange-700';
                     } else if (rewardCount === 2) {
                         progressWidth = '66.7%';
-                        iconColorClass = 'bg-yellow-100 text-yellow-700';
-                        barColorClass = 'bg-yellow-500';
+                        iconColorClass = 'bg-slate-100 text-slate-600';
+                        barColorClass = 'bg-slate-400';
                     } else if (rewardCount >= 3) {
                         progressWidth = '100%';
-                        iconColorClass = 'bg-red-100 text-red-700';
-                        barColorClass = 'bg-red-500';
+                        iconColorClass = 'bg-amber-100 text-amber-700';
+                        barColorClass = 'bg-amber-500';
                     }
 
                     return (

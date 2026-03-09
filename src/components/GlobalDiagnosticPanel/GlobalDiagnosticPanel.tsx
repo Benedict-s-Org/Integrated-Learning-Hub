@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings, RotateCcw, MapPin } from 'lucide-react';
+import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings, RotateCcw, MapPin, Palette, Save, Undo } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDashboardTheme } from '../../context/DashboardThemeContext';
 import { DiagnosticCheck, ErrorDetails, formatErrorForCopy, runPageChecks } from '../../utils/diagnosticUtils';
 
 interface ButtonPosition {
@@ -65,6 +66,8 @@ const PAGE_DISPLAY_NAMES: Record<string, string> = {
 
 export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ currentPage }) => {
   const { user, isAdmin } = useAuth();
+  const { theme, updateTheme, saveTheme, resetTheme } = useDashboardTheme();
+
   const [isEnabled, setIsEnabled] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved === 'true';
@@ -79,6 +82,15 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
   const dragStartRef = useRef<{ x: number; y: number; buttonX: number; buttonY: number } | null>(null);
   const hasDraggedRef = useRef(false);
   const lastPageRef = useRef(currentPage);
+
+  const [isThemeExpanded, setIsThemeExpanded] = useState(false);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+
+  const handleSaveTheme = async () => {
+    setIsSavingTheme(true);
+    await saveTheme();
+    setIsSavingTheme(false);
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -467,6 +479,228 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
               )}
             </>
           )}
+
+          {/* Component Color Editor */}
+          <div className="p-4 border-b border-gray-200">
+            <button
+              onClick={() => setIsThemeExpanded(!isThemeExpanded)}
+              className="flex items-center justify-between w-full text-left"
+            >
+              <div className="flex items-center gap-2">
+                <Palette size={16} className="text-purple-600" />
+                <h3 className="text-sm font-semibold text-gray-700">Component Color Editor</h3>
+              </div>
+              <ChevronRight size={16} className={`text-gray-400 transition-transform ${isThemeExpanded ? 'rotate-90' : ''}`} />
+            </button>
+
+            {isThemeExpanded && (
+              <div className="mt-4 space-y-4">
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Student Cards</h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.cardBg}
+                          onChange={(e) => updateTheme({ cardBg: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.cardBg}
+                          onChange={(e) => updateTheme({ cardBg: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.cardText}
+                          onChange={(e) => updateTheme({ cardText: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.cardText}
+                          onChange={(e) => updateTheme({ cardText: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Coin Bg</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.coinBg}
+                          onChange={(e) => updateTheme({ coinBg: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.coinBg}
+                          onChange={(e) => updateTheme({ coinBg: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Coin Text</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.coinText}
+                          onChange={(e) => updateTheme({ coinText: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.coinText}
+                          onChange={(e) => updateTheme({ coinText: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Coin Border</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.coinBorder}
+                          onChange={(e) => updateTheme({ coinBorder: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.coinBorder}
+                          onChange={(e) => updateTheme({ coinBorder: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">+Daily Bg</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.dailyEarnedBg}
+                          onChange={(e) => updateTheme({ dailyEarnedBg: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.dailyEarnedBg}
+                          onChange={(e) => updateTheme({ dailyEarnedBg: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">+Daily Text</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.dailyEarnedText}
+                          onChange={(e) => updateTheme({ dailyEarnedText: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.dailyEarnedText}
+                          onChange={(e) => updateTheme({ dailyEarnedText: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">+Daily Border</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.dailyEarnedBorder}
+                          onChange={(e) => updateTheme({ dailyEarnedBorder: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.dailyEarnedBorder}
+                          onChange={(e) => updateTheme({ dailyEarnedBorder: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Number Tag Bg</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.numberTagBg}
+                          onChange={(e) => updateTheme({ numberTagBg: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.numberTagBg}
+                          onChange={(e) => updateTheme({ numberTagBg: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Number Tag Text</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.numberTagText}
+                          onChange={(e) => updateTheme({ numberTagText: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.numberTagText}
+                          onChange={(e) => updateTheme({ numberTagText: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={resetTheme}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    <Undo size={14} />
+                    Reset
+                  </button>
+                  <button
+                    onClick={handleSaveTheme}
+                    disabled={isSavingTheme}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    {isSavingTheme ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Save to DB
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

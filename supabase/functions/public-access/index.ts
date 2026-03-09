@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
       // Fetch Room Data (Coins and Morning Duties) for these specific users
       const { data: roomData } = await supabase
         .from("user_room_data")
-        .select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update")
+        .select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update, toilet_coins")
         .in("user_id", userIds);
 
       const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r]));
@@ -125,6 +125,7 @@ Deno.serve(async (req: Request) => {
           ecas: u.ecas || [],
           coins: room.coins || 0,
           virtual_coins: room.virtual_coins || 0,
+          toilet_coins: room.toilet_coins ?? 100,
           daily_counts: room.daily_counts || {},
           morning_status: room.morning_status || 'todo',
           last_morning_update: room.last_morning_update || null
@@ -298,6 +299,60 @@ Deno.serve(async (req: Request) => {
         configData,
         recordData
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // 7. Deduct Toilet Coins (Guest)
+    if (path === "deduct-toilet-coins") {
+      const { token, p_student_id } = await req.json();
+      if (!token || !p_student_id) throw new Error("Missing required fields");
+
+      // Verify Token first
+      const { data: link } = await supabase.from("shared_links").select("id").eq("token", token).eq("is_active", true).single();
+      if (!link) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
+      }
+
+      // Time Logic (Asia/Hong_Kong)
+      const now = new Date();
+      const hkTimeStr = now.toLocaleString("en-US", { timeZone: "Asia/Hong_Kong", hour12: false, hour: '2-digit', minute: '2-digit' });
+      const [hour, minute] = hkTimeStr.split(':').map(Number);
+      const currentTimeVal = hour * 100 + minute;
+      const dayOfWeek = now.toLocaleDateString('en-US', { timeZone: 'Asia/Hong_Kong', weekday: 'long' });
+
+      let isLessonTime = false;
+      if (!['Saturday', 'Sunday'].includes(dayOfWeek)) {
+        // Morning Valid Times (All Weekdays)
+        if (currentTimeVal >= 810 && currentTimeVal <= 945) isLessonTime = true;
+        else if (currentTimeVal >= 1005 && currentTimeVal <= 1105) isLessonTime = true;
+        else if (currentTimeVal >= 1115 && currentTimeVal <= 1245) isLessonTime = true;
+        // Afternoon Valid Times
+        else if (dayOfWeek === 'Monday' && currentTimeVal >= 1345 && currentTimeVal <= 1445) isLessonTime = true;
+        else if (['Tuesday', 'Wednesday', 'Thursday'].includes(dayOfWeek) && currentTimeVal >= 1345 && currentTimeVal <= 1450) isLessonTime = true;
+      }
+
+      if (isLessonTime) {
+        // Deduct Coins
+        const { error: rpcError } = await supabase.rpc('deduct_toilet_coins', {
+          p_user_id: p_student_id,
+          p_amount: 20
+        });
+        if (rpcError) {
+          console.error('RPC Error:', rpcError);
+          throw new Error(rpcError.message || 'Failed to deduct coins');
+        }
+      } else {
+        // Free logic - Just log a neutral record
+        const { error } = await supabase.from('student_records').insert({
+          student_id: p_student_id,
+          message: 'Toilet/Break (Recess/After School)',
+          type: 'neutral',
+          is_internal: true,
+          is_read: false
+        });
+        if (error) throw error;
+      }
+
+      return new Response(JSON.stringify({ success: true, isLessonTime }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });

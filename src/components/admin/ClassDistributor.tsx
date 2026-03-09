@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare, BookOpen } from 'lucide-react';
+import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare, BookOpen, DoorOpen } from 'lucide-react';
 import { AdminMessageModal } from './notifications/AdminMessageModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import {
     DndContext,
     closestCenter,
@@ -31,6 +32,7 @@ interface UserWithCoins {
     virtual_coins?: number;
     daily_real_earned?: number;
     daily_reward_count?: number; // Add this
+    toilet_coins?: number;
     class_number: number | null;
     email: string;
     created_at: string;
@@ -50,6 +52,7 @@ interface ClassDistributorProps {
     selectedIds: string[];
     onSelectionChange: (ids: string[]) => void;
     onHomeworkClick?: (student: UserWithCoins) => void;
+    onToiletBreakClick?: (student: UserWithCoins) => void;
     isGuestMode?: boolean;
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
@@ -67,13 +70,14 @@ interface SortableUserItemProps {
     onToggle: (e: React.MouseEvent, id: string) => void;
     onClick: () => void;
     onHomeworkClick?: () => void;
+    onToiletBreakClick?: () => void;
     onMove: (index: number, direction: 'forward' | 'backward') => void;
     isGuestMode?: boolean;
     consequenceCount?: number;
     showEmail?: boolean;
 }
 
-function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onMove, isGuestMode, consequenceCount = 0, showEmail }: SortableUserItemProps) {
+function SortableUserItemComponent({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onToiletBreakClick, onMove, isGuestMode, consequenceCount = 0, showEmail }: SortableUserItemProps) {
     const {
         attributes,
         listeners,
@@ -83,11 +87,14 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
         isDragging,
     } = useSortable({ id: user.id, disabled: !isRearranging });
 
+    const { theme } = useDashboardTheme();
+
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 50 : 'auto',
         opacity: isDragging ? 0.5 : 1,
+        backgroundColor: theme.cardBg,
     };
 
     return (
@@ -95,9 +102,9 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
             ref={setNodeRef}
             style={style}
             className={`
-                relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-3 group bg-white
+                relative p-2 pb-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 group
                 ${isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-md transform scale-[1.02]'
+                    ? 'border-blue-500 shadow-md transform scale-[1.02]'
                     : consequenceCount === 2
                         ? 'border-yellow-400 bg-yellow-50'
                         : consequenceCount >= 3
@@ -126,74 +133,128 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
             )}
 
             {/* Clickable Content Container (Sitting above drag layer) */}
-            <div className="relative z-10 w-full flex flex-col items-center pointer-events-none">
+            <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
 
-                {/* Header Controls */}
-                <div className="w-full flex justify-between items-start pointer-events-auto">
-                    {/* Class Number Tag */}
-                    <div className={`w-6 h-6 rounded-md text-white text-[10px] font-bold flex items-center justify-center shadow-sm transition-colors ${isRearranging ? 'bg-orange-500' : 'bg-slate-800'}`}>
-                        {index + 1}
-                    </div>
+                {/* Top Row: Avatar (Left) and Info (Right) */}
+                <div className="flex flex-row w-full gap-3 items-start">
 
-                    {/* Selection Checkbox */}
+                    {/* Left Side: Avatar */}
                     <div
-                        onClick={(e) => onToggle(e, user.id)}
-                        className={`
-                            w-6 h-6 rounded-full flex items-center justify-center text-white text-xs shadow-sm transition-colors cursor-pointer
-                            ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
-                        `}
+                        onClick={onClick}
+                        className="shrink-0 w-20 h-[100px] rounded-2xl bg-gray-100 overflow-hidden shadow-inner cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto flex items-center justify-center p-0.5"
                     >
-                        {isSelected && '✓'}
+                        {user.equipped_item_ids && user.equipped_item_ids.length > 0 ? (
+                            <div className="w-full h-full transform scale-[1.3] translate-y-3">
+                                <AvatarRenderer
+                                    equippedItems={avatarCatalog.filter(item => user.equipped_item_ids?.includes(item.id))}
+                                    userConfig={user.custom_offsets || {}}
+                                    size="110%"
+                                    showBackground={false}
+                                />
+                            </div>
+                        ) : user.avatar_url ? (
+                            <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover rounded-xl" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                <User size={48} />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Side: Info & Controls */}
+                    <div className="flex flex-col items-end flex-1 min-w-0">
+                        {/* Header Controls: Stacked Vertically on the right */}
+                        <div className="flex flex-col items-center gap-1.5 pointer-events-auto mb-1">
+                            {/* Selection Checkbox */}
+                            <div
+                                onClick={(e) => onToggle(e, user.id)}
+                                className={`
+                                    w-6 h-6 rounded flex items-center justify-center text-white text-xs shadow-sm transition-colors cursor-pointer
+                                    ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
+                                `}
+                            >
+                                {isSelected && '✓'}
+                            </div>
+
+                            {/* Class Number Tag */}
+                            <div
+                                className={`w-6 h-6 rounded text-[10px] font-bold flex items-center justify-center shadow-sm transition-colors ${isRearranging ? 'bg-orange-500 text-white' : ''}`}
+                                style={!isRearranging ? {
+                                    backgroundColor: theme.numberTagBg,
+                                    color: theme.numberTagText
+                                } : {}}
+                            >
+                                {index + 1}
+                            </div>
+                        </div>
+
+                        {/* Name */}
+                        <span
+                            className="font-bold text-sm leading-tight text-right truncate w-full mt-0.5"
+                            style={{ color: theme.cardText }}
+                        >
+                            {user.display_name || 'Unnamed Student'}
+                        </span>
+
+                        {/* Login Email */}
+                        {showEmail && (
+                            <span className="text-[8px] leading-tight text-gray-500 text-right truncate w-full mb-0.5">
+                                {user.email || 'No email'}
+                            </span>
+                        )}
+
+                        <div className="mt-1 flex flex-col items-end gap-1 self-end w-full">
+                            <div
+                                className="px-2 py-0.5 font-bold rounded text-xs flex items-center justify-end gap-1 border min-w-[60px]"
+                                style={{
+                                    backgroundColor: theme.coinBg,
+                                    color: theme.coinText,
+                                    borderColor: theme.coinBorder
+                                }}
+                            >
+                                <span className="text-xs shrink-0">🪙</span>
+                                <span className="text-sm font-black tabular-nums">
+                                    {user.coins?.toLocaleString() || 0}
+                                </span>
+                                {(user.virtual_coins ?? 0) > 0 && (
+                                    <span className="opacity-75 whitespace-nowrap ml-0.5 text-[8px] font-medium shrink-0">({user.virtual_coins})</span>
+                                )}
+                            </div>
+
+                            {(() => {
+                                const dailyEarned = user.daily_real_earned || 0;
+                                if (dailyEarned === 0) return null;
+                                return (
+                                    <div
+                                        className="px-1 rounded text-[10px] font-black shrink-0 border animate-in fade-in slide-in-from-top-1 duration-300"
+                                        style={{
+                                            backgroundColor: theme.dailyEarnedBg,
+                                            color: theme.dailyEarnedText,
+                                            borderColor: theme.dailyEarnedBorder
+                                        }}
+                                    >
+                                        (+{dailyEarned})
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
                 </div>
 
-                {/* Avatar with Click Handler */}
-                <div
-                    onClick={onClick}
-                    className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden shadow-inner mt-2 cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto flex items-center justify-center p-1"
-                >
-                    {user.equipped_item_ids && user.equipped_item_ids.length > 0 ? (
-                        <div className="w-full h-full transform scale-125 translate-y-2">
-                            <AvatarRenderer
-                                equippedItems={avatarCatalog.filter(item => user.equipped_item_ids?.includes(item.id))}
-                                userConfig={user.custom_offsets || {}}
-                                size="100%"
-                                showBackground={false}
-                            />
-                        </div>
-                    ) : user.avatar_url ? (
-                        <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover rounded-xl" />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <User size={40} />
-                        </div>
-                    )}
-                </div>
-
-                {/* Name */}
-                <span className="font-bold text-gray-700 text-center truncate w-full px-2 mt-2">
-                    {user.display_name || 'Unnamed Student'}
-                </span>
-
-                {/* Login Email */}
-                {showEmail && (
-                    <span className="text-[10px] text-gray-500 text-center truncate w-full px-2">
-                        {user.email || 'No email'}
-                    </span>
+                {/* Toilet/Break Button */}
+                {onToiletBreakClick && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToiletBreakClick();
+                        }}
+                        className="mt-1 w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95"
+                        title="Toilet / Break (20 Coins)"
+                    >
+                        <DoorOpen size={12} />
+                        <span className="font-black">{user.toilet_coins ?? 100}</span>
+                    </button>
                 )}
-
-                <div className="mt-1 px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-[10px] flex items-center gap-1 border border-green-200">
-                    <span className="text-xs">🪙</span>
-                    <span className="text-sm">
-                        {(user.coins || 0) - (user.daily_real_earned || 0)}
-                        {(user.daily_reward_count ?? 0) > 0 && (
-                            <span className="text-green-600 ml-1">(+{user.daily_reward_count})</span>
-                        )}
-                    </span>
-                    {(user.virtual_coins ?? 0) > 0 && (
-                        <span className="opacity-75 whitespace-nowrap ml-1 text-[9px]">({user.virtual_coins})</span>
-                    )}
-                </div>
 
                 {/* Homework Button */}
                 {onHomeworkClick && (
@@ -202,16 +263,16 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                             e.stopPropagation();
                             onHomeworkClick();
                         }}
-                        className="mt-2 w-full flex items-center justify-center gap-2 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
+                        className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
                     >
-                        <BookOpen size={14} />
+                        <BookOpen size={12} />
                         {isGuestMode ? 'Homework' : 'HOMEWORK'}
                     </button>
                 )}
 
                 {/* Navigation Buttons - Only Visible when Rearranging */}
                 {isRearranging && (
-                    <div className="flex gap-2 mt-3 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
+                    <div className="flex gap-1 mt-2 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
                         <button
                             onClick={(e) => { e.stopPropagation(); onMove(index, 'forward'); }}
                             disabled={index === 0}
@@ -235,7 +296,38 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
     );
 }
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail, className, onGetGuestLink }: ClassDistributorProps) {
+const SortableUserItem = React.memo(SortableUserItemComponent, (prevProps, nextProps) => {
+    if (prevProps.isSelected !== nextProps.isSelected) return false;
+    if (prevProps.index !== nextProps.index) return false;
+    if (prevProps.total !== nextProps.total) return false;
+    if (prevProps.isRearranging !== nextProps.isRearranging) return false;
+    if (prevProps.consequenceCount !== nextProps.consequenceCount) return false;
+    if (prevProps.isGuestMode !== nextProps.isGuestMode) return false;
+    if (prevProps.showEmail !== nextProps.showEmail) return false;
+
+    // Check specific user fields that affect rendering
+    const pUser = prevProps.user;
+    const nUser = nextProps.user;
+
+    if (pUser.id !== nUser.id) return false;
+    if (pUser.coins !== nUser.coins) return false;
+    if (pUser.virtual_coins !== nUser.virtual_coins) return false;
+    if (pUser.daily_real_earned !== nUser.daily_real_earned) return false;
+    if (pUser.daily_reward_count !== nUser.daily_reward_count) return false;
+    if (pUser.toilet_coins !== nUser.toilet_coins) return false;
+    if (pUser.display_name !== nUser.display_name) return false;
+
+    // Check avatar items and offsets
+    const prevIds = pUser.equipped_item_ids?.sort().join(',') || '';
+    const nextIds = nUser.equipped_item_ids?.sort().join(',') || '';
+    if (prevIds !== nextIds) return false;
+
+    if (JSON.stringify(pUser.custom_offsets) !== JSON.stringify(nUser.custom_offsets)) return false;
+
+    return true;
+});
+
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail, className, onGetGuestLink }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -381,7 +473,8 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">Classroom</h2>
-                    <p className="text-gray-500">Drag items or use arrow buttons to rearrange class numbers.</p>
+                    <p className="text-gray-500 mb-2">Drag items or use arrow buttons to rearrange class numbers.</p>
+
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     {hasChanges && (
@@ -469,7 +562,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                         items={localUsers.map(u => u.id)}
                         strategy={rectSortingStrategy}
                     >
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
                             {localUsers.map((user, index) => (
                                 <SortableUserItem
                                     key={user.id}
@@ -482,6 +575,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     onToggle={toggleUser}
                                     onClick={() => onStudentClick(user)}
                                     onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
+                                    onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
                                     onMove={handleMove}
                                     isGuestMode={isGuestMode}
                                     consequenceCount={consequenceCounts[user.id] || 0}

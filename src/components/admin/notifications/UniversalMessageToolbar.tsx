@@ -85,37 +85,7 @@ export const UniversalMessageToolbar: React.FC<UniversalMessageToolbarProps> = (
         <>
             <div className="fixed top-0 left-[var(--nav-width,0px)] right-0 z-40 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300">
 
-                {/* Recess Alert for students with 3+ consequences */}
-                {consequenceStats.some(s => s.count >= 3) && isExpanded && (
-                    <div className="bg-red-600 text-white py-2 px-4 shadow-lg flex items-center justify-center gap-3 animate-pulse border-b border-red-700">
-                        <span className="bg-white text-red-600 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
-                            Recess Alert
-                        </span>
-                        <p className="text-sm font-black tracking-tight">
-                            The following students will stay in the classroom at the recess: {consequenceStats.filter(s => s.count >= 3).map(s => s.name).join(', ')}
-                        </p>
-                    </div>
-                )}
 
-                {/* Daily Consequence Frequency Bar */}
-                {consequenceStats.length > 0 && isExpanded && (
-                    <div className="bg-slate-900 text-slate-400 py-1.5 px-4 text-[10px] flex gap-4 items-center border-b border-slate-800 overflow-x-auto scrollbar-hide">
-                        <span className="font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Daily Status:</span>
-                        <div className="flex gap-4">
-                            {consequenceStats.map((stat, i) => (
-                                <div key={i} className="flex items-center gap-1.5 whitespace-nowrap">
-                                    <span className="text-slate-200 font-bold">{stat.name}</span>
-                                    <span className={`px-1.5 py-0.5 rounded-md font-black
-                                        ${stat.count >= 3 ? 'bg-red-500 text-white' :
-                                            stat.count === 2 ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-300'}
-                                    `}>
-                                        {stat.count}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 {/* Toggle Handle */}
                 <div

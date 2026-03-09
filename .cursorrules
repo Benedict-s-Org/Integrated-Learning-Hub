@@ -12,3 +12,8 @@
 If the user asks you to fix an error, bug, or issue:
 1. You **MUST** read the Safe Development Plan located at `.agent/workflows/safe-development.md` **before** writing any code or proposing a fix.
 2. Follow all guidelines in that document, especially the rule about checking console logs first.
+
+**🚨 MANIFEST REFERENCE 🚨**
+
+1. **Default Manifest**: Whenever the user mentions "the manifest," it **ALWAYS** refers to the **codebase manifest** located at `.agent/codebase_manifest.md` unless "web app manifest" or another specific manifest is explicitly mentioned.
+2. **Contextual Awareness**: Always prioritize updating or reading the codebase manifest when requested to "update the manifest" after code changes.

@@ -12,6 +12,9 @@ import { playSuccessSound } from '@/utils/audio';
 
 const SCANNER_EMAIL = 'scanner@system.local';
 
+// Simple global cache for rewards
+let cachedRewards: ClassReward[] | null = null;
+
 interface StudentInfo {
     id: string;
     username: string;
@@ -31,9 +34,9 @@ export function QuickRewardPage() {
     const [authError, setAuthError] = useState<string | null>(null);
 
     const [student, setStudent] = useState<StudentInfo | null>(null);
-    const [rewards, setRewards] = useState<ClassReward[]>([]);
-    const [consequences, setConsequences] = useState<ClassReward[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rewards, setRewards] = useState<ClassReward[]>(cachedRewards?.filter((i: ClassReward) => i.coins > 0) || []);
+    const [consequences, setConsequences] = useState<ClassReward[]>(cachedRewards?.filter((i: ClassReward) => i.coins <= 0) || []);
+    const [loading, setLoading] = useState(!student);
     const [error, setError] = useState<string | null>(null);
     const [awarding, setAwarding] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -118,9 +121,10 @@ export function QuickRewardPage() {
                     .select('*')
                     .order('created_at', { ascending: true }) as any);
 
-                const allItems = (rewardsData || []) as any[];
-                setRewards(allItems.filter(i => i.coins > 0));
-                setConsequences(allItems.filter(i => i.coins <= 0));
+                const allItems = (rewardsData || []) as ClassReward[];
+                cachedRewards = allItems;
+                setRewards(allItems.filter((i: ClassReward) => i.coins > 0));
+                setConsequences(allItems.filter((i: ClassReward) => i.coins <= 0));
 
             } catch (err) {
                 console.error('Error fetching data:', err);

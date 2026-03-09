@@ -174,13 +174,6 @@ export const coinService = {
             const currentRealCount = (dailyCounts?.date === today) ? (dailyCounts?.real_earned_count || 0) : 0;
 
             if (currentRealCount >= 3) {
-                // Award virtual coins (Log only, don't use increment_room_coins RPC if we want to bypass real wallet)
-                // Actually, the backend RPC might already handle this, but let's be explicit if we want standard behavior.
-                // Looking at the existing codebase, it seems they just call the same RPC and the backend handles it?
-                // Let's re-verify the RPC logic if possible, or just follow the established pattern.
-
-                // Established pattern in ClassDashboardPage.tsx:
-                // It still calls increment_room_coins, and the RPC handles virtual split.
                 return this.awardCoins({
                     userId,
                     amount: 10,
@@ -196,6 +189,29 @@ export const coinService = {
                 type: 'reward'
             });
         } catch (err) {
+            return { success: false, error: err };
+        }
+    },
+
+    /**
+     * Deduct 20 toilet coins from the user's specific toilet_coins balance.
+     * Logs the transaction and student record.
+     */
+    async deductToiletCoins(userId: string): Promise<AwardResult> {
+        try {
+            const { error: rpcError } = await supabase.rpc('deduct_toilet_coins' as any, {
+                p_user_id: userId,
+                p_amount: 20
+            });
+
+            if (rpcError) {
+                console.error('RPC Error deducting toilet coins:', { error: rpcError, userId });
+                return { success: false, error: rpcError };
+            }
+
+            return { success: true };
+        } catch (err) {
+            console.error('Unexpected error in deductToiletCoins:', err);
             return { success: false, error: err };
         }
     }
