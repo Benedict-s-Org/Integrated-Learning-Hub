@@ -23,6 +23,7 @@ type PageState =
       title: string;
       description: string;
       questions: any[];
+      notionDatabaseId?: string;
     }
   }
   | { view: 'learning'; setId: string | string[]; setTitle?: string }
@@ -42,7 +43,8 @@ export const SpacedRepetitionPage: React.FC = () => {
     streak,
     saveActiveSession,
     fetchActiveSession,
-    clearActiveSession
+    clearActiveSession,
+    sets
   } = useSpacedRepetition();
 
   const [state, setState] = useState<PageState>({ view: 'hub' });
@@ -72,7 +74,12 @@ export const SpacedRepetitionPage: React.FC = () => {
 
   const getSessionIdStr = (id?: string | string[]): string => {
     if (!id) return 'global';
-    if (Array.isArray(id)) return `plan_${[...id].sort().join('_').substring(0, 30)}`;
+    if (Array.isArray(id)) {
+      // Use a more stable hash for the plan IDs
+      const joinedIds = [...id].sort().join(',');
+      // Generate a short deterministic hash or just use the first 40 chars of the sorted string
+      return `plan_${joinedIds.substring(0, 40)}`;
+    }
     return id;
   };
 
@@ -181,16 +188,25 @@ export const SpacedRepetitionPage: React.FC = () => {
         const filterExcluded = (arr: any[]) => arr.filter((q: any) => !excludeIds.includes(q.id));
 
         // ── Final queue: New first → Failed → Reviews → Other ──
+        // We strictly sandwich them to ensure New cards ARE ALWAYS first
+        const prioritizedQuestions = [
+          ...brandNewCards,
+          ...failedDueCards,
+          ...reviewDueCards
+        ];
+
+        // Only append "Other" (mastered/not due) questions if we don't have enough due content
+        const fallbackQuestions = otherCards.filter(q => !prioritizedQuestions.some(p => p.id === q.id));
+
         sessionQuestions = [
-          ...filterExcluded(brandNewCards),
-          ...filterExcluded(failedDueCards),
-          ...filterExcluded(reviewDueCards),
-          ...filterExcluded(otherCards)
+          ...filterExcluded(prioritizedQuestions),
+          ...filterExcluded(fallbackQuestions)
         ].slice(0, limit);
 
-        // If we ran out of new content because of exclusion, recycle from unfiltered list
-        if (sessionQuestions.length === 0 && excludeIds.length > 0) {
-          sessionQuestions = [...brandNewCards, ...failedDueCards, ...reviewDueCards, ...otherCards].slice(0, limit);
+        // If even after that we are empty (due to exclusions), and we HAVE content,
+        // we fallback to the raw list but still maintaining the order (New -> Due -> Mastered)
+        if (sessionQuestions.length === 0 && (prioritizedQuestions.length > 0 || fallbackQuestions.length > 0)) {
+          sessionQuestions = [...prioritizedQuestions, ...fallbackQuestions].slice(0, limit);
         }
       } else {
         // ── Global Review Session ─────────────────────────────────────
@@ -563,17 +579,17 @@ export const SpacedRepetitionPage: React.FC = () => {
   const handleInternalSaveSet = async (
     questions: any[],
     title: string,
-    description: string
+    description: string,
+    notionDatabaseId?: string
   ): Promise<void> => {
     try {
-      const setId = await createSet(title, description, 'medium');
-      if (setId) {
-        // Here we ensure questions are added IN ORDER
-        await addQuestions(setId, questions);
-        setState({ view: 'hub' });
-      } else {
+      const setId = await createSet(title, description, 'medium', notionDatabaseId);
+      if (!setId) {
         throw new Error("Failed to create set ID");
       }
+      // Here we ensure questions are added IN ORDER
+      await addQuestions(setId, questions);
+      setState({ view: 'hub' });
     } catch (error) {
       console.error("Failed to save set:", error);
       alert("Failed to save the question set. Please try again.");
@@ -588,7 +604,8 @@ export const SpacedRepetitionPage: React.FC = () => {
   const handleQuestionsImportPreview = async (
     questions: any[],
     title: string,
-    description: string
+    description: string,
+    notionDatabaseId?: string
   ) => {
     try {
       // Instead of saving immediately, redirect to manual entry for confirmation
@@ -610,7 +627,8 @@ export const SpacedRepetitionPage: React.FC = () => {
         initialImportData: {
           title,
           description,
-          questions: mappedQuestions
+          questions: mappedQuestions,
+          notionDatabaseId
         }
       });
     } catch (error) {
@@ -783,8 +801,11 @@ export const SpacedRepetitionPage: React.FC = () => {
       <>
         <QuestionCard
           key={currentQuestion.id}
-          question={currentQuestion}
-          setTitle={state.view === 'learning' ? state.setTitle : undefined}
+          question={{
+            ...sessionState.questions[sessionState.currentQuestionIndex],
+            notion_database_id: sets.find(s => s.id === state.setId)?.notion_database_id
+          }}
+          setTitle={sets.find(s => s.id === state.setId)?.title}
           questionNumber={sessionState.currentQuestionIndex + 1}
           totalQuestions={sessionState.questions.length}
           onAnswer={handleAnswer}
@@ -826,6 +847,7 @@ export const SpacedRepetitionPage: React.FC = () => {
           initialQuestions={state.initialImportData?.questions}
           onSave={handleInternalSaveSet} // Manual entry saves to DB
           onCancel={() => setState({ view: 'createNew' })}
+          notionDatabaseId={state.initialImportData?.notionDatabaseId}
         />
       );
     }

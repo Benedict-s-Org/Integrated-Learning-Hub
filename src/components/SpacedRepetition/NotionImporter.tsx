@@ -9,7 +9,7 @@ import {
 interface NotionImporterProps {
     title: string;
     description: string;
-    onImport: (questions: any[], title: string, description: string) => void;
+    onImport: (questions: any[], title: string, description: string, notionDatabaseId?: string) => void;
     onCancel: () => void;
 }
 

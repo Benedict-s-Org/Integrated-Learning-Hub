@@ -12,7 +12,6 @@ import {
   Menu,
   Shield,
   FolderKanban,
-  Database,
   LayoutGrid,
   Camera,
   Crown,
@@ -108,9 +107,9 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       icon: <FolderKanban className="w-4 h-4" />,
     },
     {
-      path: "/",
-      label: "Database",
-      icon: <Database className="w-4 h-4" />,
+      path: "/admin/broadcast",
+      label: "Broadcast Management",
+      icon: <Layout className="w-4 h-4" />,
     },
     {
       path: "/qr-up/dashboard",
@@ -122,6 +121,10 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       path: "/admin/super-admin-panel",
       label: "Super Admin Panel",
       icon: <Crown className="w-4 h-4" />,
+    }, {
+      path: "/admin/manifest",
+      label: "Codebase Manifest",
+      icon: <Layers className="w-4 h-4" />,
     }] : []),
   ];
 
@@ -186,7 +189,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
 
       {/* Desktop Sidebar */}
       {!hideSidebar && (
-        <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-72 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
+        <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-64 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
           <SidebarContent />
         </aside>
       )}

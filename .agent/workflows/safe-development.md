@@ -146,6 +146,12 @@ This workflow documents common errors encountered during development and best pr
 - **Ignore Literal Meaning**: Ignore the literal meaning of the options.
 - **Strict Adherence**: If the user makes it a reward, it is a reward permanently. If the user makes it a consequence, it is a consequence permanently.
 - **No Nature Editing**: The system should not edit the nature in all circumstances. Never hardcode logic that changes an item's behavior or type purely based on assumptions about its title.
+### 18. Outdated Codebase Manifest
+**Problem**: Making structural changes to the codebase (adding pages, renaming core services, shifting database logic) but forgetting to update `.agent/codebase_manifest.md` causes future AI agents to base their logic on outdated architecture.
+
+**Prevention**:
+- Whenever you add a new page, service, or major database table, update `.agent/codebase_manifest.md` before finishing the task.
+- Ensure the line ranges in the Index table remain accurate.
 
 ---
 

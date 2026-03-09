@@ -110,7 +110,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
             <nav
                 className={`fixed top-0 left-0 h-full bg-gradient-to-b from-white via-orange-50/30 to-pink-50/30 border-r border-orange-100 z-50 shadow-lg transition-all duration-300 flex flex-col 
                 ${isMobileEmulator ? 'hidden' : ''}
-                ${isNavOpen ? 'w-72 translate-x-0' : 'w-0 md:w-20 -translate-x-full md:translate-x-0'}
+                ${isNavOpen ? 'w-64 translate-x-0' : 'w-0 md:w-20 -translate-x-full md:translate-x-0'}
                 `}
             >
                 {/* Toggle Button */}
@@ -344,6 +344,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 label="Homework Record"
                                 isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
                                 onClick={() => navigate('/admin/homework-record')}
+                            />
+                            <NavItem
+                                icon={Layout}
+                                label="Broadcast Management"
+                                isActive={window.location.pathname === '/admin/broadcast' || currentPage === 'broadcastManagement'}
+                                onClick={() => navigate('/admin/broadcast')}
                             />
                             <NavItem
                                 icon={FolderKanban}

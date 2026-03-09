@@ -13,12 +13,31 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function test() {
-    const { data: users, error: eq } = await supabase.from('user_room_data').select('user_id, coins, virtual_coins, daily_counts');
-    if (eq) console.log('Error', eq);
+    const { data: acts, error: eq2 } = await supabase.from('activities').select('*');
+    if (acts) console.log('Activities:', acts);
 
-    if (users) {
-        console.log('User counts:', users.length);
-        console.log('Sample users:', users.slice(0, 3));
+    // Find an admin by email
+    const { data: admin } = await supabase.from('users').select('id, username').eq('role', 'admin').limit(1).single();
+    console.log('Admin:', admin?.username);
+
+    const { data: user } = await supabase.from('users').select('id, ecas, username').neq('role', 'admin').limit(1).single();
+    console.log('User:', user?.username);
+
+    if (admin && user) {
+        console.log('Testing bulk-update-users...');
+        const res = await supabase.functions.invoke('auth/bulk-update-users', {
+            body: {
+                adminUserId: admin.id,
+                updates: [{ id: user.id, ecas: ['Cub Scouts'] }]
+            }
+        });
+        console.log('Bulk update result:', JSON.stringify(res, null, 2));
+
+        const { data: check } = await supabase.from('users').select('id, ecas').eq('id', user.id).single();
+        console.log('User after update:', check);
+
+        // cleanup
+        await supabase.from('users').update({ ecas: user.ecas }).eq('id', user.id);
     }
 }
 

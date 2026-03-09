@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getHKTodayString, getHKTodayStartISO } from '@/utils/dateUtils';
+import { getHKTodayString, getHKTodayStartISO, isHKMorningTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { Settings2, LayoutGrid, Users, Activity, Layers, Save } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
 import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
+import { ProgressLogModal } from '@/components/admin/ProgressLogModal';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarParts';
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
@@ -18,6 +19,7 @@ import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { PipWindow } from '@/components/common/PipWindow';
+import { BroadcastBoard } from '@/components/admin/BroadcastBoard';
 import {
     DndContext,
     closestCenter,
@@ -43,6 +45,7 @@ export interface UserWithCoins {
     coins: number;
     virtual_coins?: number;
     daily_real_earned?: number;
+    daily_reward_count?: number; // Add this
     class?: string | null;
     class_number: number | null;
     email: string;
@@ -123,12 +126,11 @@ export function ClassDashboardPage() {
 
     // New Selection State
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-    const [showMorningDuties, setShowMorningDuties] = useState(() => {
-        const hour = new Date().getHours();
-        return hour < 9; // Default true before 9am
-    });
+    const [showMorningDuties, setShowMorningDuties] = useState(() => isHKMorningTime());
+    const [showProgressLog, setShowProgressLog] = useState(false);
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
+    const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
 
     // Predefined Groups
     const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
@@ -251,6 +253,14 @@ export function ClassDashboardPage() {
                     const dailyRealEarned = dailyCounts?.date === today
                         ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0)
                         : 0;
+                    const dailyRewardCount = dailyCounts?.date === today
+                        ? (dailyCounts?.real_earned_count || 0)
+                        : 0;
+
+                    // Improved: Reset morning_status if the update date is not today
+                    const lastUpdateStr = roomInfo?.last_morning_update;
+                    const isTodayUpdate = lastUpdateStr === today;
+                    const morningStatus = isTodayUpdate ? (roomInfo?.morning_status || 'todo') : 'todo';
 
                     return {
                         id: u.id,
@@ -259,13 +269,14 @@ export function ClassDashboardPage() {
                         coins: roomInfo?.coins || 0,
                         virtual_coins: roomInfo?.virtual_coins || 0,
                         daily_real_earned: dailyRealEarned,
+                        daily_reward_count: dailyRewardCount,
                         class: u.class || u.user_metadata?.class || 'Unassigned',
                         class_number: u.class_number || null,
                         email: u.email || '',
                         created_at: u.created_at || new Date().toISOString(),
                         is_admin: u.role === 'admin',
-                        morning_status: roomInfo?.morning_status,
-                        last_morning_update: roomInfo?.last_morning_update,
+                        morning_status: morningStatus,
+                        last_morning_update: lastUpdateStr,
                         equipped_item_ids: avatarMap.get(u.id)?.items,
                         custom_offsets: avatarMap.get(u.id)?.offsets,
                         ecas: u.ecas || []
@@ -435,6 +446,23 @@ export function ClassDashboardPage() {
             fetchUsers();
         }
     }, [isAdmin, currentUser, isGuestMode, guestToken]);
+
+    // Real-time updates for counts and status
+    useEffect(() => {
+        const channel = supabase
+            .channel('dashboard-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'user_room_data' }, () => {
+                fetchUsers();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'student_records' }, () => {
+                fetchUsers();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const handleAwardCoins = async (userIds: string[], amount: number, reason?: string, kind?: 'reward' | 'consequence') => {
         // Confirmation for Absent
@@ -616,7 +644,7 @@ export function ClassDashboardPage() {
                 if (!result.success) throw result.error;
             }
 
-            // await fetchUsers(); // Remove redundant fetch that causes bounce-back
+            await fetchUsers(); // Re-enable to ensure student moves to "Review" status instantly
             playSuccessSound();
         } catch (err: any) {
             console.error('Error recording homework FULL:', err);
@@ -805,6 +833,24 @@ export function ClassDashboardPage() {
                     </div>
 
                     <div className="grid grid-cols-2 sm:flex gap-2 w-full md:w-auto">
+                        {!isGuestMode && (
+                            <>
+                                <button
+                                    onClick={() => setShowProgressLog(true)}
+                                    className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                                >
+                                    <History size={18} className="text-slate-400" />
+                                    Progress Log
+                                </button>
+                                <button
+                                    onClick={() => setShowBroadcastBoard(true)}
+                                    className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                                >
+                                    <Zap size={18} className="text-slate-400" />
+                                    Broadcast
+                                </button>
+                            </>
+                        )}
                         <button
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
@@ -1132,6 +1178,20 @@ export function ClassDashboardPage() {
                 isGuestMode={isGuestMode}
                 targetClass={selectedHomeworkStudent?.class || undefined}
             />
+
+            <ProgressLogModal
+                isOpen={showProgressLog}
+                onClose={() => setShowProgressLog(false)}
+            />
+
+            {showBroadcastBoard && activeClass !== 'all' && (
+                <BroadcastBoard
+                    className={activeClass}
+                    isGuestMode={isGuestMode}
+                    guestToken={guestToken}
+                    onClose={() => setShowBroadcastBoard(false)}
+                />
+            )}
         </div>
     );
 }

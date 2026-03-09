@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-    X, Plus, Trash2, Edit2, Check, MessageSquare, Users
+    X, Plus, Trash2, Edit2, Check, MessageSquare, Users, Loader2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -31,7 +31,7 @@ const MESSAGE_COLOR_OPTIONS = [
 ];
 
 export function AdminMessageModal({ isOpen, onClose, onSend, students }: AdminMessageModalProps) {
-    const { isAdmin, user } = useAuth();
+    const { user } = useAuth();
     const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -45,6 +45,7 @@ export function AdminMessageModal({ isOpen, onClose, onSend, students }: AdminMe
     const [applyToStudents, setApplyToStudents] = useState(false);
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [customMessage, setCustomMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -65,7 +66,12 @@ export function AdminMessageModal({ isOpen, onClose, onSend, students }: AdminMe
         if (error) {
             console.error('Error fetching templates:', error);
         } else {
-            setTemplates(data || []);
+            // Map null category to undefined to match type
+            const mappedData = (data || []).map(t => ({
+                ...t,
+                category: t.category || undefined
+            }));
+            setTemplates(mappedData as NotificationTemplate[]);
         }
         setIsLoading(false);
     };
@@ -76,40 +82,47 @@ export function AdminMessageModal({ isOpen, onClose, onSend, students }: AdminMe
         setCustomMessage(template.message);
     };
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!selectedTemplate && !customMessage) return;
 
         const messageToSend = customMessage || selectedTemplate?.message || '';
-        const typeToSend = selectedTemplate?.type || 'neutral';
+        const typeToSend = (selectedTemplate?.type as any) || 'neutral';
 
         if (applyToStudents && selectedStudentIds.length === 0) {
             alert('Please select at least one student.');
             return;
         }
 
-        // If applying to students, we append their names for the log if it's a general note, 
-        // OR we just send individually.
-        // The requirement says: "admin has to select the students and the students name would be shown after the message."
-        // This implies a single log message with names, OR individual messages.
-        // Given the data structure (student_records), if we select students, we should probably create individual records for them?
-        // BUT the user said "students name would be shown after the message".
-        // Let's assume we create INDIVIDUAL records for each student (so they show in their history), 
-        // AND maybe a general record? 
-        // Actually, if we use `student_records`, valid `student_id` means it IS applied to them.
-        // If `student_id` is JSON or Array? No, it's UUID.
-        // So we must create multiple records if multiple students.
-        // Update: The prompt says "If not clicked, ... admin doesn't need to select students". 
-        // This implies a broadcast/system note.
-        // Let's stick to: 
-        // 1. Specific Students -> Create record for each `student_id`.
-        // 2. No Students -> Create record with `student_id = NULL`.
+        setIsSending(true);
+        try {
+            // If applying to students, we append their names for the log if it's a general note, 
+            // OR we just send individually.
+            // The requirement says: "admin has to select the students and the students name would be shown after the message."
+            // This implies a single log message with names, OR individual messages.
+            // Given the data structure (student_records), if we select students, we should probably create individual records for them?
+            // BUT the user said "students name would be shown after the message".
+            // Let's assume we create INDIVIDUAL records for each student (so they show in their history), 
+            // AND maybe a general record? 
+            // Actually, if we use `student_records`, valid `student_id` means it IS applied to them.
+            // If `student_id` is JSON or Array? No, it's UUID.
+            // So we must create multiple records if multiple students.
+            // Update: The prompt says "If not clicked, ... admin doesn't need to select students". 
+            // This implies a broadcast/system note.
+            // Let's stick to: 
+            // 1. Specific Students -> Create record for each `student_id`.
+            // 2. No Students -> Create record with `student_id = NULL`.
 
-        if (applyToStudents) {
-            onSend(messageToSend, typeToSend, selectedStudentIds);
-        } else {
-            onSend(messageToSend, typeToSend, undefined);
+            if (applyToStudents) {
+                await onSend(messageToSend, typeToSend, selectedStudentIds);
+            } else {
+                await onSend(messageToSend, typeToSend, undefined);
+            }
+            onClose();
+        } catch (err) {
+            console.error('Send message failed:', err);
+        } finally {
+            setIsSending(false);
         }
-        onClose();
     };
 
 
@@ -373,10 +386,11 @@ export function AdminMessageModal({ isOpen, onClose, onSend, students }: AdminMe
                             <div className="p-4 border-t border-gray-100 bg-gray-50">
                                 <button
                                     onClick={handleSend}
-                                    disabled={!customMessage && !selectedTemplate}
-                                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all active:scale-95"
+                                    disabled={(!customMessage && !selectedTemplate) || isSending}
+                                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
-                                    Log Message
+                                    {isSending && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {isSending ? 'Logging...' : 'Log Message'}
                                 </button>
                             </div>
                         </div>

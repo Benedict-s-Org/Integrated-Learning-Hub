@@ -27,7 +27,12 @@ interface SpacedRepetitionContextType {
   studyPlanTemplates: SpacedRepetitionStudyPlan[];
   activeStudyPlanAssignment: StudyPlanAssignment | null;
 
-  createSet: (title: string, description: string, difficulty: string) => Promise<string | null>;
+  createSet: (
+    title: string,
+    description: string,
+    difficulty: string,
+    notion_database_id?: string
+  ) => Promise<string | null>;
   addQuestions: (setId: string, questions: any[]) => Promise<boolean>;
   updateSet: (setId: string, updates: Partial<SpacedRepetitionSet>) => Promise<boolean>;
   updateQuestion: (questionId: string, updates: Partial<SpacedRepetitionQuestion>) => Promise<boolean>;
@@ -161,7 +166,12 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     }
   };
 
-  const createSet = async (title: string, description: string, difficulty: string): Promise<string | null> => {
+  const createSet = async (
+    title: string,
+    description: string,
+    difficulty: string,
+    notion_database_id?: string
+  ): Promise<string | null> => {
     if (!userId) return null;
 
     try {
@@ -172,6 +182,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
           title,
           description,
           difficulty,
+          notion_database_id: notion_database_id || null,
           total_questions: 0,
           is_published: false,
         } as any) as any)

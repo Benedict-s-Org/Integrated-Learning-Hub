@@ -8,7 +8,7 @@ interface ImpersonationBannerProps {
 
 export const ImpersonationBanner: React.FC<ImpersonationBannerProps> = ({ name, onExit }) => {
     return (
-        <div className="sticky top-0 z-[100] bg-indigo-600 text-white px-6 py-3 flex items-center justify-between shadow-xl backdrop-blur-md bg-indigo-600/90 whitespace-nowrap overflow-hidden min-h-[56px] w-full">
+        <div className="sticky top-0 z-[100] bg-indigo-600 text-white px-6 py-3 flex items-center justify-between shadow-xl backdrop-blur-md bg-indigo-600/90 whitespace-nowrap overflow-hidden min-h-[56px] w-[calc(100%-var(--nav-width,0px))] ml-[var(--nav-width,0px)] transition-all duration-300">
             <div className="flex items-center gap-4">
                 <div className="p-2 bg-white/20 rounded-xl animate-pulse">
                     <Eye className="w-5 h-5 text-white" />

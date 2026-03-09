@@ -27,7 +27,11 @@ export const coinService = {
         batchId?: string;
         skipDailyCount?: boolean;
     }): Promise<AwardResult> {
-        const { userId, amount, reason, type, adminId, batchId, skipDailyCount } = params;
+        const { userId, amount, reason, adminId, batchId, skipDailyCount } = params;
+
+        if (!userId) {
+            return { success: false, error: 'User ID is required' };
+        }
 
         // If a batchId is provided, track it as the most recent action
         if (batchId) {
@@ -35,26 +39,7 @@ export const coinService = {
         }
 
         try {
-            // 1. Log the record officially to student_records (for ticker)
-            const displayAmount = amount >= 0 ? `+${amount}` : `${amount}`;
-
-            // Map types to DB schema
-            const dbType: "positive" | "neutral" | "negative" =
-                type === 'reward' ? 'positive' : 'negative';
-
-            const { error: logError } = await supabase
-                .from('student_records')
-                .insert({
-                    student_id: userId,
-                    type: dbType,
-                    message: `${reason} (${displayAmount})`,
-                    coin_amount: amount,
-                    created_at: new Date().toISOString()
-                } as any); // Cast as any if schema in types.ts is stale
-
-            if (logError) console.error('Failed to log student record:', logError);
-
-            // 2. Update the student's coins in the DB via RPC
+            // Updated to only call RPC as the RPC now handles student_records logging
             const { error: rpcError } = await supabase.rpc('increment_room_coins' as any, {
                 target_user_id: userId,
                 amount: amount,
@@ -65,7 +50,7 @@ export const coinService = {
             });
 
             if (rpcError) {
-                console.error('RPC Error awarding coins FULL:', {
+                console.error('RPC Error awarding coins:', {
                     error: rpcError,
                     params: { userId, amount, reason, adminId, batchId, skipDailyCount }
                 });
@@ -76,6 +61,54 @@ export const coinService = {
         } catch (err) {
             console.error('Unexpected error in awardCoins:', err);
             return { success: false, error: err };
+        }
+    },
+
+    /**
+     * Revert a specific student record by ID.
+     */
+    async revertRecord(recordId: string): Promise<AwardResult> {
+        try {
+            const { error } = await supabase.rpc('revert_student_record' as any, {
+                p_record_id: recordId
+            });
+
+            if (error) throw error;
+            return { success: true };
+        } catch (err) {
+            console.error('Failed to revert student record:', err);
+            return { success: false, error: err };
+        }
+    },
+
+    /**
+     * Revert multiple student records in bulk.
+     */
+    async bulkRevertRecords(recordIds: string[]): Promise<AwardResult> {
+        try {
+            // Process them sequentially to ensure balances are updated correctly
+            // Alternatively, we could create a bulk RPC if performance is an issue
+            for (const id of recordIds) {
+                const { error } = await supabase.rpc('revert_student_record' as any, {
+                    p_record_id: id
+                });
+                if (error) throw error;
+            }
+            return { success: true };
+        } catch (err) {
+            console.error('Failed to bulk revert student records:', err);
+            return { success: false, error: err };
+        }
+    },
+
+    /**
+     * Cleanup old reverted records (30-day retention).
+     */
+    async cleanupOldRecords(): Promise<void> {
+        try {
+            await supabase.rpc('cleanup_old_reverted_records' as any);
+        } catch (err) {
+            console.error('Failed to cleanup old records:', err);
         }
     },
 

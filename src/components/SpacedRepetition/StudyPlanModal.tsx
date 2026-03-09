@@ -513,7 +513,10 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                     <LayoutTemplate className="w-4 h-4" /> {viewingTemplateId === template.id ? 'Hide Details' : 'Details'}
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => onStartStudyPlan(template.set_ids)}
+                                                                    onClick={() => {
+                                                                        onStartStudyPlan(template.set_ids);
+                                                                        onClose();
+                                                                    }}
                                                                     className="px-4 py-2 bg-green-50 text-green-700 font-semibold rounded-lg hover:bg-green-100 transition-colors flex items-center gap-2"
                                                                     title="Practice this plan"
                                                                 >

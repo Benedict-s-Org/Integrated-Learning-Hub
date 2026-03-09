@@ -29,7 +29,8 @@ interface UserWithCoins {
     avatar_url: string | null;
     coins: number;
     virtual_coins?: number;
-    daily_real_earned?: number; // Add this
+    daily_real_earned?: number;
+    daily_reward_count?: number; // Add this
     class_number: number | null;
     email: string;
     created_at: string;
@@ -181,13 +182,12 @@ function SortableUserItem({ user, avatarCatalog, isSelected, index, total, isRea
                     </span>
                 )}
 
-                {/* Coin Bubble */}
                 <div className="mt-1 px-3 py-1 bg-green-100 text-green-700 font-bold rounded-full text-[10px] flex items-center gap-1 border border-green-200">
                     <span className="text-xs">🪙</span>
                     <span className="text-sm">
                         {(user.coins || 0) - (user.daily_real_earned || 0)}
-                        {(user.daily_real_earned ?? 0) > 0 && (
-                            <span className="text-green-600 ml-1">(+{user.daily_real_earned})</span>
+                        {(user.daily_reward_count ?? 0) > 0 && (
+                            <span className="text-green-600 ml-1">(+{user.daily_reward_count})</span>
                         )}
                     </span>
                     {(user.virtual_coins ?? 0) > 0 && (

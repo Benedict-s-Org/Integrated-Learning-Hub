@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, BookOpen, Check, ClipboardCheck, AlertCircle, FileText, Plus, Edit2 } from 'lucide-react';
+import { X, BookOpen, Check, ClipboardCheck, AlertCircle, FileText, Plus, Edit2, Loader2 } from 'lucide-react';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { supabase } from '../../lib/supabase';
 
@@ -90,25 +90,33 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
 
     const totalSelectedCount = Object.values(selectedItems).reduce((sum, items: string[]) => sum + items.length, 0);
 
-    const handleSubmitSpecific = () => {
-        if (totalSelectedCount === 0) {
-            // If they are on the specific tab but haven't picked anything, 
-            // clicking "Record" behaves like a general "欠功課" 
-            onRecord('完成班務（欠功課）');
-        } else {
-            // Format: "功課: Math (HW1, HW2), English (Reading)"
-            const parts = Object.entries(selectedItems)
-                .map(([subject, items]: [string, string[]]) => `${subject} (${items.join(', ')})`);
+    const handleSubmitSpecific = async () => {
+        setIsSaving(true);
+        try {
+            if (totalSelectedCount === 0) {
+                // If they are on the specific tab but haven't picked anything, 
+                // clicking "Record" behaves like a general "欠功課" 
+                await onRecord('完成班務（欠功課）');
+            } else {
+                // Format: "功課: Math (HW1, HW2), English (Reading)"
+                const parts = Object.entries(selectedItems)
+                    .map(([subject, items]: [string, string[]]) => `${subject} (${items.join(', ')})`);
 
-            const reason = `功課: ${parts.join(', ')}`;
-            onRecord(reason);
+                const reason = `功課: ${parts.join(', ')}`;
+                await onRecord(reason);
+            }
+
+            setSelectedItems({});
+            onClose();
+        } catch (err: any) {
+            console.error('Submit specific failed:', err);
+            alert(`Failed to record items: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsSaving(false);
         }
-
-        setSelectedItems({});
-        onClose();
     };
 
-    const handleGeneralOptionClick = (optValue: string) => {
+    const handleGeneralOptionClick = async (optValue: string) => {
         if (optValue === '完成班務（欠功課）') {
             // Always switch to detailed view for "欠功課" to ensure sub-options are visible
             setActiveTab('specific');
@@ -116,8 +124,16 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
             return;
         }
 
-        onRecord(optValue);
-        onClose();
+        setIsSaving(true);
+        try {
+            await onRecord(optValue);
+            onClose();
+        } catch (err: any) {
+            console.error('General record failed:', err);
+            alert(`Failed to record: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleAddItem = async () => {
@@ -340,10 +356,15 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
                     <div className="p-6 bg-slate-50 border-t border-gray-100">
                         <button
                             onClick={handleSubmitSpecific}
-                            className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                            disabled={isSaving}
+                            className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest text-sm disabled:opacity-50 disabled:scale-100"
                         >
-                            <Check size={20} />
-                            Record Items ({totalSelectedCount})
+                            {isSaving ? (
+                                <Loader2 className="animate-spin" size={20} />
+                            ) : (
+                                <Check size={20} />
+                            )}
+                            {isSaving ? 'Recording...' : `Record Items (${totalSelectedCount})`}
                         </button>
                     </div>
                 )}

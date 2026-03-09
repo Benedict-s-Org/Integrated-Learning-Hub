@@ -264,11 +264,11 @@ Deno.serve(async (req: Request) => {
 
     // ── Save Unknown Item ───────────────────────────────────────────────
     if (path.endsWith("/save-unknown")) {
-      const { text, type, context, setId, userName } = await req.json();
-      const databaseId = Deno.env.get("NOTION_HELP_DATABASE_ID");
+      const { text, type, context, setId, userName, databaseId: targetDatabaseId } = await req.json();
+      const databaseId = targetDatabaseId || Deno.env.get("NOTION_HELP_DATABASE_ID");
 
       if (!databaseId) {
-        console.error("Missing NOTION_HELP_DATABASE_ID environment variable");
+        console.error("Missing Notion target database ID");
         return jsonResponse(
           { error: "Server configuration error: Missing NOTION_HELP_DATABASE_ID secret" }
         );

@@ -52,7 +52,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement';
 
 export type AppPage = PageType;
 
@@ -319,6 +319,7 @@ export interface SpacedRepetitionSet {
   difficulty: 'easy' | 'medium' | 'hard';
   total_questions: number;
   is_published: boolean;
+  notion_database_id?: string | null;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -335,6 +336,7 @@ export interface SpacedRepetitionQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string[];
   order_index?: number;
+  notion_database_id?: string | null;
   created_at: string;
   updated_at: string;
 }

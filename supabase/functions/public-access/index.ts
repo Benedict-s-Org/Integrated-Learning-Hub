@@ -181,7 +181,7 @@ Deno.serve(async (req: Request) => {
       let newMorningStatus: string | null = null;
       if (reason === '完成班務（交齊功課）') {
         newMorningStatus = 'completed';
-      } else if (reason === '完成班務（欠功課）') {
+      } else if (reason === '完成班務（欠功課）' || (reason && reason.startsWith('功課:'))) {
         newMorningStatus = 'review';
       } else if (reason === '完成班務（寫手冊）') {
         newMorningStatus = 'completed';
@@ -259,6 +259,45 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // 6. Get Broadcast Data (Guest)
+    if (path === "get-broadcast-data") {
+      const { token, className, date } = await req.json();
+      if (!token || !className || !date) throw new Error("Missing required fields");
+
+      // Verify Token
+      const { data: link } = await supabase.from("shared_links").select("id, target_class").eq("token", token).eq("is_active", true).single();
+      if (!link) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
+      }
+
+      // 1. Fetch Homework
+      const { data: hwData } = await supabase
+        .from('daily_homework')
+        .select('assignments')
+        .eq('date', date)
+        .eq('class_name', className)
+        .maybeSingle();
+
+      // 2. Fetch Broadcast Settings
+      const { data: configData } = await supabase
+        .from('system_config')
+        .select('value')
+        .eq('key', 'broadcast_v2_settings')
+        .maybeSingle();
+
+      // 3. Fetch Student Records for current class and today
+      const { data: recordData } = await supabase
+        .from('student_records')
+        .select('type, message, student_id, student:student_id(display_name, class)')
+        .gte('created_at', date + 'T00:00:00'); // Approximating today start
+
+      return new Response(JSON.stringify({
+        hwData,
+        configData,
+        recordData
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });

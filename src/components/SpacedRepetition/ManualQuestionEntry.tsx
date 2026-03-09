@@ -17,9 +17,10 @@ interface ManualQuestionEntryProps {
   title: string;
   description: string;
   initialQuestions?: Question[];
-  onSave: (questions: Question[], setTitle: string, setDescription: string) => void;
+  onSave: (questions: Question[], setTitle: string, setDescription: string, notionDatabaseId?: string) => void;
   onCancel: () => void;
   mode?: 'create' | 'edit';
+  notionDatabaseId?: string;
 }
 
 export function ManualQuestionEntry({
@@ -29,6 +30,7 @@ export function ManualQuestionEntry({
   onSave,
   onCancel,
   mode = 'create',
+  notionDatabaseId,
 }: ManualQuestionEntryProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
@@ -199,7 +201,7 @@ export function ManualQuestionEntry({
     setIsSaving(true);
     setErrors([]);
     try {
-      await onSave(questions, title, description);
+      await onSave(questions, title, description, notionDatabaseId);
       // If onSave handles navigation, we might not need to reset isSaving here
       // but if it fails, the catch will handle it.
     } catch (err) {

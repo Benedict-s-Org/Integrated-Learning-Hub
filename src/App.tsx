@@ -117,7 +117,8 @@ type AppState =
   | { page: 'avatarBuilder' }
   | { page: 'markerGenerator' }
   | { page: 'interactiveScanner' }
-  | { page: 'adminHomeworkRecord' };
+  | { page: 'adminHomeworkRecord' }
+  | { page: 'broadcastManagement' };
 
 function AppContent() {
   const location = useLocation();
@@ -397,7 +398,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement')) {
       setShowLoginModal(true);
       return;
     }
@@ -481,6 +482,8 @@ function AppContent() {
       setIsNavOpen(false); // Auto-collapse when opening
     } else if (page === 'adminHomeworkRecord') {
       setAppState({ page: 'adminHomeworkRecord' });
+    } else if (page === 'broadcastManagement') {
+      setAppState({ page: 'broadcastManagement' });
     }
   };
 
@@ -1185,6 +1188,12 @@ function AppContent() {
             <AdminHomeworkRecordPage />
           </Suspense>
         );
+      case 'broadcastManagement':
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <BroadcastManagementPage />
+          </Suspense>
+        );
     }
   };
 
@@ -1314,7 +1323,16 @@ function AppContent() {
             onOpenMemory={toggleMemoryPanel}
           />
         )}
-        <main className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20")}`}>
+        <main
+          className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
+          style={{
+            '--nav-width': isMobileEmulator || ['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))
+              ? '0px'
+              : isNavOpen
+                ? '256px' // w-64
+                : (window.innerWidth >= 768 ? '80px' : '0px') // w-20 or 0
+          } as React.CSSProperties}
+        >
           {renderCurrentView()}
         </main>
         {showLoginModal && (
@@ -1516,6 +1534,8 @@ const BlendingBoard = lazy(() => import('./components/phonics/BlendingBoard.tsx'
 const PhonicsGameHub = lazy(() => import('./components/phonics/PhonicsGameHub.tsx').then(m => ({ default: m.PhonicsGameHub })));
 const PhonicsQuiz = lazy(() => import('./components/phonics/PhonicsQuiz.tsx').then(m => ({ default: m.PhonicsQuiz })));
 const WordBuilder = lazy(() => import('./components/phonics/WordBuilder.tsx').then(m => ({ default: m.WordBuilder })));
+const CodebaseManifestPage = lazy(() => import('./pages/CodebaseManifestPage.tsx'));
+const BroadcastManagementPage = lazy(() => import('./pages/admin/BroadcastManagementPage.tsx'));
 
 function PageLoader() {
   return (
@@ -1589,6 +1609,14 @@ function AppRoutes() {
             }
           />
           <Route
+            path="/admin/manifest"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <CodebaseManifestPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="/admin/scanner"
             element={
               <Suspense fallback={<PageLoader />}>
@@ -1625,6 +1653,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminHomeworkRecordPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/broadcast"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <BroadcastManagementPage />
               </Suspense>
             }
           />

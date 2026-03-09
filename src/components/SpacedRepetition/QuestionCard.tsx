@@ -73,22 +73,39 @@ export function QuestionCard({
 
   const isCorrect = selectedIndex === question.correct_answer_index;
 
-  const handleSaveUnknown = async (forceWholeQuestion = false) => {
-    const textToSave = forceWholeQuestion ? question.question_text : selectedText;
+  const handleSaveUnknown = async (mode: 'selection' | 'whole' | 'elaborate' | 'notsure') => {
+    let textToSave = "";
+    let type = "Clarification";
+
+    if (mode === 'selection') {
+      textToSave = selectedText || "";
+      type = (textToSave.split(' ').length > 1 ? 'Phrase' : 'Word');
+    } else if (mode === 'whole' || mode === 'notsure') {
+      textToSave = question.question_text;
+      type = mode === 'notsure' ? 'Not Sure / Help' : 'Whole Question';
+    } else if (mode === 'elaborate') {
+      textToSave = `Elaboration Request: ${question.question_text}`;
+      type = 'Elaboration';
+    }
+
     if (!textToSave) return;
 
     setIsSavingUnknown(true);
     setSaveSuccess(false);
 
     try {
-      const type = forceWholeQuestion ? 'Whole Question' : (textToSave.split(' ').length > 1 ? 'Phrase' : 'Word');
+      const choicesText = question.choices.map((c, i) => `${String.fromCharCode(65 + i)}: ${c}`).join('\n');
+      const contextStr = mode === 'elaborate'
+        ? `QUESTION: ${question.question_text}\n\nCHOICES:\n${choicesText}\n\nCORRECT ANSWER: ${String.fromCharCode(65 + question.correct_answer_index)}\nUSER ANSWER: ${selectedIndex !== null && selectedIndex >= 0 ? String.fromCharCode(65 + selectedIndex) : 'None'}`
+        : question.question_text;
 
       const { data, error } = await supabase.functions.invoke('notion-api/save-unknown', {
         body: {
           text: textToSave,
           type: type,
-          context: question.question_text,
+          context: contextStr,
           setId: setTitle || question.set_id,
+          databaseId: question.notion_database_id || null,
           userName: profile?.display_name || profile?.username || "Anonymous Student"
         }
       });
@@ -97,7 +114,7 @@ export function QuestionCard({
       if (data.error) throw new Error(data.error);
 
       setSaveSuccess(true);
-      setSelectedText(null);
+      if (mode === 'selection') setSelectedText(null);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save to Notion:", err);
@@ -105,6 +122,11 @@ export function QuestionCard({
     } finally {
       setIsSavingUnknown(false);
     }
+  };
+
+  const handleNotSure = async () => {
+    handleSelectAnswer(-1);
+    await handleSaveUnknown('notsure');
   };
 
   return (
@@ -157,11 +179,12 @@ export function QuestionCard({
               </h2>
               {isHelpMode && (
                 <button
-                  onClick={() => handleSaveUnknown(true)}
-                  className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition-colors shrink-0"
+                  onClick={() => handleSaveUnknown('whole')}
+                  disabled={isSavingUnknown}
+                  className="p-2 text-amber-600 hover:bg-amber-50 rounded-full transition-colors shrink-0 disabled:opacity-50"
                   title="Don't understand the whole question?"
                 >
-                  <HelpCircle size={24} />
+                  {isSavingUnknown ? <Loader2 size={24} className="animate-spin" /> : <HelpCircle size={24} />}
                 </button>
               )}
             </div>
@@ -175,7 +198,7 @@ export function QuestionCard({
                   </p>
                 </div>
                 <button
-                  onClick={() => handleSaveUnknown(false)}
+                  onClick={() => handleSaveUnknown('selection')}
                   disabled={isSavingUnknown || saveSuccess || !selectedText}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md ${saveSuccess
                     ? 'bg-green-500 text-white'
@@ -222,11 +245,18 @@ export function QuestionCard({
           {!showFeedback && (
             <div className="mb-4">
               <button
-                onClick={() => handleSelectAnswer(-1)}
-                className="w-1/3 py-2 px-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                onClick={handleNotSure}
+                disabled={isSavingUnknown}
+                className="w-1/3 py-2 px-4 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 shadow-sm active:scale-95 disabled:opacity-50"
               >
-                <HelpCircle size={16} />
-                Not sure
+                {isSavingUnknown ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : saveSuccess ? (
+                  <CheckCircle2 size={16} className="text-green-600" />
+                ) : (
+                  <HelpCircle size={16} />
+                )}
+                {saveSuccess ? 'Sent to Teacher' : 'Not sure'}
               </button>
             </div>
           )}
@@ -330,9 +360,29 @@ export function QuestionCard({
                     ? '✓ Correct!'
                     : '✗ Incorrect'}
               </p>
-              <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
-                <Clock className="w-4 h-4" />
-                <span>{(responseTime / 1000).toFixed(1)}s</span>
+              <div className="flex items-center justify-between gap-4 mt-2">
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{(responseTime / 1000).toFixed(1)}s</span>
+                </div>
+
+                <button
+                  onClick={() => handleSaveUnknown('elaborate')}
+                  disabled={isSavingUnknown || saveSuccess}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${saveSuccess
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50 active:scale-95 shadow-sm'
+                    }`}
+                >
+                  {isSavingUnknown ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : saveSuccess ? (
+                    <CheckCircle2 size={14} />
+                  ) : (
+                    <Info size={14} />
+                  )}
+                  {saveSuccess ? 'Request Sent' : 'Elaborate'}
+                </button>
               </div>
             </div>
           )}
