@@ -1126,6 +1126,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      insert_audited_student_record: {
+        Args: {
+          p_student_id: string | null
+          p_message: string
+          p_type: string
+          p_class_id: string
+          p_reason?: string
+        }
+        Returns: string
+      }
       get_all_assignments_admin_view: {
         Args: {
           filter_status?: string

@@ -127,19 +127,23 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         const coinsValue = Number(editForm.coins);
         const itemType = editForm.type || activeTab; // Use form type, fallback to tab
 
-        // Strict Validation
+        // Strict Validation (multiples of 5)
         if (itemType === 'reward') {
             if (coinsValue < 0) {
                 alert('Rewards cannot have a negative coin value.');
                 return;
             }
-            if (coinsValue % 10 !== 0) {
-                alert('Rewards must be a multiple of 10 (e.g., 0, 10, 20).');
+            if (coinsValue % 5 !== 0) {
+                alert('Rewards must be a multiple of 5 (e.g., 5, 10, 15).');
                 return;
             }
         } else if (itemType === 'consequence') {
             if (coinsValue > 0) {
                 alert('Consequences cannot have a positive coin value. Must be 0 or negative.');
+                return;
+            }
+            if (coinsValue % 5 !== 0) {
+                alert('Consequences must be a multiple of 5 (e.g., 0, -5, -10).');
                 return;
             }
         }

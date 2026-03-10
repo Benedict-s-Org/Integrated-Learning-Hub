@@ -20,6 +20,7 @@ import { PendingRewardsModal } from './components/admin/PendingRewardsModal';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
 import { FurnitureUploader } from './components/furniture/FurnitureUploader';
 import { FurnitureEditor } from './components/editor/FurnitureEditor';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -1303,7 +1304,9 @@ function AppContent() {
                 : (window.innerWidth >= 768 ? '80px' : '0px') // w-20 or 0
           } as React.CSSProperties}
         >
-          {renderCurrentView()}
+          <ErrorBoundary>
+            {renderCurrentView()}
+          </ErrorBoundary>
         </main>
         {showLoginModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1487,12 +1490,12 @@ function AppContent() {
 }
 
 // Lazy load standalone pages
-// Lazy load standalone pages
 const RewardPage = lazy(() => import('./pages/RewardPage.tsx'));
 const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
 const AdminGroupsPage = lazy(() => import('./pages/AdminGroupsPage.tsx').then(m => ({ default: m.AdminGroupsPage })));
+const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m => ({ default: m.SuperAdminPanel })));
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
 const InteractiveScanQuizPage = lazy(() => import('./pages/InteractiveScanQuizPage').then(module => ({ default: module.InteractiveScanQuizPage })));
@@ -1596,6 +1599,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/audit-logs"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AuditLogsPage />
               </Suspense>
             }
           />

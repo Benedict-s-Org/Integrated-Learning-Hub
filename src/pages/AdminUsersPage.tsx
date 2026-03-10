@@ -36,6 +36,7 @@ interface UserWithProfile {
   display_name: string | null;
   avatar_url: string | null;
   created_at: string;
+  role: 'admin' | 'class_staff' | 'user';
   is_admin: boolean;
   coins: number;
   virtual_coins?: number;
@@ -159,6 +160,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           display_name: u.display_name || 'Unnamed',
           avatar_url: avatar ? "CUSTOM" : null,
           created_at: u.created_at || new Date().toISOString(),
+          role: role as 'admin' | 'class_staff' | 'user',
           is_admin: role === 'admin',
           coins: roomData?.coins || 0,
           virtual_coins: roomData?.virtual_coins || 0,
@@ -214,7 +216,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
     if (showAllStudents || (isSuperAdmin && !forcedAdminId)) {
       console.log('Showing all users (Super Admin or "Show All" enabled)');
-      return users;
+      const filtered = filterClass === 'unassigned'
+        ? users.filter(u => !u.class_name)
+        : filterClass === 'all'
+          ? users
+          : users.filter(u => u.class_name === filterClass);
+      return filtered;
     }
 
     if (!activeAdminId) {
@@ -222,12 +229,19 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       return [];
     }
 
-    const filtered = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
+    const filteredByAdmin = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
+    const filtered = filterClass === 'unassigned'
+      ? filteredByAdmin.filter(u => !u.class_name)
+      : filterClass === 'all'
+        ? filteredByAdmin
+        : filteredByAdmin.filter(u => u.class_name === filterClass);
+
     console.log('Filtered users for admin:', {
       adminId: activeAdminId,
       totalUsers: users.length,
       visibleCount: filtered.length,
-      showAllStudents
+      showAllStudents,
+      filterClass
     });
 
     return filtered.sort((a, b) => {
@@ -240,7 +254,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       // Then sort by class number
       return (a.class_number || 999) - (b.class_number || 999);
     });
-  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents]);
+  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents, filterClass]);
 
   const editingUser = useMemo(() => {
     if (!editingUserId) return null;
@@ -387,6 +401,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                 className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none"
               >
                 <option value="all">All Classes</option>
+                <option value="unassigned">Unassigned</option>
                 {Array.from(new Set(users.map(u => u.class_name).filter(Boolean))).sort().map(className => (
                   <option key={className} value={className!}>{className}</option>
                 ))}
@@ -530,7 +545,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
               {viewMode === 'classroom' ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
                   <ClassDistributor
-                    users={filterClass === 'all' ? visibleUsers : visibleUsers.filter(u => u.class_name === filterClass)}
+                    users={visibleUsers}
                     selectedIds={selectedForAward}
                     onSelectionChange={setSelectedForAward}
                     isLoading={isLoadingUsers}
@@ -568,12 +583,11 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                           <th className="px-6 py-4 w-10">
                             <button
                               onClick={() => {
-                                const filtered = visibleUsers.filter(u => filterClass === 'all' || u.class_name === filterClass);
-                                selectAllUsers(filtered.map(u => u.id));
+                                selectAllUsers(visibleUsers.map(u => u.id));
                               }}
                               className="text-slate-400 hover:text-blue-600 transition-colors"
                             >
-                              {selectedUserIds.length > 0 && selectedUserIds.length === visibleUsers.filter(u => filterClass === 'all' || u.class_name === filterClass).length ? (
+                              {selectedUserIds.length > 0 && selectedUserIds.length === visibleUsers.length ? (
                                 <CheckSquare size={20} className="text-blue-600" />
                               ) : (
                                 <Square size={20} />
@@ -593,7 +607,6 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                           <tr><td colSpan={4} className="text-center py-20 text-slate-400">沒有學生數據</td></tr>
                         ) : (
                           visibleUsers
-                            .filter(u => filterClass === 'all' || u.class_name === filterClass)
                             .map(user => (
                               <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
                                 <td className="px-6 py-4">

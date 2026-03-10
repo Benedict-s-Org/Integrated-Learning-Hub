@@ -30,6 +30,8 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
 
     const [isCalculating, setIsCalculating] = useState(false);
     const [masteredCount, setMasteredCount] = useState(0);
+    const [seenCount, setSeenCount] = useState(0);
+    const [reviewTodayCount, setReviewTodayCount] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const [viewingTemplateId, setViewingTemplateId] = useState<string | null>(null);
 
@@ -72,26 +74,72 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
         setTargetDate(thirtyDays.toISOString().split('T')[0]);
     }, [isAdmin]);
 
-    // Recalculate mastered cards when selection changes
+    // Recalculate stats when selection changes
     useEffect(() => {
-        async function fetchMastered() {
+        async function fetchStats() {
             // If viewing assigned plan, use its sets
             const setsToCount = activeTab === 'saved'
                 ? (viewingTemplate ? viewingTemplate.set_ids : activeStudyPlanAssignment?.plan?.set_ids || [])
                 : selectedSetIds;
 
+            const effectiveTargetDate = activeTab === 'saved'
+                ? (viewingTemplate ? viewingTemplate.target_date : activeStudyPlanAssignment?.plan?.target_date || '')
+                : targetDate;
+
             if (!user || setsToCount.length === 0) {
                 setMasteredCount(0);
+                setSeenCount(0);
+                setReviewTodayCount(0);
                 return;
             }
             setIsCalculating(true);
             try {
-                if (setsToCount.length === 0) {
-                    setMasteredCount(0);
+                // Determine Plan ID context
+                let planContextId = 'custom';
+                if (activeTab === 'saved') {
+                    if (viewingTemplate) planContextId = `template_${viewingTemplate.id}`;
+                    else if (activeStudyPlanAssignment) planContextId = `assignment_${activeStudyPlanAssignment.id}`;
+                } else {
+                    // For custom plans, hash the sets + target date to know when the context changes
+                    const sortedSets = [...setsToCount].sort().join(',');
+                    planContextId = `custom_${sortedSets}_${effectiveTargetDate}`;
+                }
+
+                // Get user's local "today" as YYYY-MM-DD
+                const today = new Date();
+                const snapshotDate = today.toLocaleDateString('en-CA'); // e.g. "2024-03-11" based on local timezone, avoiding ISO shift
+
+                // 1. Try to fetch today's snapshot
+                const { data: snapshotData, error: snapshotError } = await (supabase as any)
+                    .from('spaced_repetition_daily_snapshots')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('plan_id', planContextId)
+                    .eq('snapshot_date', snapshotDate)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (snapshotData && !snapshotError) {
+                    // Use snapshot
+                    setMasteredCount(snapshotData.mastered_count);
+                    setSeenCount(snapshotData.unseen_count > 0 ? (snapshotData.total_count - snapshotData.unseen_count) : 0); // we store unseen, need to derive seen back
+                    // Actually, let's just use the exact returned metrics
+                    setSeenCount(snapshotData.total_count - snapshotData.unseen_count);
+                    setReviewTodayCount(snapshotData.review_today_count);
+
+                    // We must still calculate "total" to ensure UI has the right base. 
+                    // Technically we know total from snapshotData.total_count, but total_questions is computed synchronously in useMemo anyway.
+                    // So we only need to restore seen, reviewToday, mastered.
+                    setIsCalculating(false);
                     return;
                 }
 
-                const { count, error } = await (supabase as any)
+                // 2. If no snapshot for today, calculate fresh metrics
+                let calculatedMastered = 0;
+                let calculatedSeen = 0;
+                let calculatedReviewToday = 0;
+
+                const { count: mastered, error: masteredError } = await (supabase as any)
                     .from('spaced_repetition_schedules')
                     .select('id, spaced_repetition_questions!inner(set_id)', { count: 'exact', head: true })
                     .eq('user_id', user.id)
@@ -99,17 +147,62 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                     .gte('ease_factor', 3.0)
                     .gte('interval_days', 21);
 
-                if (!error && count !== null) {
-                    setMasteredCount(count);
-                }
+                if (!masteredError && mastered !== null) calculatedMastered = mastered;
+
+                const { count: seen, error: seenError } = await (supabase as any)
+                    .from('spaced_repetition_schedules')
+                    .select('id, spaced_repetition_questions!inner(set_id)', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .in('spaced_repetition_questions.set_id', setsToCount);
+
+                if (!seenError && seen !== null) calculatedSeen = seen;
+
+                const endOfToday = new Date();
+                endOfToday.setHours(23, 59, 59, 999);
+
+                const { count: reviewToday, error: reviewError } = await (supabase as any)
+                    .from('spaced_repetition_schedules')
+                    .select('id, spaced_repetition_questions!inner(set_id)', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .in('spaced_repetition_questions.set_id', setsToCount)
+                    .lte('next_review_date', endOfToday.toISOString());
+
+                if (!reviewError && reviewToday !== null) calculatedReviewToday = reviewToday;
+
+                // Sync UI state
+                setMasteredCount(calculatedMastered);
+                setSeenCount(calculatedSeen);
+                setReviewTodayCount(calculatedReviewToday);
+
+                // 3. We need total_count to save the snapshot
+                // We'll calculate total here just for the DB upsert
+                const allAvailable = [...sets, ...assignedSets];
+                const totalCount = allAvailable
+                    .filter(s => setsToCount.includes(s.id))
+                    .reduce((sum, s) => sum + (s.total_questions || 0), 0);
+
+                const unseenCount = Math.max(0, totalCount - calculatedSeen);
+
+                // Save snapshot
+                await (supabase as any).from('spaced_repetition_daily_snapshots').upsert({
+                    user_id: user.id,
+                    plan_id: planContextId,
+                    snapshot_date: snapshotDate,
+                    unseen_count: unseenCount,
+                    review_today_count: calculatedReviewToday,
+                    total_count: totalCount,
+                    mastered_count: calculatedMastered,
+                    computed_at: new Date().toISOString()
+                }, { onConflict: 'user_id, plan_id, snapshot_date' });
+
             } catch (err) {
-                console.error('Failed to fetch mastered count:', err);
+                console.error('Failed to fetch plan stats:', err);
             } finally {
                 setIsCalculating(false);
             }
         }
-        fetchMastered();
-    }, [selectedSetIds, activeTab, activeStudyPlanAssignment, user]);
+        fetchStats();
+    }, [selectedSetIds, activeTab, activeStudyPlanAssignment, user, viewingTemplate, targetDate, sets, assignedSets]);
 
     const toggleSet = (id: string) => {
         setSelectedSetIds(prev =>
@@ -136,6 +229,8 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
             .reduce((sum, s) => sum + (s.total_questions || 0), 0);
     }, [effectiveSetIds, allAvailableSets]);
 
+    // Computed metrics
+    const newUnseenCount = Math.max(0, totalQuestionsInSelected - seenCount);
     const remainingQuestions = Math.max(0, totalQuestionsInSelected - masteredCount);
 
     const daysRemaining = useMemo(() => {
@@ -153,21 +248,22 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
 
     // Generate simulated schedule
     const simulatedSchedule = useMemo(() => {
-        if (daysRemaining <= 0 || remainingQuestions === 0) return [];
+        if (daysRemaining <= 0 || newUnseenCount === 0) return [];
 
         const schedule = [];
-        let cardsLeftToDistribute = remainingQuestions;
+        let unseenLeftToDistribute = newUnseenCount;
         const selectedSets = allAvailableSets.filter(s => effectiveSetIds.includes(s.id));
+        const dailyUnseenTarget = daysRemaining > 0 ? Math.ceil(newUnseenCount / daysRemaining) : 0;
 
-        // For estimation: each new card creates approx 1.5 reviews in the following days
-        let cumulativeReviewsPool = 0;
+        // Base reviews simulation starting from what's due today
+        let cumulativeReviewsPool = reviewTodayCount;
 
         for (let i = 0; i < daysRemaining; i++) {
             const currentDayDate = new Date();
             currentDayDate.setDate(currentDayDate.getDate() + i);
 
-            // Calculate this day's new cards
-            let dayNewCards = Math.min(dailyNewTarget, cardsLeftToDistribute);
+            // Calculate this day's new (unseen) cards
+            let dayNewCards = Math.min(dailyUnseenTarget, unseenLeftToDistribute);
 
             // Strategy simulation for UI text just determines which sets are studied
             let setsNamesString = "";
@@ -182,12 +278,11 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                 setsNamesString = selectedSets[currentSetIndex]?.title || 'Various Sets';
             }
 
-            // Estimate reviews (simplistic model: reviews increase as we learn more cards)
-            let estimatedReviews = Math.floor(cumulativeReviewsPool * 0.3); // roughly 30% of previously learned cards need review
-            if (i === 0) estimatedReviews = 0;
+            // Estimate reviews (Reviews due today for first day, then simulated)
+            let estimatedReviews = i === 0 ? reviewTodayCount : Math.floor(cumulativeReviewsPool * 0.3);
 
             cumulativeReviewsPool += dayNewCards;
-            cardsLeftToDistribute -= dayNewCards;
+            unseenLeftToDistribute -= dayNewCards;
 
             schedule.push({
                 dayNumber: i + 1,
@@ -199,7 +294,7 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
             });
         }
         return schedule;
-    }, [daysRemaining, remainingQuestions, dailyNewTarget, effectiveStrategy, allAvailableSets, effectiveSetIds]);
+    }, [daysRemaining, remainingQuestions, dailyNewTarget, effectiveStrategy, allAvailableSets, effectiveSetIds, newUnseenCount, reviewTodayCount]);
 
     const handleSaveTemplate = async () => {
         if (!isAdmin || selectedSetIds.length === 0 || daysRemaining <= 0 || !planTitle.trim()) return;
@@ -402,16 +497,16 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                     <p className="text-xl font-bold text-gray-900 mt-1">{totalQuestionsInSelected}</p>
                                                 </div>
                                                 <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                    <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Cards Mastered</p>
-                                                    <p className="text-xl font-bold text-green-600 mt-1">{masteredCount}</p>
+                                                    <p className="text-xs text-gray-500 font-medium whitespace-nowrap">New (Unseen)</p>
+                                                    <p className="text-xl font-bold text-blue-600 mt-1">{newUnseenCount}</p>
                                                 </div>
                                                 <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                    <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Remaining</p>
-                                                    <p className="text-xl font-bold text-blue-600 mt-1">{remainingQuestions}</p>
+                                                    <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Remaining/Mastered</p>
+                                                    <p className="text-xl font-bold text-gray-900 mt-1">{remainingQuestions} <span className="text-sm font-medium text-green-600">/ {masteredCount}</span></p>
                                                 </div>
                                                 <div className="bg-blue-600 p-3 rounded-xl border border-blue-700 shadow-sm text-white relative overflow-hidden">
-                                                    <p className="text-xs text-blue-200 font-medium whitespace-nowrap relative z-10">Daily Target (New)</p>
-                                                    <p className="text-2xl font-black mt-1 relative z-10">{dailyNewTarget}</p>
+                                                    <p className="text-xs text-blue-200 font-medium whitespace-nowrap relative z-10">Review Today</p>
+                                                    <p className="text-2xl font-black mt-1 relative z-10">{reviewTodayCount}</p>
                                                     <div className="absolute right-0 bottom-0 opacity-20 transform translate-x-2 translate-y-2">
                                                         <Zap className="w-12 h-12" />
                                                     </div>
@@ -430,7 +525,7 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                     <AlertTriangle className="w-12 h-12 opacity-40 mb-3" />
                                                     <p>Please select a valid future date to see your schedule.</p>
                                                 </div>
-                                            ) : remainingQuestions === 0 ? (
+                                            ) : remainingQuestions === 0 && newUnseenCount === 0 && reviewTodayCount === 0 ? (
                                                 <div className="p-12 text-center text-green-600 flex flex-col items-center">
                                                     <CheckCircle2 className="w-12 h-12 opacity-60 mb-3" />
                                                     <p className="font-bold text-lg">You've mastered all cards in these sets!</p>
@@ -442,8 +537,8 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                         <tr>
                                                             <th className="px-6 py-4 font-bold text-gray-600">Date</th>
                                                             <th className="px-6 py-4 font-bold text-gray-600">Focus Sets</th>
-                                                            <th className="px-6 py-4 font-bold text-gray-600">New Cards</th>
-                                                            <th className="px-6 py-4 font-bold text-gray-600 text-gray-400">Est. Reviews</th>
+                                                            <th className="px-6 py-4 font-bold text-gray-600">New (Unseen)</th>
+                                                            <th className="px-6 py-4 font-bold text-gray-600 text-purple-600">Review Due</th>
                                                             <th className="px-6 py-4 font-bold text-gray-900 border-l border-gray-200 bg-gray-100">Total Load</th>
                                                         </tr>
                                                     </thead>
@@ -460,7 +555,7 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                         +{day.newCards}
                                                                     </span>
                                                                 </td>
-                                                                <td className="px-6 py-4 text-gray-400">{day.reviews}</td>
+                                                                <td className="px-6 py-4 text-purple-600 font-medium">{day.reviews} {idx === 0 && <span className="text-xs opacity-60">(Actual)</span>}</td>
                                                                 <td className="px-6 py-4 border-l border-gray-100 bg-gray-50/30">
                                                                     <span className="font-black text-gray-900">{day.total}</span> cards
                                                                 </td>
@@ -560,16 +655,16 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                         </div>
                                                                         <div className="grid grid-cols-3 gap-2 p-3">
                                                                             <div className="bg-white p-2 rounded-lg border border-gray-100">
-                                                                                <p className="text-[10px] text-gray-500 font-bold uppercase">Mastered</p>
-                                                                                <p className="text-sm font-black text-green-600">{masteredCount}/{totalQuestionsInSelected}</p>
+                                                                                <p className="text-[10px] text-gray-500 font-bold uppercase">New (Unseen)</p>
+                                                                                <p className="text-sm font-black text-blue-600">{newUnseenCount}/{totalQuestionsInSelected}</p>
                                                                             </div>
                                                                             <div className="bg-white p-2 rounded-lg border border-gray-100">
                                                                                 <p className="text-[10px] text-gray-500 font-bold uppercase">Days Left</p>
-                                                                                <p className="text-sm font-black text-blue-600">{daysRemaining}</p>
+                                                                                <p className="text-sm font-black text-gray-700">{daysRemaining}</p>
                                                                             </div>
                                                                             <div className="bg-blue-600 p-2 rounded-lg text-white">
-                                                                                <p className="text-[10px] text-blue-200 font-bold uppercase">Daily New</p>
-                                                                                <p className="text-sm font-black">{dailyNewTarget}</p>
+                                                                                <p className="text-[10px] text-blue-200 font-bold uppercase">Review Today</p>
+                                                                                <p className="text-sm font-black">{reviewTodayCount}</p>
                                                                             </div>
                                                                         </div>
                                                                         <div className="max-h-40 overflow-y-auto overflow-x-hidden p-3 pt-0">
@@ -577,8 +672,9 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                                 <thead className="bg-gray-100 sticky top-0">
                                                                                     <tr>
                                                                                         <th className="p-1 px-2 font-bold text-gray-600">Date</th>
-                                                                                        <th className="p-1 px-2 font-bold text-gray-600">New</th>
-                                                                                        <th className="p-1 px-2 font-bold text-gray-600">Total</th>
+                                                                                        <th className="p-1 px-2 font-bold text-gray-600">Unseen</th>
+                                                                                        <th className="p-1 px-2 font-bold text-purple-600">Review</th>
+                                                                                        <th className="p-1 px-2 font-bold text-gray-900">Total</th>
                                                                                     </tr>
                                                                                 </thead>
                                                                                 <tbody className="divide-y divide-gray-100">
@@ -586,6 +682,7 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                                         <tr key={idx}>
                                                                                             <td className="p-1 px-2 text-gray-600">{day.dateStr}</td>
                                                                                             <td className="p-1 px-2 font-bold text-blue-600">+{day.newCards}</td>
+                                                                                            <td className="p-1 px-2 font-medium text-purple-600">{day.reviews}</td>
                                                                                             <td className="p-1 px-2 font-black text-gray-900">{day.total}</td>
                                                                                         </tr>
                                                                                     ))}
@@ -691,16 +788,16 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                 <p className="text-xl font-bold text-gray-900 mt-1">{totalQuestionsInSelected}</p>
                                                             </div>
                                                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                                <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Cards Mastered</p>
-                                                                <p className="text-xl font-bold text-green-600 mt-1">{masteredCount}</p>
+                                                                <p className="text-xs text-gray-500 font-medium whitespace-nowrap">New (Unseen)</p>
+                                                                <p className="text-xl font-bold text-blue-600 mt-1">{newUnseenCount}</p>
                                                             </div>
                                                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                                <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Remaining</p>
-                                                                <p className="text-xl font-bold text-blue-600 mt-1">{remainingQuestions}</p>
+                                                                <p className="text-xs text-gray-500 font-medium whitespace-nowrap">Remaining/Mastered</p>
+                                                                <p className="text-xl font-bold text-gray-900 mt-1">{remainingQuestions} <span className="text-sm font-medium text-green-600">/ {masteredCount}</span></p>
                                                             </div>
                                                             <div className="bg-blue-600 p-3 rounded-xl border border-blue-700 shadow-sm text-white relative overflow-hidden">
-                                                                <p className="text-xs text-blue-200 font-medium whitespace-nowrap relative z-10">Daily Target (New)</p>
-                                                                <p className="text-2xl font-black mt-1 relative z-10">{dailyNewTarget}</p>
+                                                                <p className="text-xs text-blue-200 font-medium whitespace-nowrap relative z-10">Review Today</p>
+                                                                <p className="text-2xl font-black mt-1 relative z-10">{reviewTodayCount}</p>
                                                                 <div className="absolute right-0 bottom-0 opacity-20 transform translate-x-2 translate-y-2">
                                                                     <Zap className="w-12 h-12" />
                                                                 </div>
@@ -712,11 +809,11 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                                 onStartStudyPlan(activeStudyPlanAssignment.plan!.set_ids);
                                                                 onClose();
                                                             }}
-                                                            disabled={remainingQuestions === 0}
+                                                            disabled={remainingQuestions === 0 && newUnseenCount === 0 && reviewTodayCount === 0}
                                                             className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-black text-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
                                                         >
                                                             <Play className="w-6 h-6" />
-                                                            {remainingQuestions === 0 ? 'Plan Mastered!' : "Start Today's Session"}
+                                                            {remainingQuestions === 0 && newUnseenCount === 0 && reviewTodayCount === 0 ? 'Plan Mastered!' : "Start Today's Session"}
                                                         </button>
                                                     </div>
                                                 </div>

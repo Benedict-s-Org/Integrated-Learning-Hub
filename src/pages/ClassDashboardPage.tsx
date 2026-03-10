@@ -129,7 +129,7 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 });
 
 export function ClassDashboardPage() {
-    const { isAdmin, user: currentUser } = useAuth();
+    const { isAdmin, isStaff, user: currentUser } = useAuth();
 
     // Guest Mode State
     const searchParams = new URLSearchParams(window.location.search);
@@ -403,11 +403,11 @@ export function ClassDashboardPage() {
         if (isGuestMode && guestToken) {
             fetchUsers();
             fetchCycleData();
-        } else if (isAdmin && currentUser) {
+        } else if (isStaff && currentUser) {
             fetchUsers();
             fetchCycleData();
         }
-    }, [isAdmin, currentUser, isGuestMode, guestToken]);
+    }, [isStaff, currentUser, isGuestMode, guestToken]);
 
     // Real-time updates for counts and status
     useEffect(() => {
@@ -464,7 +464,7 @@ export function ClassDashboardPage() {
                                     ...user,
                                     coins: (user.coins || 0) + (amount > 0 ? amount : 0),
                                     daily_reward_count: isReward ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
-                                    daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 10) // Mocking balance logic
+                                    daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0) // Fixed: Only add positive amounts
                                 };
                             }
                         });
@@ -746,14 +746,13 @@ export function ClassDashboardPage() {
         if (!isAllowedTime) {
             // Free time logic - Do not deduct coins, just log a neutral record
             try {
-                const { error } = await supabase.from('student_records').insert({
-                    student_id: student.id,
-                    message: 'Toilet/Break (Recess/After School)',
-                    type: 'neutral',
-                    created_by: currentUser?.id,
-                    is_internal: true,
-                    is_read: false
-                } as any);
+                const { error } = await supabase.rpc('insert_audited_student_record', {
+                    p_student_id: student.id,
+                    p_message: 'Toilet/Break (Recess/After School)',
+                    p_type: 'neutral',
+                    p_class_id: activeClass === 'all' ? (student.class || 'Unknown') : activeClass,
+                    p_reason: 'Free time Break'
+                });
 
                 if (error) throw error;
                 playSuccessSound();
@@ -875,7 +874,7 @@ export function ClassDashboardPage() {
         const otherPredefinedNames = (isClassesView ? orderedActivities : orderedClasses).map(i => i.name.toLowerCase());
         const allKeys = Object.keys(groupedUsers);
 
-        if (isAdmin) {
+        if (isStaff) {
             // Priority 1: Current ordered items (from state, allows DND to work)
             const baseOrder = currentOrderedItems.map(item => item.name);
 
@@ -897,7 +896,7 @@ export function ClassDashboardPage() {
 
         // Guest mode restricted to a single class
         return allKeys.filter(k => k === activeClass);
-    }, [groupedUsers, orderedClasses, orderedActivities, isAdmin, viewMode, activeClass]);
+    }, [groupedUsers, orderedClasses, orderedActivities, isStaff, viewMode, activeClass]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -945,7 +944,7 @@ export function ClassDashboardPage() {
         }
     };
 
-    if (!isAdmin && !isGuestMode) {
+    if (!isStaff && !isGuestMode) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
     }
 

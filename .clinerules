@@ -11,3 +11,8 @@
 
 1. **Default Manifest**: Whenever the user mentions "the manifest," it **ALWAYS** refers to the **codebase manifest** located at `.agent/codebase_manifest.md` unless "web app manifest" or another specific manifest is explicitly mentioned.
 2. **Contextual Awareness**: Always prioritize updating or reading the codebase manifest when requested to "update the manifest" after code changes.
+
+**🚨 TOKEN EFFICIENCY & ARTIFACT MANAGEMENT 🚨**
+
+1. **Concise Planning**: When updating `implementation_plan.md` or `task.md`, **ONLY include currently discussed matters and unresolved/pending tasks**. 
+2. **Remove Finished Items**: Actively remove or truncate completed items from previous discussions to save tokens and maintain context efficiency. Do not let artifacts grow indefinitely with historical completed tasks.

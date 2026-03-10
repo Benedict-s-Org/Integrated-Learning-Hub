@@ -13,13 +13,12 @@ import {
     Crown,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { PageType } from '@/types';
 
 export interface ManagedUser {
     id: string;
     username: string; // This stores the email
     display_name: string | null;
-    role: 'admin' | 'user';
+    role: 'admin' | 'class_staff' | 'user';
     class: string | null;
     managed_by_id: string | null;
     can_access_proofreading: boolean;
@@ -154,15 +153,26 @@ export function SuperAdminPanel() {
         setSaving(false);
     };
 
-    const bulkUpdateRole = async (newRole: 'admin' | 'user') => {
+    const bulkUpdateRole = async (newRole: 'admin' | 'class_staff' | 'user') => {
         if (selectedUserIds.size === 0) return;
         setSaving(true);
         const ids = Array.from(selectedUserIds);
+
+        // Optimistic update
         setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, role: newRole } : u));
 
-        const { error } = await (supabase.from('users') as any).update({ role: newRole }).in('id', ids);
-        if (error) fetchAllUsers();
-        else {
+        // Use edge function to ensure sync with Auth metadata
+        const { data, error } = await supabase.functions.invoke("auth/bulk-update-users", {
+            body: {
+                adminUserId: realUser?.id,
+                updates: ids.map(id => ({ id, role: newRole }))
+            },
+        });
+
+        if (error || data?.error) {
+            console.error('Bulk role update failed:', error || data?.error);
+            fetchAllUsers();
+        } else {
             setSuccessMsg(`Updated ${ids.length} user(s) to ${newRole}`);
             setTimeout(() => setSuccessMsg(''), 2000);
         }
@@ -334,6 +344,13 @@ export function SuperAdminPanel() {
                                 className="px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50"
                             >
                                 Make Admin
+                            </button>
+                            <button
+                                onClick={() => bulkUpdateRole('class_staff')}
+                                disabled={saving}
+                                className="px-3 py-1.5 text-xs font-medium bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors disabled:opacity-50"
+                            >
+                                Make Staff
                             </button>
                             <button
                                 onClick={() => bulkUpdateRole('user')}

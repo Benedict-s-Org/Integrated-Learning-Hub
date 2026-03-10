@@ -16,12 +16,17 @@ interface ActiveDisplayElement {
     students: { name: string }[];
     type: 'homework_record' | 'custom';
 }
+// Unused old interface removed
 
-interface CustomBroadcast {
+interface ActiveAnnouncement {
     id: string;
-    message: string;
-    students: { name: string, className: string }[];
-    is_active: boolean;
+    templateId: string;
+    topic: string;
+    messageTemplate: string;
+    targetClass: string;
+    targetStudents: { name: string, className: string }[];
+    remarks?: string;
+    createdAt: string;
 }
 
 export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, className, isGuestMode, guestToken }) => {
@@ -68,7 +73,6 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
             let configData: any = null;
             let recordData: any = null;
             let activeForClass: string[] = [];
-            let globalCustomBroadcasts: CustomBroadcast[] = [];
 
             if (isGuestMode && guestToken) {
                 const { data, error } = await supabase.functions.invoke('public-access/get-broadcast-data', {
@@ -110,18 +114,29 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 const settings = typeof configData.value === 'string' ? JSON.parse(configData.value) : configData.value;
                 activeForClass = settings.active_options?.[className] || [];
 
-                // Read global custom broadcasts, with fallback for unmigrated data
-                if (Array.isArray(settings.custom_broadcasts)) {
-                    globalCustomBroadcasts = settings.custom_broadcasts;
-                } else if (settings.custom_broadcasts?.[className]) {
-                    const oldClassBroadcasts = settings.custom_broadcasts[className] || [];
-                    globalCustomBroadcasts = oldClassBroadcasts.map((b: any) => ({
-                        id: b.id,
-                        message: b.message,
-                        students: b.students.map((n: string) => ({ name: n, className })),
-                        is_active: activeForClass.includes(b.id)
-                    }));
-                }
+                // Read active announcements
+                const announcements: ActiveAnnouncement[] = settings.active_announcements || [];
+
+                // Filter for this class
+                const classAnnouncements = announcements.filter(a => a.targetClass === className);
+
+                // Convert to ActiveDisplayElement
+                const dynamicPanels: ActiveDisplayElement[] = classAnnouncements.map(a => {
+                    // Create a formatted title that includes topic, template, and remarks
+                    let parts = [];
+                    if (a.topic) parts.push(a.topic);
+                    if (a.messageTemplate) parts.push(a.messageTemplate);
+                    let titleText = parts.join(' - ');
+                    if (a.remarks) titleText += ` (Note: ${a.remarks})`;
+
+                    return {
+                        title: titleText,
+                        students: a.targetStudents.map(s => ({ name: s.name })),
+                        type: 'custom'
+                    };
+                });
+
+                setDynamicBroadcasts(dynamicPanels);
 
                 setActiveOptionCount(activeForClass.length);
             }
@@ -182,43 +197,12 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 setMissingHomework([]);
             }
 
-            // 4. Process Custom Broadcasts (Global)
-            const dynamicPanels: ActiveDisplayElement[] = [];
-
-            globalCustomBroadcasts.forEach((c: CustomBroadcast) => {
-                if (!c.is_active) return; // Must be toggled ON globally
-
-                let shouldShow = false;
-                let displayStudents: { name: string }[] = [];
-
-                if (!c.students || c.students.length === 0) {
-                    // School-wide announcement
-                    shouldShow = true;
-                } else {
-                    // Check if any targeted student is in the board's class
-                    const studentsForClass = c.students.filter((s: { name: string, className: string }) => s.className === className);
-                    if (studentsForClass.length > 0) {
-                        shouldShow = true;
-                        displayStudents = studentsForClass.map((s: { name: string, className: string }) => ({ name: s.name }));
-                    }
-                }
-
-                if (shouldShow) {
-                    dynamicPanels.push({
-                        title: c.message,
-                        students: displayStudents,
-                        type: 'custom'
-                    });
-                }
-            });
-
-            setDynamicBroadcasts(dynamicPanels);
+            // 4. Custom Broadcasts (Announcements) are already set above from configData parsing
 
             console.log('BroadcastBoard Render Data:', {
                 className,
                 activeForClass,
-                globalCustomBroadcasts,
-                dynamicPanels,
+                dynamicPanels: dynamicBroadcasts,
                 missingHomeworkLength: missing.length,
                 recessAlertLength: Object.keys(negativeCounts).length
             });

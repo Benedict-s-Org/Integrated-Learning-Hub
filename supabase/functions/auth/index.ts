@@ -16,7 +16,7 @@ interface LoginRequest {
 interface CreateUserRequest {
   username: string;
   password: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'class_staff' | 'user';
   adminUserId: string;
   display_name?: string;
   class?: string;
@@ -26,7 +26,7 @@ interface BulkCreateUsersRequest {
   users: Array<{
     email: string;
     password: string;
-    role: 'admin' | 'user';
+    role: 'admin' | 'class_staff' | 'user';
     display_name?: string;
     class?: string;
   }>;
@@ -57,7 +57,7 @@ interface UpdateUserRequest {
   userId: string;
   username?: string;
   display_name?: string;
-  role?: 'admin' | 'user';
+  role?: 'admin' | 'class_staff' | 'user';
   class?: string;
   className?: string; // Support for className aliasing
   classNumber?: number;
@@ -89,6 +89,7 @@ interface BulkUpdateUsersRequest {
     class?: string;
     classNumber?: string | number;
     ecas?: string[];
+    role?: 'admin' | 'class_staff' | 'user';
   }>;
 }
 
@@ -1047,6 +1048,7 @@ Deno.serve(async (req: Request) => {
               ...(update.class !== undefined ? { class: update.class } : {}),
               ...(update.classNumber !== undefined ? { class_number: classNumVal } : {}),
               ...(update.ecas !== undefined ? { ecas: update.ecas } : {}),
+              ...(update.role !== undefined ? { role: update.role } : {}),
               managed_by_id: adminUserId
             })
             .eq("id", update.id);
@@ -1062,6 +1064,7 @@ Deno.serve(async (req: Request) => {
               ...(update.class !== undefined ? { class: update.class } : {}),
               ...(update.classNumber !== undefined && update.classNumber !== "" ? { class_number: Number(update.classNumber) } : { class_number: null }),
               ...(update.ecas !== undefined ? { ecas: update.ecas } : {}),
+              ...(update.role !== undefined ? { role: update.role } : {}),
               managed_by_id: adminUserId
             }
           });

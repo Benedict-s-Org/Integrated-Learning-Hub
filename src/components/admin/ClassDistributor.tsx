@@ -50,7 +50,7 @@ interface ClassDistributorProps {
     onStudentClick: (student: UserWithCoins) => void;
     onReorder: (newOrder: UserWithCoins[]) => Promise<void>;
     selectedIds: string[];
-    onSelectionChange: (ids: string[]) => void;
+    onSelectionChange: (ids: string[] | ((prev: string[]) => string[])) => void;
     onHomeworkClick?: (student: UserWithCoins) => void;
     onToiletBreakClick?: (student: UserWithCoins) => void;
     isGuestMode?: boolean;
@@ -349,6 +349,7 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
     if (prevProps.consequenceCount !== nextProps.consequenceCount) return false;
     if (prevProps.isGuestMode !== nextProps.isGuestMode) return false;
     if (prevProps.showEmail !== nextProps.showEmail) return false;
+    if (prevProps.onToggle !== nextProps.onToggle) return false;
 
     // Check specific user fields that affect rendering
     const pUser = prevProps.user;
@@ -402,24 +403,34 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
         })
     );
 
-    const toggleUser = (e: React.MouseEvent, id: string) => {
+    const toggleUser = React.useCallback((e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
-        } else {
-            newSelected.add(id);
-        }
-        onSelectionChange(Array.from(newSelected));
-    };
+        onSelectionChange((prev: string[]) => {
+            const newSelected = new Set(prev);
+            if (newSelected.has(id)) {
+                newSelected.delete(id);
+            } else {
+                newSelected.add(id);
+            }
+            return Array.from(newSelected);
+        });
+    }, [onSelectionChange]);
 
-    const handleSelectAll = () => {
-        if (selectedIds.length === localUsers.length) {
-            onSelectionChange([]);
+    const handleSelectAll = React.useCallback(() => {
+        const areAllLocalSelected = localUsers.length > 0 && localUsers.every(u => selectedIds.includes(u.id));
+
+        if (areAllLocalSelected) {
+            // Unselect all students that belong to THIS class/group
+            const localIds = new Set(localUsers.map(u => u.id));
+            onSelectionChange((prev: string[]) => prev.filter(id => !localIds.has(id)));
         } else {
-            onSelectionChange(localUsers.map(u => u.id));
+            // Add all students from THIS class/group to the selection
+            onSelectionChange((prev: string[]) => {
+                const combined = new Set([...prev, ...localUsers.map(u => u.id)]);
+                return Array.from(combined);
+            });
         }
-    };
+    }, [localUsers, selectedIds, onSelectionChange]);
 
     const handleMove = (index: number, direction: 'forward' | 'backward') => {
         if (direction === 'forward' && index > 0) {
@@ -458,38 +469,31 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
             setIsSaving(false);
         }
     };
-
     const handleAdminMessageSend = async (message: string, type: any, studentIds?: string[]) => {
         try {
-            const records = [];
-
             if (studentIds && studentIds.length > 0) {
-                studentIds.forEach(id => {
-                    records.push({
-                        student_id: id,
-                        message,
-                        type,
-                        created_by: user?.id,
-                        is_internal: true,
-                        is_read: false
+                // Bulk insert via audited RPC
+                await Promise.all(studentIds.map(async (id) => {
+                    const { error } = await supabase.rpc('insert_audited_student_record', {
+                        p_student_id: id,
+                        p_message: message,
+                        p_type: type,
+                        p_class_id: className || 'Unknown',
+                        p_reason: 'Admin Message (Group)'
                     });
-                });
+                    if (error) throw error;
+                }));
             } else {
-                records.push({
-                    student_id: null,
-                    message,
-                    type,
-                    created_by: user?.id,
-                    is_internal: true,
-                    is_read: false
+                // Single broadcast or single student message
+                const { error } = await supabase.rpc('insert_audited_student_record', {
+                    p_student_id: null,
+                    p_message: message,
+                    p_type: type,
+                    p_class_id: className || 'Unknown',
+                    p_reason: 'Admin Message'
                 });
+                if (error) throw error;
             }
-
-            const { error } = await supabase
-                .from('student_records')
-                .insert(records as any);
-
-            if (error) throw error;
 
             setShowAdminMessageModal(false);
             // alert('Message logged.'); // Optional feedback

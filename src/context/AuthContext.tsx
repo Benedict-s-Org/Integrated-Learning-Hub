@@ -18,7 +18,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: supabaseUser.id,
       email: supabaseUser.email,
       username: supabaseUser.email?.split('@')[0] || 'user', // Fallback username
-      role: (supabaseUser.user_metadata?.role as 'admin' | 'user') || 'user',
+      role: (supabaseUser.user_metadata?.role as 'admin' | 'class_staff' | 'user') || 'user',
       display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0],
       avatar_url: supabaseUser.user_metadata?.avatar_url,
       force_password_change: false, // Default
@@ -180,6 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdmin = sessionUser?.role === 'admin' && !isUserView;
+  const isClassStaff = sessionUser?.role === 'class_staff' && !isUserView;
+  const isStaff = isAdmin || isClassStaff;
   const accentPreference = sessionUser?.accent_preference || 'en-US';
 
   const [impersonatedAdminProfile, setImpersonatedAdminProfile] = useState<UserProfile | null>(null);
@@ -245,6 +247,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     changePassword,
     isAdmin,
+    isClassStaff,
+    isStaff,
     isUserView,
     toggleViewMode,
     isMobileEmulator,
@@ -263,6 +267,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session,
     loading,
     isAdmin,
+    isClassStaff,
+    isStaff,
     isUserView,
     isMobileEmulator,
     accentPreference,

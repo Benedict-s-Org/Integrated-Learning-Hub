@@ -13,6 +13,7 @@ import {
   Calendar,
   User,
   TrendingUp,
+  Zap,
 } from 'lucide-react';
 
 interface AssignmentOverview {
@@ -43,11 +44,18 @@ interface AssignmentOverview {
     in_progress: number;
     overdue: number;
   };
+  spaced_repetition?: {
+    total: number;
+    completed: number;
+    in_progress: number;
+    overdue: number;
+    completion_rate: number;
+  };
 }
 
 interface Assignment {
   assignment_id: string;
-  assignment_type: 'memorization' | 'spelling' | 'proofreading';
+  assignment_type: 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition';
   student_id: string;
   student_username: string;
   student_display_name: string;
@@ -167,8 +175,25 @@ export const AssignmentManagement: React.FC = () => {
         return <Mic size={16} />;
       case 'proofreading':
         return <FileText size={16} />;
+      case 'spaced_repetition':
+        return <Zap size={16} className="text-amber-500" />;
       default:
         return <ClipboardList size={16} />;
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'memorization':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'spelling':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'proofreading':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'spaced_repetition':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
@@ -289,6 +314,9 @@ export const AssignmentManagement: React.FC = () => {
                 <p className="text-xs text-slate-500">Memorization: {overview.memorization.in_progress}</p>
                 <p className="text-xs text-slate-500">Spelling: {overview.spelling.in_progress}</p>
                 <p className="text-xs text-slate-500">Proofreading: {overview.proofreading.in_progress}</p>
+                {overview.spaced_repetition && (
+                  <p className="text-xs text-slate-500">Spaced Repetition: {overview.spaced_repetition.in_progress}</p>
+                )}
               </div>
             </div>
 
@@ -304,6 +332,9 @@ export const AssignmentManagement: React.FC = () => {
                 <p className="text-xs text-slate-500">Memorization: {overview.memorization.overdue}</p>
                 <p className="text-xs text-slate-500">Spelling: {overview.spelling.overdue}</p>
                 <p className="text-xs text-slate-500">Proofreading: {overview.proofreading.overdue}</p>
+                {overview.spaced_repetition && (
+                  <p className="text-xs text-slate-500">Spaced Repetition: {overview.spaced_repetition.overdue}</p>
+                )}
               </div>
             </div>
 
@@ -321,6 +352,9 @@ export const AssignmentManagement: React.FC = () => {
                 <p className="text-xs text-slate-500">Memorization: {overview.memorization.completion_rate}%</p>
                 <p className="text-xs text-slate-500">Spelling: {overview.spelling.completion_rate}%</p>
                 <p className="text-xs text-slate-500">Proofreading: {overview.proofreading.completion_rate}%</p>
+                {overview.spaced_repetition && (
+                  <p className="text-xs text-slate-500">Spaced Repetition: {overview.spaced_repetition.completion_rate}%</p>
+                )}
               </div>
             </div>
           </div>
@@ -350,6 +384,7 @@ export const AssignmentManagement: React.FC = () => {
                   <option value="memorization">Memorization</option>
                   <option value="spelling">Spelling</option>
                   <option value="proofreading">Proofreading</option>
+                  <option value="spaced_repetition">Spaced Repetition</option>
                 </select>
 
                 <select
@@ -450,9 +485,9 @@ export const AssignmentManagement: React.FC = () => {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border ${getTypeColor(assignment.assignment_type)}`}>
                             {getTypeIcon(assignment.assignment_type)}
-                            <span className="capitalize">{assignment.assignment_type}</span>
+                            <span className="capitalize">{assignment.assignment_type.replace('_', ' ')}</span>
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600">

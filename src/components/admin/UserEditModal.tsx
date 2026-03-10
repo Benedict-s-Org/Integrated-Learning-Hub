@@ -32,7 +32,9 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [password, setPassword] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_url || null);
-  const [role, setRole] = useState<'admin' | 'user'>(user.is_admin ? 'admin' : 'user');
+  const [role, setRole] = useState<'admin' | 'class_staff' | 'user'>(
+    (user as any).role || (user.is_admin ? 'admin' : 'user')
+  );
   const [className, setClassName] = useState(user.class_name || "");
   const [classNumber, setClassNumber] = useState<string>(user.class_number?.toString() || "");
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
@@ -47,7 +49,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   React.useEffect(() => {
     if (isOpen) {
       const fetchActivities = async () => {
-        const { data } = await supabase.from('activities').select('id, name').order('name');
+        const { data } = await (supabase as any).from('activities').select('id, name').order('name');
         if (data) setAvailableActivities(data);
       };
       fetchActivities();
@@ -194,7 +196,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         password?: string;
         avatarUrl?: string | null;
         adminUserId: string;
-        role?: 'admin' | 'user';
+        role?: 'admin' | 'class_staff' | 'user';
       } = {
         userId: user.id,
         adminUserId: adminUserId
@@ -458,10 +460,11 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             </label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+              onChange={(e) => setRole(e.target.value as 'admin' | 'class_staff' | 'user')}
               className="w-full px-3 py-2 rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
             >
               <option value="user">一般用戶 (User)</option>
+              <option value="class_staff">班級助理 (Class Staff)</option>
               <option value="admin">管理員 (Admin)</option>
             </select>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">

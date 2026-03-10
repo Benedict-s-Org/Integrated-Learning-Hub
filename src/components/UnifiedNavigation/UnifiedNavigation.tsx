@@ -93,7 +93,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     pendingCount = 0,
     onOpenNotifications,
 }) => {
-    const { user, signOut, toggleViewMode, isUserView, isAdmin, isMobileEmulator, setIsMobileEmulator, realIsSuperAdmin } = useAuth();
+    const { user, signOut, toggleViewMode, isUserView, isAdmin, isStaff, isMobileEmulator, setIsMobileEmulator, realIsSuperAdmin } = useAuth();
     const navigate = useNavigate();
     const isInCommunity = currentPage === 'learningHub';
 
@@ -284,7 +284,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={currentPage === 'progress'}
                                 onClick={() => onPageChange('progress')}
                             />
-                            {isAdmin && (
+                            {isStaff && (
                                 <NavItem
                                     icon={LayoutGrid}
                                     label="Class Dashboard"

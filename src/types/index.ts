@@ -79,6 +79,7 @@ export interface ProofreadingAnswer {
   wordIndex: number;
   correction: string;
   tip?: string;
+  isNotSure?: boolean;
 }
 
 import { Session } from '@supabase/supabase-js';
@@ -90,7 +91,7 @@ import { Session } from '@supabase/supabase-js';
 export interface UserProfile {
   id: string;
   username: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'class_staff' | 'user';
   email?: string | null;
   display_name?: string | null;
   avatar_url?: string | null;
@@ -115,6 +116,8 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string | undefined, newPassword: string, verificationCode?: string) => Promise<{ error: Error | null }>;
   isAdmin: boolean;
+  isClassStaff: boolean;
+  isStaff: boolean;
   isUserView: boolean;
   toggleViewMode: () => void;
   isMobileEmulator: boolean;
