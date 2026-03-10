@@ -49,8 +49,7 @@ export default defineConfig(async ({ mode }) => {
             if (id.includes('node_modules')) {
               if (id.includes('@supabase')) return 'vendor-supabase';
               if (id.includes('lucide-react')) return 'vendor-icons';
-              if (id.includes('@dnd-kit')) return 'vendor-react';
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor-react';
+              // Merge react and other dependencies into a single vendor chunk to avoid circular dependencies
               return 'vendor';
             }
           }
