@@ -235,7 +235,7 @@ export function ClassDashboardPage() {
 
             // Auth/List Users (with cache)
             const now = Date.now();
-            const useAuthCache = globalAuthUserCache && (now - globalAuthUserCache.lastFetch < 120000) && !options?.forceRefresh;
+            const useAuthCache = globalAuthUserCache && (now - globalAuthUserCache.lastFetch < 2000) && !options?.forceRefresh;
             if (isGuestMode && guestToken) {
                 // Guest mode still needs verify + list-users (mostly sequential due to dependency, but we can parallelize others)
                 phase1Promises.push((async () => {
@@ -271,8 +271,8 @@ export function ClassDashboardPage() {
             if (globalAvatarCatalog) {
                 phase1Promises.push(Promise.resolve({ type: 'catalog', data: globalAvatarCatalog }));
             } else {
-                phase1Promises.push(supabase.functions.invoke('avatars/get-catalog')
-                    .then(res => ({ type: 'catalog', data: res.data?.items || [] })) as any);
+                phase1Promises.push(supabase.from('avatar_items').select('*').order('layer_z_index')
+                    .then(res => ({ type: 'catalog', data: res.data || [] })) as any);
             }
 
             const phase1Results = await Promise.all(phase1Promises);
@@ -317,7 +317,7 @@ export function ClassDashboardPage() {
                     virtual_coins: u.virtual_coins || 0,
                     toilet_coins: u.toilet_coins ?? 100,
                     daily_real_earned: isToday ? (dc.real_earned_amount || dc.real_earned || 0) : 0,
-                    daily_reward_count: isToday ? (dc.real_earned_count || 0) : 0,
+                    daily_reward_count: isToday ? (dc.real_earned_count ?? dc.count ?? 0) : 0,
                     class: u.class || 'Unassigned',
                     class_number: u.class_number || null,
                     email: u.username || '',
@@ -414,10 +414,10 @@ export function ClassDashboardPage() {
         const channel = supabase
             .channel('dashboard-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'user_room_data' }, () => {
-                fetchUsers({ silent: true });
+                fetchUsers({ silent: true, forceRefresh: true });
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'student_records' }, () => {
-                fetchUsers({ silent: true });
+                fetchUsers({ silent: true, forceRefresh: true });
             })
             .subscribe();
 
@@ -446,9 +446,7 @@ export function ClassDashboardPage() {
                 });
 
                 if (error) throw error;
-
-                // Refresh data silently
-                fetchUsers({ silent: true });
+                fetchUsers({ silent: true, forceRefresh: true });
                 playSuccessSound();
                 alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
             } else {
@@ -490,7 +488,7 @@ export function ClassDashboardPage() {
                     }
                 }
                 playSuccessSound();
-                fetchUsers({ silent: true });
+                fetchUsers({ silent: true, forceRefresh: true });
             }
 
             // Log specific record update is now handled above for all kinds
@@ -521,7 +519,7 @@ export function ClassDashboardPage() {
             if (error) throw error;
             playSuccessSound();
             // Silent refresh since count is already updated or will be via realtime
-            fetchUsers({ silent: true });
+            fetchUsers({ silent: true, forceRefresh: true });
         } catch (err) {
             console.error('Guest quick award failed:', err);
             alert('Failed to request reward');
@@ -542,7 +540,7 @@ export function ClassDashboardPage() {
                 if (!result.success) console.error(`Failed to award bonus to ${award.userId}:`, result.error);
             }
             playSuccessSound();
-            await fetchUsers();
+            await fetchUsers({ forceRefresh: true });
             setShowAwardModal(false);
             setSelectedForAward([]);
         } catch (err) {
@@ -693,7 +691,7 @@ export function ClassDashboardPage() {
             });
             if (!result.success) throw result.error;
             playSuccessSound();
-            await fetchUsers({ silent: true });
+            await fetchUsers({ silent: true, forceRefresh: true });
         } catch (err: any) {
             console.error('Quick award failed:', err);
             alert(`Quick award failed: ${err.message || 'Unknown error'}`);
@@ -729,13 +727,13 @@ export function ClassDashboardPage() {
 
                 if (error) {
                     // Revert on failure
-                    await fetchUsers({ silent: true });
+                    await fetchUsers({ silent: true, forceRefresh: true });
                     throw error;
                 }
 
                 playSuccessSound();
                 if (data?.isLessonTime) {
-                    await fetchUsers({ silent: true });
+                    await fetchUsers({ silent: true, forceRefresh: true });
                 }
                 return;
             } catch (err: any) {
@@ -792,14 +790,14 @@ export function ClassDashboardPage() {
             const result = await coinService.deductToiletCoins(student.id);
             if (!result.success) {
                 // Revert on failure
-                await fetchUsers({ silent: true });
+                await fetchUsers({ silent: true, forceRefresh: true });
                 throw result.error;
             }
             // Success sound could be different or just use playSuccessSound
             playSuccessSound();
 
             // Confirm the update via fetch
-            await fetchUsers({ silent: true });
+            await fetchUsers({ silent: true, forceRefresh: true });
         } catch (err: any) {
             console.error('Failed to deduct toilet coins:', err);
             alert(`Failed to deduct Toilet/Break limit: ${err.message || 'Unknown error'}`);
@@ -1368,8 +1366,8 @@ export function ClassDashboardPage() {
                     onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
                     onClose={() => setShowNameSidebar(false)}
                     onPopOut={isPipSupported ? async () => {
-                        await requestPip({ width: 200, height: window.screen.availHeight });
-                        setShowNameSidebar(false); // Hide the in-app sidebar when popped out
+                        const win = await requestPip({ width: 200, height: window.screen.availHeight });
+                        if (win) setShowNameSidebar(false); // Only hide if pop out succeeded
                     } : undefined}
                 />
             )}

@@ -170,7 +170,7 @@ Deno.serve(async (req: Request) => {
             target_user_id: userId,
             amount: amount,
             log_reason: reason || 'Homework Record (Instant)',
-            p_skip_daily_count: true
+            p_skip_daily_count: false
           });
           if (rpcError) {
             console.error(`RPC Error for ${userId}:`, rpcError);

@@ -18,13 +18,36 @@ interface StudentNameSidebarProps {
 }
 
 export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose, onPopOut, isPoppedOut }) => {
-    // Sort logic: Students with 10+ coins drop to the bottom, then sort by class number
-    const sortedUsers = [...users].sort((a, b) => {
-        const aCompleted = (a.daily_reward_count || 0) >= 3;
-        const bCompleted = (b.daily_reward_count || 0) >= 3;
+    const [cooldowns, setCooldowns] = React.useState<Set<string>>(new Set());
 
-        if (aCompleted && !bCompleted) return 1;
-        if (!aCompleted && bCompleted) return -1;
+    const handleAward = (userId: string) => {
+        if (cooldowns.has(userId)) return;
+
+        // Add to cooldown
+        setCooldowns(prev => new Set(prev).add(userId));
+
+        // Trigger award
+        onQuickAward(userId);
+
+        // Remove from cooldown after 2 seconds
+        setTimeout(() => {
+            setCooldowns(prev => {
+                const updated = new Set(prev);
+                updated.delete(userId);
+                return updated;
+            });
+        }, 2000);
+    };
+
+    // Sort logic: Students who have answered questions (daily_reward_count > 0) drop to the bottom.
+    // Within those groups, sort by class number.
+    const sortedUsers = [...users].sort((a, b) => {
+        const aCount = a.daily_reward_count || 0;
+        const bCount = b.daily_reward_count || 0;
+
+        if (aCount !== bCount) {
+            return aCount - bCount;
+        }
 
         return (a.class_number || 999) - (b.class_number || 999);
     });
@@ -77,6 +100,7 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                 {sortedUsers.map((user) => {
                     const rewardCount = user.daily_reward_count || 0;
                     const isCompleted = rewardCount >= 3;
+                    const isInCooldown = cooldowns.has(user.id);
 
                     // Progress and Colors based on reward count
                     let progressWidth = '0%';
@@ -100,13 +124,16 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                     return (
                         <button
                             key={user.id}
-                            onClick={() => onQuickAward(user.id)}
-                            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border transition-all active:scale-95 group text-left relative overflow-hidden
-                                ${isCompleted
-                                    ? 'bg-slate-50 border-slate-100 opacity-80'
-                                    : 'bg-white border-slate-100 hover:bg-blue-600 hover:text-white hover:border-blue-600 shadow-sm'
+                            onClick={() => handleAward(user.id)}
+                            disabled={isInCooldown}
+                            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border transition-all group text-left relative overflow-hidden
+                                ${isInCooldown
+                                    ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed scale-95'
+                                    : isCompleted
+                                        ? 'bg-slate-50 border-slate-100 opacity-80 active:scale-95'
+                                        : 'bg-white border-slate-100 hover:bg-blue-600 hover:text-white hover:border-blue-600 shadow-sm active:scale-95'
                                 } `}
-                            title={`Reward ${user.display_name} (${rewardCount} times)`}
+                            title={isInCooldown ? "Wait 2 seconds..." : `Reward ${user.display_name} (${rewardCount} times)`}
                         >
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors shrink-0
                                 ${rewardCount > 0
@@ -132,6 +159,12 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                                     </span>
                                 </div>
                             </div>
+
+                            {isInCooldown && (
+                                <div className="absolute inset-0 bg-white/20 flex items-center justify-center">
+                                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                                </div>
+                            )}
                         </button>
                     );
                 })}
