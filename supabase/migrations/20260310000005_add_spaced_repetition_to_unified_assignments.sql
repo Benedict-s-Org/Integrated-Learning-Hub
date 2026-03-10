@@ -1,3 +1,19 @@
+-- Ensure the column exists before we try to use it
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'can_access_spaced_repetition'
+  ) THEN
+    ALTER TABLE users ADD COLUMN can_access_spaced_repetition boolean DEFAULT true;
+  ELSE
+    ALTER TABLE users ALTER COLUMN can_access_spaced_repetition SET DEFAULT true;
+  END IF;
+END $$;
+
+-- Ensure all current users have access to spaced repetition
+UPDATE users SET can_access_spaced_repetition = true WHERE can_access_spaced_repetition = false OR can_access_spaced_repetition IS NULL;
+
 -- Update get_student_assignments_unified to include spaced repetition assignments
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
@@ -106,7 +122,7 @@ BEGIN
       sa.assigned_at,
       u.username as assigned_by_username,
       sa.due_date,
-      false as completed, -- Spaced repetition sets don't have a single "completed" flag in the same way
+      false as completed,
       NULL::timestamptz as completed_at,
       (sa.due_date < now()) as is_overdue,
       jsonb_build_object(
@@ -128,8 +144,3 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp;
 
--- Ensure all current users have access to spaced repetition
-UPDATE users SET can_access_spaced_repetition = true WHERE can_access_spaced_repetition = false OR can_access_spaced_repetition IS NULL;
-
--- Update the default for the column
-ALTER TABLE users ALTER COLUMN can_access_spaced_repetition SET DEFAULT true;
