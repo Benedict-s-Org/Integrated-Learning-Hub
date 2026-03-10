@@ -77,7 +77,176 @@ interface SortableUserItemProps {
     showEmail?: boolean;
 }
 
-function SortableUserItemComponent({ user, avatarCatalog, isSelected, index, total, isRearranging, onToggle, onClick, onHomeworkClick, onToiletBreakClick, onMove, isGuestMode, consequenceCount = 0, showEmail }: SortableUserItemProps) {
+// --- Shared User Item Core ---
+function UserItemComponent({
+    user, avatarCatalog, isSelected, index, total, isRearranging,
+    onToggle, onClick, onHomeworkClick, onToiletBreakClick, onMove,
+    isGuestMode, consequenceCount = 0, showEmail, theme
+}: any) {
+    return (
+        <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
+            {/* Top Row: Avatar (Left) and Info (Right) */}
+            <div className="flex flex-row w-full gap-3 items-start">
+                {/* Left Side: Avatar */}
+                <div
+                    onClick={onClick}
+                    className="shrink-0 w-20 h-[100px] rounded-2xl bg-gray-100 overflow-hidden shadow-inner cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto flex items-center justify-center p-0.5"
+                >
+                    {user.equipped_item_ids && user.equipped_item_ids.length > 0 ? (
+                        <div className="w-full h-full transform scale-[1.3] translate-y-3">
+                            <AvatarRenderer
+                                equippedItems={avatarCatalog.filter((item: any) => user.equipped_item_ids?.includes(item.id))}
+                                userConfig={user.custom_offsets || {}}
+                                size="110%"
+                                showBackground={false}
+                            />
+                        </div>
+                    ) : user.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover rounded-xl" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                            <User size={48} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Side: Info & Controls */}
+                <div className="flex flex-col items-end flex-1 min-w-0">
+                    {/* Header Controls: Stacked Vertically on the right */}
+                    <div className="flex flex-col items-center gap-1.5 pointer-events-auto mb-1">
+                        {/* Selection Checkbox */}
+                        <div
+                            onClick={(e) => onToggle(e, user.id)}
+                            className={`
+                                w-6 h-6 rounded flex items-center justify-center text-white text-xs shadow-sm transition-colors cursor-pointer
+                                ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
+                            `}
+                        >
+                            {isSelected && '✓'}
+                        </div>
+
+                        {/* Class Number Tag */}
+                        <div
+                            className={`w-6 h-6 rounded text-[10px] font-bold flex items-center justify-center shadow-sm transition-colors ${isRearranging ? 'bg-orange-500 text-white' : ''}`}
+                            style={!isRearranging ? {
+                                backgroundColor: theme.numberTagBg,
+                                color: theme.numberTagText
+                            } : {}}
+                        >
+                            {index + 1}
+                        </div>
+                    </div>
+
+                    {/* Name */}
+                    <span
+                        className="font-bold text-sm leading-tight text-right truncate w-full mt-0.5"
+                        style={{ color: theme.cardText }}
+                    >
+                        {user.display_name || 'Unnamed Student'}
+                    </span>
+
+                    {/* Login Email */}
+                    {showEmail && (
+                        <span className="text-[8px] leading-tight text-gray-500 text-right truncate w-full mb-0.5">
+                            {user.email || 'No email'}
+                        </span>
+                    )}
+
+                    <div className="mt-1 flex flex-col items-end gap-1 self-end w-full">
+                        <div
+                            className="px-2 py-0.5 font-bold rounded text-xs flex items-center justify-end gap-1 border min-w-[60px]"
+                            style={{
+                                backgroundColor: theme.coinBg,
+                                color: theme.coinText,
+                                borderColor: theme.coinBorder
+                            }}
+                        >
+                            <span className="text-xs shrink-0">🪙</span>
+                            <span className="text-sm font-black tabular-nums">
+                                {user.coins?.toLocaleString() || 0}
+                            </span>
+                            {(user.virtual_coins ?? 0) > 0 && (
+                                <span className="opacity-75 whitespace-nowrap ml-0.5 text-[8px] font-medium shrink-0">({user.virtual_coins})</span>
+                            )}
+                        </div>
+
+                        {(() => {
+                            const dailyEarned = user.daily_real_earned || 0;
+                            if (dailyEarned === 0) return null;
+                            return (
+                                <div
+                                    className="px-1 rounded text-[10px] font-black shrink-0 border animate-in fade-in slide-in-from-top-1 duration-300"
+                                    style={{
+                                        backgroundColor: theme.dailyEarnedBg,
+                                        color: theme.dailyEarnedText,
+                                        borderColor: theme.dailyEarnedBorder
+                                    }}
+                                >
+                                    (+{dailyEarned})
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            </div>
+
+            {/* Toilet/Break Button */}
+            {onToiletBreakClick && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToiletBreakClick();
+                    }}
+                    className="mt-1 w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95"
+                    title="Toilet / Break (20 Coins)"
+                >
+                    <DoorOpen size={12} />
+                    <span className="font-black">{user.toilet_coins ?? 100}</span>
+                </button>
+            )}
+
+            {/* Homework Button */}
+            {onHomeworkClick && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onHomeworkClick();
+                    }}
+                    className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
+                >
+                    <BookOpen size={12} />
+                    {isGuestMode ? 'Homework' : 'HOMEWORK'}
+                </button>
+            )}
+
+            {/* Navigation Buttons - Only Visible when Rearranging */}
+            {isRearranging && (
+                <div className="flex gap-1 mt-2 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onMove(index, 'forward'); }}
+                        disabled={index === 0}
+                        className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                        title="Move Forward (Lower Number)"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onMove(index, 'backward'); }}
+                        disabled={index === total - 1}
+                        className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                        title="Move Backward (Higher Number)"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// --- Sortable Wrapper ---
+function SortableUserItemComponent(props: SortableUserItemProps) {
+    const { user, isSelected, isRearranging, consequenceCount = 0 } = props;
     const {
         attributes,
         listeners,
@@ -113,7 +282,6 @@ function SortableUserItemComponent({ user, avatarCatalog, isSelected, index, tot
                 }
             `}
         >
-            {/* Consequence Frequency Badge */}
             {consequenceCount > 0 && (
                 <div className={`absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm z-20 animate-in zoom-in duration-300
                     ${consequenceCount >= 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-yellow-400 text-slate-900'}
@@ -122,7 +290,6 @@ function SortableUserItemComponent({ user, avatarCatalog, isSelected, index, tot
                 </div>
             )}
 
-            {/* Drag Handle - Active only when rearranging */}
             {isRearranging && (
                 <div
                     {...attributes}
@@ -132,171 +299,49 @@ function SortableUserItemComponent({ user, avatarCatalog, isSelected, index, tot
                 />
             )}
 
-            {/* Clickable Content Container (Sitting above drag layer) */}
-            <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
-
-                {/* Top Row: Avatar (Left) and Info (Right) */}
-                <div className="flex flex-row w-full gap-3 items-start">
-
-                    {/* Left Side: Avatar */}
-                    <div
-                        onClick={onClick}
-                        className="shrink-0 w-20 h-[100px] rounded-2xl bg-gray-100 overflow-hidden shadow-inner cursor-pointer hover:opacity-90 transition-opacity pointer-events-auto flex items-center justify-center p-0.5"
-                    >
-                        {user.equipped_item_ids && user.equipped_item_ids.length > 0 ? (
-                            <div className="w-full h-full transform scale-[1.3] translate-y-3">
-                                <AvatarRenderer
-                                    equippedItems={avatarCatalog.filter(item => user.equipped_item_ids?.includes(item.id))}
-                                    userConfig={user.custom_offsets || {}}
-                                    size="110%"
-                                    showBackground={false}
-                                />
-                            </div>
-                        ) : user.avatar_url ? (
-                            <img src={user.avatar_url} alt={user.display_name || ''} className="w-full h-full object-cover rounded-xl" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                <User size={48} />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right Side: Info & Controls */}
-                    <div className="flex flex-col items-end flex-1 min-w-0">
-                        {/* Header Controls: Stacked Vertically on the right */}
-                        <div className="flex flex-col items-center gap-1.5 pointer-events-auto mb-1">
-                            {/* Selection Checkbox */}
-                            <div
-                                onClick={(e) => onToggle(e, user.id)}
-                                className={`
-                                    w-6 h-6 rounded flex items-center justify-center text-white text-xs shadow-sm transition-colors cursor-pointer
-                                    ${isSelected ? 'bg-blue-500' : 'bg-gray-200 hover:bg-gray-300'}
-                                `}
-                            >
-                                {isSelected && '✓'}
-                            </div>
-
-                            {/* Class Number Tag */}
-                            <div
-                                className={`w-6 h-6 rounded text-[10px] font-bold flex items-center justify-center shadow-sm transition-colors ${isRearranging ? 'bg-orange-500 text-white' : ''}`}
-                                style={!isRearranging ? {
-                                    backgroundColor: theme.numberTagBg,
-                                    color: theme.numberTagText
-                                } : {}}
-                            >
-                                {index + 1}
-                            </div>
-                        </div>
-
-                        {/* Name */}
-                        <span
-                            className="font-bold text-sm leading-tight text-right truncate w-full mt-0.5"
-                            style={{ color: theme.cardText }}
-                        >
-                            {user.display_name || 'Unnamed Student'}
-                        </span>
-
-                        {/* Login Email */}
-                        {showEmail && (
-                            <span className="text-[8px] leading-tight text-gray-500 text-right truncate w-full mb-0.5">
-                                {user.email || 'No email'}
-                            </span>
-                        )}
-
-                        <div className="mt-1 flex flex-col items-end gap-1 self-end w-full">
-                            <div
-                                className="px-2 py-0.5 font-bold rounded text-xs flex items-center justify-end gap-1 border min-w-[60px]"
-                                style={{
-                                    backgroundColor: theme.coinBg,
-                                    color: theme.coinText,
-                                    borderColor: theme.coinBorder
-                                }}
-                            >
-                                <span className="text-xs shrink-0">🪙</span>
-                                <span className="text-sm font-black tabular-nums">
-                                    {user.coins?.toLocaleString() || 0}
-                                </span>
-                                {(user.virtual_coins ?? 0) > 0 && (
-                                    <span className="opacity-75 whitespace-nowrap ml-0.5 text-[8px] font-medium shrink-0">({user.virtual_coins})</span>
-                                )}
-                            </div>
-
-                            {(() => {
-                                const dailyEarned = user.daily_real_earned || 0;
-                                if (dailyEarned === 0) return null;
-                                return (
-                                    <div
-                                        className="px-1 rounded text-[10px] font-black shrink-0 border animate-in fade-in slide-in-from-top-1 duration-300"
-                                        style={{
-                                            backgroundColor: theme.dailyEarnedBg,
-                                            color: theme.dailyEarnedText,
-                                            borderColor: theme.dailyEarnedBorder
-                                        }}
-                                    >
-                                        (+{dailyEarned})
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Toilet/Break Button */}
-                {onToiletBreakClick && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToiletBreakClick();
-                        }}
-                        className="mt-1 w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95"
-                        title="Toilet / Break (20 Coins)"
-                    >
-                        <DoorOpen size={12} />
-                        <span className="font-black">{user.toilet_coins ?? 100}</span>
-                    </button>
-                )}
-
-                {/* Homework Button */}
-                {onHomeworkClick && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onHomeworkClick();
-                        }}
-                        className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
-                    >
-                        <BookOpen size={12} />
-                        {isGuestMode ? 'Homework' : 'HOMEWORK'}
-                    </button>
-                )}
-
-                {/* Navigation Buttons - Only Visible when Rearranging */}
-                {isRearranging && (
-                    <div className="flex gap-1 mt-2 w-full justify-center pointer-events-auto animate-in fade-in zoom-in duration-200">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onMove(index, 'forward'); }}
-                            disabled={index === 0}
-                            className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
-                            title="Move Forward (Lower Number)"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onMove(index, 'backward'); }}
-                            disabled={index === total - 1}
-                            className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
-                            title="Move Backward (Higher Number)"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                )}
-            </div>
+            <UserItemComponent {...props} theme={theme} />
         </div>
     );
 }
 
-const SortableUserItem = React.memo(SortableUserItemComponent, (prevProps, nextProps) => {
+// --- Static Wrapper (Guest Mode) ---
+function StaticUserItemComponent(props: SortableUserItemProps) {
+    const { isSelected, consequenceCount = 0 } = props;
+    const { theme } = useDashboardTheme();
+
+    const style = {
+        backgroundColor: theme.cardBg,
+    };
+
+    return (
+        <div
+            style={style}
+            className={`
+                relative p-2 pb-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 group
+                ${isSelected
+                    ? 'border-blue-500 shadow-md transform scale-[1.02]'
+                    : consequenceCount === 2
+                        ? 'border-yellow-400 bg-yellow-50'
+                        : consequenceCount >= 3
+                            ? 'border-red-400 bg-red-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'
+                }
+            `}
+        >
+            {consequenceCount > 0 && (
+                <div className={`absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm z-20 animate-in zoom-in duration-300
+                    ${consequenceCount >= 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-yellow-400 text-slate-900'}
+                `}>
+                    {consequenceCount}
+                </div>
+            )}
+
+            <UserItemComponent {...props} theme={theme} />
+        </div>
+    );
+}
+
+const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUserItemProps) => {
     if (prevProps.isSelected !== nextProps.isSelected) return false;
     if (prevProps.index !== nextProps.index) return false;
     if (prevProps.total !== nextProps.total) return false;
@@ -325,7 +370,10 @@ const SortableUserItem = React.memo(SortableUserItemComponent, (prevProps, nextP
     if (JSON.stringify(pUser.custom_offsets) !== JSON.stringify(nUser.custom_offsets)) return false;
 
     return true;
-});
+};
+
+const SortableUserItem = React.memo(SortableUserItemComponent, arePropsEqual);
+const StaticUserItem = React.memo(StaticUserItemComponent, arePropsEqual);
 
 export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail, className, onGetGuestLink }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
@@ -553,38 +601,62 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                 </div>
             ) : (
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <SortableContext
-                        items={localUsers.map(u => u.id)}
-                        strategy={rectSortingStrategy}
+                isGuestMode ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+                        {localUsers.map((user, index) => (
+                            <StaticUserItem
+                                key={user.id}
+                                user={user}
+                                avatarCatalog={avatarCatalog}
+                                index={index}
+                                total={localUsers.length}
+                                isRearranging={isRearranging}
+                                isSelected={selectedIds.includes(user.id)}
+                                onToggle={toggleUser}
+                                onClick={() => onStudentClick(user)}
+                                onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
+                                onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
+                                onMove={handleMove}
+                                isGuestMode={isGuestMode}
+                                consequenceCount={consequenceCounts[user.id] || 0}
+                                showEmail={showEmail}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
                     >
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                            {localUsers.map((user, index) => (
-                                <SortableUserItem
-                                    key={user.id}
-                                    user={user}
-                                    avatarCatalog={avatarCatalog}
-                                    index={index}
-                                    total={localUsers.length}
-                                    isRearranging={isRearranging}
-                                    isSelected={selectedIds.includes(user.id)}
-                                    onToggle={toggleUser}
-                                    onClick={() => onStudentClick(user)}
-                                    onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
-                                    onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
-                                    onMove={handleMove}
-                                    isGuestMode={isGuestMode}
-                                    consequenceCount={consequenceCounts[user.id] || 0}
-                                    showEmail={showEmail}
-                                />
-                            ))}
-                        </div>
-                    </SortableContext>
-                </DndContext>
+                        <SortableContext
+                            items={localUsers.map(u => u.id)}
+                            strategy={rectSortingStrategy}
+                        >
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+                                {localUsers.map((user, index) => (
+                                    <SortableUserItem
+                                        key={user.id}
+                                        user={user}
+                                        avatarCatalog={avatarCatalog}
+                                        index={index}
+                                        total={localUsers.length}
+                                        isRearranging={isRearranging}
+                                        isSelected={selectedIds.includes(user.id)}
+                                        onToggle={toggleUser}
+                                        onClick={() => onStudentClick(user)}
+                                        onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
+                                        onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
+                                        onMove={handleMove}
+                                        isGuestMode={isGuestMode}
+                                        consequenceCount={consequenceCounts[user.id] || 0}
+                                        showEmail={showEmail}
+                                    />
+                                ))}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                )
             )}
 
             <AdminMessageModal
