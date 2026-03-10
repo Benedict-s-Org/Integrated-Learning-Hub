@@ -102,17 +102,30 @@ Deno.serve(async (req: Request) => {
       // Extract User IDs for room data
       const userIds = users?.map((u: any) => u.id) || [];
 
-      // Fetch Room Data (Coins and Morning Duties) for these specific users
-      const { data: roomData } = await supabase
-        .from("user_room_data")
-        .select("user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update, toilet_coins")
-        .in("user_id", userIds);
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+      const todayStart = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
+      todayStart.setHours(0, 0, 0, 0);
+      const todayISO = todayStart.toISOString();
 
-      const roomMap = new Map((roomData || []).map((r: any) => [r.user_id, r]));
+      // Parallel Fetch: Avatar Configs, Room Data, and Consequence Counts
+      const [avatarRes, roomRes, countRes] = await Promise.all([
+        supabase.from("user_avatar_config").select("user_id, equipped_items, custom_offsets").in("user_id", userIds),
+        supabase.from("user_room_data").select("user_id, coins, virtual_coins, toilet_coins, daily_counts, morning_status, last_morning_update").in("user_id", userIds),
+        supabase.from("student_records").select("student_id").eq("type", "negative").gte("created_at", todayISO)
+      ]);
+
+      const avatarMap = new Map((avatarRes.data || []).map((a: any) => [a.user_id, a]));
+      const roomMap = new Map((roomRes.data || []).map((r: any) => [r.user_id, r]));
+
+      const counts: Record<string, number> = {};
+      (countRes.data || []).forEach((r: any) => {
+        if (r.student_id) counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+      });
 
       // Merge
       const mergedUsers = users.map((u: any) => {
         const room: any = roomMap.get(u.id) || {};
+        const avatar = avatarMap.get(u.id);
         return {
           id: u.id,
           username: u.username,
@@ -121,14 +134,17 @@ Deno.serve(async (req: Request) => {
           class: u.class || null,
           class_number: u.class_number,
           created_at: u.created_at,
-          avatar_url: null, // avatar_url column missing – avatars handled via user_avatar_config in frontend
+          avatar_url: avatar ? "CUSTOM" : null,
+          equipped_item_ids: (avatar as any)?.equipped_items || [],
+          custom_offsets: (avatar as any)?.custom_offsets || null,
           ecas: u.ecas || [],
           coins: room.coins || 0,
           virtual_coins: room.virtual_coins || 0,
           toilet_coins: room.toilet_coins ?? 100,
           daily_counts: room.daily_counts || {},
-          morning_status: room.morning_status || 'todo',
-          last_morning_update: room.last_morning_update || null
+          morning_status: (room.last_morning_update === today) ? (room.morning_status || 'todo') : 'todo',
+          last_morning_update: room.last_morning_update || null,
+          consequence_count: counts[u.id] || 0
         };
       });
 

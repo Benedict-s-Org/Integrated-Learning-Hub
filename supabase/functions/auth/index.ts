@@ -535,77 +535,68 @@ Deno.serve(async (req: Request) => {
         .order("created_at", { ascending: false });
 
       if (usersError) {
-        return new Response(
-          JSON.stringify({ error: "Failed to fetch users" }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return new Response(JSON.stringify({ error: "Failed to fetch users" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // 2. Fetch avatar configs (the source of avatar customization)
-      const { data: avatarConfigs, error: avatarError } = await supabase
-        .from("user_avatar_config")
-        .select("user_id, equipped_items");
+      const userIds = (users || []).map((u: any) => u.id);
 
-      if (avatarError) {
-        console.warn("list-users: avatar_config fetch failed:", avatarError);
-      }
+      // 2. Parallel Fetch: Avatar Configs, Room Data, and Consequence Counts
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+      // Get ISO start of today in HK (approximate for the RPC/Query)
+      const todayStart = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
+      todayStart.setHours(0, 0, 0, 0);
+      const todayISO = todayStart.toISOString();
 
-      const avatarMap = new Map<string, any>((avatarConfigs || []).map((a: any) => [a.user_id, a]));
+      const [avatarRes, roomRes, countRes] = await Promise.all([
+        supabase.from("user_avatar_config").select("user_id, equipped_items, custom_offsets").in("user_id", userIds),
+        supabase.from("user_room_data").select("user_id, coins, virtual_coins, toilet_coins, daily_counts, morning_status, last_morning_update").in("user_id", userIds),
+        supabase.from("student_records").select("student_id").eq("type", "negative").gte("created_at", todayISO)
+      ]);
 
-      // 3. Debug logging to find Maximus in auth.users
+      const avatarMap = new Map<string, any>((avatarRes.data || []).map((a: any) => [a.user_id, a]));
+      const roomMap = new Map<string, any>((roomRes.data || []).map((r: any) => [r.user_id, r]));
+
+      const counts: Record<string, number> = {};
+      (countRes.data || []).forEach((r: any) => {
+        if (r.student_id) counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+      });
+
+      // 3. Debug logging to find Maximus in auth.users (Optional - keep for now as requested)
       let MaximusToKeepId: string | null = null;
       const debugLogs: string[] = [];
       try {
-        const authResponse = await supabase.auth.admin.listUsers({
-          perPage: 1000,
-        });
-
+        const authResponse = await supabase.auth.admin.listUsers({ perPage: 1000 });
         const authUsers = authResponse.data?.users || [];
-        const authError = authResponse.error;
-
-        if (!authError && authUsers.length > 0) {
-          debugLogs.push(`Total auth users found: ${authUsers.length}`);
-
-          authUsers.forEach((au: any) => {
-            const emailMatch = au.email?.toLowerCase().includes("maximus") || au.email === "s20221112@superleekam.edu.hk";
-            const metaMatch = JSON.stringify(au.user_metadata || {}).toLowerCase().includes("maximus");
-            if (emailMatch || metaMatch) {
-              const msg = `FOUND MAXIMUS AUTH USER: ID=${au.id}, Email=${au.email}, Metadata=${JSON.stringify(au.user_metadata)}`;
-              debugLogs.push(msg);
-              if (au.email === "s20221112@superleekam.edu.hk") {
-                MaximusToKeepId = au.id;
-              }
-            }
-          });
-        } else if (authError) {
-          debugLogs.push(`Auth Error: ${authError.message}`);
-        } else {
-          debugLogs.push("No auth users found or empty list.");
-        }
-      } catch (e: any) {
-        debugLogs.push(`Catch Error: ${e.message}`);
-      }
+        authUsers.forEach((au: any) => {
+          if (au.email === "s20221112@superleekam.edu.hk") MaximusToKeepId = au.id;
+        });
+      } catch (e: any) { debugLogs.push(`Catch Error: ${e.message}`); }
 
       // 4. Merge data
       const mergedUsers = (users || []).map((u: any) => {
         const avatar = avatarMap.get(u.id);
+        const room = roomMap.get(u.id) || {};
         const isTargetMaximus = u.id === MaximusToKeepId;
+
         return {
           ...u,
           is_official_maximus: isTargetMaximus,
-          avatar_url: avatar ? "CUSTOM" : null
+          avatar_url: avatar ? "CUSTOM" : null,
+          equipped_item_ids: avatar?.equipped_items || [],
+          custom_offsets: avatar?.custom_offsets || null,
+          coins: room.coins || 0,
+          virtual_coins: room.virtual_coins || 0,
+          toilet_coins: room.toilet_coins ?? 100,
+          daily_counts: room.daily_counts || {},
+          morning_status: (room.last_morning_update === today) ? (room.morning_status || 'todo') : 'todo',
+          last_morning_update: room.last_morning_update || null,
+          consequence_count: counts[u.id] || 0
         };
       });
 
       return new Response(
         JSON.stringify({ users: mergedUsers, debug: debugLogs }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

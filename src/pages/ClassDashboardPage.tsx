@@ -13,7 +13,7 @@ import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { TimetableBoard } from '@/components/admin/TimetableBoard';
 import { ProgressLogModal } from '@/components/admin/ProgressLogModal';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
-import { AvatarImageItem, UserAvatarConfig } from '@/components/avatar/avatarParts';
+import { AvatarImageItem } from '@/components/avatar/avatarParts';
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
@@ -61,9 +61,11 @@ export interface UserWithCoins {
     morning_status?: 'todo' | 'review' | 'completed' | 'absent';
     last_morning_update?: string;
     equipped_item_ids?: string[];
-    custom_offsets?: UserAvatarConfig;
+    custom_offsets?: any;
     ecas?: string[];
     toilet_coins?: number;
+    daily_counts?: Record<string, any>;
+    consequence_count?: number;
 }
 
 interface SortableTabProps {
@@ -297,98 +299,44 @@ export function ClassDashboardPage() {
                 return;
             }
 
-            // 2. Parallel Phase 2: User-specific data (Avatar Config, Room Data, Consequence Counts)
-            console.time('fetchUsers-phase2');
-            const chunkedUserIds: string[][] = [];
-            for (let i = 0; i < userIds.length; i += 30) {
-                chunkedUserIds.push(userIds.slice(i, i + 30));
-            }
-
-            const phase2Promises: Promise<any>[] = [
-                // Daily consequences counts (Single query, fast)
-                supabase.from('student_records').select('student_id').eq('type', 'negative').gte('created_at', getHKTodayStartISO()) as any
-            ];
-
-            // Add Avatar Config chunks
-            chunkedUserIds.forEach(chunk => {
-                phase2Promises.push(supabase.from('user_avatar_config').select('user_id, equipped_items, custom_offsets').in('user_id', chunk) as any);
-            });
-
-            // Add Room Data chunks
-            chunkedUserIds.forEach(chunk => {
-                phase2Promises.push(supabase.from('user_room_data').select('user_id, coins, virtual_coins, daily_counts, morning_status, last_morning_update, toilet_coins').in('user_id', chunk) as any);
-            });
-
-            const phase2Results = await Promise.all(phase2Promises);
-            console.timeEnd('fetchUsers-phase2');
-
-            // Process results
-            const recordData = phase2Results[0].data || [];
-            const avatarData: any[] = [];
-            const roomData: any[] = [];
-
-            // Dissect results based on chunks (phase2Results[1] onwards are chunks)
-            let currentIdx = 1;
-            // Avatar config chunks
-            for (let i = 0; i < chunkedUserIds.length; i++) {
-                avatarData.push(...(phase2Results[currentIdx++].data || []));
-            }
-            // Room data chunks
-            for (let i = 0; i < chunkedUserIds.length; i++) {
-                roomData.push(...(phase2Results[currentIdx++].data || []));
-            }
-
-            // Map processing
-            console.time('fetchUsers-mapping');
-            const avatarMap = new Map(avatarData.map(a => [a.user_id, {
-                items: a.equipped_items as string[],
-                offsets: a.custom_offsets as UserAvatarConfig
-            }]));
-
-            const roomDataMap = new Map(roomData.map(d => [d.user_id, d]));
-
-            const counts: Record<string, number> = {};
-            recordData.forEach((r: any) => {
-                if (r.student_id) counts[r.student_id] = (counts[r.student_id] || 0) + 1;
-            });
-            setConsequenceCounts(counts);
-
-            if (catalogData.length > 0) {
-                setAvatarCatalog(catalogData.map(item => ({ ...item, category: item.category as any })));
-            }
-
+            // 2. Map and Group (Optimization: All data aggregated in Edge Function)
             const today = getHKTodayString();
+            const counts: Record<string, number> = {};
+
             const finalUsers: UserWithCoins[] = usersData.map((u: any) => {
-                const roomInfo = roomDataMap.get(u.id);
-                const dailyCounts = roomInfo?.daily_counts as any;
-                const dailyRealEarned = dailyCounts?.date === today ? (dailyCounts?.real_earned_amount || dailyCounts?.real_earned || 0) : 0;
-                const dailyRewardCount = dailyCounts?.date === today ? (dailyCounts?.real_earned_count || 0) : 0;
-                const isTodayUpdate = roomInfo?.last_morning_update === today;
-                const morningStatus = isTodayUpdate ? (roomInfo?.morning_status || 'todo') : 'todo';
+                if (u.consequence_count) counts[u.id] = u.consequence_count;
+
+                const dc = u.daily_counts || {};
+                const isToday = dc.date === today;
 
                 return {
                     id: u.id,
-                    display_name: u.display_name || u.user_metadata?.display_name || u.email,
-                    avatar_url: u.avatar_url || u.user_metadata?.avatar_url || null,
-                    coins: roomInfo?.coins || 0,
-                    virtual_coins: roomInfo?.virtual_coins || 0,
-                    toilet_coins: roomInfo?.toilet_coins ?? 100,
-                    daily_real_earned: dailyRealEarned,
-                    daily_reward_count: dailyRewardCount,
-                    class: u.class || u.user_metadata?.class || 'Unassigned',
+                    display_name: u.display_name || u.username,
+                    avatar_url: u.avatar_url,
+                    coins: u.coins || 0,
+                    virtual_coins: u.virtual_coins || 0,
+                    toilet_coins: u.toilet_coins ?? 100,
+                    daily_real_earned: isToday ? (dc.real_earned_amount || dc.real_earned || 0) : 0,
+                    daily_reward_count: isToday ? (dc.real_earned_count || 0) : 0,
+                    class: u.class || 'Unassigned',
                     class_number: u.class_number || null,
-                    email: u.email || '',
+                    email: u.username || '',
                     created_at: u.created_at || new Date().toISOString(),
                     is_admin: u.role === 'admin',
-                    morning_status: morningStatus,
-                    last_morning_update: roomInfo?.last_morning_update,
-                    equipped_item_ids: avatarMap.get(u.id)?.items,
-                    custom_offsets: avatarMap.get(u.id)?.offsets,
+                    morning_status: u.morning_status || 'todo',
+                    last_morning_update: u.last_morning_update,
+                    equipped_item_ids: u.equipped_item_ids || [],
+                    custom_offsets: u.custom_offsets,
                     ecas: u.ecas || []
                 };
             });
 
-            // 3. Predefined Groups & Auto-populate logic
+            setConsequenceCounts(counts);
+            if (catalogData.length > 0) {
+                setAvatarCatalog(catalogData.map(item => ({ ...item, category: item.category as any })));
+            }
+
+            // 3. Grouping Logic
             if (isAdmin) {
                 // Auto-populate classes table from distinct user class names
                 const existingClassNames = new Set(classData.map(c => c.name));
@@ -443,7 +391,6 @@ export function ClassDashboardPage() {
                 Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
                 setGroupedUsers(grouped);
             }
-            console.timeEnd('fetchUsers-mapping');
         } catch (err) {
             console.error('Error in fetchUsers:', err);
         } finally {
@@ -1380,15 +1327,13 @@ export function ClassDashboardPage() {
                 onCustomizeAvatar={() => setIsAvatarModalOpen(true)}
             />
 
-            {
-                (!isGuestMode || activeClass === '4D') && (
-                    <UniversalMessageToolbar
-                        selectedStudentIds={selectedStudentIds}
-                        onClearSelection={() => setSelectedStudentIds([])}
-                        onRefresh={fetchUsers}
-                    />
-                )
-            }
+            {!isGuestMode && (
+                <UniversalMessageToolbar
+                    selectedStudentIds={selectedStudentIds}
+                    onClearSelection={() => setSelectedStudentIds([])}
+                    onRefresh={fetchUsers}
+                />
+            )}
 
             {showNameSidebar && !isSidebarPoppedOut && (
                 <StudentNameSidebar
