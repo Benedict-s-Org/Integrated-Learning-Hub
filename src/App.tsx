@@ -1049,6 +1049,11 @@ function AppContent() {
                     });
                   }}
                   onLoadProofreading={handleLoadAssignedProofreadingPractice}
+                  onLoadSpacedRepetition={() => {
+                    setAppState({
+                      page: 'spacedRepetition'
+                    });
+                  }}
                 />
               );
             case 'assignmentManagement':

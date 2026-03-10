@@ -92,6 +92,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     if (!userId) return;
 
     try {
+      setLoading(true);
       const [setsRes, streakRes, achievementsRes, cardsDueRes, assignedRes, templatesRes, assignmentRes] = await Promise.all([
         ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('user_id', userId).is('deleted_at', null),
         ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
@@ -378,7 +379,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
       const [setRes, questionsRes, schedulesRes] = await Promise.all([
         ((supabase as any).from('spaced_repetition_sets').select('*') as any).eq('id', setId).single(),
         ((supabase as any).from('spaced_repetition_questions').select('*') as any).eq('set_id', setId),
-        ((supabase as any).from('spaced_repetition_schedules').select('*') as any).eq('user_id', userId || '').eq('question_id', setId),
+        ((supabase as any).from('spaced_repetition_schedules').select('*') as any).eq('user_id', userId || '').in('question_id', (await (supabase as any).from('spaced_repetition_questions').select('id').eq('set_id', setId)).data?.map((q: any) => q.id) || []),
       ]);
 
       setCurrentSet(setRes.data as unknown as SpacedRepetitionSet | null);

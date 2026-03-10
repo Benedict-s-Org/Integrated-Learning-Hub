@@ -11,13 +11,14 @@ import {
   FileText,
   Calendar,
   Filter,
+  Zap,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 
 interface UnifiedAssignment {
   assignment_id: string;
-  assignment_type: 'memorization' | 'spelling' | 'proofreading';
+  assignment_type: 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition';
   title: string;
   assigned_at: string;
   assigned_by_username: string;
@@ -29,19 +30,21 @@ interface UnifiedAssignment {
   assignment_level?: number;
 }
 
-type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading';
+type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition';
 type FilterStatus = 'all' | 'completed' | 'in_progress' | 'overdue';
 
 interface UnifiedAssignmentsProps {
   onLoadMemorization: (state: any) => void;
   onLoadSpelling: (practice: any) => void;
   onLoadProofreading: (assignment: any) => void;
+  onLoadSpacedRepetition: (assignment: any) => void;
 }
 
 export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
   onLoadMemorization,
   onLoadSpelling,
   onLoadProofreading,
+  onLoadSpacedRepetition,
 }) => {
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<UnifiedAssignment[]>([]);
@@ -86,6 +89,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         return <Mic size={20} className="text-blue-600" />;
       case 'proofreading':
         return <FileText size={20} className="text-green-600" />;
+      case 'spaced_repetition':
+        return <Zap size={20} className="text-amber-500" />;
       default:
         return <ClipboardList size={20} />;
     }
@@ -99,6 +104,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'proofreading':
         return 'bg-green-100 text-green-700 border-green-200';
+      case 'spaced_repetition':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
       default:
         return 'secondary';
     }
@@ -172,6 +179,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         answers: assignment.content_data.answers,
       };
       onLoadProofreading(proofreadingAssignment);
+    } else if (assignment.assignment_type === 'spaced_repetition') {
+      onLoadSpacedRepetition(assignment);
     }
   };
 
@@ -260,6 +269,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                   <option value="memorization">Memorization</option>
                   <option value="spelling">Spelling</option>
                   <option value="proofreading">Proofreading</option>
+                  <option value="spaced_repetition">Spaced Repetition</option>
                 </select>
 
                 <select
