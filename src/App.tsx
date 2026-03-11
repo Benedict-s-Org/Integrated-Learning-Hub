@@ -104,7 +104,7 @@ function AppContent() {
     deleteProofreadingPractice,
     addSavedContent,
   } = useAppContext();
-  const { user, loading, toggleViewMode, isAdmin, signOut, isMobileEmulator, setIsMobileEmulator } = useAuth();
+  const { user, loading, toggleViewMode, isAdmin, isStaff, signOut, isMobileEmulator, setIsMobileEmulator } = useAuth();
 
   // Memory Palace Context Handlers
   const {
@@ -310,8 +310,8 @@ function AppContent() {
   useEffect(() => {
     if (!user || user.role === 'admin') return;
 
-    // Redirect students away from admin-only dashboard
-    if (appState.page === 'classDashboard' && !new URLSearchParams(window.location.search).get('token')) {
+    // Redirect students away from admin-only dashboard (allow isStaff)
+    if (appState.page === 'classDashboard' && !isStaff && !new URLSearchParams(window.location.search).get('token')) {
       setAppState({ page: 'new', step: 'input' });
       return;
     }
@@ -356,7 +356,7 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
-    appState.page === 'classDashboard' && !new URLSearchParams(window.location.search).get('token');
+    (appState.page === 'classDashboard' && !isStaff && !new URLSearchParams(window.location.search).get('token'));
 
   if (!user && isRestrictedPage) {
     return <Login />;
