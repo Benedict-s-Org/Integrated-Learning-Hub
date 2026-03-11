@@ -127,7 +127,10 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
 
                 {/* Header - Only visible on main pages */}
                 {['classDashboard', 'new'].includes(currentPage) && (
-                    <div className={`p-4 border-b border-orange-100 ${isNavOpen ? 'px-5' : 'px-2'}`}>
+                    <div 
+                        className={`p-4 border-b border-orange-100 cursor-pointer hover:bg-orange-50/50 transition-colors ${isNavOpen ? 'px-5' : 'px-2'}`}
+                        onClick={() => onPageChange(isStaff ? 'classDashboard' : 'new')}
+                    >
                         {isNavOpen ? (
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-400 rounded-xl flex items-center justify-center shadow-md">
@@ -158,6 +161,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                         bgColor="bg-emerald-50"
                         isCollapsed={!isNavOpen}
                     >
+                        {isStaff && (
+                            <NavItem
+                                icon={LayoutGrid}
+                                label="Class Dashboard"
+                                isActive={currentPage === 'classDashboard'}
+                                onClick={() => onPageChange('classDashboard')}
+                            />
+                        )}
                         <NavItem
                             icon={Home}
                             label="Paragraph Memorization"
@@ -284,14 +295,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={currentPage === 'progress'}
                                 onClick={() => onPageChange('progress')}
                             />
-                            {isStaff && (
-                                <NavItem
-                                    icon={LayoutGrid}
-                                    label="Class Dashboard"
-                                    isActive={currentPage === 'classDashboard'}
-                                    onClick={() => onPageChange('classDashboard')}
-                                />
-                            )}
+
                             {user.role !== 'admin' && (
                                 <NavItem
                                     icon={ClipboardList}
@@ -333,12 +337,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     onClick={() => navigate('/admin/super-admin-panel')}
                                 />
                             )}
-                            <NavItem
-                                icon={LayoutGrid}
-                                label="Class Dashboard"
-                                isActive={currentPage === 'classDashboard'}
-                                onClick={() => onPageChange('classDashboard')}
-                            />
+
                             <NavItem
                                 icon={ClipboardList}
                                 label="Homework Record"
