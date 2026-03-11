@@ -134,7 +134,7 @@ export function ClassDashboardPage() {
     // Guest Mode State
     const searchParams = new URLSearchParams(window.location.search);
     const token = searchParams.get('token');
-    const [isGuestMode, setIsGuestMode] = useState(!!token);
+    const [isGuestMode] = useState(!!token);
     const [guestToken] = useState<string | null>(token);
 
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
@@ -337,7 +337,7 @@ export function ClassDashboardPage() {
             }
 
             // 3. Grouping Logic
-            if (isAdmin) {
+            if (isStaff) {
                 // Auto-populate classes table from distinct user class names
                 const existingClassNames = new Set(classData.map(c => c.name));
                 const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
@@ -407,7 +407,14 @@ export function ClassDashboardPage() {
             fetchUsers();
             fetchCycleData();
         }
-    }, [isStaff, currentUser, isGuestMode, guestToken]);
+    }, [isStaff, currentUser?.id, isGuestMode, guestToken]);
+
+    // Initial class selection for class_staff
+    useEffect(() => {
+        if (isStaff && !isAdmin && orderedClasses.length > 0 && activeClass === '3A') {
+            setActiveClass(orderedClasses[0].name);
+        }
+    }, [isStaff, isAdmin, orderedClasses, activeClass]);
 
     // Real-time updates for counts and status
     useEffect(() => {

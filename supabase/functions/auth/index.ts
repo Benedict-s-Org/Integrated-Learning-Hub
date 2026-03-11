@@ -130,67 +130,48 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const path = url.pathname;
 
-    // Helper to ensure admin role is synced
-    const ensureAdminRole = async (adminUserId: string) => {
-      if (!adminUserId || typeof adminUserId !== 'string') {
-        console.warn("ensureAdminRole: Invalid or missing adminUserId");
-        return false;
-      }
+    // Private helper to check and sync roles
+    const getAuthenticatedRole = async (userId: string) => {
+      if (!userId || typeof userId !== 'string') return null;
 
-      // 1. Check if admin in public.users
-      const { data: publicAdmin } = await supabase
+      // 1. Check if role in public.users
+      const { data: publicUser } = await supabase
         .from("users")
         .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
+        .eq("id", userId)
         .maybeSingle();
 
-      if (publicAdmin) return true;
+      if (publicUser) return publicUser.role as 'admin' | 'class_staff' | 'user';
 
-      // 2. If not, check auth.users (via admin API)
-      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(adminUserId);
-
+      // 2. If not found, check auth.users metadata
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
       if (authError || !authUser.user) {
         console.error("Auth user check failed:", authError);
-        return false;
+        return null;
       }
 
-      const metadata = authUser.user.user_metadata || {};
-      const appMetadata = authUser.user.app_metadata || {};
+      const role = (authUser.user.user_metadata?.role || authUser.user.app_metadata?.role || 'user') as 'admin' | 'class_staff' | 'user';
+      if (role === 'admin' || role === 'class_staff') {
+        console.log(`Syncing ${role} role to public.users for:`, userId);
 
-      // Check if they have admin role in metadata
-      if (metadata.role === 'admin' || appMetadata.role === 'admin' || appMetadata.claims_admin === true) {
-        console.log("Syncing admin role to public.users for:", adminUserId);
-
-        // 3. Sync to public.users
-        const { error: updateError } = await supabase
+        // Sync to public.users (upsert if needed)
+        const { error: syncError } = await supabase
           .from("users")
-          .update({ role: 'admin' })
-          .eq("id", adminUserId);
+          .upsert({
+            id: userId,
+            role: role,
+            username: authUser.user.email,
+            display_name: authUser.user.user_metadata?.display_name || authUser.user.email?.split('@')[0]
+          });
 
-        if (updateError) {
-          console.error("Failed to sync admin role:", updateError);
-          // Try insert if not exists (fallback)
-          const { error: insertError } = await supabase
-            .from("users")
-            .upsert({
-              id: adminUserId,
-              role: 'admin',
-              username: authUser.user.email,
-              display_name: metadata.display_name || authUser.user.email?.split('@')[0]
-            })
-            .select();
-
-          if (insertError) {
-            console.error("Failed to insert admin user:", insertError);
-            return false;
-          }
-        }
-        return true;
+        if (syncError) console.error("Failed to sync role:", syncError);
       }
 
-      return false;
+      return role;
     };
+
+    const ensureAdminRole = (userId: string) => getAuthenticatedRole(userId).then(role => role === 'admin');
+    const ensureStaffRole = (userId: string) => getAuthenticatedRole(userId).then(role => role === 'admin' || role === 'class_staff');
 
     if (path.endsWith("/login")) {
       console.log("Processing login request...");
@@ -518,8 +499,8 @@ Deno.serve(async (req: Request) => {
       console.log("Processing list-users request...");
       const { adminUserId } = await req.json();
 
-      const isAdmin = await ensureAdminRole(adminUserId);
-      if (!isAdmin) {
+      const callerRole = await getAuthenticatedRole(adminUserId);
+      if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) {
         return new Response(
           JSON.stringify({ error: "Unauthorized" }),
           {
@@ -529,11 +510,25 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // 1. Fetch users and their core fields from public.users
-      const { data: users, error: usersError } = await supabase
+      // Base query for users
+      let query = supabase
         .from("users")
-        .select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level, ecas")
-        .order("created_at", { ascending: false });
+        .select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level, ecas");
+
+      // Scoping for class_staff
+      if (callerRole === 'class_staff') {
+        const { data: assignments } = await supabase
+          .from("class_staff_assignments")
+          .select("class_id")
+          .eq("staff_user_id", adminUserId)
+          .eq("is_active", true);
+
+        const assignedClasses = assignments?.map((a: any) => a.class_id) || [];
+        // Only return users in assigned classes
+        query = query.in("class", assignedClasses);
+      }
+
+      const { data: users, error: usersError } = await query.order("created_at", { ascending: false });
 
       if (usersError) {
         return new Response(JSON.stringify({ error: "Failed to fetch users" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -752,16 +747,45 @@ Deno.serve(async (req: Request) => {
       console.log("Update user request body:", JSON.stringify(body));
       const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, ecas }: UpdateUserRequest = body;
 
-      // Ensure admin role is synced before proceeding
-      const isAdmin = await ensureAdminRole(adminUserId);
-      if (!isAdmin) {
+      // Ensure staff role is synced before proceeding
+      const callerRole = await getAuthenticatedRole(adminUserId);
+      if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) {
         return new Response(
-          JSON.stringify({ error: "Unauthorized: Admin role missing or invalid" }),
+          JSON.stringify({ error: "Unauthorized: Staff role missing or invalid" }),
           {
             status: 403,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
+      }
+
+      // Scoping check for class_staff
+      if (callerRole === 'class_staff') {
+        // 1. Get staff assignments
+        const { data: assignments } = await supabase
+          .from("class_staff_assignments")
+          .select("class_id")
+          .eq("staff_user_id", adminUserId)
+          .eq("is_active", true);
+
+        const assignedClasses = assignments?.map((a: any) => a.class_id) || [];
+
+        // 2. Get target user's class
+        const { data: targetUser } = await supabase
+          .from("users")
+          .select("class")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!targetUser || !assignedClasses.includes(targetUser.class)) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: You can only update users in your assigned classes" }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
       }
 
       const finalClass = classInput || classNameInput;
