@@ -40,21 +40,46 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
   const [ecas, setEcas] = useState<string[]>(user.ecas || []);
   const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string }[]>([]);
+  const [managedClasses, setManagedClasses] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBgRemoval, setShowBgRemoval] = useState(false);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (isOpen) {
-      const fetchActivities = async () => {
-        const { data } = await (supabase as any).from('activities').select('id, name').order('name');
-        if (data) setAvailableActivities(data);
+      const fetchData = async () => {
+        // Fetch activities
+        const { data: activities } = await (supabase as any).from('activities').select('id, name').order('name');
+        if (activities) setAvailableActivities(activities);
+
+        // Fetch all available classes
+        const { data: classes } = await (supabase as any).from('classes').select('id, name').order('name');
+        if (classes) setAvailableClasses(classes as { id: string, name: string }[]);
+
+        // Fetch staff assignments if they are class_staff
+        if (role === 'class_staff') {
+          setIsLoadingAssignments(true);
+          try {
+            const { data } = await supabase.functions.invoke('auth/get-staff-assignments', {
+              body: { userId: user.id }
+            });
+            if (data?.assignments) {
+              setManagedClasses(data.assignments);
+            }
+          } catch (err) {
+            console.error("Failed to fetch staff assignments:", err);
+          } finally {
+            setIsLoadingAssignments(false);
+          }
+        }
       };
-      fetchActivities();
+      fetchData();
     }
-  }, [isOpen]);
+  }, [isOpen]); // Only fetch on open. If role changes during edit, classes are already available.
 
   if (!isOpen) return null;
 
@@ -63,6 +88,14 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       prev.includes(activityName)
         ? prev.filter(name => name !== activityName)
         : [...prev, activityName]
+    );
+  };
+
+  const toggleManagedClass = (className: string) => {
+    setManagedClasses(prev =>
+      prev.includes(className)
+        ? prev.filter(name => name !== className)
+        : [...prev, className]
     );
   };
 
@@ -227,6 +260,9 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       (updateData as any).classNumber = parsedClassNumber;
       (updateData as any).spellingLevel = spellingLevel;
       (updateData as any).ecas = ecas;
+      if (role === 'class_staff') {
+        (updateData as any).managed_classes = managedClasses;
+      }
 
       console.log("Sending update request:", updateData);
 
@@ -471,6 +507,49 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
               管理員可以訪問後台管理界面並更新其他用戶。
             </p>
           </div>
+
+          {/* Managed Classes (Only for Class Staff) */}
+          {role === 'class_staff' && (
+            <div className="space-y-3 p-4 border border-indigo-200 rounded-xl bg-indigo-50/30">
+              <label className="flex items-center gap-2 text-sm font-bold text-indigo-700">
+                <Shield className="w-4 h-4" />
+                負責班級 (Managed Classes)
+              </label>
+              {isLoadingAssignments ? (
+                <div className="flex items-center gap-2 text-xs text-indigo-500">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  載入權限中...
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {availableClasses.map((cls) => (
+                    <label 
+                      key={cls.id} 
+                      className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer text-sm ${
+                        managedClasses.includes(cls.name)
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={managedClasses.includes(cls.name)}
+                        onChange={() => toggleManagedClass(cls.name)}
+                        className="hidden"
+                      />
+                      <span className="font-bold">{cls.name}</span>
+                    </label>
+                  ))}
+                  {availableClasses.length === 0 && (
+                    <p className="text-xs text-slate-400 italic col-span-full">尚未建立任何班級</p>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-indigo-500/70">
+                班級助理只能看到及管理以上所選班級的學生。
+              </p>
+            </div>
+          )}
 
           {/* Extracurricular Activities */}
           <div className="space-y-3">

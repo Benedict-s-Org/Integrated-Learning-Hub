@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Loader2, ChevronLeft, ChevronRight, MessageSquare, BookOpen, DoorOpen } from 'lucide-react';
-import { AdminMessageModal } from './notifications/AdminMessageModal';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
+import { User, Save, Loader2, ChevronLeft, ChevronRight, Zap, BookOpen, DoorOpen } from 'lucide-react';
+import { NotificationTemplateModal } from './notifications/NotificationTemplateModal';
 import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import {
     DndContext,
@@ -53,11 +51,9 @@ interface ClassDistributorProps {
     onSelectionChange: (ids: string[] | ((prev: string[]) => string[])) => void;
     onHomeworkClick?: (student: UserWithCoins) => void;
     onToiletBreakClick?: (student: UserWithCoins) => void;
-    isGuestMode?: boolean;
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
     className?: string;
-    onGetGuestLink?: (className: string) => Promise<void>;
 }
 
 interface SortableUserItemProps {
@@ -72,7 +68,6 @@ interface SortableUserItemProps {
     onHomeworkClick?: () => void;
     onToiletBreakClick?: () => void;
     onMove: (index: number, direction: 'forward' | 'backward') => void;
-    isGuestMode?: boolean;
     consequenceCount?: number;
     showEmail?: boolean;
 }
@@ -81,7 +76,7 @@ interface SortableUserItemProps {
 function UserItemComponent({
     user, avatarCatalog, isSelected, index, total, isRearranging,
     onToggle, onClick, onHomeworkClick, onToiletBreakClick, onMove,
-    isGuestMode, consequenceCount = 0, showEmail, theme
+    showEmail, theme
 }: any) {
     return (
         <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
@@ -215,7 +210,7 @@ function UserItemComponent({
                     className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-black transition-all border border-blue-100/50 pointer-events-auto active:scale-95"
                 >
                     <BookOpen size={12} />
-                    {isGuestMode ? 'Homework' : 'HOMEWORK'}
+                    HOMEWORK
                 </button>
             )}
 
@@ -304,50 +299,12 @@ function SortableUserItemComponent(props: SortableUserItemProps) {
     );
 }
 
-// --- Static Wrapper (Guest Mode) ---
-function StaticUserItemComponent(props: SortableUserItemProps) {
-    const { isSelected, consequenceCount = 0 } = props;
-    const { theme } = useDashboardTheme();
-
-    const style = {
-        backgroundColor: theme.cardBg,
-    };
-
-    return (
-        <div
-            style={style}
-            className={`
-                relative p-2 pb-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 group
-                ${isSelected
-                    ? 'border-blue-500 shadow-md transform scale-[1.02]'
-                    : consequenceCount === 2
-                        ? 'border-yellow-400 bg-yellow-50'
-                        : consequenceCount >= 3
-                            ? 'border-red-400 bg-red-50'
-                            : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'
-                }
-            `}
-        >
-            {consequenceCount > 0 && (
-                <div className={`absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm z-20 animate-in zoom-in duration-300
-                    ${consequenceCount >= 3 ? 'bg-red-600 text-white animate-pulse' : 'bg-yellow-400 text-slate-900'}
-                `}>
-                    {consequenceCount}
-                </div>
-            )}
-
-            <UserItemComponent {...props} theme={theme} />
-        </div>
-    );
-}
-
 const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUserItemProps) => {
     if (prevProps.isSelected !== nextProps.isSelected) return false;
     if (prevProps.index !== nextProps.index) return false;
     if (prevProps.total !== nextProps.total) return false;
     if (prevProps.isRearranging !== nextProps.isRearranging) return false;
     if (prevProps.consequenceCount !== nextProps.consequenceCount) return false;
-    if (prevProps.isGuestMode !== nextProps.isGuestMode) return false;
     if (prevProps.showEmail !== nextProps.showEmail) return false;
     if (prevProps.onToggle !== nextProps.onToggle) return false;
 
@@ -374,18 +331,15 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
 };
 
 const SortableUserItem = React.memo(SortableUserItemComponent, arePropsEqual);
-const StaticUserItem = React.memo(StaticUserItemComponent, arePropsEqual);
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, isGuestMode, consequenceCounts = {}, showEmail, className, onGetGuestLink }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, consequenceCounts = {}, showEmail, className }: ClassDistributorProps) {
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [isRearranging, setIsRearranging] = useState(false);
-    const [isCreatingLink, setIsCreatingLink] = useState(false);
 
-    // Admin Message Modal State
-    const [showAdminMessageModal, setShowAdminMessageModal] = useState(false);
-    const { user } = useAuth();
+    // Unified Broadcast Modal State
+    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
 
     useEffect(() => {
         setLocalUsers(initialUsers);
@@ -469,50 +423,10 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
             setIsSaving(false);
         }
     };
-    const handleAdminMessageSend = async (message: string, type: any, studentIds?: string[]) => {
-        try {
-            if (studentIds && studentIds.length > 0) {
-                // Bulk insert via audited RPC
-                await Promise.all(studentIds.map(async (id) => {
-                    const { error } = await supabase.rpc('insert_audited_student_record', {
-                        p_student_id: id,
-                        p_message: message,
-                        p_type: type,
-                        p_class_id: className || 'Unknown',
-                        p_reason: 'Admin Message (Group)'
-                    });
-                    if (error) throw error;
-                }));
-            } else {
-                // Single broadcast or single student message
-                const { error } = await supabase.rpc('insert_audited_student_record', {
-                    p_student_id: null,
-                    p_message: message,
-                    p_type: type,
-                    p_class_id: className || 'Unknown',
-                    p_reason: 'Admin Message'
-                });
-                if (error) throw error;
-            }
+    // Admin Message/Broadcast sending logic is now handled inside the UnifiedBroadcastModal or its parent
+    // The previous handleAdminMessageSend is removed in favor of the new modal's internal logic
 
-            setShowAdminMessageModal(false);
-            // alert('Message logged.'); // Optional feedback
 
-        } catch (error) {
-            console.error('Error sending admin message:', error);
-            alert('Failed to log message');
-        }
-    };
-
-    const handleLinkClick = async () => {
-        if (!onGetGuestLink || !className) return;
-        setIsCreatingLink(true);
-        try {
-            await onGetGuestLink(className);
-        } finally {
-            setIsCreatingLink(false);
-        }
-    };
 
     // Check if all local users are selected for button text
     const areAllLocalSelected = localUsers.length > 0 && localUsers.every(u => selectedIds.includes(u.id));
@@ -540,30 +454,15 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                         </button>
                     )}
 
-                    {/* Guest Link Button */}
-                    {!isGuestMode && onGetGuestLink && (
-                        <button
-                            onClick={handleLinkClick}
-                            disabled={isCreatingLink}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
-                            title="Copy Guest Link for this class"
-                        >
-                            {isCreatingLink ? (
-                                <Loader2 size={16} className="animate-spin text-blue-500" />
-                            ) : (
-                                <BookOpen size={16} className="text-blue-500" />
-                            )}
-                            Link
-                        </button>
-                    )}
+
 
                     {/* Admin Message Button */}
                     <button
-                        onClick={() => setShowAdminMessageModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                        onClick={() => setShowBroadcastModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all shadow-sm"
                     >
-                        <MessageSquare size={16} className="text-blue-500" />
-                        Message
+                        <Zap size={16} className="text-blue-500 fill-blue-500" />
+                        Broadcast
                     </button>
 
                     {/* Rearrange Mode Toggle */}
@@ -605,69 +504,42 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                 </div>
             ) : (
-                isGuestMode ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                        {localUsers.map((user, index) => (
-                            <StaticUserItem
-                                key={user.id}
-                                user={user}
-                                avatarCatalog={avatarCatalog}
-                                index={index}
-                                total={localUsers.length}
-                                isRearranging={isRearranging}
-                                isSelected={selectedIds.includes(user.id)}
-                                onToggle={toggleUser}
-                                onClick={() => onStudentClick(user)}
-                                onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
-                                onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
-                                onMove={handleMove}
-                                isGuestMode={isGuestMode}
-                                consequenceCount={consequenceCounts[user.id] || 0}
-                                showEmail={showEmail}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext
+                        items={localUsers.map(u => u.id)}
+                        strategy={rectSortingStrategy}
                     >
-                        <SortableContext
-                            items={localUsers.map(u => u.id)}
-                            strategy={rectSortingStrategy}
-                        >
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                                {localUsers.map((user, index) => (
-                                    <SortableUserItem
-                                        key={user.id}
-                                        user={user}
-                                        avatarCatalog={avatarCatalog}
-                                        index={index}
-                                        total={localUsers.length}
-                                        isRearranging={isRearranging}
-                                        isSelected={selectedIds.includes(user.id)}
-                                        onToggle={toggleUser}
-                                        onClick={() => onStudentClick(user)}
-                                        onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
-                                        onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
-                                        onMove={handleMove}
-                                        isGuestMode={isGuestMode}
-                                        consequenceCount={consequenceCounts[user.id] || 0}
-                                        showEmail={showEmail}
-                                    />
-                                ))}
-                            </div>
-                        </SortableContext>
-                    </DndContext>
-                )
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+                            {localUsers.map((user, index) => (
+                                <SortableUserItem
+                                    key={user.id}
+                                    user={user}
+                                    avatarCatalog={avatarCatalog}
+                                    index={index}
+                                    total={localUsers.length}
+                                    isRearranging={isRearranging}
+                                    isSelected={selectedIds.includes(user.id)}
+                                    onToggle={toggleUser}
+                                    onClick={() => onStudentClick(user)}
+                                    onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
+                                    onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
+                                    onMove={handleMove}
+                                    consequenceCount={consequenceCounts[user.id] || 0}
+                                    showEmail={showEmail}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                </DndContext>
             )}
 
-            <AdminMessageModal
-                isOpen={showAdminMessageModal}
-                onClose={() => setShowAdminMessageModal(false)}
-                onSend={handleAdminMessageSend}
-                students={localUsers.map(u => ({ id: u.id, display_name: u.display_name || 'Unknown' }))}
+            <NotificationTemplateModal
+                isOpen={showBroadcastModal}
+                onClose={() => setShowBroadcastModal(false)}
             />
         </div>
     );

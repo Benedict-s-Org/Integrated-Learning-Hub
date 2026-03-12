@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && user.role !== "class_staff") {
         return new Response(
           JSON.stringify({ error: "Only admins can create practices" }),
           {
@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && user.role !== "class_staff") {
         return new Response(
           JSON.stringify({ error: "Only admins can view practices" }),
           {
@@ -203,7 +203,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && user.role !== "class_staff") {
         return new Response(
           JSON.stringify({ error: "Only admins can delete practices" }),
           {
@@ -257,7 +257,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && user.role !== "class_staff") {
         return new Response(
           JSON.stringify({ error: "Only admins can update practices" }),
           {

@@ -26,9 +26,7 @@ interface StudentProfileModalProps {
     onClose: () => void;
     student: UserWithCoins | null;
     onUpdateCoins: () => void;
-    isGuestMode?: boolean;
     avatarCatalog: AvatarImageItem[];
-    guestToken?: string;
     onCustomizeAvatar?: () => void;
 }
 
@@ -39,9 +37,7 @@ export function StudentProfileModal({
     onClose,
     student,
     onUpdateCoins,
-    isGuestMode = false,
     avatarCatalog,
-    guestToken,
     onCustomizeAvatar
 }: StudentProfileModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -175,8 +171,6 @@ export function StudentProfileModal({
                             student={student}
                             onUpdateCoins={onUpdateCoins}
                             onSuccess={handleClose}
-                            isGuestMode={isGuestMode}
-                            guestToken={guestToken}
                         />
                     )}
                     {activeTab === 'homework' && (

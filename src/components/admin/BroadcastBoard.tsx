@@ -7,8 +7,6 @@ import { SUBJECT_NAMES, MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig
 interface BroadcastBoardProps {
     onClose: () => void;
     className: string;
-    isGuestMode?: boolean;
-    guestToken?: string | null;
 }
 
 interface ActiveDisplayElement {
@@ -18,18 +16,10 @@ interface ActiveDisplayElement {
 }
 // Unused old interface removed
 
-interface ActiveAnnouncement {
-    id: string;
-    templateId: string;
-    topic: string;
-    messageTemplate: string;
-    targetClass: string;
-    targetStudents: { name: string, className: string }[];
-    remarks?: string;
-    createdAt: string;
-}
+// Unused old interface removed
 
-export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, className, isGuestMode, guestToken }) => {
+
+export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, className }) => {
     const today = getHKTodayString();
     const [assignments, setAssignments] = useState<Record<string, string>>({});
     const [missingHomework, setMissingHomework] = useState<{ name: string, items: string[] }[]>([]);
@@ -68,87 +58,58 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
     const stripCoinSuffix = (msg: string | null | undefined) => (msg || '').replace(/\s\([+-]?\d+\)$/, '');
 
     const fetchData = async () => {
+        console.log('BroadcastBoard: fetchData started', { className, today });
         try {
             let hwData: any = null;
             let configData: any = null;
             let recordData: any = null;
             let activeForClass: string[] = [];
 
-            if (isGuestMode && guestToken) {
-                const { data, error } = await supabase.functions.invoke('public-access/get-broadcast-data', {
-                    body: { token: guestToken, className, date: today }
-                });
-                if (error) throw error;
-                hwData = data.hwData;
-                configData = data.configData;
-                recordData = data.recordData;
-            } else {
-                // 1. Fetch Homework
-                const { data: directHwData } = await (supabase as any)
-                    .from('daily_homework')
-                    .select('assignments')
-                    .eq('date', today)
-                    .eq('class_name', className)
-                    .maybeSingle();
-                hwData = directHwData;
+            // 1. Fetch Homework
+            const { data: directHwData } = await (supabase as any)
+                .from('daily_homework')
+                .select('assignments')
+                .eq('date', today)
+                .eq('class_name', className)
+                .maybeSingle();
+            hwData = directHwData;
 
-                // 2. Fetch Broadcast Settings
-                const { data: directConfigData } = await (supabase as any)
-                    .from('system_config')
-                    .select('value')
-                    .eq('key', 'broadcast_v2_settings')
-                    .maybeSingle();
-                configData = directConfigData;
+            // 2. Fetch Broadcast Settings (Only for Presets now)
+            const { data: directConfigData } = await (supabase as any)
+                .from('system_config')
+                .select('value')
+                .eq('key', 'broadcast_v2_settings')
+                .maybeSingle();
+            configData = directConfigData;
 
-                // 3. Fetch Records
-                const { data: directRecordData } = await (supabase as any)
-                    .from('student_records')
-                    .select('type, message, student_id, student:student_id(display_name, class)')
-                    .gte('created_at', getHKTodayStartISO());
-                recordData = directRecordData;
-            }
+            // 3. Fetch Records (Source of Truth for Announcements)
+            const { data: directRecordData } = await (supabase as any)
+                .from('student_records')
+                .select('type, message, student_id, student:student_id(display_name, class)')
+                .gte('created_at', getHKTodayStartISO());
+            recordData = directRecordData;
 
             if (hwData) setAssignments(hwData.assignments);
 
             if (configData) {
                 const settings = typeof configData.value === 'string' ? JSON.parse(configData.value) : configData.value;
                 activeForClass = settings.active_options?.[className] || [];
-
-                // Read active announcements
-                const announcements: ActiveAnnouncement[] = settings.active_announcements || [];
-
-                // Filter for this class
-                const classAnnouncements = announcements.filter(a => a.targetClass === className);
-
-                // Convert to ActiveDisplayElement
-                const dynamicPanels: ActiveDisplayElement[] = classAnnouncements.map(a => {
-                    // Create a formatted title that includes topic, template, and remarks
-                    let parts = [];
-                    if (a.topic) parts.push(a.topic);
-                    if (a.messageTemplate) parts.push(a.messageTemplate);
-                    let titleText = parts.join(' - ');
-                    if (a.remarks) titleText += ` (Note: ${a.remarks})`;
-
-                    return {
-                        title: titleText,
-                        students: a.targetStudents.map(s => ({ name: s.name })),
-                        type: 'custom'
-                    };
-                });
-
-                setDynamicBroadcasts(dynamicPanels);
-
                 setActiveOptionCount(activeForClass.length);
             }
 
             let missing: { name: string, items: string[] }[] = [];
             let negativeCounts: Record<string, { name: string, count: number }> = {};
+            let classRecords: any[] = [];
 
             if (recordData) {
-                // Filter for current class
-                const classRecords = recordData.filter((r: any) => r.student?.class === className);
+                // Filter for current class WITH NORMALIZATION
+                classRecords = recordData.filter((r: any) => {
+                    const studentClass = (r.student?.class || '').trim().toUpperCase();
+                    const current = (className || '').trim().toUpperCase();
+                    return studentClass === current;
+                });
 
-                // Process Recess Alert (3+ negatives)
+                // A. Process Recess Alert (3+ negatives)
                 classRecords.forEach((r: any) => {
                     if (r.type === 'negative') {
                         const name = r.student?.display_name || 'Unknown';
@@ -158,30 +119,26 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 });
                 setRecessAlert(Object.values(negativeCounts).filter(s => s.count >= 3).map((s: any) => s.name));
 
-                // Process Missing Homework if preset active
+                // B. Process Missing Homework if preset active
                 if (activeForClass.includes('preset_missing_hw')) {
                     const missingMap: Record<string, { name: string, items: Set<string> }> = {};
                     classRecords.forEach((r: any) => {
                         const name = r.student?.display_name || 'Unknown';
                         const cleanMessage = stripCoinSuffix(r.message);
 
-                        // Case 1: Specific items (starts with 功課:)
                         if (cleanMessage.startsWith('功課:')) {
                             const hwStr = cleanMessage.replace('功課:', '').trim();
                             if (!missingMap[r.student_id]) missingMap[r.student_id] = { name, items: new Set() };
                             missingMap[r.student_id].items.add(hwStr);
                         }
-                        // Case 2: General status (one of MISSING_HOMEWORK_TITLES)
                         else if (MISSING_HOMEWORK_TITLES.includes(cleanMessage)) {
                             if (!missingMap[r.student_id]) missingMap[r.student_id] = { name, items: new Set() };
-                            // If it's a general record and they have no specific items yet, add a placeholder
                             if (missingMap[r.student_id].items.size === 0) {
                                 missingMap[r.student_id].items.add('Pending / 欠功課');
                             }
                         }
                     });
 
-                    // Cleanup: If they have specific items AND the placeholder, remove the placeholder
                     Object.values(missingMap).forEach(m => {
                         if (m.items.size > 1 && m.items.has('Pending / 欠功課')) {
                             m.items.delete('Pending / 欠功課');
@@ -191,20 +148,64 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                     missing = Object.values(missingMap).map(m => ({ name: m.name, items: Array.from(m.items) }));
                 }
                 setMissingHomework(missing);
+
+                // C. Process Announcements (Grouped student_records)
+                // Filter out records that are purely for homework status (unless they are also announcements)
+                // For simplicity, we'll group EVERYTHING that isn't a specific individual homework item
+                const announcementGroups: Record<string, { title: string, students: Set<string>, type: any }> = {};
+                
+                classRecords.forEach((r: any) => {
+                    const fullMsg = stripCoinSuffix(r.message);
+                    
+                    let displayTitle = fullMsg;
+                    let taggedNames: string[] = [];
+                    let hasTagSuffix = false;
+                    
+                    // Check for our tagging metadata suffix: ||{Name1, Name2}
+                    if (fullMsg.includes(' ||{')) {
+                        const parts = fullMsg.split(' ||{');
+                        displayTitle = parts[0];
+                        taggedNames = (parts[1] || '').replace('}', '').split(', ').filter(Boolean);
+                        hasTagSuffix = true;
+                    }
+
+                    // Skip if it's a specific homework item (starts with 功課:)
+                    if (displayTitle.startsWith('功課:')) return;
+                    
+                    if (!announcementGroups[fullMsg]) {
+                        announcementGroups[fullMsg] = { 
+                            title: displayTitle, 
+                            students: new Set(taggedNames), 
+                            type: r.type === 'negative' ? 'homework_record' : 'custom'
+                        };
+                    }
+
+                    // If NO suffix was found (Individual/Standard reward), accumulate student names from the join
+                    if (!hasTagSuffix) {
+                        announcementGroups[fullMsg].students.add(r.student?.display_name || 'Unknown');
+                    }
+                });
+
+                // Convert to panels. Note: We now allow 0 students (general broadcast)
+                const dynamicPanels: ActiveDisplayElement[] = Object.values(announcementGroups)
+                    .map(group => ({
+                        title: group.title,
+                        students: Array.from(group.students).map(name => ({ name })),
+                        type: group.type as 'homework_record' | 'custom'
+                    }));
+
+                setDynamicBroadcasts(dynamicPanels);
             } else {
-                // If no records at all, clear everything related to records
                 setRecessAlert([]);
                 setMissingHomework([]);
+                setDynamicBroadcasts([]);
             }
-
-            // 4. Custom Broadcasts (Announcements) are already set above from configData parsing
 
             console.log('BroadcastBoard Render Data:', {
                 className,
-                activeForClass,
-                dynamicPanels: dynamicBroadcasts,
-                missingHomeworkLength: missing.length,
-                recessAlertLength: Object.keys(negativeCounts).length
+                dynamicBroadcastsCount: dynamicBroadcasts.length,
+                missingHomeworkCount: missing.length,
+                recessAlertCount: Object.values(negativeCounts).filter(s => s.count >= 3).length
             });
 
         } catch (err) {

@@ -58,11 +58,13 @@ interface UpdateUserRequest {
   username?: string;
   display_name?: string;
   role?: 'admin' | 'class_staff' | 'user';
-  class?: string;
-  className?: string; // Support for className aliasing
-  classNumber?: number;
+  class?: string | null;
+  className?: string | null; // Support for className aliasing
+  classNumber?: number | null;
   spellingLevel?: number;
   ecas?: string[];
+  managed_classes?: string[];
+  password?: string;
 }
 
 interface AdminResetPasswordRequest {
@@ -132,25 +134,42 @@ Deno.serve(async (req: Request) => {
 
     // Private helper to check and sync roles
     const getAuthenticatedRole = async (userId: string) => {
-      if (!userId || typeof userId !== 'string') return null;
+      if (!userId || typeof userId !== 'string') {
+        console.log("getAuthenticatedRole: Missing or invalid userId:", userId);
+        return null;
+      }
+
+      console.log("getAuthenticatedRole: Checking role for userId:", userId);
 
       // 1. Check if role in public.users
-      const { data: publicUser } = await supabase
+      const { data: publicUser, error: publicError } = await supabase
         .from("users")
         .select("role")
         .eq("id", userId)
         .maybeSingle();
 
-      if (publicUser) return publicUser.role as 'admin' | 'class_staff' | 'user';
+      if (publicError) {
+        console.error("getAuthenticatedRole: public.users fetch error:", publicError);
+      }
+
+      if (publicUser) {
+        console.log("getAuthenticatedRole: Found role in public.users:", publicUser.role);
+        return publicUser.role as 'admin' | 'class_staff' | 'user';
+      }
+
+      console.log("getAuthenticatedRole: User not found in public.users, checking auth.users metadata...");
 
       // 2. If not found, check auth.users metadata
       const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
       if (authError || !authUser.user) {
-        console.error("Auth user check failed:", authError);
+        console.error("getAuthenticatedRole: Auth user check failed:", authError);
         return null;
       }
 
-      const role = (authUser.user.user_metadata?.role || authUser.user.app_metadata?.role || 'user') as 'admin' | 'class_staff' | 'user';
+      const metadata = authUser.user.user_metadata || {};
+      const role = (metadata.role || authUser.user.app_metadata?.role || 'user') as 'admin' | 'class_staff' | 'user';
+      console.log("getAuthenticatedRole: Found role in auth metadata:", role);
+
       if (role === 'admin' || role === 'class_staff') {
         console.log(`Syncing ${role} role to public.users for:`, userId);
 
@@ -742,10 +761,47 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (path.endsWith("/get-staff-assignments")) {
+      const { userId } = await req.json();
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "userId required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("class_staff_assignments")
+        .select("class_id")
+        .eq("staff_user_id", userId)
+        .eq("is_active", true);
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ assignments: data.map((a: any) => a.class_id) }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     if (path.endsWith("/update-user")) {
       const body = await req.json();
       console.log("Update user request body:", JSON.stringify(body));
-      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, ecas }: UpdateUserRequest = body;
+      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, ecas, managed_classes, password }: UpdateUserRequest = body;
+
+      const { data: targetUser } = await supabase
+        .from("users")
+        .select("role, class")
+        .eq("id", userId)
+        .maybeSingle();
 
       // Ensure staff role is synced before proceeding
       const callerRole = await getAuthenticatedRole(adminUserId);
@@ -770,13 +826,7 @@ Deno.serve(async (req: Request) => {
 
         const assignedClasses = assignments?.map((a: any) => a.class_id) || [];
 
-        // 2. Get target user's class
-        const { data: targetUser } = await supabase
-          .from("users")
-          .select("class")
-          .eq("id", userId)
-          .maybeSingle();
-
+        // 2. Already fetched targetUser above
         if (!targetUser || !assignedClasses.includes(targetUser.class)) {
           return new Response(
             JSON.stringify({ error: "Unauthorized: You can only update users in your assigned classes" }),
@@ -844,13 +894,49 @@ Deno.serve(async (req: Request) => {
         if (classNumber !== undefined) authUpdates.class_number = classNumber;
         if (spellingLevel !== undefined) authUpdates.spelling_level = spellingLevel;
 
+        const authPayload: any = {};
         if (Object.keys(authUpdates).length > 0) {
-          await supabase.auth.admin.updateUserById(userId, {
-            user_metadata: {
-              ...(await supabase.auth.admin.getUserById(userId)).data.user?.user_metadata,
-              ...authUpdates
-            }
-          });
+          authPayload.user_metadata = {
+            ...(await supabase.auth.admin.getUserById(userId)).data.user?.user_metadata,
+            ...authUpdates
+          };
+        }
+        if (password) {
+          authPayload.password = password;
+        }
+
+        if (Object.keys(authPayload).length > 0) {
+          const { error: authError } = await supabase.auth.admin.updateUserById(userId, authPayload);
+          if (authError) {
+             console.error("Failed to update auth.users:", authError);
+          }
+        }
+
+        // Handle class_staff_assignments if managed_classes or role changed
+        const currentRole = role || targetUser?.role || 'user';
+        if (currentRole === 'class_staff' && managed_classes !== undefined) {
+          console.log("Updating class_staff_assignments for:", userId, managed_classes);
+
+          // Delete existing active assignments
+          const { error: delError } = await supabase
+            .from("class_staff_assignments")
+            .delete()
+            .eq("staff_user_id", userId);
+
+          if (delError) console.error("Error deleting old assignments:", delError);
+
+          // Insert new ones
+          if (managed_classes.length > 0) {
+            const inserts = managed_classes.map(cid => ({
+              staff_user_id: userId,
+              class_id: cid,
+              is_active: true
+            }));
+            const { error: insError } = await supabase
+              .from("class_staff_assignments")
+              .insert(inserts);
+            if (insError) console.error("Error inserting new assignments:", insError);
+          }
         }
 
         return new Response(

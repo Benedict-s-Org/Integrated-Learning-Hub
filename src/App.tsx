@@ -16,13 +16,11 @@ import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiag
 import { Login } from './components/Auth/Login';
 import { ComponentInspector } from './components/debug/ComponentInspector';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
-import { PendingRewardsModal } from './components/admin/PendingRewardsModal';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
 import { FurnitureUploader } from './components/furniture/FurnitureUploader';
 import { FurnitureEditor } from './components/editor/FurnitureEditor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
-import { supabase } from '@/integrations/supabase/client';
 import {
   Word,
   MemorizationState,
@@ -58,7 +56,6 @@ type AppState =
   | { page: 'database' }
   | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
-  | { page: 'publicPractice'; memorizationState: MemorizationState }
   | { page: 'proofreading'; step: 'input' }
   | { page: 'proofreading'; step: 'answerSetting'; sentences: string[] }
   | { page: 'proofreading'; step: 'preview'; sentences: string[]; answers: ProofreadingAnswer[] }
@@ -80,7 +77,6 @@ type AppState =
   | { page: 'flowithTest' }
   | { page: 'wordSnake' }
   | { page: 'classDashboard' }
-  | { page: 'quickReward'; qrToken: string }
   | { page: 'scanner' }
   | { page: 'phonics'; section: 'wall' | 'blending' | 'games' | 'quiz' | 'builder' }
   | { page: 'notionHub' }
@@ -144,8 +140,6 @@ function AppContent() {
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
     return localStorage.getItem('showComponentInspector') === 'true';
   });
-  const [pendingCount, setPendingCount] = useState(0);
-  const [showPendingModal, setShowPendingModal] = useState(false);
 
   // Global keyboard shortcut for quick toggle (Alt+S)
   useEffect(() => {
@@ -180,47 +174,6 @@ function AppContent() {
     }
   }, [user, showLoginModal]);
 
-  // Fetch and Subscribe to Pending Rewards Count
-  useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      setPendingCount(0);
-      return;
-    }
-
-    const fetchPendingCount = async () => {
-      const { count, error } = await supabase
-        .from('pending_rewards' as any)
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      if (!error && count !== null) {
-        setPendingCount(count);
-      }
-    };
-
-    fetchPendingCount();
-
-    // Subscribe to changes in the pending_rewards table
-    const channel = supabase
-      .channel('pending_rewards_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pending_rewards'
-        },
-        () => {
-          fetchPendingCount();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.role]);
-
   // Reset app state when user signs out
   useEffect(() => {
     if (!user && !loading) {
@@ -242,15 +195,6 @@ function AppContent() {
   useEffect(() => {
     // Check if we're on the quick-reward route from URL (for initial load)
     const path = window.location.pathname;
-    const quickRewardMatch = path.match(/^\/quick-reward\/([^\/]+)$/);
-    const legacyRewardMatch = path.match(/^\/reward\/([^\/]+)$/);
-    const scannerMatch = path.match(/^\/scanner$/);
-    const classMatch = path.match(/^\/class$/);
-
-    if (quickRewardMatch) {
-      setAppState({ page: 'quickReward', qrToken: quickRewardMatch[1] });
-      return;
-    }
 
     const qrUpMatch = path.match(/^\/qr-up\/dashboard$/);
     if (qrUpMatch) {
@@ -259,40 +203,8 @@ function AppContent() {
       return;
     }
 
-    if (legacyRewardMatch) {
-      setAppState({ page: 'quickReward', qrToken: legacyRewardMatch[1] });
-      return;
-    }
-
-    if (scannerMatch) {
-      setAppState({ page: 'scanner' });
-      return;
-    }
-
-    if (classMatch) {
-      setAppState({ page: 'classDashboard' });
-      return;
-    }
-
-
-
     const handleHashChange = async () => {
-      const hash = window.location.hash;
-      const publicMatch = hash.match(/^#\/public\/(.+)$/);
-
-      if (publicMatch) {
-        const publicId = publicMatch[1];
-        const publicContent = await fetchPublicContent(publicId);
-
-        if (publicContent) {
-          setAppState({ page: 'publicPractice', memorizationState: publicContent });
-        } else {
-          // Content not found, redirect to home
-          window.location.hash = '';
-          setAppState({ page: 'new', step: 'input' });
-          alert('The requested practice content was not found or is no longer available.');
-        }
-      }
+      // Unused hash routing removed
     };
 
     // Check hash on mount
@@ -356,7 +268,7 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
-    (appState.page === 'classDashboard' && !isStaff && !new URLSearchParams(window.location.search).get('token'));
+    (appState.page === 'classDashboard' && !isStaff);
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -370,7 +282,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'quickReward' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'adminTimetable')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement')) {
       setShowLoginModal(true);
       return;
     }
@@ -437,8 +349,6 @@ function AppContent() {
       setAppState({ page: 'wordSnake' });
     } else if (page === 'classDashboard') {
       setAppState({ page: 'classDashboard' });
-    } else if (page === 'quickReward') {
-      setAppState({ page: 'quickReward', qrToken: '' }); // Default or empty, will be picked up by URL usually
     } else if (page === 'scanner') {
       setAppState({ page: 'scanner' });
     } else if (page === 'notionHub') {
@@ -862,47 +772,6 @@ function AppContent() {
                   onViewSaved={handleViewSavedMemorization}
                 />
               );
-            case 'publicPractice':
-              if (appState.memorizationState.practiceMode === 'shuffledGame') {
-                return (
-                  <ShuffledGameView
-                    words={appState.memorizationState.words}
-                    onBack={() => {
-                      window.location.hash = '';
-                      setAppState({ page: 'new', step: 'input' });
-                    }}
-                    isPractice={true}
-                  />
-                );
-              }
-              if (appState.memorizationState.practiceMode === 'dictation') {
-                return (
-                  <DictationView
-                    words={appState.memorizationState.words}
-                    selectedIndices={appState.memorizationState.selectedWordIndices}
-                    originalText={appState.memorizationState.originalText}
-                    onBack={() => {
-                      window.location.hash = '';
-                      setAppState({ page: 'new', step: 'input' });
-                    }}
-                    isPractice={true}
-                  />
-                );
-              }
-              return (
-                <MemorizationView
-                  words={appState.memorizationState.words}
-                  selectedIndices={appState.memorizationState.selectedWordIndices}
-                  originalText={appState.memorizationState.originalText}
-                  onBack={() => {
-                    window.location.hash = '';
-                    setAppState({ page: 'new', step: 'input' });
-                  }}
-                  onSave={() => { }}
-                  onViewSaved={() => { }}
-                  isPublicView={true}
-                />
-              );
             case 'proofreading':
               switch (appState.step) {
                 case 'input':
@@ -1109,8 +978,6 @@ function AppContent() {
               return <IPadInteractiveZone />;
             case 'classDashboard':
               return <ClassDashboardPage />;
-            case 'quickReward':
-              return <QuickRewardPage />;
             case 'scanner':
               return <QRScannerPage />;
             case 'notionHub':
@@ -1169,14 +1036,11 @@ function AppContent() {
   };
 
   const getCurrentPage = () => {
-    if (appState.page === 'practice' || appState.page === 'publicPractice') {
+    if (appState.page === 'practice') {
       return 'saved';
     }
     if (appState.page === 'proofreading') {
       return 'proofreading';
-    }
-    if (appState.page === 'quickReward') {
-      return 'quickReward';
     }
     if (appState.page === 'proofreadingAssignments') {
       return 'proofreadingAssignments';
@@ -1219,7 +1083,6 @@ function AppContent() {
 
   const getDiagnosticPage = (): string => {
     if (appState.page === 'practice') return 'practice';
-    if (appState.page === 'publicPractice') return 'publicPractice';
     if (appState.page === 'assignedPractice') return 'assignedPractice';
     if (appState.page === 'learningHub') return 'learningHub';
 
@@ -1243,15 +1106,13 @@ function AppContent() {
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
       <div className="flex h-screen overflow-hidden bg-background">
-        {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+        {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
             onPageChange={handlePageChange}
             onLogin={handleLogin}
             isNavOpen={isNavOpen}
             onToggle={() => setIsNavOpen(!isNavOpen)}
-            pendingCount={pendingCount}
-            onOpenNotifications={() => setShowPendingModal(true)}
             // Memory Palace Handlers
             onShop={toggleShop}
             onCity={() => setView('map')}
@@ -1268,7 +1129,7 @@ function AppContent() {
             onOpenMemory={toggleMemoryPanel}
           />
         )}
-        {!['scanner', 'quickReward'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+        {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
           <MobileTabBar
             currentPage={getCurrentPage()}
             onPageChange={handlePageChange}
@@ -1277,8 +1138,6 @@ function AppContent() {
             onSignOut={signOut}
             userName={user?.display_name || user?.username}
             userRole={user?.role}
-            pendingCount={pendingCount}
-            onOpenNotifications={() => setShowPendingModal(true)}
             onShop={toggleShop}
             onCity={() => setView('map')}
             onRegion={() => setView('region')}
@@ -1295,9 +1154,9 @@ function AppContent() {
           />
         )}
         <main
-          className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
+          className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
           style={{
-            '--nav-width': isMobileEmulator || ['scanner', 'quickReward'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))
+            '--nav-width': isMobileEmulator || ['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))
               ? '0px'
               : isNavOpen
                 ? '256px' // w-64
@@ -1387,15 +1246,7 @@ function AppContent() {
           </div>
         )}
 
-        {showPendingModal && (
-          <PendingRewardsModal
-            isOpen={true}
-            onClose={() => setShowPendingModal(false)}
-            onProcessed={() => {
-              // Count will be updated by Realtime subscription
-            }}
-          />
-        )}
+
 
         {uiState.showThemeDesigner && (
           <div className="fixed inset-0 z-50 flex bg-background/80 backdrop-blur-sm">
@@ -1490,7 +1341,6 @@ function AppContent() {
 }
 
 // Lazy load standalone pages
-const RewardPage = lazy(() => import('./pages/RewardPage.tsx'));
 const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
@@ -1518,7 +1368,6 @@ const MemoryPalacePage = lazy(() => import('./pages/MemoryPalacePage').then(m =>
 const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => ({ default: m.FlowithTestPage })));
 const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').then(m => ({ default: m.IPadInteractiveZone })));
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
-const QuickRewardPage = lazy(() => import('./pages/QuickRewardPage').then(m => ({ default: m.QuickRewardPage })));
 
 const AdminPanel = lazy(() => import('./components/AdminPanel/AdminPanel'));
 const ContentDatabase = lazy(() => import('./components/ContentDatabase/ContentDatabase'));
@@ -1578,14 +1427,6 @@ function AppRoutes() {
       )}
       <div className="flex-1 overflow-hidden relative">
         <Routes>
-          <Route
-            path="/reward/:qrToken"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <RewardPage />
-              </Suspense>
-            }
-          />
           <Route
             path="/admin/ui-builder"
             element={

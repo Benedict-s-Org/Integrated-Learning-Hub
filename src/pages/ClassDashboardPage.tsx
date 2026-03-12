@@ -21,6 +21,7 @@ import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { PipWindow } from '@/components/common/PipWindow';
 import { BroadcastBoard } from '@/components/admin/BroadcastBoard';
+import { NotificationTemplateModal } from '@/components/admin/notifications/NotificationTemplateModal';
 import {
     DndContext,
     closestCenter,
@@ -131,12 +132,6 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 export function ClassDashboardPage() {
     const { isAdmin, isStaff, user: currentUser } = useAuth();
 
-    // Guest Mode State
-    const searchParams = new URLSearchParams(window.location.search);
-    const token = searchParams.get('token');
-    const [isGuestMode] = useState(!!token);
-    const [guestToken] = useState<string | null>(token);
-
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
     const [avatarCatalog, setAvatarCatalog] = useState<AvatarImageItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -150,6 +145,7 @@ export function ClassDashboardPage() {
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
     const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
+    const [showNotificationTemplateModal, setShowNotificationTemplateModal] = useState(false);
     const [showTimetable, setShowTimetable] = useState(false);
     const [cycleData, setCycleData] = useState<{ day: string, cycle: string, date: string, studentOnDuty: string } | null>(null);
     const [isCycleLoading, setIsCycleLoading] = useState(false);
@@ -236,19 +232,14 @@ export function ClassDashboardPage() {
             // Auth/List Users (with cache)
             const now = Date.now();
             const useAuthCache = globalAuthUserCache && (now - globalAuthUserCache.lastFetch < 2000) && !options?.forceRefresh;
-            if (isGuestMode && guestToken) {
-                // Guest mode still needs verify + list-users (mostly sequential due to dependency, but we can parallelize others)
-                phase1Promises.push((async () => {
-                    const { data: verifyData } = await supabase.functions.invoke('public-access/verify', { body: { token: guestToken } });
-                    if (verifyData?.targetClass) setActiveClass(verifyData.targetClass);
-                    const { data: listData } = await supabase.functions.invoke('public-access/list-users', { body: { token: guestToken } });
-                    return { type: 'users', data: listData?.users || [] };
-                })());
-            } else if (useAuthCache) {
+            if (useAuthCache) {
                 phase1Promises.push(Promise.resolve({ type: 'users', data: globalAuthUserCache!.users }));
             } else {
                 phase1Promises.push(supabase.functions.invoke('auth/list-users', { body: { adminUserId: currentUser?.id } })
-                    .then(res => ({ type: 'users', data: res.data?.users || [] })) as any);
+                    .then(res => {
+                        console.log('[DEBUG] list-users response:', res.data);
+                        return { type: 'users', data: res.data?.users || [] };
+                    }) as any);
             }
 
             // Classes (with global cache)
@@ -337,60 +328,44 @@ export function ClassDashboardPage() {
             }
 
             // 3. Grouping Logic
-            if (isStaff) {
-                // Auto-populate classes table from distinct user class names
-                const existingClassNames = new Set(classData.map(c => c.name));
-                const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
-                const missingClasses = userClassNames.filter(name => !existingClassNames.has(name));
+            // Auto-populate classes table from distinct user class names
+            const existingClassNames = new Set(classData.map(c => c.name));
+            const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
+            const missingClasses = userClassNames.filter(name => !existingClassNames.has(name));
 
-                if (missingClasses.length > 0) {
-                    const inserts = missingClasses.map((name, i) => ({ name, order_index: classData.length + i }));
-                    const { error: insertError } = await (supabase as any).from('classes').insert(inserts);
-                    if (!insertError) {
-                        const { data: refreshed } = await (supabase as any).from('classes').select('id, name').order('order_index');
-                        classData = (refreshed || []) as { id: string, name: string }[];
-                        globalClassesCache = classData;
-                    }
+            if (missingClasses.length > 0) {
+                const inserts = missingClasses.map((name, i) => ({ name, order_index: classData.length + i }));
+                const { error: insertError } = await (supabase as any).from('classes').insert(inserts);
+                if (!insertError) {
+                    const { data: refreshed } = await (supabase as any).from('classes').select('id, name').order('order_index');
+                    classData = (refreshed || []) as { id: string, name: string }[];
+                    globalClassesCache = classData;
                 }
-
-                setOrderedClasses(classData);
-                setOrderedActivities(activityData);
-
-                const grouped: Record<string, UserWithCoins[]> = {};
-                const classNames = classData.map(c => c.name);
-                const activityNames = activityData.map(a => a.name);
-
-                [...classNames, ...activityNames, 'Unassigned'].forEach(name => { grouped[name] = []; });
-
-                finalUsers.forEach(user => {
-                    const className = user.class || 'Unassigned';
-                    if (!grouped[className]) grouped[className] = [];
-                    grouped[className].push(user);
-                    user.ecas?.forEach(eca => {
-                        const matched = activityData.find(a => a.name.toLowerCase() === eca.toLowerCase());
-                        const normalizedEca = matched ? matched.name : eca;
-                        if (!grouped[normalizedEca]) grouped[normalizedEca] = [];
-                        grouped[normalizedEca].push(user);
-                    });
-                });
-
-                Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
-                setGroupedUsers(grouped);
-            } else {
-                // Guest mode grouping
-                const grouped = finalUsers.reduce((acc, user) => {
-                    const className = user.class || 'Unassigned';
-                    if (!acc[className]) acc[className] = [];
-                    acc[className].push(user);
-                    user.ecas?.forEach(eca => {
-                        if (!acc[eca]) acc[eca] = [];
-                        if (eca !== className) acc[eca].push(user);
-                    });
-                    return acc;
-                }, {} as Record<string, UserWithCoins[]>);
-                Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
-                setGroupedUsers(grouped);
             }
+
+            setOrderedClasses(classData);
+            setOrderedActivities(activityData);
+
+            const grouped: Record<string, UserWithCoins[]> = {};
+            const classNames = classData.map(c => c.name);
+            const activityNames = activityData.map(a => a.name);
+
+            [...classNames, ...activityNames, 'Unassigned'].forEach(name => { grouped[name] = []; });
+
+            finalUsers.forEach(user => {
+                const className = user.class || 'Unassigned';
+                if (!grouped[className]) grouped[className] = [];
+                grouped[className].push(user);
+                user.ecas?.forEach(eca => {
+                    const matched = activityData.find(a => a.name.toLowerCase() === eca.toLowerCase());
+                    const normalizedEca = matched ? matched.name : eca;
+                    if (!grouped[normalizedEca]) grouped[normalizedEca] = [];
+                    grouped[normalizedEca].push(user);
+                });
+            });
+
+            Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
+            setGroupedUsers(grouped);
         } catch (err) {
             console.error('Error in fetchUsers:', err);
         } finally {
@@ -400,14 +375,11 @@ export function ClassDashboardPage() {
     };
 
     useEffect(() => {
-        if (isGuestMode && guestToken) {
-            fetchUsers();
-            fetchCycleData();
-        } else if (isStaff && currentUser) {
+        if (isStaff && currentUser) {
             fetchUsers();
             fetchCycleData();
         }
-    }, [isStaff, currentUser?.id, isGuestMode, guestToken]);
+    }, [isStaff, currentUser?.id]);
 
     // Initial class selection for class_staff
     useEffect(() => {
@@ -441,22 +413,7 @@ export function ClassDashboardPage() {
         }
 
         try {
-            if (isGuestMode) {
-                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
-                    body: {
-                        token: guestToken,
-                        targetUserIds: userIds,
-                        amount: amount,
-                        reason: reason || 'Class Reward',
-                        isInstant: true
-                    }
-                });
-
-                if (error) throw error;
-                fetchUsers({ silent: true, forceRefresh: true });
-                playSuccessSound();
-                alert(`Request submitted for ${userIds.length} students! Admin approval required.`);
-            } else {
+            {
                 // Optimistic UI updates for local admin
                 setGroupedUsers(prev => {
                     const newGrouped = { ...prev };
@@ -510,28 +467,7 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleGuestQuickAward = async (userId: string) => {
-        if (!isGuestMode || !guestToken) return;
-        try {
-            const { error } = await supabase.functions.invoke('public-access/submit-reward', {
-                body: {
-                    token: guestToken,
-                    targetUserIds: [userId],
-                    amount: 10,
-                    reason: REWARD_REASONS.ANSWER_QUESTION,
-                    isInstant: true
-                }
-            });
 
-            if (error) throw error;
-            playSuccessSound();
-            // Silent refresh since count is already updated or will be via realtime
-            fetchUsers({ silent: true, forceRefresh: true });
-        } catch (err) {
-            console.error('Guest quick award failed:', err);
-            alert('Failed to request reward');
-        }
-    };
 
     const handleAwardBulk = async (awards: { userId: string, amount: number, reason?: string }[]) => {
         try {
@@ -582,27 +518,13 @@ export function ClassDashboardPage() {
                     if (!confirmChange) return;
 
                     // Revert the previous record
-                    if (isGuestMode) {
-                        const { error: revertError } = await supabase.functions.invoke('public-access/revert-homework', {
-                            body: {
-                                token: guestToken,
-                                p_student_id: studentId
-                            }
-                        });
-                        if (revertError) {
-                            console.error('Error reverting homework record (Guest):', revertError);
-                            alert(`Failed to reset previous record: ${revertError.message}`);
-                            return;
-                        }
-                    } else {
-                        const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
-                            p_student_id: studentId
-                        });
-                        if (revertError) {
-                            console.error('Error reverting homework record (Admin):', revertError);
-                            alert(`Failed to reset previous record: ${revertError.message}`);
-                            return;
-                        }
+                    const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
+                        p_student_id: studentId
+                    });
+                    if (revertError) {
+                        console.error('Error reverting homework record (Admin):', revertError);
+                        alert(`Failed to reset previous record: ${revertError.message}`);
+                        return;
                     }
                 }
             }
@@ -613,38 +535,7 @@ export function ClassDashboardPage() {
             else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 10;
             else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
-            if (isGuestMode) {
-                // Optimistic UI updates for Homework (Guest)
-                setGroupedUsers(prev => {
-                    const newGrouped = { ...prev };
-                    Object.keys(newGrouped).forEach(cls => {
-                        const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
-                        if (userIdx !== -1) {
-                            const user = newGrouped[cls][userIdx];
-                            const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
-
-                            newGrouped[cls][userIdx] = {
-                                ...user,
-                                coins: (user.coins || 0) + (amount > 0 ? amount : 0),
-                                daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
-                                daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
-                            };
-                        }
-                    });
-                    return newGrouped;
-                });
-
-                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
-                    body: {
-                        token: guestToken,
-                        targetUserIds: [studentId],
-                        amount: amount,
-                        reason: reason,
-                        isInstant: true // Critical for immediate balance update
-                    }
-                });
-                if (error) throw error;
-            } else {
+            {
                 // Optimistic UI updates for Homework
                 setGroupedUsers(prev => {
                     const newGrouped = { ...prev };
@@ -685,7 +576,7 @@ export function ClassDashboardPage() {
     };
 
     const handleQuickAward = async (userId: string) => {
-        if (isGuestMode) return;
+
         const reason = REWARD_REASONS.ANSWER_QUESTION;
         const amount = 10;
         try {
@@ -708,47 +599,7 @@ export function ClassDashboardPage() {
     const handleToiletBreakClick = async (student: UserWithCoins) => {
         const isAllowedTime = isWithinToiletAllowanceTime();
 
-        if (isGuestMode) {
-            try {
-                // Optimistic UI Update (Guest)
-                setGroupedUsers(prev => {
-                    const newGrouped = { ...prev };
-                    Object.keys(newGrouped).forEach(cls => {
-                        const idx = newGrouped[cls].findIndex(u => u.id === student.id);
-                        if (idx !== -1) {
-                            newGrouped[cls][idx] = {
-                                ...student,
-                                toilet_coins: isAllowedTime ? (student.toilet_coins ?? 100) - 20 : (student.toilet_coins ?? 100)
-                            };
-                        }
-                    });
-                    return newGrouped;
-                });
 
-                const { data, error } = await supabase.functions.invoke('public-access/deduct-toilet-coins', {
-                    body: {
-                        token: guestToken,
-                        p_student_id: student.id
-                    }
-                });
-
-                if (error) {
-                    // Revert on failure
-                    await fetchUsers({ silent: true, forceRefresh: true });
-                    throw error;
-                }
-
-                playSuccessSound();
-                if (data?.isLessonTime) {
-                    await fetchUsers({ silent: true, forceRefresh: true });
-                }
-                return;
-            } catch (err: any) {
-                console.error('Failed to deduct toilet coins (Guest):', err);
-                alert(`Failed to request Toilet/Break: ${err.message || 'Unknown error'}`);
-                return;
-            }
-        }
 
         if (!isAllowedTime) {
             // Free time logic - Do not deduct coins, just log a neutral record
@@ -811,7 +662,7 @@ export function ClassDashboardPage() {
     };
 
     const handleReorder = async (newOrder: UserWithCoins[]) => {
-        if (isGuestMode) return;
+
         try {
             const updates = newOrder.map((student, index) => ({
                 userId: student.id,
@@ -835,27 +686,7 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleGetGuestLink = async (className: string) => {
-        try {
-            const { data, error } = await supabase.functions.invoke('public-access/create-link', {
-                body: {
-                    adminUserId: currentUser?.id,
-                    targetClass: className
-                }
-            });
 
-            if (error) throw error;
-
-            const token = data.token;
-            const guestUrl = `${window.location.origin}/class-dashboard?token=${token}`;
-
-            await navigator.clipboard.writeText(guestUrl);
-            alert(`Guest link for class ${className} copied to clipboard!`);
-        } catch (err) {
-            console.error('Failed to create guest link:', err);
-            alert('Failed to generate guest link');
-        }
-    };
 
     const handleStudentClick = (student: UserWithCoins) => {
         setSelectedStudentId(student.id);
@@ -901,8 +732,7 @@ export function ClassDashboardPage() {
             }
         }
 
-        // Guest mode restricted to a single class
-        return allKeys.filter(k => k === activeClass);
+        return [];
     }, [groupedUsers, orderedClasses, orderedActivities, isStaff, viewMode, activeClass]);
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -951,7 +781,7 @@ export function ClassDashboardPage() {
         }
     };
 
-    if (!isStaff && !isGuestMode) {
+    if (!isStaff) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
     }
 
@@ -1012,38 +842,41 @@ export function ClassDashboardPage() {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                            {isGuestMode ? 'Class View (Guest)' : 'Class Dashboard'}
+                            Class Dashboard
                         </h1>
                         <p className="text-xs md:text-base text-slate-500 mt-1">
-                            {isGuestMode ? 'Request rewards for students' : 'Manage student rewards and feedback'}
+                            Manage student rewards and feedback
                         </p>
                     </div>
 
                     <div className="grid grid-cols-2 sm:flex gap-2 w-full md:w-auto">
-                        {!isGuestMode && (
-                            <>
-                                <button
-                                    onClick={() => setShowProgressLog(true)}
-                                    className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
-                                >
-                                    <History size={18} className="text-slate-400" />
-                                    Progress Log
-                                </button>
-                                <button
-                                    onClick={() => setShowBroadcastBoard(true)}
-                                    className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
-                                >
-                                    <Zap size={18} className="text-slate-400" />
-                                    Broadcast
-                                </button>
-                            </>
-                        )}
+                        <button
+                            onClick={() => setShowProgressLog(true)}
+                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                        >
+                            <History size={18} className="text-slate-400" />
+                            Progress Log
+                        </button>
+                        <button
+                            onClick={() => setShowBroadcastBoard(true)}
+                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                        >
+                            <Zap size={18} className="text-slate-400" />
+                            Broadcast
+                        </button>
+                        <button
+                            onClick={() => setShowNotificationTemplateModal(true)}
+                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md transition-all text-sm"
+                        >
+                            <Settings2 size={18} className="text-blue-100" />
+                            Manage Broadcast
+                        </button>
                         <button
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
                             ${showMorningDuties
-                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
                             title="Toggle Morning Duties Board"
                         >
@@ -1054,8 +887,8 @@ export function ClassDashboardPage() {
                             onClick={() => setShowTimetable(!showTimetable)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
                             ${showTimetable
-                                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                                ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
                             title="Toggle Timetable"
                         >
@@ -1072,21 +905,21 @@ export function ClassDashboardPage() {
                             }}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
                             ${(showNameSidebar || isSidebarPoppedOut)
-                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
                             title="Quick award for answering questions"
                         >
                             <Activity size={18} className={(showNameSidebar || isSidebarPoppedOut) ? 'text-blue-600' : 'text-slate-400'} />
                             {isSidebarPoppedOut ? 'Close Desktop Bar' : (showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar')}
                         </button>
-                        {activeClass !== 'all' && !isGuestMode && (
+                        {activeClass !== 'all' && (
                             <button
                                 onClick={() => setShowQuizBoard(!showQuizBoard)}
                                 className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
                                 ${showQuizBoard
-                                        ? 'bg-purple-100 text-purple-700 border-purple-200'
-                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                                    ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                             `}
                             >
                                 <LayoutGrid size={18} className={showQuizBoard ? 'text-purple-600' : 'text-slate-400'} />
@@ -1101,7 +934,7 @@ export function ClassDashboardPage() {
                             className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
                         >
                             <Settings2 size={18} className="text-slate-400" />
-                            {isGuestMode ? 'Request Reward' : 'Manage Rewards'}
+                            Manage Rewards
                         </button>
                     </div>
                 </div>
@@ -1135,130 +968,103 @@ export function ClassDashboardPage() {
                     </div>
                 )}
 
-                {(!isGuestMode) && (
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
-                            <button
-                                onClick={() => {
-                                    setViewMode('classes');
-                                    setActiveClass('all');
-                                }}
-                                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'classes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Classes
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setViewMode('activities');
-                                    setActiveClass((orderedActivities[0]?.name) || 'all');
-                                }}
-                                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'activities' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Activities
-                            </button>
-                        </div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+                        <button
+                            onClick={() => {
+                                setViewMode('classes');
+                                setActiveClass('all');
+                            }}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'classes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Classes
+                        </button>
+                        <button
+                            onClick={() => {
+                                setViewMode('activities');
+                                setActiveClass((orderedActivities[0]?.name) || 'all');
+                            }}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'activities' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Activities
+                        </button>
+                    </div>
 
-                        {isAdmin && (
-                            <div className="flex gap-2">
-                                {isEditMode ? (
-                                    <>
-                                        <button
-                                            onClick={handleSaveOrder}
-                                            className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-all flex items-center gap-2"
-                                        >
-                                            <Save size={16} />
-                                            Save Order
-                                        </button>
-                                        <button
-                                            onClick={() => setIsEditMode(false)}
-                                            className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </>
-                                ) : (
+                    {isAdmin && (
+                        <div className="flex gap-2">
+                            {isEditMode ? (
+                                <>
                                     <button
-                                        onClick={() => setIsEditMode(true)}
-                                        className="px-4 py-1.5 bg-white border border-slate-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-all flex items-center gap-2"
+                                        onClick={handleSaveOrder}
+                                        className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-all flex items-center gap-2"
                                     >
-                                        <Layers size={16} />
-                                        Edit Order
+                                        <Save size={16} />
+                                        Save Order
                                     </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {(!isGuestMode) && (
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-                        {viewMode === 'classes' && (
-                            <button
-                                onClick={() => setActiveClass('all')}
-                                className={`
-                                    flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
-                                    ${activeClass === 'all'
-                                        ? 'bg-slate-900 text-white shadow-md scale-105'
-                                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                                `}
-                            >
-                                <LayoutGrid size={16} />
-                                All Classes
-                            </button>
-                        )}
-
-                        {isGuestMode ? (
-                            sortedClassNames.map(className => (
+                                    <button
+                                        onClick={() => setIsEditMode(false)}
+                                        className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                </>
+                            ) : (
                                 <button
-                                    key={className}
-                                    onClick={() => setActiveClass(className)}
-                                    className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap
-                                        ${activeClass === className
-                                            ? 'bg-blue-600 text-white shadow-md scale-105'
-                                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
-                                    `}
+                                    onClick={() => setIsEditMode(true)}
+                                    className="px-4 py-1.5 bg-white border border-slate-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 transition-all flex items-center gap-2"
                                 >
-                                    <Users size={16} />
-                                    {className === 'Unassigned' ? 'Unassigned' : className}
-                                    {groupedUsers[className]?.length !== undefined && (
-                                        <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${activeClass === className ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                            {groupedUsers[className]?.length}
-                                        </span>
-                                    )}
+                                    <Layers size={16} />
+                                    Edit Order
                                 </button>
-                            ))
-                        ) : (
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={closestCenter}
-                                onDragEnd={handleDragEnd}
-                            >
-                                <SortableContext
-                                    items={sortedClassNames.map(className =>
-                                        (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className
-                                    )}
-                                    strategy={horizontalListSortingStrategy}
-                                >
-                                    {sortedClassNames.map(className => {
-                                        const id = (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className;
-                                        return (
-                                            <SortableTab
-                                                key={className}
-                                                id={id}
-                                                label={className}
-                                                isActive={activeClass === className}
-                                                onClick={() => setActiveClass(className)}
-                                                isEditMode={isEditMode}
-                                                count={groupedUsers[className]?.length}
-                                            />
-                                        );
-                                    })}
-                                </SortableContext>
-                            </DndContext>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                    {viewMode === 'classes' && (
+                        <button
+                            onClick={() => setActiveClass('all')}
+                            className={`
+                                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
+                                ${activeClass === 'all'
+                                    ? 'bg-slate-900 text-white shadow-md scale-105'
+                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}
+                            `}
+                        >
+                            <LayoutGrid size={16} />
+                            All Classes
+                        </button>
+                    )}
+
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={sortedClassNames.map(className =>
+                                (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className
+                            )}
+                            strategy={horizontalListSortingStrategy}
+                        >
+                            {sortedClassNames.map(className => {
+                                const id = (viewMode === 'classes' ? orderedClasses : orderedActivities).find(i => i.name === className)?.id || className;
+                                return (
+                                    <SortableTab
+                                        key={className}
+                                        id={id}
+                                        label={className}
+                                        isActive={activeClass === className}
+                                        onClick={() => setActiveClass(className)}
+                                        isEditMode={isEditMode}
+                                        count={groupedUsers[className]?.length}
+                                    />
+                                );
+                            })}
+                        </SortableContext>
+                    </DndContext>
+                </div>
 
                 <div className="space-y-4 md:space-y-8">
                     {isLoading ? (
@@ -1286,10 +1092,8 @@ export function ClassDashboardPage() {
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
-                                            isGuestMode={isGuestMode}
                                             consequenceCounts={consequenceCounts}
                                             className={className}
-                                            onGetGuestLink={handleGetGuestLink}
                                         />
                                     </div>
                                 ))
@@ -1319,10 +1123,8 @@ export function ClassDashboardPage() {
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}
-                                                isGuestMode={isGuestMode}
                                                 consequenceCounts={consequenceCounts}
                                                 className={activeClass}
-                                                onGetGuestLink={handleGetGuestLink}
                                             />
                                         </>
                                     )}
@@ -1349,18 +1151,14 @@ export function ClassDashboardPage() {
                 student={selectedStudent}
                 avatarCatalog={avatarCatalog}
                 onUpdateCoins={fetchUsers}
-                isGuestMode={isGuestMode}
-                guestToken={guestToken || undefined}
                 onCustomizeAvatar={() => setIsAvatarModalOpen(true)}
             />
 
-            {!isGuestMode && (
-                <UniversalMessageToolbar
-                    selectedStudentIds={selectedStudentIds}
-                    onClearSelection={() => setSelectedStudentIds([])}
-                    onRefresh={fetchUsers}
-                />
-            )}
+            <UniversalMessageToolbar
+                selectedStudentIds={selectedStudentIds}
+                onClearSelection={() => setSelectedStudentIds([])}
+                onRefresh={fetchUsers}
+            />
 
             {showNameSidebar && !isSidebarPoppedOut && (
                 <StudentNameSidebar
@@ -1369,7 +1167,7 @@ export function ClassDashboardPage() {
                             ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
                             : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
                     }
-                    onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
+                    onQuickAward={handleQuickAward}
                     onClose={() => setShowNameSidebar(false)}
                     onPopOut={isPipSupported ? async () => {
                         const win = await requestPip({ width: 200, height: window.screen.availHeight });
@@ -1386,7 +1184,7 @@ export function ClassDashboardPage() {
                                 ? Object.values(groupedUsers).flat().filter(u => u.class && u.class !== 'Unassigned')
                                 : (groupedUsers[activeClass] || []).filter(u => u.class && u.class !== 'Unassigned')
                         }
-                        onQuickAward={isGuestMode ? handleGuestQuickAward : handleQuickAward}
+                        onQuickAward={handleQuickAward}
                         isPoppedOut={true}
                     />
                 </PipWindow>
@@ -1405,8 +1203,6 @@ export function ClassDashboardPage() {
                 onClose={() => setSelectedHomeworkStudentId(null)}
                 studentName={selectedHomeworkStudent?.display_name || ''}
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
-                isGuestMode={isGuestMode}
-                targetClass={selectedHomeworkStudent?.class || undefined}
             />
 
             <ProgressLogModal
@@ -1417,11 +1213,14 @@ export function ClassDashboardPage() {
             {showBroadcastBoard && activeClass !== 'all' && (
                 <BroadcastBoard
                     className={activeClass}
-                    isGuestMode={isGuestMode}
-                    guestToken={guestToken}
                     onClose={() => setShowBroadcastBoard(false)}
                 />
             )}
+
+            <NotificationTemplateModal
+                isOpen={showNotificationTemplateModal}
+                onClose={() => setShowNotificationTemplateModal(false)}
+            />
         </div>
     );
 }

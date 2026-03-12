@@ -102,7 +102,7 @@ export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }
                                             </div>
                                             <div className="flex flex-col">
                                                 <span className="font-black text-slate-700 text-base">
-                                                    {student.display_name || 'Guest Student'}
+                                                    {student.display_name || 'Student'}
                                                 </span>
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                     {student.class || 'No Class'} {student.class_number ? `#${student.class_number}` : ''}

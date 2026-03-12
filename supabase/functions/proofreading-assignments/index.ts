@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", assignedBy)
         .maybeSingle();
 
-      if (adminError || !admin || admin.role !== "admin") {
+      if (adminError || !admin || (admin.role !== "admin" && admin.role !== "class_staff")) {
         return new Response(
           JSON.stringify({ error: "Unauthorized: Admin access required" }),
           {
@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", adminUserId)
         .maybeSingle();
 
-      if (adminError || !admin || admin.role !== "admin") {
+      if (adminError || !admin || (admin.role !== "admin" && admin.role !== "class_staff")) {
         return new Response(
           JSON.stringify({ error: "Unauthorized: Admin access required" }),
           {

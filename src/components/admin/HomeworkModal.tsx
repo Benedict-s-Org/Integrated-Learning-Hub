@@ -8,15 +8,13 @@ interface HomeworkModalProps {
     onClose: () => void;
     studentName: string;
     onRecord: (reason: string, coins?: number) => void;
-    isGuestMode?: boolean;
-    targetClass?: string;
 }
 
 type TabType = 'general' | 'specific';
 
 const SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
 
-export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestMode, targetClass }: HomeworkModalProps) {
+export function HomeworkModal({ isOpen, onClose, studentName, onRecord }: HomeworkModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('general');
     const [selectedSubject, setSelectedSubject] = useState<string>(Object.keys(DEFAULT_SUB_OPTIONS)[0]);
     const [selectedItems, setSelectedItems] = useState<Record<string, string[]>>({});
@@ -35,13 +33,7 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
             setSelectedItems({});
             setIsEditing(false);
         }
-
-        if (isOpen && isGuestMode && targetClass === '4D') {
-            setSelectedSubject('英文');
-            setActiveTab('specific');
-            setHasTriggeredSpecific(true);
-        }
-    }, [isOpen, isGuestMode, targetClass]);
+    }, [isOpen]);
 
     const fetchHomeworkOptions = async () => {
         const { data, error } = await supabase
@@ -69,7 +61,7 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
         { label: '交齊功課', value: '完成班務（交齊功課）', icon: ClipboardCheck, color: 'text-green-600 bg-green-50 border-green-200' },
         { label: '欠功課', value: '完成班務（欠功課）', icon: AlertCircle, color: 'text-red-600 bg-red-50 border-red-200' },
         { label: '寫手冊', value: '完成班務（寫手冊）', icon: FileText, color: 'text-blue-600 bg-blue-50 border-blue-200', adminOnly: true },
-    ].filter(opt => !isGuestMode || !opt.adminOnly);
+    ];
 
     const handleToggleItem = (item: string) => {
         setSelectedItems(prev => {
@@ -137,7 +129,6 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
     };
 
     const handleAddItem = async () => {
-        if (isGuestMode) return;
 
         const newItem = prompt(`Add new homework item for ${selectedSubject}:`);
         if (!newItem || newItem.trim() === '') return;
@@ -172,7 +163,6 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
     };
 
     const handleEditItem = async (oldItem: string) => {
-        if (isGuestMode) return;
 
         const newName = prompt(`Rename "${oldItem}" to:`, oldItem);
         if (!newName || newName.trim() === '' || newName.trim() === oldItem) return;
@@ -213,7 +203,7 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
                     <div>
                         <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
                             <BookOpen className="text-blue-600" size={24} />
-                            {isGuestMode ? 'Homework' : 'Homework'}
+                            Homework
                         </h3>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
                             Recording for {studentName}
@@ -293,15 +283,13 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
                                     })}
                                 </div>
 
-                                {!isGuestMode && (
-                                    <button
-                                        onClick={() => setIsEditing(!isEditing)}
-                                        className={`p-2 rounded-lg transition-all ${isEditing ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-200 hover:text-blue-600 hover:border-blue-200'}`}
-                                        title="Toggle Edit Mode"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                )}
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className={`p-2 rounded-lg transition-all ${isEditing ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-200 hover:text-blue-600 hover:border-blue-200'}`}
+                                    title="Toggle Edit Mode"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
                             </div>
 
                             {/* Items Grid */}
@@ -330,18 +318,16 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord, isGuestM
                                 })}
 
                                 {/* Admin Add Button */}
-                                {!isGuestMode && (
-                                    <button
-                                        onClick={handleAddItem}
-                                        disabled={isSaving}
-                                        className="p-3 rounded-xl border-2 border-dashed border-blue-200 text-blue-400 font-bold text-[10px] hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
-                                    >
-                                        <Plus size={12} />
-                                        Add+
-                                    </button>
-                                )}
+                                <button
+                                    onClick={handleAddItem}
+                                    disabled={isSaving}
+                                    className="p-3 rounded-xl border-2 border-dashed border-blue-200 text-blue-400 font-bold text-[10px] hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                                >
+                                    <Plus size={12} />
+                                    Add+
+                                </button>
 
-                                {(homeworkOptions[selectedSubject] || []).length === 0 && isGuestMode && (
+                                {homeworkOptions[selectedSubject]?.length === 0 && (
                                     <div className="col-span-full py-12 text-center text-slate-300 italic text-sm font-medium">
                                         No items for {selectedSubject}
                                     </div>

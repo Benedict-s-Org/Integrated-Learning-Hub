@@ -146,7 +146,7 @@ export const SpacedRepetitionPage: React.FC = () => {
         // ── Tier 2 & 3: Cards that HAVE a schedule ──
         const scheduledQuestions = setQuestions.filter((q: any) => scheduleMap.has(q.id));
 
-        const dueScheduledCards: any[] = [];
+        const dueScheduledCards: { question: any; schedule: any }[] = [];
         const alreadyReviewedIds = new Set<string>();
 
         for (const q of scheduledQuestions) {
@@ -167,47 +167,89 @@ export const SpacedRepetitionPage: React.FC = () => {
           }
         }
 
-        // Tier 2: Due cards with repetitions === 0 (failed/reset, need re-learning)
-        const failedDueCards = dueScheduledCards
-          .filter(d => d.schedule.repetitions === 0)
-          .map(d => d.question);
+        // Review Pool (sorted by next_review_date ascending, then by repetitions ascending)
+        const reviewPoolAsc = dueScheduledCards.sort((a, b) => {
+          const dateA = new Date(a.schedule.next_review_date).getTime();
+          const dateB = new Date(b.schedule.next_review_date).getTime();
+          if (dateA !== dateB) return dateA - dateB;
+          return a.schedule.repetitions - b.schedule.repetitions;
+        }).map(d => d.question);
 
-        // Tier 3: Due review cards with repetitions > 0, sorted by interval ascending
-        // (struggling cards with short intervals before mastered cards with long intervals)
-        const reviewDueCards = dueScheduledCards
-          .filter(d => d.schedule.repetitions > 0)
-          .sort((a, b) => a.schedule.interval_days - b.schedule.interval_days)
-          .map(d => d.question);
+        let newCards = [...brandNewCards];
+        let reviews = [...reviewPoolAsc];
 
-        // Non-due, non-reviewed-today cards as fallback
-        const otherCards = scheduledQuestions.filter(
-          (q: any) => !dueScheduledCards.some(d => d.question.id === q.id) && !alreadyReviewedIds.has(q.id)
-        );
+        function getSessionTargets(targetLimit: number) {
+          if (targetLimit === 5) return { targetNew: 3, targetNear: 1, targetFar: 1 };
+          if (targetLimit === 10) return { targetNew: 6, targetNear: 3, targetFar: 1 };
+          if (targetLimit === 15) return { targetNew: 9, targetNear: 4, targetFar: 2 };
+          if (targetLimit === 20) return { targetNew: 12, targetNear: 6, targetFar: 2 };
+          
+          // Custom amounts
+          if (targetLimit < 10) {
+            const base = Math.max(1, Math.floor(targetLimit / 5));
+            const far = base;
+            const near = base;
+            const targetNew = targetLimit - (far + near);
+            return { targetNew, targetNear: near, targetFar: far };
+          } else {
+            const base = Math.max(1, Math.floor(targetLimit / 10));
+            const far = base;
+            const near = base * 3;
+            const targetNew = targetLimit - (far + near);
+            return { targetNew, targetNear: near, targetFar: far };
+          }
+        }
+
+        const { targetNew, targetNear, targetFar } = getSessionTargets(limit);
+
+        const selectedNew: any[] = [];
+        const selectedNear: any[] = [];
+        const selectedFar: any[] = [];
+
+        // Initial Assignments
+        while (selectedNew.length < targetNew && newCards.length > 0) {
+          selectedNew.push(newCards.shift());
+        }
+        while (selectedNear.length < targetNear && reviews.length > 0) {
+          selectedNear.push(reviews.shift()); // Take from front (most urgent)
+        }
+        while (selectedFar.length < targetFar && reviews.length > 0) {
+          selectedFar.push(reviews.pop()); // Take from back (least urgent/furthest)
+        }
+
+        // Fallback logic for missing slots
+        let missing = limit - (selectedNew.length + selectedNear.length + selectedFar.length);
+
+        while (missing > 0) {
+          if (reviews.length > 0) {
+            selectedNear.push(reviews.shift());
+            missing--;
+          } else if (newCards.length > 0) {
+            selectedNew.push(newCards.shift());
+            missing--;
+          } else {
+            const nonDueCards = scheduledQuestions.filter(
+              (q: any) => !dueScheduledCards.some(d => d.question.id === q.id) && !alreadyReviewedIds.has(q.id)
+            );
+            const stillMissing = limit - (selectedNew.length + selectedNear.length + selectedFar.length);
+            const extraRes = nonDueCards.slice(0, stillMissing);
+            selectedFar.push(...extraRes);
+            break;
+          }
+        }
+
+        // Mix them into chunks (round-robin interleave)
+        const mixedList: any[] = [];
+        while (selectedNew.length > 0 || selectedNear.length > 0 || selectedFar.length > 0) {
+          if (selectedNew.length > 0) mixedList.push(selectedNew.shift());
+          if (selectedNear.length > 0) mixedList.push(selectedNear.shift());
+          if (selectedFar.length > 0) mixedList.push(selectedFar.shift());
+        }
 
         // Filter out excluded IDs for Master Mode streaks
         const filterExcluded = (arr: any[]) => arr.filter((q: any) => !excludeIds.includes(q.id));
 
-        // ── Final queue: New first → Failed → Reviews → Other ──
-        // We strictly sandwich them to ensure New cards ARE ALWAYS first
-        const prioritizedQuestions = [
-          ...brandNewCards,
-          ...failedDueCards,
-          ...reviewDueCards
-        ];
-
-        // Only append "Other" (mastered/not due) questions if we don't have enough due content
-        const fallbackQuestions = otherCards.filter(q => !prioritizedQuestions.some(p => p.id === q.id));
-
-        sessionQuestions = [
-          ...filterExcluded(prioritizedQuestions),
-          ...filterExcluded(fallbackQuestions)
-        ].slice(0, limit);
-
-        // If even after that we are empty (due to exclusions), and we HAVE content,
-        // we fallback to the raw list but still maintaining the order (New -> Due -> Mastered)
-        if (sessionQuestions.length === 0 && (prioritizedQuestions.length > 0 || fallbackQuestions.length > 0)) {
-          sessionQuestions = [...prioritizedQuestions, ...fallbackQuestions].slice(0, limit);
-        }
+        sessionQuestions = filterExcluded(mixedList).slice(0, limit);
       } else {
         // ── Global Review Session ─────────────────────────────────────
         // First: get all the user's sets to find unseen cards
@@ -236,11 +278,13 @@ export const SpacedRepetitionPage: React.FC = () => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
 
-        // Tier 1: Brand-new cards (no schedule entry)
+        // ── Tier 1: Brand-new cards (no schedule entry at all) ──
         const brandNewCards = allQuestions.filter(q => !globalScheduleMap.has(q.id));
 
-        // Tier 2 & 3: Scheduled cards
+        // ── Tier 2 & 3: Scheduled cards ──
+        const scheduledQuestions = allQuestions.filter((q: any) => globalScheduleMap.has(q.id));
         const dueScheduledCards: { question: any; schedule: any }[] = [];
+        const alreadyReviewedIds = new Set<string>();
 
         (schedulesRes || []).forEach((s: any) => {
           const reviewDate = new Date(s.next_review_date);
@@ -254,29 +298,98 @@ export const SpacedRepetitionPage: React.FC = () => {
 
           if (isDue && (!reviewedToday || s.interval_days === 0)) {
             dueScheduledCards.push({
-              question: s.spaced_repetition_questions,
+              question: { ...s.spaced_repetition_questions, id: s.question_id }, // Ensure ID matches question
               schedule: s
             });
+          } else if (reviewedToday && s.interval_days > 0) {
+            alreadyReviewedIds.add(s.question_id);
           }
         });
 
-        // Tier 2: Failed/reset
-        const failedDueCards = dueScheduledCards
-          .filter(d => d.schedule.repetitions === 0)
-          .map(d => ({ ...d.question, id: d.schedule.question_id }));
+        // Review Pool (sorted by next_review_date ascending, then by repetitions ascending)
+        const reviewPoolAsc = dueScheduledCards.sort((a, b) => {
+          const dateA = new Date(a.schedule.next_review_date).getTime();
+          const dateB = new Date(b.schedule.next_review_date).getTime();
+          if (dateA !== dateB) return dateA - dateB;
+          return a.schedule.repetitions - b.schedule.repetitions;
+        }).map(d => d.question);
 
-        // Tier 3: Review cards sorted by interval ascending
-        const reviewDueCards = dueScheduledCards
-          .filter(d => d.schedule.repetitions > 0)
-          .sort((a, b) => a.schedule.interval_days - b.schedule.interval_days)
-          .map(d => ({ ...d.question, id: d.schedule.question_id }));
+        let newCards = [...brandNewCards];
+        let reviews = [...reviewPoolAsc];
 
-        // ── Final queue: New first → Failed → Reviews ──
-        sessionQuestions = [
-          ...brandNewCards,
-          ...failedDueCards,
-          ...reviewDueCards
-        ]
+        function getSessionTargets(targetLimit: number) {
+          if (targetLimit === 5) return { targetNew: 3, targetNear: 1, targetFar: 1 };
+          if (targetLimit === 10) return { targetNew: 6, targetNear: 3, targetFar: 1 };
+          if (targetLimit === 15) return { targetNew: 9, targetNear: 4, targetFar: 2 };
+          if (targetLimit === 20) return { targetNew: 12, targetNear: 6, targetFar: 2 };
+          
+          // Custom amounts
+          if (targetLimit < 10) {
+            // 3:1:1 ratio
+            const base = Math.max(1, Math.floor(targetLimit / 5));
+            const far = base;
+            const near = base;
+            const targetNew = targetLimit - (far + near);
+            return { targetNew, targetNear: near, targetFar: far };
+          } else {
+            // 6:3:1 ratio
+            const base = Math.max(1, Math.floor(targetLimit / 10));
+            const far = base;
+            const near = base * 3;
+            const targetNew = targetLimit - (far + near);
+            return { targetNew, targetNear: near, targetFar: far };
+          }
+        }
+
+        const { targetNew, targetNear, targetFar } = getSessionTargets(limit);
+
+        const selectedNew: any[] = [];
+        const selectedNear: any[] = [];
+        const selectedFar: any[] = [];
+
+        // Initial Assignments
+        while (selectedNew.length < targetNew && newCards.length > 0) {
+          selectedNew.push(newCards.shift());
+        }
+        while (selectedNear.length < targetNear && reviews.length > 0) {
+          selectedNear.push(reviews.shift()); // Take from front (most urgent)
+        }
+        while (selectedFar.length < targetFar && reviews.length > 0) {
+          selectedFar.push(reviews.pop()); // Take from back (least urgent/furthest)
+        }
+
+        // Fallback logic for missing slots
+        let missing = limit - (selectedNew.length + selectedNear.length + selectedFar.length);
+
+        while (missing > 0) {
+          if (reviews.length > 0) {
+            // Prefer ReviewNear from remaining pool
+            selectedNear.push(reviews.shift());
+            missing--;
+          } else if (newCards.length > 0) {
+            selectedNew.push(newCards.shift());
+            missing--;
+          } else {
+            // No more due/new cards available. Fallback to non-due scheduled cards
+            const nonDueCards = scheduledQuestions.filter(
+              (q: any) => !dueScheduledCards.some(d => d.question.id === q.id) && !alreadyReviewedIds.has(q.id)
+            );
+            const stillMissing = limit - (selectedNew.length + selectedNear.length + selectedFar.length);
+            const extraRes = nonDueCards.slice(0, stillMissing);
+            selectedFar.push(...extraRes);
+            break;
+          }
+        }
+
+        // Mix them into chunks (round-robin interleave)
+        const mixedList: any[] = [];
+        while (selectedNew.length > 0 || selectedNear.length > 0 || selectedFar.length > 0) {
+          if (selectedNew.length > 0) mixedList.push(selectedNew.shift());
+          if (selectedNear.length > 0) mixedList.push(selectedNear.shift());
+          if (selectedFar.length > 0) mixedList.push(selectedFar.shift());
+        }
+
+        sessionQuestions = mixedList
           .filter((q: any) => q && q.question_text) // filter out broken joins
           .slice(0, limit);
       }

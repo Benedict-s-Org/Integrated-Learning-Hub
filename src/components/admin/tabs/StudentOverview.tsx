@@ -18,8 +18,6 @@ interface StudentOverviewProps {
     };
     onUpdateCoins: () => void;
     onSuccess?: () => void;
-    isGuestMode?: boolean;
-    guestToken?: string;
 }
 
 interface Transaction {
@@ -39,7 +37,7 @@ interface StudentRecord {
 type FeedItem = (Transaction & { feedType: 'transaction' }) | (StudentRecord & { feedType: 'homework' });
 
 
-export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode = false, guestToken }: StudentOverviewProps) {
+export function StudentOverview({ student, onUpdateCoins, onSuccess }: StudentOverviewProps) {
     const { isAdmin } = useAuth();
     const [feed, setFeed] = useState<FeedItem[]>([]);
     const [rewards, setRewards] = useState<ClassReward[]>([]);
@@ -165,42 +163,24 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
 
         setIsSubmitting(true);
         try {
-            if (isGuestMode) {
-                const { error } = await supabase.functions.invoke('public-access/submit-reward', {
-                    body: {
-                        token: guestToken,
-                        targetUserIds: [student.id],
-                        amount: amount,
-                        reason: reason,
-                        isInstant: true
-                    }
-                });
+            const { data: { user } } = await supabase.auth.getUser();
 
-                if (error) throw error;
+            // Update Room Data via Admin RPC
+            const result = await coinService.awardCoins({
+                userId: student.id,
+                amount: amount,
+                reason: reason,
+                type: amount >= 0 ? 'reward' : 'consequence',
+                adminId: user?.id
+            });
+            if (!result.success) throw result.error;
 
-                playSuccessSound();
-                onUpdateCoins(); // Refresh dashboard to show immediate status update
-                if (onSuccess) onSuccess();
-            } else {
-                const { data: { user } } = await supabase.auth.getUser();
+            playSuccessSound();
+            if (onSuccess) onSuccess();
 
-                // Update Room Data via Admin RPC
-                const result = await coinService.awardCoins({
-                    userId: student.id,
-                    amount: amount,
-                    reason: reason,
-                    type: amount >= 0 ? 'reward' : 'consequence',
-                    adminId: user?.id
-                });
-                if (!result.success) throw result.error;
-
-                playSuccessSound();
-                if (onSuccess) onSuccess();
-
-                // Refresh UI
-                await fetchData();
-                onUpdateCoins();
-            }
+            // Refresh UI
+            await fetchData();
+            onUpdateCoins();
 
             setManualAmount('0');
             setManualReason('');
@@ -272,7 +252,7 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess, isGuestMode
                                                     )}
                                                 </div>
                                             </div>
-                                            {!isGuestMode && isAdmin && (
+                                            {isAdmin && (
                                                 <button
                                                     onClick={() => handleRevertTransaction(item.id)}
                                                     className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"

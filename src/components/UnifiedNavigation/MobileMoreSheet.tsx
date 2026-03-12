@@ -189,8 +189,8 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
                             <User size={18} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-sm font-semibold text-gray-800">{userName || 'Guest'}</p>
-                            <p className="text-xs text-gray-400 capitalize">{userRole || 'user'}</p>
+                            <p className="text-sm font-semibold text-gray-800">{userName || 'Learner'}</p>
+                            <p className="text-xs text-gray-400 capitalize">{userRole || 'student'}</p>
                         </div>
                     </div>
                     <button
