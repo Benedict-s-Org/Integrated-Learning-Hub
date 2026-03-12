@@ -148,8 +148,11 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
             const groups: Record<string, any> = {};
             
             (records || []).forEach((r: any) => {
+                // Only include broadcast messages (which contain our special tagging suffix)
+                if (!r.message || !r.message.includes(' ||{')) return;
+
                 // Skip specific items (starts with 功課:) if any
-                if (r.message && r.message.startsWith('功課:')) return;
+                if (r.message.startsWith('功課:')) return;
 
                 const key = r.message;
                 if (!groups[key]) {
