@@ -99,18 +99,40 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
 
             let missing: { name: string, items: string[] }[] = [];
             let negativeCounts: Record<string, { name: string, count: number }> = {};
-            let classRecords: any[] = [];
 
             if (recordData) {
-                // Filter for current class WITH NORMALIZATION
-                classRecords = recordData.filter((r: any) => {
+                const currentClassUpper = className.trim().toUpperCase();
+                const isAllClasses = currentClassUpper === 'ALL';
+
+                // Helper to check if a record should be visible on the current board
+                const getRecordVisibilityInfo = (r: any) => {
+                    const msg = r.message || '';
+                    const classMatch = msg.match(/\s@@\{([^}]*)\}/);
+                    const targetClasses = classMatch 
+                        ? classMatch[1].split(', ').map((c: string) => c.trim().toUpperCase()) 
+                        : [];
                     const studentClass = (r.student?.class || '').trim().toUpperCase();
-                    const current = (className || '').trim().toUpperCase();
-                    return studentClass === current;
-                });
+                    
+                    // Priority 1: All classes view sees everything
+                    if (isAllClasses) return { visible: true, targetClasses };
+                    
+                    // Priority 2: Explicit target classes metadata
+                    if (targetClasses.length > 0) {
+                        return { visible: targetClasses.includes(currentClassUpper), targetClasses };
+                    }
+                    
+                    // Priority 3: Fallback to student join (for individual rewards/legacy logs)
+                    // If join fails (studentClass is empty), we still show it if the user intended
+                    // but usually individual rewards are class-specific.
+                    // For now, if no join and no metadata, we only show in "All Classes".
+                    return { visible: studentClass === currentClassUpper, targetClasses };
+                };
 
                 // A. Process Recess Alert (3+ negatives)
-                classRecords.forEach((r: any) => {
+                recordData.forEach((r: any) => {
+                    const { visible } = getRecordVisibilityInfo(r);
+                    if (!visible) return;
+
                     if (r.type === 'negative') {
                         const name = r.student?.display_name || 'Unknown';
                         if (!negativeCounts[r.student_id]) negativeCounts[r.student_id] = { name, count: 0 };
@@ -120,9 +142,12 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 setRecessAlert(Object.values(negativeCounts).filter(s => s.count >= 3).map((s: any) => s.name));
 
                 // B. Process Missing Homework if preset active
-                if (activeForClass.includes('preset_missing_hw')) {
+                if (activeForClass.includes('preset_missing_hw') || isAllClasses) {
                     const missingMap: Record<string, { name: string, items: Set<string> }> = {};
-                    classRecords.forEach((r: any) => {
+                    recordData.forEach((r: any) => {
+                        const { visible } = getRecordVisibilityInfo(r);
+                        if (!visible) return;
+
                         const name = r.student?.display_name || 'Unknown';
                         const cleanMessage = stripCoinSuffix(r.message);
 
@@ -150,20 +175,25 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 setMissingHomework(missing);
 
                 // C. Process Announcements (Grouped student_records)
-                // Filter out records that are purely for homework status (unless they are also announcements)
-                // For simplicity, we'll group EVERYTHING that isn't a specific individual homework item
                 const announcementGroups: Record<string, { title: string, students: Set<string>, type: any }> = {};
                 
-                classRecords.forEach((r: any) => {
-                    const fullMsg = stripCoinSuffix(r.message);
+                recordData.forEach((r: any) => {
+                    const { visible } = getRecordVisibilityInfo(r);
+                    if (!visible) return;
+
+                    // Message cleaning: Strip coins AND both metadata suffixes
+                    const fullMsg = r.message || '';
+                    const strippedOfCoins = stripCoinSuffix(fullMsg);
+                    const strippedOfClasses = strippedOfCoins.split(' @@{')[0];
+                    const effectiveKey = strippedOfClasses; // Group by content + student tags
                     
-                    let displayTitle = fullMsg;
+                    let displayTitle = strippedOfClasses;
                     let taggedNames: string[] = [];
                     let hasTagSuffix = false;
                     
-                    // Check for our tagging metadata suffix: ||{Name1, Name2}
-                    if (fullMsg.includes(' ||{')) {
-                        const parts = fullMsg.split(' ||{');
+                    // Parse tagging suffix: ||{Name1, Name2}
+                    if (displayTitle.includes(' ||{')) {
+                        const parts = displayTitle.split(' ||{');
                         displayTitle = parts[0];
                         taggedNames = (parts[1] || '').replace('}', '').split(', ').filter(Boolean);
                         hasTagSuffix = true;
@@ -172,17 +202,17 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                     // Skip if it's a specific homework item (starts with 功課:)
                     if (displayTitle.startsWith('功課:')) return;
                     
-                    if (!announcementGroups[fullMsg]) {
-                        announcementGroups[fullMsg] = { 
+                    if (!announcementGroups[effectiveKey]) {
+                        announcementGroups[effectiveKey] = { 
                             title: displayTitle, 
                             students: new Set(taggedNames), 
                             type: r.type === 'negative' ? 'homework_record' : 'custom'
                         };
                     }
 
-                    // If NO suffix was found (Individual/Standard reward), accumulate student names from the join
-                    if (!hasTagSuffix) {
-                        announcementGroups[fullMsg].students.add(r.student?.display_name || 'Unknown');
+                    // If NO tag suffix was found (Individual/Standard reward), accumulate student names from the join
+                    if (!hasTagSuffix && r.student?.display_name) {
+                        announcementGroups[effectiveKey].students.add(r.student.display_name);
                     }
                 });
 

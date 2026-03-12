@@ -156,8 +156,8 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
 
                 const key = r.message;
                 if (!groups[key]) {
-                    // Strip the tagging suffix for display in the management list
-                    const displayMessage = r.message.split(' ||{')[0];
+                    // Strip metadata suffixes for display in the management list
+                    const displayMessage = r.message.split(' ||{')[0].split(' @@{')[0];
                     groups[key] = {
                         message: displayMessage,
                         rawMessage: r.message,
@@ -235,7 +235,8 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
 
             // 3. Create records for EVERYONE
             const topicStr = newMessage.title ? `[${newMessage.title}] ` : '';
-            const fullMessage = `${topicStr}${newMessage.message}${suffix}`;
+            const classSuffix = ` @@{${selectedClassesForNew.join(', ')}}`;
+            const fullMessage = `${topicStr}${newMessage.message}${suffix}${classSuffix}`;
 
             const records = allStudents.map((s: any) => ({
                 student_id: s.id,
