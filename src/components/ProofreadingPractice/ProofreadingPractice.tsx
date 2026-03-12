@@ -246,18 +246,6 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     }
   };
 
-  const hasAllAnswers = () => {
-    return parsedSentences.every(sentence => {
-      const ln = sentence.lineNumber;
-      if (notSureLines.has(ln)) return true;
-
-      const hasSelection = selectedWords.has(ln);
-      const correction = corrections.get(ln);
-      const hasCorrection = correction && correction.trim().length > 0;
-
-      return hasSelection && hasCorrection;
-    });
-  };
 
   const isAnswerCorrect = (lineNumber: number): boolean | null => {
     if (!showResults) return null;
@@ -633,7 +621,6 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                     {!showResults && !isPreview && (
                       <Button
                         onClick={handleCheckAnswers}
-                        disabled={!hasAllAnswers()}
                         variant="success"
                         icon={Check}
                         className="w-full sm:w-auto"
