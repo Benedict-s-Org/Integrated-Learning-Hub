@@ -480,7 +480,7 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
             </>
           )}
 
-          {/* Component Color Editor */}
+          {/* Component Editor */}
           <div className="p-4 border-b border-gray-200">
             <button
               onClick={() => setIsThemeExpanded(!isThemeExpanded)}
@@ -488,15 +488,89 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
             >
               <div className="flex items-center gap-2">
                 <Palette size={16} className="text-purple-600" />
-                <h3 className="text-sm font-semibold text-gray-700">Component Color Editor</h3>
+                <h3 className="text-sm font-semibold text-gray-700">Component Editor</h3>
               </div>
               <ChevronRight size={16} className={`text-gray-400 transition-transform ${isThemeExpanded ? 'rotate-90' : ''}`} />
             </button>
 
             {isThemeExpanded && (
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-6">
+                {/* Typography Section */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Student Cards</h4>
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Typography</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Font Family</label>
+                      <select 
+                        value={theme.fontFamily}
+                        onChange={(e) => updateTheme({ fontFamily: e.target.value })}
+                        className="w-full px-2 py-1.5 text-xs text-gray-700 font-medium border border-gray-200 rounded bg-white"
+                      >
+                        <option value="Outfit">Outfit (Default)</option>
+                        <option value="Inter">Inter</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="'Open Sans'">Open Sans</option>
+                        <option value="system-ui">System Default</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Base Font Size ({theme.fontSize}px)</label>
+                      <input 
+                        type="range"
+                        min="12"
+                        max="24"
+                        step="1"
+                        value={theme.fontSize}
+                        onChange={(e) => updateTheme({ fontSize: parseInt(e.target.value) })}
+                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Broadcast Bar Section */}
+                <div className="space-y-3 pt-2 border-t border-gray-100">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Broadcast Bar</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Background</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.broadcastBg.startsWith('rgba') ? '#ffffff' : theme.broadcastBg}
+                          onChange={(e) => updateTheme({ broadcastBg: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.broadcastBg}
+                          onChange={(e) => updateTheme({ broadcastBg: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-600">Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={theme.broadcastText}
+                          onChange={(e) => updateTheme({ broadcastText: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={theme.broadcastText}
+                          onChange={(e) => updateTheme({ broadcastText: e.target.value })}
+                          className="w-20 px-1 py-0.5 text-xs text-gray-500 font-mono border border-gray-200 rounded"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2 border-t border-gray-100">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Student Cards</h4>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">

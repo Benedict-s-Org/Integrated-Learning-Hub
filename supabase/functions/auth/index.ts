@@ -555,26 +555,16 @@ Deno.serve(async (req: Request) => {
 
       const userIds = (users || []).map((u: any) => u.id);
 
-      // 2. Parallel Fetch: Avatar Configs, Room Data, and Consequence Counts
+      // 2. Parallel Fetch: Avatar Configs and Room Data
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
-      // Get ISO start of today in HK (approximate for the RPC/Query)
-      const todayStart = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
-      todayStart.setHours(0, 0, 0, 0);
-      const todayISO = todayStart.toISOString();
-
-      const [avatarRes, roomRes, countRes] = await Promise.all([
+      
+      const [avatarRes, roomRes] = await Promise.all([
         supabase.from("user_avatar_config").select("user_id, equipped_items, custom_offsets").in("user_id", userIds),
-        supabase.from("user_room_data").select("user_id, coins, virtual_coins, toilet_coins, daily_counts, morning_status, last_morning_update").in("user_id", userIds),
-        supabase.from("student_records").select("student_id").eq("type", "negative").gte("created_at", todayISO)
+        supabase.from("user_room_data").select("user_id, coins, virtual_coins, toilet_coins, daily_counts, morning_status, last_morning_update").in("user_id", userIds)
       ]);
 
       const avatarMap = new Map<string, any>((avatarRes.data || []).map((a: any) => [a.user_id, a]));
       const roomMap = new Map<string, any>((roomRes.data || []).map((r: any) => [r.user_id, r]));
-
-      const counts: Record<string, number> = {};
-      (countRes.data || []).forEach((r: any) => {
-        if (r.student_id) counts[r.student_id] = (counts[r.student_id] || 0) + 1;
-      });
 
       // 3. Debug logging to find Maximus in auth.users (Optional - keep for now as requested)
       let MaximusToKeepId: string | null = null;
@@ -604,8 +594,7 @@ Deno.serve(async (req: Request) => {
           toilet_coins: room.toilet_coins ?? 100,
           daily_counts: room.daily_counts || {},
           morning_status: (room.last_morning_update === today) ? (room.morning_status || 'todo') : 'todo',
-          last_morning_update: room.last_morning_update || null,
-          consequence_count: counts[u.id] || 0
+          last_morning_update: room.last_morning_update || null
         };
       });
 

@@ -2,13 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getHKTodayString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
 import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
-import { UniversalMessageToolbar } from '@/components/admin/notifications/UniversalMessageToolbar';
+import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
+import { SendNotificationModal } from '@/components/admin/notifications/SendNotificationModal';
+import { NotificationTemplate } from '@/types/notifications';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { TimetableBoard } from '@/components/admin/TimetableBoard';
 import { ProgressLogModal } from '@/components/admin/ProgressLogModal';
@@ -131,6 +134,7 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 
 export function ClassDashboardPage() {
     const { isAdmin, isStaff, user: currentUser } = useAuth();
+    const { theme } = useDashboardTheme();
 
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
     const [avatarCatalog, setAvatarCatalog] = useState<AvatarImageItem[]>([]);
@@ -146,6 +150,8 @@ export function ClassDashboardPage() {
     const [showQuizBoard, setShowQuizBoard] = useState(false);
     const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
     const [showNotificationTemplateModal, setShowNotificationTemplateModal] = useState(false);
+    const [showSendNotificationModal, setShowSendNotificationModal] = useState(false);
+    const [activeTemplate, setActiveTemplate] = useState<NotificationTemplate | null>(null);
     const [showTimetable, setShowTimetable] = useState(false);
     const [cycleData, setCycleData] = useState<{ day: string, cycle: string, date: string, studentOnDuty: string } | null>(null);
     const [isCycleLoading, setIsCycleLoading] = useState(false);
@@ -153,7 +159,6 @@ export function ClassDashboardPage() {
     const fetchCycleData = async () => {
         setIsCycleLoading(true);
         try {
-            console.log('[Dashboard] Fetching cycle data...');
             const { data, error } = await supabase.functions.invoke('notion-api/get-cycle-day', {
                 body: {}
             });
@@ -162,8 +167,6 @@ export function ClassDashboardPage() {
                 console.error('[Dashboard] Edge Function error:', error);
                 throw error;
             }
-
-            console.log('[Dashboard] received cycle data:', data);
 
             if (data && data.found) {
                 setCycleData({
@@ -237,7 +240,6 @@ export function ClassDashboardPage() {
             } else {
                 phase1Promises.push(supabase.functions.invoke('auth/list-users', { body: { adminUserId: currentUser?.id } })
                     .then(res => {
-                        console.log('[DEBUG] list-users response:', res.data);
                         return { type: 'users', data: res.data?.users || [] };
                     }) as any);
             }
@@ -786,7 +788,13 @@ export function ClassDashboardPage() {
     }
 
     return (
-        <div className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-16 md:pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}>
+        <div 
+            className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-16 md:pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}
+            style={{ 
+                fontFamily: theme.fontFamily + ', sans-serif',
+                fontSize: `${theme.fontSize}px`
+            }}
+        >
             <div className="max-w-7xl mx-auto space-y-6">
 
                 {/* Modern Cycle & Date Header */}
@@ -1154,10 +1162,30 @@ export function ClassDashboardPage() {
                 onCustomizeAvatar={() => setIsAvatarModalOpen(true)}
             />
 
-            <UniversalMessageToolbar
-                selectedStudentIds={selectedStudentIds}
+            <BroadcastQuickBar
+                selectedCount={selectedStudentIds.length}
+                className={activeClass}
                 onClearSelection={() => setSelectedStudentIds([])}
+                onOpenManage={() => setShowNotificationTemplateModal(true)}
+                onOpenLiveBoard={() => setShowBroadcastBoard(true)}
+                onOpenBroadcast={() => setShowSendNotificationModal(true)}
                 onRefresh={fetchUsers}
+            />
+
+            <SendNotificationModal
+                isOpen={showSendNotificationModal}
+                onClose={() => {
+                    setShowSendNotificationModal(false);
+                    setActiveTemplate(null);
+                }}
+                studentIds={selectedStudentIds}
+                allStudentIds={(groupedUsers[activeClass] || []).map(u => u.id)}
+                className={activeClass}
+                onSuccess={() => {
+                    fetchUsers();
+                    setSelectedStudentIds([]);
+                }}
+                initialTemplate={activeTemplate}
             />
 
             {showNameSidebar && !isSidebarPoppedOut && (
@@ -1210,7 +1238,7 @@ export function ClassDashboardPage() {
                 onClose={() => setShowProgressLog(false)}
             />
 
-            {showBroadcastBoard && activeClass !== 'all' && (
+            {showBroadcastBoard && (
                 <BroadcastBoard
                     className={activeClass}
                     onClose={() => setShowBroadcastBoard(false)}

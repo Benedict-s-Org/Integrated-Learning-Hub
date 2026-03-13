@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, MessageSquare, ListChecks, Send, CheckCircle2, Loader2, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { NotificationType } from '@/types/notifications';
-import { useAuth } from '@/context/AuthContext';
-import { getHKTodayStartISO } from '@/utils/dateUtils';
+import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
 
 interface NotificationTemplateModalProps {
     isOpen: boolean;
@@ -11,7 +10,6 @@ interface NotificationTemplateModalProps {
 }
 
 export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps> = ({ isOpen, onClose }) => {
-    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'templates' | 'presets' | 'publish'>('templates');
     const [activeBroadcasts, setActiveBroadcasts] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -46,10 +44,15 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
 
     const fetchStudentsForClasses = async () => {
         try {
+            // Handle 'ALL' case - fetch all students in available classes
+            const classesToFetch = selectedClassesForNew.includes('ALL') 
+                ? availableClasses 
+                : selectedClassesForNew;
+
             const { data: students, error } = await supabase
                 .from('users')
                 .select('id, display_name, class')
-                .in('class', selectedClassesForNew)
+                .in('class', classesToFetch)
                 .order('class')
                 .order('display_name');
 
@@ -134,41 +137,43 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
     const fetchActiveBroadcasts = async () => {
         setIsLoading(true);
         try {
-            // Fetch records from today
+            // Fetch all records with a limit
             const { data: records, error } = await supabase
                 .from('student_records')
-                .select('id, type, message, created_at, student_id, student:student_id(display_name, class)')
-                .gte('created_at', getHKTodayStartISO())
-                .order('created_at', { ascending: false });
+                .select('id, type, message, created_at, student_id, record_type, target_classes, student:student_id(display_name, class)')
+                .eq('record_type', 'broadcast')
+                .eq('source', BROADCAST_SOURCE)
+                .order('created_at', { ascending: false })
+                .limit(200);
 
             if (error) throw error;
+            console.log('DIAGNOSTIC: NotificationTemplateModal - Broadcast records length:', records?.length || 0);
 
             // Group by message and timestamp (roughly same broadcast)
             // A more robust way would be a batch ID, but for now we'll cluster by message content
             const groups: Record<string, any> = {};
             
             (records || []).forEach((r: any) => {
-                // Only include broadcast messages (which contain our special tagging suffix)
-                if (!r.message || !r.message.includes(' ||{')) return;
-
                 // Skip specific items (starts with 功課:) if any
-                if (r.message.startsWith('功課:')) return;
+                if (r.message && r.message.startsWith('功課:')) return;
 
                 const key = r.message;
                 if (!groups[key]) {
                     // Strip metadata suffixes for display in the management list
-                    const displayMessage = r.message.split(' ||{')[0].split(' @@{')[0];
+                    const displayMessage = (r.message || '').split(' ||{')[0].split(' @@{')[0];
                     groups[key] = {
                         message: displayMessage,
                         rawMessage: r.message,
                         type: r.type,
                         created_at: r.created_at,
-                        classes: new Set(),
+                        classes: new Set(r.target_classes || []),
                         studentIds: [],
                         count: 0
                     };
                 }
-                groups[key].classes.add(r.student?.class || 'Unknown');
+                if (r.student?.class) {
+                    groups[key].classes.add(r.student.class);
+                }
                 groups[key].studentIds.push(r.id);
                 groups[key].count++;
             });
@@ -224,30 +229,41 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
                 return;
             }
 
-            // 2. Prepare Metadata Suffix (Broadcasts always have a suffix, even if empty)
-            let suffix = ' ||{}'; 
-            if (selectedStudentIds.length > 0) {
-                const taggedNames = availableStudents
-                    .filter((s: any) => selectedStudentIds.includes(s.id))
-                    .map((s: any) => s.display_name);
-                suffix = ` ||{${taggedNames.join(', ')}}`;
+            const primaryClassId = selectedClassesForNew[0] || 'ALL';
+            const isTargeted = selectedStudentIds.length > 0;
+            const fullMessage = `${newMessage.title ? `[${newMessage.title}] ` : ''}${newMessage.message}`;
+            const groupId = crypto.randomUUID();
+            const finalTargetClasses = selectedClassesForNew.includes('ALL') ? ['ALL'] : selectedClassesForNew;
+
+            if (!isTargeted) {
+                const result = await supabase.rpc('insert_audited_student_record', {
+                    p_student_id: null,
+                    p_message: fullMessage,
+                    p_type: newMessage.type,
+                    p_class_id: primaryClassId,
+                    p_record_type: 'broadcast',
+                    p_source: BROADCAST_SOURCE,
+                    p_target_classes: finalTargetClasses,
+                    p_broadcast_group_id: groupId,
+                    p_reason: 'Broadcast Management'
+                });
+                if (result.error) throw result.error;
+            } else {
+                for (const sid of selectedStudentIds) {
+                    const result = await supabase.rpc('insert_audited_student_record', {
+                        p_student_id: sid,
+                        p_message: fullMessage,
+                        p_type: newMessage.type,
+                        p_class_id: primaryClassId,
+                        p_record_type: 'broadcast',
+                        p_source: BROADCAST_SOURCE,
+                        p_target_classes: finalTargetClasses,
+                        p_broadcast_group_id: groupId,
+                        p_reason: 'Targeted Broadcast'
+                    });
+                    if (result.error) throw result.error;
+                }
             }
-
-            // 3. Create records for EVERYONE
-            const topicStr = newMessage.title ? `[${newMessage.title}] ` : '';
-            const classSuffix = ` @@{${selectedClassesForNew.join(', ')}}`;
-            const fullMessage = `${topicStr}${newMessage.message}${suffix}${classSuffix}`;
-
-            const records = allStudents.map((s: any) => ({
-                student_id: s.id,
-                type: newMessage.type,
-                message: fullMessage,
-                created_by: user?.id,
-                created_at: new Date().toISOString()
-            }));
-
-            const { error: insertError } = await supabase.from('student_records').insert(records);
-            if (insertError) throw insertError;
 
             setSaveSuccess(true);
             setNewMessage({ title: '', message: '', type: 'neutral' });
@@ -255,7 +271,7 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
             setSelectedStudentIds([]);
             fetchActiveBroadcasts();
             setTimeout(() => setSaveSuccess(false), 3000);
-            alert(`Message broadcast to all students in ${selectedClassesForNew.join(', ')} (${allStudents.length} total).`);
+            alert(`Message broadcast successfully to ${selectedClassesForNew.join(', ')}.`);
         } catch (err) {
             console.error('Broadcast failed:', err);
             alert('Failed to broadcast message');
@@ -327,16 +343,37 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
                                         <div className="flex items-center gap-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase">Target Classes:</label>
                                             <div className="flex flex-wrap gap-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedClassesForNew(prev => 
+                                                            prev.includes('ALL') ? [] : ['ALL', ...availableClasses]
+                                                        );
+                                                    }}
+                                                    className={`px-2 py-1 rounded text-[10px] font-black transition-all border flex items-center gap-1 ${
+                                                        selectedClassesForNew.includes('ALL')
+                                                            ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
+                                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-800'
+                                                    }`}
+                                                >
+                                                    <Globe size={10} />
+                                                    ALL
+                                                </button>
                                                 {availableClasses.map((c: string) => (
                                                     <button
                                                         key={c}
                                                         onClick={() => {
-                                                            setSelectedClassesForNew((prev: string[]) => 
-                                                                prev.includes(c) ? prev.filter((cls: string) => cls !== c) : [...prev, c]
-                                                            );
+                                                            setSelectedClassesForNew((prev: string[]) => {
+                                                                let next = prev.filter(v => v !== 'ALL');
+                                                                if (next.includes(c)) {
+                                                                    next = next.filter((cls: string) => cls !== c);
+                                                                } else {
+                                                                    next = [...next, c];
+                                                                }
+                                                                return next;
+                                                            });
                                                         }}
                                                         className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
-                                                            selectedClassesForNew.includes(c)
+                                                            selectedClassesForNew.includes(c) && !selectedClassesForNew.includes('ALL')
                                                                 ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
                                                                 : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'
                                                         }`}
@@ -461,7 +498,7 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
 
                             {/* List Section - Messages on Board */}
                             <div className="space-y-4">
-                                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Messages on Board Today</h3>
+                                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">All Broadcast Messages</h3>
                                 {isLoading ? (
                                     <div className="text-center py-12 flex flex-col items-center gap-3">
                                         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -469,7 +506,7 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
                                     </div>
                                 ) : activeBroadcasts.length === 0 ? (
                                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl italic">
-                                        No active messages on boards today.
+                                        No active messages found.
                                     </div>
                                 ) : (
                                     <div className="grid gap-4">

@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, MessageSquare, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
+import { X, Send, AlertCircle, CheckCircle, HelpCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { NotificationTemplate, NotificationType } from '@/types/notifications';
-import { useAuth } from '@/context/AuthContext';
+import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
 
 interface SendNotificationModalProps {
     isOpen: boolean;
     onClose: () => void;
     studentIds: string[];
+    allStudentIds?: string[]; // All students in the current class context
+    className?: string;       // Current active class name
     onSuccess: () => void;
     initialTemplate?: NotificationTemplate | null;
 }
 
-export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ isOpen, onClose, studentIds, onSuccess, initialTemplate }) => {
-    const { user } = useAuth();
+export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    studentIds, 
+    allStudentIds = [],
+    className = '',
+    onSuccess, 
+    initialTemplate 
+}) => {
     const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
     const [activeTab, setActiveTab] = useState<'templates' | 'custom'>('templates');
     const [message, setMessage] = useState('');
@@ -36,7 +45,7 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
     }, [isOpen, initialTemplate]);
 
     const fetchTemplates = async () => {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('notification_templates')
             .select('*')
             .order('created_at', { ascending: false });
@@ -45,29 +54,64 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
     };
 
     const handleSend = async () => {
-        if (!message || studentIds.length === 0) return;
+        if (!message) return;
+        const isWholeClass = studentIds.length === 0 || (allStudentIds.length > 0 && studentIds.length === allStudentIds.length);
+        
+        // Block if trying to broadcast to "ALL" without specific selection (too dangerous)
+        if (studentIds.length === 0 && (!className || className.toUpperCase() === 'ALL')) {
+            alert('Please select students or a specific class to broadcast.');
+            return;
+        }
+
         setIsSending(true);
+        
+        try {
+            const groupId = crypto.randomUUID();
+            const primaryClassId = className?.trim().toUpperCase() || 'ALL';
 
-        const records = studentIds.map(studentId => ({
-            student_id: studentId,
-            message: message,
-            type: type,
-            created_by: user?.id,
-            is_read: false
-        }));
+            if (isWholeClass && className && className.toUpperCase() !== 'ALL') {
+                // WHOLE-CLASS: 1 RPC call
+                const result = await supabase.rpc('insert_audited_student_record', {
+                    p_student_id: null,
+                    p_message: message,
+                    p_type: type,
+                    p_class_id: primaryClassId,
+                    p_record_type: 'broadcast',
+                    p_source: BROADCAST_SOURCE,
+                    p_target_classes: [primaryClassId],
+                    p_broadcast_group_id: groupId,
+                    p_reason: 'Direct Broadcast'
+                });
+                console.log('DIAGNOSTIC: Direct broadcast RPC result:', result);
+                if (result.error) throw result.error;
+            } else {
+                // TARGETED or MULTI-CLASS: N RPC calls (Loop)
+                for (const studentId of studentIds) {
+                    const result = await supabase.rpc('insert_audited_student_record', {
+                        p_student_id: studentId,
+                        p_message: message,
+                        p_type: type,
+                        p_class_id: primaryClassId,
+                        p_record_type: 'broadcast',
+                        p_source: BROADCAST_SOURCE,
+                        p_target_classes: [primaryClassId],
+                        p_broadcast_group_id: groupId,
+                        p_reason: 'Targeted Notification'
+                    });
+                    if (result.error) {
+                        console.error(`DIAGNOSTIC: Targeted RPC failed for ${studentId}:`, result.error);
+                        throw result.error;
+                    }
+                }
+            }
 
-        const { error } = await supabase
-            .from('student_records')
-            .insert(records);
-
-        setIsSending(false);
-
-        if (error) {
-            console.error('Error sending notifications:', error);
-            alert('Failed to send notifications. See console for details.');
-        } else {
             onSuccess();
             onClose();
+        } catch (error: any) {
+            console.error('Error sending notifications:', error);
+            alert(`Failed to send notifications: ${error.message || 'Unknown error'}`);
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -97,7 +141,11 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     <div className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
-                        Sending to <span className="font-bold text-[hsl(var(--foreground))]">{studentIds.length}</span> student{studentIds.length !== 1 ? 's' : ''}
+                        {studentIds.length === 0 ? (
+                            <span className="font-black text-rose-600 uppercase tracking-widest">Broadcasting to WHOLE CLASS</span>
+                        ) : (
+                            <>Sending to <span className="font-bold text-[hsl(var(--foreground))]">{studentIds.length}</span> student{studentIds.length !== 1 ? 's' : ''}</>
+                        )}
                     </div>
 
                     {/* Tabs */}
@@ -186,7 +234,7 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({ is
                     </button>
                     <button
                         onClick={handleSend}
-                        disabled={!message || isSending}
+                        disabled={(!message) || (studentIds.length === 0 && (!className || className.toUpperCase() === 'ALL')) || isSending}
                         className="px-4 py-2 text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 font-medium"
                     >
                         {isSending ? 'Sending...' : (

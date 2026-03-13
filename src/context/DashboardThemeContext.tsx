@@ -13,6 +13,10 @@ export interface DashboardTheme {
     dailyEarnedBorder: string;
     numberTagBg: string;
     numberTagText: string;
+    fontFamily: string;
+    fontSize: number;
+    broadcastBg: string;
+    broadcastText: string;
 }
 
 const DEFAULT_THEME: DashboardTheme = {
@@ -26,6 +30,10 @@ const DEFAULT_THEME: DashboardTheme = {
     dailyEarnedBorder: '#fed7aa', // border-orange-200
     numberTagBg: '#1e293b', // bg-slate-800
     numberTagText: '#ffffff', // text-white
+    fontFamily: 'Outfit',
+    fontSize: 16,
+    broadcastBg: 'rgba(255, 255, 255, 0.4)',
+    broadcastText: '#1e293b',
 };
 
 interface ThemeContextType {
