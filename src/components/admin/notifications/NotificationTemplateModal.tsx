@@ -147,7 +147,6 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
                 .limit(200);
 
             if (error) throw error;
-            console.log('DIAGNOSTIC: NotificationTemplateModal - Broadcast records length:', records?.length || 0);
 
             // Group by message and timestamp (roughly same broadcast)
             // A more robust way would be a batch ID, but for now we'll cluster by message content

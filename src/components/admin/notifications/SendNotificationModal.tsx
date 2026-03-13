@@ -82,7 +82,6 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({
                     p_broadcast_group_id: groupId,
                     p_reason: 'Direct Broadcast'
                 });
-                console.log('DIAGNOSTIC: Direct broadcast RPC result:', result);
                 if (result.error) throw result.error;
             } else {
                 // TARGETED or MULTI-CLASS: N RPC calls (Loop)
@@ -98,10 +97,7 @@ export const SendNotificationModal: React.FC<SendNotificationModalProps> = ({
                         p_broadcast_group_id: groupId,
                         p_reason: 'Targeted Notification'
                     });
-                    if (result.error) {
-                        console.error(`DIAGNOSTIC: Targeted RPC failed for ${studentId}:`, result.error);
-                        throw result.error;
-                    }
+                    if (result.error) throw result.error;
                 }
             }
 
