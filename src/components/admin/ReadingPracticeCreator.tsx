@@ -20,6 +20,7 @@ interface ReadingPdf {
   pageId: string;
   name: string;
   fileUrl?: string;
+  day?: number | string | null;
 }
 
 interface ChunkOption {
@@ -110,7 +111,11 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       });
       
       if (error) throw error;
-      setPdfs(data?.results || []);
+      const results = (data?.results || []).map((item: any) => ({
+        ...item,
+        day: item.day
+      }));
+      setPdfs(results);
     } catch (err) {
       console.error('Error fetching PDFs:', err);
     } finally {
@@ -210,11 +215,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       const { data, error } = await supabase.functions.invoke('reading-api', {
         headers: {
           'x-action': 'list-page-questions',
-          'x-database-id': questionsDbId
+          'x-database-id': questionsDbId,
+          'x-day-number': selectedPdf.day?.toString() || ''
         },
         body: { 
           action: 'list-page-questions',
           sourcePageId: selectedPdf.pageId, 
+          dayNumber: selectedPdf.day,
           pageNumber: page,
           questionsDatabaseId: questionsDbId
         }

@@ -122,12 +122,20 @@ Deno.serve(async (req: Request) => {
           fileUrl = fileProp.url;
         }
 
+        // Robust Day extraction
+        const dayProp = props["Day"] || props["day"] || props["日期"];
+        let day = null;
+        if (dayProp?.type === 'number') day = dayProp.number;
+        else if (dayProp?.type === 'select') day = dayProp.select?.name;
+        else if (dayProp?.type === 'rich_text') day = dayProp.rich_text?.[0]?.plain_text;
+
         return {
           id: p.id,
           pageId: p.id,
           name,
           fileUrl,
-          pdfUrl: fileUrl // Compatibility
+          pdfUrl: fileUrl, // Compatibility
+          day: day ? (isNaN(Number(day)) ? day : Number(day)) : null
         };
       });
 
@@ -186,10 +194,10 @@ Deno.serve(async (req: Request) => {
     // ── 4. List Page Questions ─────────────────────────────────────────
     else if (action === "list-page-questions") {
       const qDbId = body.questionsDatabaseId || Deno.env.get("NOTION_QUESTIONS_DATABASE_ID") || "3249baca6fa381f18526ca44ce27447c";
-      const { sourcePageId, pageNumber } = body;
+      const { sourcePageId, pageNumber, dayNumber } = body;
       
-      if (!sourcePageId || !pageNumber) {
-        return createCORSResponse({ error: "Missing sourcePageId or pageNumber" }, 400, req);
+      if (!pageNumber) {
+        return createCORSResponse({ error: "Missing pageNumber" }, 400, req);
       }
 
       console.log(`[reading-api] Querying questions for page ${pageNumber} of PDF ${sourcePageId} in DB ${qDbId}`);
@@ -228,12 +236,19 @@ Deno.serve(async (req: Request) => {
       const andFilters: any[] = [];
 
       // 1. Source/PDF/Day Filter
-      if (sourcePdfType === 'relation') {
+      // Case A: Day Number Linking (Standardized)
+      if (dayNumber !== undefined && dayNumber !== null) {
+        if (sourcePdfType === 'number') {
+          andFilters.push({ property: sourcePdfProp, number: { equals: Number(dayNumber) } });
+        } else if (sourcePdfType === 'select' || sourcePdfType === 'rich_text') {
+          andFilters.push({ property: sourcePdfProp, [sourcePdfType]: { equals: dayNumber.toString() } });
+        } else if (sourcePdfType === 'relation' && sourcePageId) {
+          andFilters.push({ property: sourcePdfProp, relation: { contains: sourcePageId } });
+        }
+      } 
+      // Case B: Direct Page ID Linking (Fallback)
+      else if (sourcePageId && sourcePdfType === 'relation') {
         andFilters.push({ property: sourcePdfProp, relation: { contains: sourcePageId } });
-      } else if (sourcePdfType === 'number' || sourcePdfType === 'select') {
-        // Fallback: If it's a number/select, try to find by title/name of the source page
-        // or just skip if we don't have a numeric ID (though usually sourcePageId is UUID)
-        // For now, if it's a relation we match it, otherwise we might need a different linker
       }
 
       // 2. Page Number Filter
@@ -241,7 +256,12 @@ Deno.serve(async (req: Request) => {
         andFilters.push({ property: pageNumberProp, number: { equals: parseInt(pageNumber) } });
       } else if (pageNumberType === 'select' || pageNumberType === 'rich_text') {
         andFilters.push({ property: pageNumberProp, [pageNumberType]: { equals: pageNumber.toString() } });
+      } else if (pageNumberType === 'formula') {
+        // Notion Formula filtering is limited, try to treat as number/string if possible
+        // Usually formulas are read-only in query filters though
       }
+
+      console.log(`[reading-api] Applied Filter: ${JSON.stringify(andFilters)}`);
 
       const resp = await fetch(`${NOTION_API}/databases/${qDbId}/query`, {
         method: "POST",
