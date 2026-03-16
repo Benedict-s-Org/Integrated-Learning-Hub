@@ -37,7 +37,7 @@ interface Question {
   id: string;
   question_text: string | null;
   correct_answer: string;
-  interaction_type: 'rearrange' | 'proofreading';
+  interaction_type: 'rearrange' | 'proofreading' | 'aplus-coordinates';
   level: number;
   metadata: any;
   evidence_coords: any;
@@ -46,6 +46,7 @@ interface Question {
 interface ReadingChallengeProps {
   practiceId: string;
   studentId: string;
+  interactionMode?: 'rearrange' | 'proofreading';
   onComplete: (score: number, bonus: number) => void;
   onExit: () => void;
 }
@@ -88,10 +89,10 @@ const SortableWord: React.FC<{
       {options && options.length > 0 ? (
         <div className="flex items-center gap-2">
           {/* Prefix Input Box for Verbs (e.g. is/are) */}
-          {options.some(opt => opt.prefix) && (
+          {options.find(opt => opt.text === text)?.prefix && (
             <input 
               type="text"
-              placeholder={options.find(opt => opt.prefix)?.prefix || '...'}
+              placeholder="..."
               value={prefixValue || ''}
               onChange={(e) => onOptionChange && onOptionChange(text, e.target.value)}
               onClick={(e) => e.stopPropagation()}
@@ -120,6 +121,7 @@ const SortableWord: React.FC<{
 export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   practiceId,
   studentId,
+  interactionMode,
   onComplete,
   onExit
 }) => {
@@ -169,17 +171,43 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       setPractice(pData);
 
       // 2. Fetch Questions
-      const { data: qData, error: qError } = await supabase
+      let query = supabase
         .from('reading_questions')
         .select('*')
-        .eq('practice_id', practiceId)
-        .order('order_index', { ascending: true });
+        .eq('practice_id', practiceId);
+
+      // Filter by interaction mode if provided
+      if (interactionMode) {
+        // 'rearrange' from UI maps to 'rearrange' or 'aplus-coordinates' in DB
+        if (interactionMode === 'rearrange') {
+          query = query.in('interaction_type', ['rearrange', 'aplus-coordinates']);
+        } else {
+          query = query.eq('interaction_type', 'proofreading');
+        }
+      }
+
+      const { data: qData, error: qError } = await query.order('order_index', { ascending: true });
       
       if (qError) throw qError;
-      setQuestions(qData as unknown as Question[] || []);
+
+      // 3. Filter by Student Level
+      // Level rule: "Students in level 1 can choose the advanced level but students in advanced level cannot choose the easier levels"
+      // This means if student is Level 2, they ONLY see Level 2. If student is Level 1, they see 1 and 2.
+      const { data: userData } = await supabase.from('users').select('*').eq('id', studentId).single();
+      const u = userData as any;
+      const studentLevel = interactionMode === 'rearrange' 
+        ? u?.reading_rearranging_level || 1
+        : u?.reading_proofreading_level || 1;
+
+      const filteredQuestions = (qData as unknown as Question[] || []).filter(q => {
+        if (studentLevel === 1) return true; // Level 1 sees everything (1 and 2, or 1,2,3)
+        return q.level >= studentLevel; // Level 2 only sees 2+
+      });
+
+      setQuestions(filteredQuestions);
       
-      if (qData && qData.length > 0) {
-        setupInteraction(qData[0] as unknown as Question);
+      if (filteredQuestions.length > 0) {
+        setupInteraction(filteredQuestions[0]);
       }
     } catch (err) {
       console.error('Error loading challenge:', err);
@@ -195,9 +223,9 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     setShowEvidencePrompt(false);
     setHintsUsed(0);
 
-    if (q.interaction_type === 'rearrange') {
+    if (q.interaction_type === 'rearrange' || q.interaction_type === 'aplus-coordinates') {
       const metadata = q.metadata || {};
-      const rawChunks = metadata.chunks || [];
+      const rawChunks = (metadata as any).chunks || [];
       
       // Map to interaction format
       const initialSelections: Record<string, string> = {};
@@ -217,6 +245,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
           const defaultOpt = options[0];
           initialSelections[chunkId] = defaultOpt.text;
           if (defaultOpt.prefix) initialPrefixes[chunkId] = ''; // Keep prefix empty for student to type
+          else initialPrefixes[chunkId] = ''; // Ensure it's explicitly cleared if switch happens
 
           return {
             id: chunkId,

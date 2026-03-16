@@ -15,6 +15,10 @@ interface UserWithProfile {
   class_number: number | null;
   class_name?: string | null;
   spelling_level?: number;
+  reading_rearranging_level?: number;
+  reading_proofreading_level?: number;
+  memorization_level?: number;
+  proofreading_level?: number;
   ecas?: string[];
 }
 
@@ -38,6 +42,10 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [className, setClassName] = useState(user.class_name || "");
   const [classNumber, setClassNumber] = useState<string>(user.class_number?.toString() || "");
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
+  const [readingRearrangingLevel, setReadingRearrangingLevel] = useState<number>(user.reading_rearranging_level || 1);
+  const [readingProofreadingLevel, setReadingProofreadingLevel] = useState<number>(user.reading_proofreading_level || 1);
+  const [memorizationLevel, setMemorizationLevel] = useState<number>(user.memorization_level || 1);
+  const [proofreadingLevel, setProofreadingLevel] = useState<number>(user.proofreading_level || 1);
   const [ecas, setEcas] = useState<string[]>(user.ecas || []);
   const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
   const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string }[]>([]);
@@ -259,6 +267,10 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       const parsedClassNumber = classNumber !== "" ? parseInt(classNumber) : null;
       (updateData as any).classNumber = parsedClassNumber;
       (updateData as any).spellingLevel = spellingLevel;
+      (updateData as any).readingRearrangingLevel = readingRearrangingLevel;
+      (updateData as any).readingProofreadingLevel = readingProofreadingLevel;
+      (updateData as any).memorizationLevel = memorizationLevel;
+      (updateData as any).proofreadingLevel = proofreadingLevel;
       (updateData as any).ecas = ecas;
       if (role === 'class_staff') {
         (updateData as any).managed_classes = managedClasses;
@@ -288,6 +300,10 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (className !== undefined) directUpdate.class = className || null;
       if (parsedClassNumber !== undefined) directUpdate.class_number = parsedClassNumber;
       if (spellingLevel !== undefined) directUpdate.spelling_level = spellingLevel;
+      if (readingRearrangingLevel !== undefined) directUpdate.reading_rearranging_level = readingRearrangingLevel;
+      if (readingProofreadingLevel !== undefined) directUpdate.reading_proofreading_level = readingProofreadingLevel;
+      if (memorizationLevel !== undefined) directUpdate.memorization_level = memorizationLevel;
+      if (proofreadingLevel !== undefined) directUpdate.proofreading_level = proofreadingLevel;
       if (ecas !== undefined) directUpdate.ecas = ecas;
 
       const { error: directError } = await supabase
@@ -611,6 +627,103 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               Level 1 學生可以嘗試 Level 2 練習；Level 2 學生只能看到 Level 2 練習。
             </p>
+          </div>
+
+          {/* Reading Levels Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Rearranging (Reading) */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+                <Lock className="w-4 h-4" />
+                句子重組 (Rearranging)
+              </label>
+              <div className="flex gap-2">
+                {[1, 2].map(lv => (
+                  <button
+                    key={lv}
+                    type="button"
+                    onClick={() => setReadingRearrangingLevel(lv)}
+                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${readingRearrangingLevel === lv
+                      ? "bg-purple-500 text-white border-purple-500"
+                      : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    Lv {lv}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Proofreading (Reading) */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+                <Lock className="w-4 h-4" />
+                閱讀校對 (Reading Proofread)
+              </label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map(lv => (
+                  <button
+                    key={lv}
+                    type="button"
+                    onClick={() => setReadingProofreadingLevel(lv)}
+                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${readingProofreadingLevel === lv
+                      ? "bg-pink-500 text-white border-pink-500"
+                      : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    Lv {lv}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Paragraph Memorization */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+                <Lock className="w-4 h-4" />
+                段落默寫 (Memorization)
+              </label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map(lv => (
+                  <button
+                    key={lv}
+                    type="button"
+                    onClick={() => setMemorizationLevel(lv)}
+                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${memorizationLevel === lv
+                      ? "bg-emerald-500 text-white border-emerald-500"
+                      : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    Lv {lv}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Standalone Proofreading */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
+                <Lock className="w-4 h-4" />
+                課外校對 (Proofreading)
+              </label>
+              <div className="flex gap-2">
+                {[1, 2].map(lv => (
+                  <button
+                    key={lv}
+                    type="button"
+                    onClick={() => setProofreadingLevel(lv)}
+                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${proofreadingLevel === lv
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    Lv {lv}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

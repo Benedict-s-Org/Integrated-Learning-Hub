@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, ArrowRight, Database } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, ArrowRight, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
@@ -14,15 +14,17 @@ interface ReadingPractice {
 }
 
 export const ReadingManagementPage: React.FC = () => {
-  const [view, setView] = useState<'list' | 'create' | 'edit' | 'sync' | 'notion-browse' | 'aplus-coordinates'>('list');
+  const [view, setView] = useState<'list' | 'create' | 'edit' | 'sync' | 'notion-browse' | 'aplus-list'>('list');
   const [practices, setPractices] = useState<ReadingPractice[]>([]);
+  const [aplusQuestions, setAplusQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [notionParams, setNotionParams] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
-    fetchPractices();
-  }, []);
+    if (view === 'list') fetchPractices();
+    if (view === 'aplus-list') fetchAplusQuestions();
+  }, [view]);
 
   const fetchPractices = async () => {
     setLoading(true);
@@ -51,10 +53,83 @@ export const ReadingManagementPage: React.FC = () => {
     }
   };
 
+  const fetchAplusQuestions = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('reading_questions')
+        .select('*')
+        .eq('interaction_type', 'aplus-coordinates')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAplusQuestions(data || []);
+    } catch (error) {
+      console.error('Error fetching A+ questions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAplus = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this question?')) return;
+    try {
+      // 1. Get the image URL before deleting the record
+      const { data: question } = await supabase
+        .from('reading_questions')
+        .select('question_image_url')
+        .eq('id', id)
+        .single();
+      
+      if (question?.question_image_url) {
+        const fileName = question.question_image_url.split('/').pop();
+        if (fileName) {
+          await supabase.storage.from('reading-passages').remove([fileName]);
+        }
+      }
+
+      const { error } = await supabase.from('reading_questions').delete().eq('id', id);
+      if (error) throw error;
+      setAplusQuestions(prev => prev.filter(q => q.id !== id));
+    } catch (error) {
+      console.error('Error deleting A+ question:', error);
+      alert('Failed to delete question.');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this practice?')) return;
     
     try {
+      // 1. Get all associated questions to clean up their images
+      const { data: questions } = await supabase
+        .from('reading_questions')
+        .select('question_image_url')
+        .eq('practice_id', id);
+
+      const { data: practice } = await supabase
+        .from('reading_practices')
+        .select('passage_image_url')
+        .eq('id', id)
+        .single();
+
+      const filesToDelete: string[] = [];
+      if (practice?.passage_image_url) {
+        const pFile = practice.passage_image_url.split('/').pop();
+        if (pFile) filesToDelete.push(pFile);
+      }
+
+      questions?.forEach(q => {
+        if (q.question_image_url) {
+          const qFile = q.question_image_url.split('/').pop();
+          if (qFile && !filesToDelete.includes(qFile)) filesToDelete.push(qFile);
+        }
+      });
+
+      if (filesToDelete.length > 0) {
+        await supabase.storage.from('reading-passages').remove(filesToDelete);
+      }
+
       const { error } = await supabase
         .from('reading_practices')
         .update({ is_deleted: true })
@@ -137,7 +212,13 @@ export const ReadingManagementPage: React.FC = () => {
             <Database className="w-5 h-5 text-indigo-500" />
             Create via Notion
           </button>
-
+          <button 
+            onClick={() => setView('aplus-list')}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 border border-indigo-700 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 font-bold"
+          >
+            <BookOpen className="w-5 h-5" />
+            Saved practice
+          </button>
         </div>
       </div>
 
@@ -161,6 +242,67 @@ export const ReadingManagementPage: React.FC = () => {
           >
             Start creating now →
           </button>
+        </div>
+      ) : view === 'aplus-list' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setView('list')} className="p-2 hover:bg-slate-50 rounded-xl transition-all text-slate-400 hover:text-indigo-600">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <div>
+                <h2 className="text-xl font-black text-slate-800">Saved Synthesized Questions</h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Independent A+ Question Inventory</p>
+              </div>
+            </div>
+            <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest">
+              {aplusQuestions.length} Total Questions
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {aplusQuestions.map((q) => (
+              <div key={q.id} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 group hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50 transition-all">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs">
+                      A+
+                    </div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Level {q.level || 1}</span>
+                  </div>
+                  <button onClick={() => handleDeleteAplus(q.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-sm font-black text-slate-800 leading-relaxed mb-2 line-clamp-3">
+                    {q.question_text}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <p className="text-[11px] font-bold text-slate-500 italic truncate">
+                      Ans: {q.correct_answer}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                  <span className="text-[9px] font-bold text-slate-400">{new Date(q.created_at).toLocaleDateString()}</span>
+                  <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                    Manage <ChevronRight className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {aplusQuestions.length === 0 && !loading && (
+            <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 flex flex-col items-center text-center">
+              <BookOpen className="w-12 h-12 text-slate-200 mb-4" />
+              <p className="text-slate-400 font-bold">No saved questions found. Create some via the synthesizer flow!</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

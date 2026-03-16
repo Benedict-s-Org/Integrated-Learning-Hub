@@ -40,7 +40,11 @@ export const getVerbForms = (text: string): VerbForm[] => {
   if (!text || !isVerb(text)) return [];
 
   const base = getBaseForm(text);
-  const v = nlp(base).verbs();
+  
+  // Use a context string to help compromise identify and conjugate the verb correctly.
+  // This is especially important for words like "last" that have multiple parts of speech.
+  const ctx = `it ${base}`;
+  const v = nlp(ctx).verbs();
   const conjugated = (v.conjugate()[0] || {}) as any;
 
   // Define the forms based on the requested order
@@ -61,11 +65,23 @@ export const getVerbForms = (text: string): VerbForm[] => {
     conjugated.Gerund ? { text: conjugated.Gerund, type: 'past_continuous', prefix: 'was/were' } : null,
 
     // 6. Future tense (will + Base)
-    { text: base, type: 'future', prefix: 'will' },
+    { text: `will ${base}`, type: 'future' },
 
     // 7. Present perfect (has/have + Past Participle)
-    conjugated.PastParticiple || conjugated.PastTense ? { text: (conjugated.PastParticiple || conjugated.PastTense), type: 'present_perfect', prefix: 'has/have' } : null,
+    conjugated.Participle || conjugated.PastParticiple || conjugated.PastTense 
+      ? { text: `has/have ${conjugated.Participle || conjugated.PastParticiple || conjugated.PastTense}`, type: 'present_perfect' } 
+      : null,
   ];
+
+  // Special case for "be" - ensure am/are are available and perfect form is "been"
+  if (base.toLowerCase() === 'be') {
+    forms.push({ text: 'am/are', type: 'present' });
+    // Update the perfect form to "been" if it was "was/were"
+    const perfectIdx = forms.findIndex(f => f?.type === 'present_perfect');
+    if (perfectIdx !== -1) {
+      forms[perfectIdx] = { text: 'has/have been', type: 'present_perfect' };
+    }
+  }
 
   // Filter out nulls and duplicates (keeping the first occurrence)
   const seen = new Set<string>();

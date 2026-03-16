@@ -8,11 +8,26 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { 
   Plus, Search, FileText, ChevronLeft, ChevronRight, 
   Loader2, Check, Layers, Type, 
-  RotateCcw, Database, Upload
+  RotateCcw, Database, Upload, Trash2
 } from 'lucide-react';
 import { getVerbForms, isVerb, getNounForms, type VerbForm, type VerbFormType } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { 
+  DndContext, 
+  closestCenter, 
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import { 
+  SortableContext, 
+  arrayMove, 
+  horizontalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Set up PDF.js worker using Vite's URL import
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -40,7 +55,7 @@ interface NotionQuestion {
   page?: number;
 }
 
-type CreatorStep = 'select-pdf' | 'workspace' | 'preview';
+type CreatorStep = 'select-pdf' | 'workspace';
 
 interface ReadingPracticeCreatorProps {
   onComplete?: (id: string) => void;
@@ -48,6 +63,87 @@ interface ReadingPracticeCreatorProps {
   initialPdfUrl?: string;
   initialTitle?: string;
 }
+
+// 1. Sortable Preview Chunk Item
+const SortablePreviewChunk: React.FC<{ 
+  chunk: ChunkOption;
+  previewSelections: Record<string, string>;
+  setPreviewSelections: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  previewPrefixes: Record<string, string>;
+  setPreviewPrefixes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+}> = ({ chunk, previewSelections, setPreviewSelections, previewPrefixes, setPreviewPrefixes }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: chunk.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  const hasOptions = chunk.alternatives.length > 0;
+  
+  if (!hasOptions) {
+    return (
+      <div 
+        ref={setNodeRef} 
+        style={style} 
+        {...attributes} 
+        {...listeners}
+        className="px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-sm font-black text-slate-700 cursor-grab active:cursor-grabbing hover:border-indigo-300 transition-all"
+      >
+        {chunk.text}
+      </div>
+    );
+  }
+
+  const options = [{ text: chunk.text }, ...chunk.alternatives];
+  const uniqueOptions = Array.from(new Map(options.map(o => [`${o.prefix || ''}:${o.text}`, o])).values());
+  
+  const selectedAlt = chunk.alternatives.find(a => a.text === previewSelections[chunk.id]);
+  const showPrefix = !!selectedAlt?.prefix;
+
+  return (
+    <div 
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex items-center gap-2 p-1 bg-white rounded-[1.5rem] border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-indigo-300 cursor-grab active:cursor-grabbing"
+    >
+      {showPrefix && (
+        <input
+          type="text"
+          placeholder="..."
+          value={previewPrefixes[chunk.id] || ''}
+          onChange={(e) => setPreviewPrefixes(prev => ({ ...prev, [chunk.id]: e.target.value }))}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()} // Prevent drag start when typing
+          className="w-16 h-10 px-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20 cursor-text"
+        />
+      )}
+      <div className="relative" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+        <select
+          value={previewSelections[chunk.id] || ''}
+          onChange={(e) => setPreviewSelections(prev => ({ ...prev, [chunk.id]: e.target.value }))}
+          className="h-10 px-4 bg-white border-none rounded-xl text-sm font-black text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:bg-slate-50 transition-all appearance-none pr-8 relative bg-no-repeat bg-[right_0.5rem_center]"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }}
+        >
+          {uniqueOptions.map((opt, i) => (
+            <option key={i} value={opt.text}>{opt.text}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+};
 
 export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({ 
   onComplete, 
@@ -102,6 +198,23 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   // Preview Selection State
   const [previewSelections, setPreviewSelections] = useState<Record<string, string>>({});
   const [previewPrefixes, setPreviewPrefixes] = useState<Record<string, string>>({});
+  const [previewChunkOrder, setPreviewChunkOrder] = useState<string[]>([]);
+
+  // DND Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  // Multi-Question State
+  const [localQuestions, setLocalQuestions] = useState<{
+    id: string;
+    question: NotionQuestion;
+    chunks: ChunkOption[];
+    coords: { x: number; y: number; w: number; h: number; page: number };
+    imageBlob: Blob;
+    previewUrl: string;
+    randomizedIds: string[];
+  }[]>([]);
 
   // 1. Initial Load & Fetching
   useEffect(() => {
@@ -111,17 +224,15 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     }
   }, []);
 
-  // Sync Preview state when entering preview step
+  // Sync Preview state and Shuffle Chunks
   useEffect(() => {
-    if (step === 'preview') {
-      const selections: Record<string, string> = {};
-      const prefixes: Record<string, string> = {};
+    if (step === 'workspace') {
+      const selections: Record<string, string> = { ...previewSelections };
+      const prefixes: Record<string, string> = { ...previewPrefixes };
 
       chunks.forEach(c => {
-        if (c.alternatives.length > 0) {
-          // Default selection to base form for verbs, singular for nouns
+        if (c.alternatives.length > 0 && !selections[c.id]) {
           let defaultOpt = c.alternatives[0];
-          
           if (c.mode === 'verb') {
             const base = c.alternatives.find(a => a.type === 'base');
             if (base) defaultOpt = base;
@@ -129,13 +240,20 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             const singular = c.alternatives.find(a => a.type === 'singular');
             if (singular) defaultOpt = singular;
           }
-          
-          selections[c.id] = defaultOpt.text;
-          if (defaultOpt.prefix) prefixes[c.id] = ''; // Pupil enters this
+          if (defaultOpt) {
+            selections[c.id] = defaultOpt.text;
+            if (defaultOpt.prefix) prefixes[c.id] = '';
+          }
         }
       });
+
       setPreviewSelections(selections);
       setPreviewPrefixes(prefixes);
+      
+      // Shuffle chunks for preview
+      if (chunks.length > 0) {
+        setPreviewChunkOrder(chunks.map(c => c.id).sort(() => Math.random() - 0.5));
+      }
     }
   }, [step, chunks]);
 
@@ -227,21 +345,38 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current || step !== 'workspace') return;
 
+    let renderTask: any = null;
+
     const renderPage = async () => {
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.5 });
         const canvas = canvasRef.current!;
         const context = canvas.getContext('2d');
+        
+        if (!context) return;
+        
         canvas.height = viewport.height;
         canvas.width = viewport.width;
-        await page.render({ canvasContext: context!, viewport, canvas }).promise;
-      } catch (err) {
+        
+        renderTask = page.render({ canvasContext: context, viewport, canvas });
+        await renderTask.promise;
+      } catch (err: any) {
+        if (err.name === 'RenderingCancelledException') {
+          // Ignore cancellation errors
+          return;
+        }
         console.error('Render error:', err);
       }
     };
 
     renderPage();
+
+    return () => {
+      if (renderTask) {
+        renderTask.cancel();
+      }
+    };
   }, [pdfDoc, pageNum, step]);
 
   const fetchQuestionsForPage = async (page: number = pageNum) => {
@@ -547,66 +682,170 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   };
 
 
-  const handleSaveAll = async (randomizedIds: string[]) => {
-    if (!pdfDoc || !cropStart || !cropEnd) return;
+  const handleAddQuestion = async (randomizedIds: string[]) => {
+    if (!pdfDoc || !cropStart || !cropEnd || !selectedQuestion) {
+      alert('Please select a question and draw a crop selection on the PDF first.');
+      return;
+    }
+    
+    const pxW = Math.abs(cropStart.x - cropEnd.x);
+    const pxH = Math.abs(cropStart.y - cropEnd.y);
+    
+    if (pxW < 10 || pxH < 10) {
+      alert('Crop selection is too small. Please draw a larger area.');
+      return;
+    }
+    
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) throw new Error('Canvas not ready');
+      
+      const pxX = Math.min(cropStart.x, cropEnd.x);
+      const pxY = Math.min(cropStart.y, cropEnd.y);
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = pxW;
+      cropCanvas.height = pxH;
+      const cropCtx = cropCanvas.getContext('2d');
+      if (!cropCtx) throw new Error('Could not create crop canvas context');
+      cropCtx.drawImage(canvas, pxX, pxY, pxW, pxH, 0, 0, pxW, pxH);
+      
+      const blob = await new Promise<Blob | null>(resolve => cropCanvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Failed to capture selection as image.');
+      
+      const previewUrl = URL.createObjectURL(blob);
+      
+      const newLocalQuestion = {
+        id: crypto.randomUUID(),
+        question: selectedQuestion,
+        chunks: [...chunks],
+        coords: { 
+          x: pxX / canvas.width, 
+          y: pxY / canvas.height, 
+          w: pxW / canvas.width, 
+          h: pxH / canvas.height, 
+          page: pageNum 
+        },
+        imageBlob: blob,
+        previewUrl,
+        randomizedIds
+      };
+
+      setLocalQuestions(prev => [...prev, newLocalQuestion]);
+      
+      // Reset current question selection state
+      setSelectedQuestion(null);
+      setChunks([]);
+      setCropStart(null);
+      setCropEnd(null);
+      setPreviewSelections({});
+      setPreviewPrefixes({});
+      
+      // Scroll to bottom to show the queue
+      setTimeout(() => {
+        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+      }, 100);
+
+    } catch (err: any) {
+      console.error('[ReadingCreator] Add error:', err);
+      alert(`Failed to add question: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleRemoveLocalQuestion = (id: string) => {
+    setLocalQuestions(prev => prev.filter(lq => lq.id !== id));
+  };
+
+  const handlePreviewDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setPreviewChunkOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handleSavePractice = async () => {
+    if (localQuestions.length === 0) {
+      alert('Please add at least one question to the practice.');
+      return;
+    }
+    
     setSaving(true);
     try {
-      // 1. Identify if we are saving a "Reading Practice" (Legacy Image) or "A+ Question"
-      const canvas = canvasRef.current!;
-      const x = Math.min(cropStart.x, cropEnd.x) / canvas.width;
-      const y = Math.min(cropStart.y, cropEnd.y) / canvas.height;
-      const w = Math.abs(cropStart.x - cropEnd.x) / canvas.width;
-      const h = Math.abs(cropStart.y - cropEnd.y) / canvas.height;
+      // 1. Create the Reading Practice record
+      // Use the first question as a base for the title if not set
+      const practiceTitle = title || localQuestions[0].question.question.substring(0, 50);
+      console.log('[ReadingCreator] Creating practice record:', practiceTitle);
+      
+      // We'll upload images first to get a "cover" image for the practice
+      const firstQue = localQuestions[0];
+      const firstFileName = `${user?.id || 'guest'}_p_${Date.now()}.png`;
+      const { error: firstUploadError } = await supabase.storage.from('reading-passages').upload(firstFileName, firstQue.imageBlob);
+      if (firstUploadError) throw firstUploadError;
+      
+      const { data: { publicUrl: coverUrl } } = supabase.storage.from('reading-passages').getPublicUrl(firstFileName);
 
-      // If we have a question, save as an A+ Question
-      if (selectedQuestion) {
-        const { error } = await supabase
-          .from('reading_questions')
-          .insert({
-            question_text: selectedQuestion.question,
-            correct_answer: selectedQuestion.answer,
-            interaction_type: 'aplus-coordinates',
-            evidence_coords: { x, y, w, h, page: pageNum },
-            metadata: {
-              chunks: chunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives })),
-              randomized_ids: randomizedIds,
-              source_pdf_id: selectedPdf?.pageId,
-              notion_question_id: selectedQuestion.id,
-              questions_db_id: questionsDbId
-            }
-          });
-        if (error) throw error;
-      } else {
-        // Legacy Save (Reading Practice Background)
-        // ... (This involves capturing a blob and uploading to Storage)
-        const cropCanvas = document.createElement('canvas');
-        const pxX = Math.min(cropStart.x, cropEnd.x);
-        const pxY = Math.min(cropStart.y, cropEnd.y);
-        const pxW = Math.abs(cropStart.x - cropEnd.x);
-        const pxH = Math.abs(cropStart.y - cropEnd.y);
-        cropCanvas.width = pxW;
-        cropCanvas.height = pxH;
-        cropCanvas.getContext('2d')?.drawImage(canvas, pxX, pxY, pxW, pxH, 0, 0, pxW, pxH);
+      const { data: practiceData, error: dbError } = await supabase.from('reading_practices').insert({
+        title: practiceTitle,
+        passage_image_url: coverUrl,
+        created_by: user?.id,
+        source_pdf_url: selectedPdf?.fileUrl || null
+      }).select().single();
+
+      if (dbError) throw dbError;
+      const practiceId = practiceData.id;
+
+      // 2. Upload all question images and save records
+      const questionPromises = localQuestions.map(async (lq, index) => {
+        let imageUrl = coverUrl;
         
-        const blob = await new Promise<Blob | null>(resolve => cropCanvas.toBlob(resolve, 'image/png'));
-        if (!blob) throw new Error('Failed to capture selection');
-        const fileName = `${user?.id || 'guest'}_${Date.now()}.png`;
-        const { error: uploadError } = await supabase.storage.from('reading-passages').upload(fileName, blob);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('reading-passages').getPublicUrl(fileName);
-        
-        const { error: dbError } = await supabase.from('reading_practices').insert({
-          title, passage_image_url: publicUrl, created_by: user?.id
+        // If it's not the first question (which we already uploaded), upload it now
+        if (index > 0) {
+          const fileName = `${user?.id || 'guest'}_q_${Date.now()}_${index}.png`;
+          const { error: uploadError } = await supabase.storage.from('reading-passages').upload(fileName, lq.imageBlob);
+          if (uploadError) throw uploadError;
+          const { data: { publicUrl } } = supabase.storage.from('reading-passages').getPublicUrl(fileName);
+          imageUrl = publicUrl;
+        }
+
+        return supabase.from('reading_questions').insert({
+          practice_id: practiceId,
+          question_text: lq.question.question,
+          correct_answer: lq.question.answer,
+          interaction_type: 'aplus-coordinates',
+          evidence_coords: lq.coords,
+          question_image_url: imageUrl,
+          order_index: index,
+          metadata: {
+            chunks: lq.chunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives })),
+            randomized_ids: lq.randomizedIds,
+            source_pdf_id: selectedPdf?.pageId,
+            notion_question_id: lq.question.id,
+            questions_db_id: questionsDbId
+          }
         });
-        if (dbError) throw dbError;
+      });
+
+      const results = await Promise.all(questionPromises);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        throw new Error(`Failed to save some questions: ${errors[0].error?.message}`);
       }
 
-      alert('Reading material saved successfully!');
+      console.log('[ReadingCreator] Save complete!');
+      alert('Reading practice with multiple questions saved successfully!');
+      
+      // Cleanup preview URLs
+      localQuestions.forEach(q => URL.revokeObjectURL(q.previewUrl));
+      
       if (onComplete) onComplete('success');
       else if (onCancel) onCancel();
-    } catch (err) {
-      console.error('Save error:', err);
-      alert('Failed to save.');
+    } catch (err: any) {
+      console.error('[ReadingCreator] Save error:', err);
+      alert(`Failed to save: ${err.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -616,8 +855,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const renderStepIndicator = () => {
     const steps: { key: CreatorStep; label: string }[] = [
       { key: 'select-pdf', label: 'PDF' },
-      { key: 'workspace', label: 'Workspace' },
-      { key: 'preview', label: 'Preview' }
+      { key: 'workspace', label: 'Workspace' }
     ];
     return (
       <div className="flex items-center justify-center gap-2 mb-6">
@@ -665,9 +903,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           {step !== 'select-pdf' && (
             <button 
               onClick={() => {
-                const stepOrder: CreatorStep[] = ['select-pdf', 'workspace', 'preview'];
-                const idx = stepOrder.indexOf(step);
-                if (idx > 0) setStep(stepOrder[idx - 1]);
+                if (step === 'workspace') setStep('select-pdf');
               }}
               className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-bold flex items-center gap-2"
             >
@@ -893,7 +1129,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   <div className="flex gap-2">
                     <button onClick={() => initializeChunks(selectedQuestion?.answer || '')} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all"><RotateCcw className="w-3.5 h-3.5" /> Reset</button>
                     <button onClick={combineChunks} disabled={selectedChunkIds.length < 2} className="px-5 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all disabled:opacity-30">Combine Steps</button>
-                    <button onClick={() => setStep('preview')} disabled={!cropStart || chunks.length === 0} className="px-8 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-indigo-100 transition-all disabled:opacity-30 flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></button>
                   </div>
                 </div>
                 
@@ -925,8 +1160,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                               {(chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).map((vForm) => {
                                 const isChecked = (chunk.selectedFormTypes || []).includes(vForm.type);
                                 return (
-                                  <label 
-                                    key={vForm.type} 
+                                  <label
+                                    key={vForm.type}
                                     className={`flex items-start gap-2 p-1.5 rounded-xl cursor-pointer transition-all ${isChecked ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-slate-50 border-transparent'}`}
                                     onClick={(e) => { e.stopPropagation(); handleToggleVerbForm(chunk.id, vForm); }}
                                   >
@@ -958,65 +1193,121 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
               </div>
 
-            </div>
-          )}
-
-          {/* STEP 5: PREVIEW & SAVE */}
-          {step === 'preview' && (
-            <div className="w-full max-w-3xl space-y-8">
-              <div className="text-center"><h3 className="text-3xl font-black text-slate-800">Final Verification</h3><p className="text-slate-500 text-sm font-bold mt-2">Verify the interaction behavior and save the question.</p></div>
-              <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-                <div className="mb-8 p-6 bg-slate-50 rounded-3xl">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Question Text</p>
-                  <p className="font-black text-lg text-slate-800">{selectedQuestion ? selectedQuestion.question : title}</p>
-                </div>
-                <div className="flex flex-wrap gap-3 p-2">
-                  {chunks.map(c => {
-                    const hasOptions = c.alternatives.length > 0;
-                    if (!hasOptions) {
-                      return (
-                        <div key={c.id} className="px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-sm font-black text-slate-700">
-                          {c.text}
+                {/* UNIFIED INTERACTIVE PREVIEW & SAVE */}
+                {chunks.length > 0 && (
+                  <div className="mt-8 border-t-2 border-slate-50 pt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-100">
+                          <Check className="w-5 h-5" />
                         </div>
-                      );
-                    }
-
-                    const options = [{ text: c.text }, ...c.alternatives];
-                    const uniqueOptions = Array.from(new Map(options.map(o => [`${o.prefix || ''}:${o.text}`, o])).values());
-                    const showPrefix = c.alternatives.some(a => a.prefix);
-
-                    return (
-                      <div key={c.id} className="flex items-center gap-2 p-1 bg-slate-50 rounded-[1.5rem] border border-slate-100 shadow-inner">
-                        {showPrefix && (
-                          <input 
-                            type="text"
-                            placeholder={c.alternatives.find(a => a.prefix)?.prefix || '...'}
-                            value={previewPrefixes[c.id] || ''}
-                            onChange={(e) => setPreviewPrefixes(prev => ({ ...prev, [c.id]: e.target.value }))}
-                            className="w-16 h-10 px-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20"
-                          />
-                        )}
-                        <select 
-                          value={previewSelections[c.id] || ''}
-                          onChange={(e) => setPreviewSelections(prev => ({ ...prev, [c.id]: e.target.value }))}
-                          className="h-10 px-4 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:border-indigo-300 transition-all appearance-none pr-8 relative bg-no-repeat bg-[right_0.5rem_center]"
-                          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }}
-                        >
-                          {uniqueOptions.map((opt, i) => (
-                            <option key={i} value={opt.text}>{opt.text}</option>
-                          ))}
-                        </select>
+                        <div>
+                          <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Interactive Preview</h3>
+                          <p className="text-[10px] font-bold text-slate-400 -mt-0.5">Test the student experience and stage the question</p>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-                <button onClick={() => handleSaveAll(chunks.map(c => c.id).sort(() => Math.random() - 0.5))} disabled={saving} className="w-full mt-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg hover:bg-blue-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
-                  {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
-                  {saving ? 'Saving...' : 'Finalize & Save'}
-                </button>
+                    </div>
+
+                    <div className="bg-slate-50/50 p-8 rounded-[3rem] border border-slate-100 relative mb-8">
+                      <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handlePreviewDragEnd}
+                      >
+                        <SortableContext 
+                          items={previewChunkOrder}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <div className="flex flex-wrap gap-3 p-2">
+                            {previewChunkOrder.map(chunkId => {
+                              const chunk = chunks.find(c => c.id === chunkId);
+                              if (!chunk) return null;
+                              return (
+                                <SortablePreviewChunk 
+                                  key={chunk.id}
+                                  chunk={chunk}
+                                  previewSelections={previewSelections}
+                                  setPreviewSelections={setPreviewSelections}
+                                  previewPrefixes={previewPrefixes}
+                                  setPreviewPrefixes={setPreviewPrefixes}
+                                />
+                              );
+                            })}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+
+                      <button
+                        onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
+                        disabled={saving || !cropStart}
+                        className="w-full mt-8 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                        <Plus className="w-6 h-6" />
+                        Add Question to Practice Queue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* LOCAL QUESTIONS QUEUE */}
+                {localQuestions.length > 0 && (
+                  <div className="mt-12 pt-12 border-t-4 border-dashed border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-100">
+                          <Layers className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-slate-800 text-xl uppercase tracking-widest">Practice Content Queue</h3>
+                          <p className="text-xs font-bold text-slate-400 mt-0.5">You have {localQuestions.length} question(s) staged for this practice</p>
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleSavePractice}
+                        disabled={saving}
+                        className="px-8 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:bg-emerald-600 shadow-xl shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
+                      >
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
+                        {saving ? 'Completing Save...' : 'Save Practice & Finalize'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                      {localQuestions.map((lq, idx) => (
+                        <div key={lq.id} className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col">
+                          <button 
+                            onClick={() => handleRemoveLocalQuestion(lq.id)}
+                            className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                          </div>
+
+                          <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden mb-4 border border-slate-100">
+                            <img src={lq.previewUrl} className="w-full h-full object-cover" alt="Passage Crop" />
+                          </div>
+
+                          <div className="flex-1">
+                            <p className="text-xs font-black text-slate-800 line-clamp-2 leading-relaxed mb-3">{lq.question.question}</p>
+                            <div className="flex flex-wrap gap-1.5 opacity-60">
+                              {lq.chunks.slice(0, 4).map(c => (
+                                <span key={c.id} className="px-2 py-0.5 bg-slate-100 rounded-lg text-[8px] font-bold text-slate-500 uppercase">{c.text}</span>
+                              ))}
+                              {lq.chunks.length > 4 && <span className="text-[8px] font-bold text-slate-300">+{lq.chunks.length - 4} more</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
         </div>
       </div>

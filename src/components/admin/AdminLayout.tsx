@@ -52,6 +52,11 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       icon: <Users className="w-4 h-4" />,
     },
     {
+      path: "/admin/student-levels",
+      label: "Student Levels",
+      icon: <Users className="w-4 h-4" />,
+    },
+    {
       path: "/admin/progress",
       label: "Progress Overview",
       icon: <BarChart3 className="w-4 h-4" />,

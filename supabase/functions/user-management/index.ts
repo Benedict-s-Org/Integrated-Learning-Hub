@@ -47,6 +47,10 @@ interface UpdateUserRequest {
   className?: string | null;
   classNumber?: number | null;
   spellingLevel?: number;
+  readingRearrangingLevel?: number;
+  readingProofreadingLevel?: number;
+  proofreadingLevel?: number;
+  memorizationLevel?: number;
   ecas?: string[];
   managed_classes?: string[];
   password?: string;
@@ -71,6 +75,11 @@ interface BulkUpdateUsersRequest {
     classNumber?: string | number;
     ecas?: string[];
     role?: 'admin' | 'class_staff' | 'user';
+    spellingLevel?: number;
+    readingRearrangingLevel?: number;
+    readingProofreadingLevel?: number;
+    proofreadingLevel?: number;
+    memorizationLevel?: number;
   }>;
 }
 
@@ -94,18 +103,33 @@ Deno.serve(async (req: Request) => {
     console.log(`[user-management] [${VERSION}] Action: ${action}`);
 
     // Private helper to check and sync roles
-    const getAuthenticatedRole = async (userId: string) => {
-      if (!userId || typeof userId !== 'string') return null;
+    const getAuthenticatedRole = async (userIdFromReq?: string, authHeader?: string | null) => {
+      let finalUserId = userIdFromReq;
+      
+      // If we have an Auth header, we can verify the JWT
+      if (authHeader) {
+        try {
+          const token = authHeader.replace("Bearer ", "");
+          const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+          if (!authError && authUser) {
+            finalUserId = authUser.id;
+          }
+        } catch (e) {
+          console.error("[user-management] Auth header verification failed:", e);
+        }
+      }
+
+      if (!finalUserId) return null;
 
       const { data: publicUser } = await supabase
         .from("users")
         .select("role")
-        .eq("id", userId)
+        .eq("id", finalUserId)
         .maybeSingle();
 
       if (publicUser) return publicUser.role as 'admin' | 'class_staff' | 'user';
 
-      const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+      const { data: authUser } = await supabase.auth.admin.getUserById(finalUserId);
       if (!authUser.user) return null;
 
       const metadata = authUser.user.user_metadata || {};
@@ -113,7 +137,7 @@ Deno.serve(async (req: Request) => {
 
       if (role === 'admin' || role === 'class_staff') {
         await supabase.from("users").upsert({
-          id: userId,
+          id: finalUserId,
           role: role,
           username: authUser.user.email,
           display_name: authUser.user.user_metadata?.display_name || authUser.user.email?.split('@')[0]
@@ -123,8 +147,8 @@ Deno.serve(async (req: Request) => {
       return role;
     };
 
-    const ensureAdminRole = (userId: string) => getAuthenticatedRole(userId).then(role => role === 'admin');
-    const ensureStaffRole = (userId: string) => getAuthenticatedRole(userId).then(role => role === 'admin' || role === 'class_staff');
+    const ensureAdminRole = (userId?: string, authHeader?: string | null) => getAuthenticatedRole(userId, authHeader).then(role => role === 'admin');
+    const ensureStaffRole = (userId?: string, authHeader?: string | null) => getAuthenticatedRole(userId, authHeader).then(role => role === 'admin' || role === 'class_staff');
 
     if (action === "create-user") {
       const { email, password, role, adminUserId, display_name, gender }: CreateUserRequest = await req.json();
@@ -178,7 +202,7 @@ Deno.serve(async (req: Request) => {
       const callerRole = await getAuthenticatedRole(adminUserId);
       if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
 
-      let query = supabase.from("users").select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level, ecas");
+      let query = supabase.from("users").select("id, username, role, created_at, display_name, class, managed_by_id, class_number, spelling_level, reading_rearranging_level, reading_proofreading_level, proofreading_level, memorization_level, ecas");
       if (callerRole === 'class_staff') {
         const { data: assignments } = await supabase.from("class_staff_assignments").select("class_id").eq("staff_user_id", adminUserId).eq("is_active", true);
         query = query.in("class", assignments?.map((a: any) => a.class_id) || []);
@@ -314,8 +338,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "update-user") {
-      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, ecas, managed_classes, password }: UpdateUserRequest = await req.json();
-      const callerRole = await getAuthenticatedRole(adminUserId);
+      const body: UpdateUserRequest = await req.json();
+      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password } = body;
+      
+      const authHeader = req.headers.get("Authorization");
+      const callerRole = await getAuthenticatedRole(adminUserId, authHeader);
       if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
 
       const finalClass = classInput || classNameInput;
@@ -325,11 +352,15 @@ Deno.serve(async (req: Request) => {
       if (role !== undefined) updatePayload.role = role;
       if (finalClass !== undefined) updatePayload.class = finalClass || null;
       if (spellingLevel !== undefined) updatePayload.spelling_level = spellingLevel || null;
+      if (readingRearrangingLevel !== undefined) updatePayload.reading_rearranging_level = readingRearrangingLevel || null;
+      if (readingProofreadingLevel !== undefined) updatePayload.reading_proofreading_level = readingProofreadingLevel || null;
+      if (proofreadingLevel !== undefined) updatePayload.proofreading_level = proofreadingLevel || null;
+      if (memorizationLevel !== undefined) updatePayload.memorization_level = memorizationLevel || null;
       if (classNumber !== undefined) updatePayload.class_number = classNumber === 0 ? 0 : (classNumber || null);
       if (ecas !== undefined) updatePayload.ecas = ecas || [];
 
       const { data: updatedUser, error } = await supabase.from("users").update(updatePayload).eq("id", userId).select().single();
-      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 403, headers: corsHeaders });
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
 
       const authPayload: any = {};
       if (Object.keys(updatePayload).length > 0) {
@@ -340,6 +371,54 @@ Deno.serve(async (req: Request) => {
       if (Object.keys(authPayload).length > 0) await supabase.auth.admin.updateUserById(userId, authPayload);
 
       return new Response(JSON.stringify({ success: true, user: updatedUser }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "bulk-update-users") {
+      const body: BulkUpdateUsersRequest = await req.json();
+      const { adminUserId, updates } = body;
+      const authHeader = req.headers.get("Authorization");
+      const callerRole = await getAuthenticatedRole(adminUserId, authHeader);
+      if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
+
+      if (!updates || !Array.isArray(updates)) return new Response(JSON.stringify({ error: "Invalid updates" }), { status: 400, headers: corsHeaders });
+
+      const results = [];
+      const errors = [];
+
+      for (const update of updates) {
+        try {
+          const payload: any = {};
+          if (update.display_name !== undefined) payload.display_name = update.display_name;
+          if (update.class !== undefined) payload.class = update.class;
+          if (update.classNumber !== undefined) payload.class_number = update.classNumber;
+          if (update.ecas !== undefined) payload.ecas = update.ecas;
+          if (update.role !== undefined) payload.role = update.role;
+          if (update.spellingLevel !== undefined) payload.spelling_level = update.spellingLevel;
+          if (update.readingRearrangingLevel !== undefined) payload.reading_rearranging_level = update.readingRearrangingLevel;
+          if (update.readingProofreadingLevel !== undefined) payload.reading_proofreading_level = update.readingProofreadingLevel;
+          if (update.proofreadingLevel !== undefined) payload.proofreading_level = update.proofreadingLevel;
+          if (update.memorizationLevel !== undefined) payload.memorization_level = update.memorizationLevel;
+
+          const { error: dbError } = await supabase.from("users").update(payload).eq("id", update.id);
+          
+          if (dbError) {
+            errors.push({ id: update.id, error: dbError.message });
+          } else {
+            // Sync to auth metadata
+            const { data: userData } = await supabase.auth.admin.getUserById(update.id);
+            if (userData.user) {
+              await supabase.auth.admin.updateUserById(update.id, {
+                user_metadata: { ...userData.user.user_metadata, ...payload }
+              });
+            }
+            results.push({ id: update.id, success: true });
+          }
+        } catch (err: any) {
+          errors.push({ id: update.id, error: err.message });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: errors.length === 0, results, errors }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "delete-user") {

@@ -1354,6 +1354,7 @@ function AppContent() {
 const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
+const AdminStudentLevelsPage = lazy(() => import('./pages/AdminStudentLevelsPage.tsx').then(m => ({ default: m.AdminStudentLevelsPage })));
 const AdminGroupsPage = lazy(() => import('./pages/AdminGroupsPage.tsx').then(m => ({ default: m.AdminGroupsPage })));
 const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m => ({ default: m.SuperAdminPanel })));
@@ -1452,6 +1453,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/student-levels"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminStudentLevelsPage />
               </Suspense>
             }
           />

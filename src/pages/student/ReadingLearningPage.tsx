@@ -24,25 +24,55 @@ export const ReadingLearningPage: React.FC = () => {
   }, []);
 
   const fetchPractices = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('reading_practices')
-        .select(`
-          *,
-          reading_questions(count)
-        `)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+      // Use the unified assignments RPC to get correctly filtered practices
+      const { data, error } = await supabase.rpc('get_student_assignments_unified' as any, {
+        student_id_param: user.id
+      }) as { data: any[], error: any };
 
       if (error) throw error;
       
-      const formattedData = data.map((p: any) => ({
-        ...p,
-        question_count: p.reading_questions?.[0]?.count || 0
-      }));
+      // Filter for reading modes and format
+      const readingAssignments = (data || [])
+        .filter((a: any) => a.type === 'reading-rearrange' || a.type === 'reading-proof')
+        .map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          type: a.type,
+          level_info: a.level_info,
+          // We still need the image URL, so we fetch it or use a default
+          passage_image_url: '', // Will fetch below
+          question_count: 0
+        }));
 
-      setPractices(formattedData.filter(p => p.question_count > 0));
+      // To get the actual practice details (images, etc), we need to join with reading_practices
+      if (readingAssignments.length > 0) {
+        const practiceIds = Array.from(new Set(readingAssignments.map((a: any) => a.id)));
+        const { data: practiceDetails, error: detailsError } = await supabase
+          .from('reading_practices')
+          .select('id, passage_image_url, reading_questions(count)')
+          .in('id', practiceIds);
+
+        if (detailsError) throw detailsError;
+
+        const detailMap = new Map(practiceDetails?.map(p => [p.id, p]));
+        
+        const finalData = readingAssignments.map((a: any) => {
+          const details = detailMap.get(a.id);
+          return {
+            ...a,
+            passage_image_url: details?.passage_image_url || '',
+            question_count: details?.reading_questions?.[0]?.count || 0,
+            displayTitle: `${a.title} (${a.type === 'reading-rearrange' ? 'Rearranging' : 'Proofreading'})`
+          };
+        });
+
+        setPractices(finalData);
+      } else {
+        setPractices([]);
+      }
     } catch (err) {
       console.error('Error fetching practices:', err);
     } finally {
@@ -51,14 +81,17 @@ export const ReadingLearningPage: React.FC = () => {
   };
 
   const filteredPractices = practices.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase())
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p as any).displayTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (selectedPracticeId && user) {
+    const selectedPractice = practices.find(p => p.id === selectedPracticeId);
     return (
       <ReadingChallenge 
         practiceId={selectedPracticeId}
         studentId={user.id}
+        interactionMode={(selectedPractice as any)?.type === 'reading-rearrange' ? 'rearrange' : 'proofreading'}
         onComplete={(score, bonus) => {
           console.log(`Completed with score: ${score}, bonus: ${bonus}`);
           setSelectedPracticeId(null);
@@ -139,9 +172,9 @@ export const ReadingLearningPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredPractices.map((practice) => (
+            {filteredPractices.map((practice: any) => (
               <div 
-                key={practice.id}
+                key={`${practice.id}-${practice.type}`}
                 className="group bg-white rounded-[2rem] border border-slate-200 overflow-hidden hover:shadow-2xl hover:shadow-indigo-100 transition-all hover:-translate-y-1"
               >
                 <div className="aspect-[16/10] relative overflow-hidden">
@@ -151,15 +184,21 @@ export const ReadingLearningPage: React.FC = () => {
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="absolute top-4 right-4">
+                  <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
                     <div className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-600 shadow-lg">
                       {practice.question_count} Questions
+                    </div>
+                    <div className="px-3 py-1 bg-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                      {practice.type === 'reading-rearrange' ? 'Rearrange' : 'Proofread'}
+                    </div>
+                    <div className="px-3 py-1 bg-amber-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                      {practice.level_info}
                     </div>
                   </div>
                 </div>
                 <div className="p-8">
                   <h3 className="text-xl font-bold text-slate-800 mb-4 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors">
-                    {practice.title}
+                    {practice.displayTitle}
                   </h3>
                   <div className="flex items-center justify-between mt-auto pt-6 border-t border-slate-50">
                     <div className="flex items-center gap-4 text-xs font-bold text-slate-400">
