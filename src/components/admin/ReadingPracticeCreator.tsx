@@ -10,7 +10,7 @@ import {
   Loader2, Check, Layers, Type, 
   RotateCcw, Database, Upload
 } from 'lucide-react';
-import { getVerbForms, isVerb, getNounForms } from '@/utils/verbUtils';
+import { getVerbForms, isVerb, getNounForms, type VerbForm, type VerbFormType } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
@@ -27,8 +27,9 @@ interface ReadingPdf {
 interface ChunkOption {
   id: string;
   text: string;
-  alternatives: { text: string; prefix?: string }[];
+  alternatives: { text: string; prefix?: string; type?: VerbFormType }[];
   mode?: 'verb' | 'noun';
+  selectedFormTypes?: VerbFormType[];
 }
 
 interface NotionQuestion {
@@ -400,10 +401,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     const words = text.split(/\s+/).filter(w => w.length > 0);
     const initialChunks: ChunkOption[] = words.map(w => {
       const verbForms = getVerbForms(w);
+      const isV = isVerb(w);
       return {
         id: crypto.randomUUID(),
         text: w,
-        alternatives: verbForms.map((vf: any) => ({ text: vf.text, prefix: vf.prefix }))
+        mode: isV ? 'verb' : undefined,
+        selectedFormTypes: isV ? ['base'] : [],
+        alternatives: isV ? verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type })) : []
       };
     });
     setChunks(initialChunks);
@@ -471,20 +475,46 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       if (c.id !== id) return c;
       const newMode = c.mode === 'noun' ? 'verb' : 'noun';
       let newAlts = [];
+      let selectedTypes: VerbFormType[] = [];
+      
       if (newMode === 'noun') {
         const nounForms = getNounForms(c.text);
-        newAlts = nounForms.map(vf => ({ text: vf.text }));
+        newAlts = nounForms.map(vf => ({ text: vf.text, type: vf.type }));
+        selectedTypes = ['plural'];
       } else {
         const verbForms = getVerbForms(c.text);
-        newAlts = verbForms.map(vf => ({ text: vf.text, prefix: vf.prefix }));
+        // Default to base form for verbs
+        newAlts = verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type }));
+        selectedTypes = ['base'];
       }
-      return { ...c, mode: newMode, alternatives: newAlts };
+      return { ...c, mode: newMode, alternatives: newAlts, selectedFormTypes: selectedTypes };
     }));
   };
 
-  const updateChunkAlternatives = (id: string, alts: { text: string; prefix?: string }[]) => {
-    setChunks(prev => prev.map(c => c.id === id ? { ...c, alternatives: alts.filter(a => a.text.trim() !== '') } : c));
+  const handleToggleVerbForm = (chunkId: string, form: VerbForm) => {
+    setChunks(prev => prev.map(c => {
+      if (c.id !== chunkId) return c;
+      
+      const currentTypes = c.selectedFormTypes || [];
+      const isSelected = currentTypes.includes(form.type);
+      
+      let nextTypes: VerbFormType[];
+      if (isSelected) {
+        nextTypes = currentTypes.filter(t => t !== form.type);
+      } else {
+        nextTypes = [...currentTypes, form.type];
+      }
+      
+      // Update alternatives based on selected types
+      const allPossibleForms = c.mode === 'noun' ? getNounForms(c.text) : getVerbForms(c.text);
+      const nextAlts = allPossibleForms
+        .filter(f => nextTypes.includes(f.type))
+        .map(f => ({ text: f.text, prefix: f.prefix, type: f.type }));
+        
+      return { ...c, selectedFormTypes: nextTypes, alternatives: nextAlts };
+    }));
   };
+
 
   const handleSaveAll = async (randomizedIds: string[]) => {
     if (!pdfDoc || !cropStart || !cropEnd) return;
@@ -860,28 +890,34 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                               {chunk.mode === 'noun' ? 'Noun Mode' : 'Switch to Noun'}
                             </button>
 
-                            <div className="space-y-1.5 mt-1 border-t border-slate-100 pt-3">
-                              {[0, 1, 2].map(idx => (
-                                <div key={idx} className="flex gap-1">
-                                  {chunk.alternatives[idx]?.prefix && (
-                                    <div className="bg-amber-50 text-amber-700 text-[8px] font-black px-1.5 flex items-center rounded-lg border border-amber-100 shrink-0 uppercase tracking-tighter">
-                                      {chunk.alternatives[idx].prefix}
+                            <div className="space-y-1 mt-1 border-t border-slate-100 pt-3 flex-1 overflow-y-auto min-h-0">
+                              {(chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).map((vForm) => {
+                                const isChecked = (chunk.selectedFormTypes || []).includes(vForm.type);
+                                return (
+                                  <label 
+                                    key={vForm.type} 
+                                    className={`flex items-start gap-2 p-1.5 rounded-xl cursor-pointer transition-all ${isChecked ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-slate-50 border-transparent'}`}
+                                    onClick={(e) => { e.stopPropagation(); handleToggleVerbForm(chunk.id, vForm); }}
+                                  >
+                                    <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isChecked ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                      {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
                                     </div>
-                                  )}
-                                  <input 
-                                    type="text" 
-                                    value={chunk.alternatives[idx]?.text || ''} 
-                                    onChange={(e) => { 
-                                      const n = [...chunk.alternatives]; 
-                                      if (!n[idx]) n[idx] = { text: '' };
-                                      n[idx] = { ...n[idx], text: e.target.value }; 
-                                      updateChunkAlternatives(chunk.id, n); 
-                                    }} 
-                                    placeholder={`Ans ${idx + 2}`} 
-                                    className="w-full h-8 px-3 rounded-xl border border-slate-100 bg-slate-50/30 outline-none text-[10px] font-bold focus:border-indigo-500 transition-all font-inter" 
-                                  />
-                                </div>
-                              ))}
+                                    <div className="flex flex-col">
+                                      <span className={`text-[10px] font-bold leading-none ${isChecked ? 'text-indigo-900' : 'text-slate-600'}`}>
+                                        {vForm.prefix ? <span className="opacity-50 mr-1 italic">{vForm.prefix}</span> : null}
+                                        {vForm.text}
+                                      </span>
+                                      <span className="text-[7px] font-black uppercase tracking-tighter text-slate-400 mt-0.5">
+                                        {vForm.type.replace('_', ' ')}
+                                      </span>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                              {/* Fallback if no forms detected but mode is set */}
+                              {(chunk.mode === 'verb' || chunk.mode === 'noun') && (chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).length === 0 && (
+                                <p className="text-[9px] text-slate-400 italic text-center py-2">No forms detected</p>
+                              )}
                             </div>
                           </div>
                         );

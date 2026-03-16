@@ -200,11 +200,40 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       const rawChunks = metadata.chunks || [];
       
       // Map to interaction format
-      const words = rawChunks.map((c: any, idx: number) => ({
-        id: c.id || `${c.text}-${idx}`,
-        text: c.text,
-        options: c.alternatives || []
-      }));
+      const initialSelections: Record<string, string> = {};
+      const initialPrefixes: Record<string, string> = {};
+
+      const words = rawChunks.map((c: any, idx: number) => {
+        const chunkId = c.id || `${c.text}-${idx}`;
+        const options = c.alternatives || [];
+        
+        if (options.length > 0) {
+          // Include the correct answer in the options if it's not already there
+          const optionsWithCorrect = [ { text: c.text }, ...options ];
+          const uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [`${o.prefix || ''}:${o.text}`, o])).values());
+          
+          // Default selection to the first alternative (usually the base form)
+          // instead of the correct text
+          const defaultOpt = options[0];
+          initialSelections[chunkId] = defaultOpt.text;
+          if (defaultOpt.prefix) initialPrefixes[chunkId] = ''; // Keep prefix empty for student to type
+
+          return {
+            id: chunkId,
+            text: c.text,
+            options: uniqueOptions
+          };
+        }
+
+        return {
+          id: chunkId,
+          text: c.text,
+          options: []
+        };
+      });
+
+      setUserSelections(initialSelections);
+      setUserPrefixes(initialPrefixes);
 
       // Shuffle for student view
       const shuffled = [...words].sort(() => Math.random() - 0.5);
