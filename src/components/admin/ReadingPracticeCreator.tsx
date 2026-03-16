@@ -102,6 +102,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('reading-api', {
+        headers: {
+          'x-action': 'list-activities',
+          'x-database-id': '3239baca6fa380a9b501deceb133946d'
+        },
         body: { action: 'list-activities' }
       });
       
@@ -204,6 +208,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setFetchError(null);
     try {
       const { data, error } = await supabase.functions.invoke('reading-api', {
+        headers: {
+          'x-action': 'list-page-questions',
+          'x-database-id': questionsDbId
+        },
         body: { 
           action: 'list-page-questions',
           sourcePageId: selectedPdf.pageId, 
