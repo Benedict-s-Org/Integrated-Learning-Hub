@@ -785,7 +785,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                                   type="text" 
                                   value={chunk.alternatives[idx] || ''} 
                                   onChange={(e) => { const n = [...chunk.alternatives]; n[idx] = e.target.value; updateChunkAlternatives(chunk.id, n); }} 
-                                  placeholder={`Alternative Answer ${idx + 2}...`} 
+                                  placeholder={`Ans ${idx + 2}`} 
                                   className="w-full h-8 px-3 rounded-xl border border-slate-100 bg-slate-50/30 outline-none text-[10px] font-bold focus:border-indigo-500 transition-all" 
                                 />
                               ))}
