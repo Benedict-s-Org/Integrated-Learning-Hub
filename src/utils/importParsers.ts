@@ -258,6 +258,38 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
   return questions;
 }
 
+export interface ReadingQuestion {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+/**
+ * Robustly parses a Notion API response for Reading Practice questions.
+ * Handles variations of "Question", "Answer", "Page", "Day".
+ */
+export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
+  const questions: ReadingQuestion[] = [];
+
+  for (const page of results) {
+    const props = page.properties || {};
+
+    const questionText = extractNotionProperty(props, ['Question', 'question', '問題', '題目', 'Name', '名稱']);
+    const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer']);
+    
+    // We only need question and answer for the creator's list
+    if (questionText) {
+      questions.push({
+        id: page.id,
+        question: questionText,
+        answer: answerText || ''
+      });
+    }
+  }
+
+  return questions;
+}
+
 function extractNotionProperty(props: Record<string, any>, possibleNames: string[]): string {
   for (const name of possibleNames) {
     const prop = props[name];

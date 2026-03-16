@@ -254,21 +254,12 @@ Deno.serve(async (req: Request) => {
       if (!resp.ok) return createCORSResponse(await resp.json(), resp.status, req);
       const data = await resp.json();
       
-      const results = (data.results || []).map((p: any) => {
-        const pProps = p.properties || {};
-        return {
-          id: p.id,
-          question: questionProp ? (pProps[questionProp]?.title?.[0]?.plain_text || "Untitled") : "Untitled",
-          answer: answerProp ? (pProps[answerProp]?.rich_text?.[0]?.plain_text || "") : ""
-        };
-      });
-
       return createCORSResponse({ 
-        results, 
+        results: data.results, 
         version: VERSION,
         diagnostics: {
           matchedProperties: { questionProp, sourcePdfProp, pageNumberProp, answerProp },
-          totalResults: data.results?.length
+          rawResultsCount: data.results?.length
         }
       }, 200, req);
     }

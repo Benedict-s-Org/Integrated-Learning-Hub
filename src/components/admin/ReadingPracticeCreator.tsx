@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import {
+    parseReadingNotionResponse
+} from '../../utils/importParsers';
 import * as pdfjsLib from 'pdfjs-dist';
 // @ts-ignore - Vite handled worker import
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -247,7 +250,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         });
         setQuestionsOnPage([]);
       } else {
-        setQuestionsOnPage(data?.results || []);
+        const results = parseReadingNotionResponse(data?.results || []);
+        setQuestionsOnPage(results);
       }
     } catch (err) {
       console.error('Error fetching questions:', err);
