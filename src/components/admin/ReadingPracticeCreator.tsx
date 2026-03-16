@@ -590,7 +590,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             </div>
           )}          {/* STEP 2: UNIFIED WORKSPACE (VERTICAL REDESIGN) */}
           {step === 'workspace' && (
-            <div className="w-full h-full flex flex-col gap-6 overflow-hidden min-h-[800px] max-w-7xl mx-auto px-4 pb-8">
+            <div className="w-full h-full flex flex-col gap-8 overflow-y-auto max-w-7xl mx-auto px-4 pb-12">
               
               {/* TOP: QUESTION BANK (FULL WIDTH) */}
               <div className="h-[220px] shrink-0 flex flex-col bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
