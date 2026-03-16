@@ -271,7 +271,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     setIsCreating(true);
 
     try {
-      const { error } = await supabase.functions.invoke('auth/create-user', {
+      const { error } = await supabase.functions.invoke('user-management/create-user', {
         body: {
           email,
           username: email.split('@')[0],
@@ -309,7 +309,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
     setIsLoadingUsers(true);
     try {
-      const { data, error } = await supabase.functions.invoke('auth/bulk-delete-users', {
+      const { data, error } = await supabase.functions.invoke('user-management/bulk-delete-users', {
         body: {
           adminUserId: forcedAdminId || currentUser?.id,
           userIdsToDelete: selectedUserIds,
@@ -562,7 +562,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                           classNumber: index + 1,
                           class: user.class_name
                         }));
-                        await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+                        await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
                           body: { adminUserId: forcedAdminId || currentUser?.id, updates }
                         });
                         await fetchUsers();

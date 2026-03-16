@@ -1,34 +1,23 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-action, x-database-id",
+  "Vary": "Origin",
 };
+
+function createCORSResponse(body: unknown, status = 200, req?: Request) {
+  const origin = req?.headers.get("origin");
+  const headers: Record<string, string> = {
+    ...corsHeaders,
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": origin || "*",
+  };
+  return new Response(body instanceof ReadableStream ? body : JSON.stringify(body), { status, headers });
+}
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
-
-interface NotionPage {
-  id: string;
-  properties: Record<string, unknown>;
-  cover?: {
-    type: string;
-    external?: { url: string };
-    file?: { url: string };
-  };
-}
-
-interface LearningActivity {
-  id: string;
-  name: string;
-  thumbnail: string | null;
-  difficulty: string;
-  questionsJson: unknown[];
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function notionHeaders(token: string) {
   return {
@@ -38,391 +27,114 @@ function notionHeaders(token: string) {
   };
 }
 
-function extractText(
-  props: Record<string, unknown>,
-  ...keys: string[]
-): string {
-  for (const key of keys) {
-    const prop = props[key] as
-      | {
-        type: string;
-        title?: Array<{ plain_text: string }>;
-        rich_text?: Array<{ plain_text: string }>;
-      }
-      | undefined;
-    if (!prop) continue;
-    if (prop.type === "title" && prop.title)
-      return prop.title.map((t) => t.plain_text).join("");
-    if (prop.type === "rich_text" && prop.rich_text)
-      return prop.rich_text.map((t) => t.plain_text).join("");
-  }
-  return "";
-}
-
-function extractSelect(
-  props: Record<string, unknown>,
-  ...keys: string[]
-): string {
-  for (const key of keys) {
-    const prop = props[key] as
-      | {
-        type: string;
-        select?: { name: string };
-        rich_text?: Array<{ plain_text: string }>;
-      }
-      | undefined;
-    if (!prop) continue;
-    if (prop.type === "select" && prop.select) return prop.select.name;
-    if (prop.type === "rich_text" && prop.rich_text?.[0])
-      return prop.rich_text[0].plain_text;
-  }
-  return "";
-}
-
-function extractThumbnail(page: NotionPage): string | null {
-  if (page.cover) {
-    if (page.cover.external?.url) return page.cover.external.url;
-    if (page.cover.file?.url) return page.cover.file.url;
-  }
-  const props = page.properties;
-  const thumbProp = (props["Thumbnail"] || props["thumbnail"] || props["Image"] || props["image"]) as
-    | {
-      type: string;
-      url?: string;
-      files?: Array<{
-        file?: { url: string };
-        external?: { url: string };
-      }>;
-    }
-    | undefined;
-  if (thumbProp) {
-    if (thumbProp.type === "url" && thumbProp.url) return thumbProp.url;
-    if (thumbProp.type === "files" && thumbProp.files?.[0]) {
-      const f = thumbProp.files[0];
-      return f.file?.url || f.external?.url || null;
-    }
-  }
-  return null;
-}
-
-function extractQuestionsJson(props: Record<string, unknown>): unknown[] {
-  const qProp = (props["Questions"] ||
-    props["questions"] ||
-    props["Questions JSON"] ||
-    props["questions_json"]) as
-    | { type: string; rich_text?: Array<{ plain_text: string }> }
-    | undefined;
-  if (qProp?.type === "rich_text" && qProp.rich_text?.[0]) {
-    try {
-      const parsed = JSON.parse(qProp.rich_text[0].plain_text);
-      return Array.isArray(parsed) ? parsed : [parsed];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-function pageToActivity(page: NotionPage): LearningActivity {
-  const props = page.properties;
-  return {
-    id: page.id,
-    name: extractText(props, "Name", "name", "Title", "title") || "Untitled",
-    thumbnail: extractThumbnail(page),
-    difficulty: extractSelect(props, "Difficulty", "difficulty") || "Medium",
-    questionsJson: extractQuestionsJson(props),
-  };
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-// ─── Main Handler ───────────────────────────────────────────────────────────
-
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: { ...corsHeaders, "Access-Control-Allow-Origin": origin || "*" } });
   }
 
   try {
     const notionToken = Deno.env.get("NOTION_TOKEN");
+    if (!notionToken) return createCORSResponse({ error: "Missing NOTION_TOKEN" }, 500, req);
 
-    if (!notionToken) {
-      console.error("Missing NOTION_TOKEN environment variable");
-      return jsonResponse(
-        { error: "Server configuration error: Missing NOTION_TOKEN secret" }
-      );
-    }
-
+    const VERSION = "1.2.1-generic";
     const url = new URL(req.url);
-    const path = url.pathname.replace(/\/+$/, ""); // Remove trailing slashes
-    console.log(`[notion-api] Handling request: ${req.method} ${path}`);
+    const path = url.pathname.replace(/\/+$/, "");
+    
+    let body: any = {};
+    if (req.method === "POST" || req.method === "PUT") {
+      try { body = await req.json(); } catch { /* ignore */ }
+    }
+    
+    const action = req.headers.get("x-action") || body.action || url.searchParams.get("action") || path.split("/").pop();
+    const dbId = req.headers.get("x-database-id") || body.databaseId || url.searchParams.get("databaseId");
 
-    // ── List Activities (from a hardcoded database) ──────────────────────
-    if (path.endsWith("/list-activities")) {
-      const databaseId = "a35db621-f94e-4a0b-9f53-6d895d6972d6";
+    console.log(`[notion-api] [${VERSION}] Action: ${action}`);
 
-      const resp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
+    // ── 0. save-unknown ───────────────────────────────────────────────
+    if (action === "save-unknown") {
+      const helpDbId = Deno.env.get("NOTION_HELP_DATABASE_ID") || "2647f405a5a14e9fa6660dc164a3e502";
+      const resp = await fetch(`${NOTION_API}/pages`, {
         method: "POST",
         headers: notionHeaders(notionToken),
-        body: JSON.stringify({ page_size: 100 }),
+        body: JSON.stringify({
+          parent: { database_id: helpDbId },
+          properties: {
+            "Name": { title: [{ text: { content: body.text || "Unknown Item" } }] },
+            "Type": { select: { name: body.type || "Word" } },
+            "Source Context": { rich_text: [{ text: { content: body.context || "" } }] },
+            "Learning Set": { rich_text: [{ text: { content: body.setId || "" } }] },
+            "User": { rich_text: [{ text: { content: body.userName || "Anonymous" } }] },
+            "Date Added": { date: { start: new Date().toISOString() } }
+          }
+        })
       });
-
-      if (!resp.ok) {
-        const errorBody = await resp.text();
-        console.error("Notion query failed:", resp.status, errorBody);
-        let details = errorBody;
-        try { const parsed = JSON.parse(errorBody); details = parsed.message || errorBody; } catch { }
-        return jsonResponse(
-          { error: `Notion API error (${resp.status}): ${details}` }
-        );
-      }
-
       const data = await resp.json();
-      const activities: LearningActivity[] = (data.results || []).map(
-        (page: NotionPage) => pageToActivity(page)
-      );
-
-      return jsonResponse({ activities });
+      return createCORSResponse(data, resp.status, req);
     }
 
-    // ── Get Single Activity ─────────────────────────────────────────────
-    if (path.endsWith("/get-activity")) {
-      const { activityId } = await req.json();
-
-      if (!activityId) {
-        return jsonResponse({ error: "Activity ID is required" });
-      }
-
-      const resp = await fetch(`${NOTION_API}/pages/${activityId}`, {
-        method: "GET",
-        headers: notionHeaders(notionToken),
-      });
-
-      if (!resp.ok) {
-        const errorBody = await resp.text();
-        console.error("Notion page fetch failed:", resp.status, errorBody);
-        let details = errorBody;
-        try { const parsed = JSON.parse(errorBody); details = parsed.message || errorBody; } catch { }
-        return jsonResponse(
-          { error: `Notion API error (${resp.status}): ${details}` }
-        );
-      }
-
-      const notionPage = (await resp.json()) as NotionPage;
-      return jsonResponse({ activity: pageToActivity(notionPage) });
-    }
-
-    // ── Query MCQ Database (used by SpacedRepetition NotionImporter) ────
-    if (path.endsWith("/query-mcq-database")) {
-      const { databaseId } = await req.json();
-
-      if (!databaseId) {
-        return jsonResponse({ error: "Database ID is required" });
-      }
-
-      // Paginate through all results (Notion caps at 100 per request)
-      const allResults: unknown[] = [];
-      let nextCursor: string | undefined = undefined;
-      let hasMore = true;
-
-      while (hasMore) {
-        const body: Record<string, unknown> = {
-          page_size: 100,
-          sorts: [{ timestamp: "created_time", direction: "ascending" }],
-        };
-        if (nextCursor) body.start_cursor = nextCursor;
-
-        const resp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
-          method: "POST",
-          headers: notionHeaders(notionToken),
-          body: JSON.stringify(body),
-        });
-
-        if (!resp.ok) {
-          const errorBody = await resp.text();
-          console.error("Notion MCQ query failed:", resp.status, errorBody);
-          let details = errorBody;
-          try { const parsed = JSON.parse(errorBody); details = parsed.message || errorBody; } catch { }
-          return jsonResponse(
-            { error: `Notion API error (${resp.status}): ${details}` }
-          );
-        }
-
-        const data = await resp.json();
-        allResults.push(...(data.results || []));
-        hasMore = data.has_more === true;
-        nextCursor = data.next_cursor || undefined;
-      }
-
-      return jsonResponse({ results: allResults });
-    }
-
-    // ── Get Cycle Day ───────────────────────────────────────────────────
-    if (path.endsWith("/get-cycle-day")) {
-      let providedDbId = null;
-      try {
-        const body = await req.json();
-        providedDbId = body?.databaseId;
-      } catch (err) {
-        // Body might be empty, ignore
-      }
-      const databaseId = providedDbId || "2579baca6fa3806f9c6ef193f7d81213";
-
-      // Today's date in YYYY-MM-DD format (Hong Kong Time)
+    // ── 1. get-cycle-day ──────────────────────────────────────────────
+    if (action === "get-cycle-day") {
+      const dateDbId = "2579baca6fa3806f9c6ef193f7d81213";
       const now = new Date();
-      const hkOffset = 8 * 60; // HK is GMT+8
-      const hkTime = new Date(now.getTime() + (hkOffset + now.getTimezoneOffset()) * 60000);
-      const todayStr = hkTime.toISOString().split('T')[0];
+      const hkOffset = 8 * 60 * 60 * 1000;
+      const hkDateStr = new Date(now.getTime() + hkOffset).toISOString().split("T")[0];
 
-      console.log(`[notion-api] Querying Notion DB ${databaseId} for date: ${todayStr}`);
-
-      const resp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
+      const resp = await fetch(`${NOTION_API}/databases/${dateDbId}/query`, {
         method: "POST",
         headers: notionHeaders(notionToken),
         body: JSON.stringify({
           filter: {
             property: "Date",
-            date: { equals: todayStr }
-          },
-          page_size: 1
-        })
-      });
-
-      if (!resp.ok) {
-        const errorBody = await resp.text();
-        console.error("Notion cycle query failed:", resp.status, errorBody);
-        return jsonResponse(
-          { error: `Notion API error (${resp.status}): ${errorBody}` },
-          resp.status
-        );
-      }
-
-      const data = await resp.json();
-      let page = data.results?.[0] as NotionPage | undefined;
-
-      // DEBUG: If not found, log some entries to see what's in the DB
-      if (!page) {
-        console.warn(`[notion-api] No entry found for ${todayStr}. Fetching sample entries for debugging...`);
-        const sampleResp = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
-          method: "POST",
-          headers: notionHeaders(notionToken),
-          body: JSON.stringify({ page_size: 5 })
-        });
-        if (sampleResp.ok) {
-          const sampleData = await sampleResp.json();
-          console.log("[notion-api] Sample entries properties:",
-            sampleData.results.map((r: any) => Object.keys(r.properties))
-          );
-          // Also check if "Date" property values
-          console.log("[notion-api] Sample Date values:",
-            sampleData.results.map((r: any) => r.properties["Date"] || "MISSING")
-          );
-        }
-
-        return jsonResponse({
-          success: true,
-          found: false,
-          date: todayStr,
-          message: "No cycle entry found for today in Notion."
-        });
-      }
-
-      const props = page.properties;
-      console.log("[notion-api] Found page props keys:", Object.keys(props));
-
-      // Attempt to extract properties
-      const cycleNumber = extractSelect(props, "Cycle") ||
-        extractText(props, "Cycle") ||
-        (props["Cycle"] as any)?.number?.toString() ||
-        extractText(props, "Current Cycle Number") || "";
-
-      const cycleDay = extractSelect(props, "Day of the cycle") ||
-        extractText(props, "Day of the cycle") ||
-        extractText(props, "Day of Cycle / Activity Name") || "";
-
-      const studentOnDuty = (props["Student on Duty"] as any)?.number?.toString() || "";
-
-      const title = extractText(props, "Date and Day") || "";
-
-      return jsonResponse({
-        success: true,
-        found: true,
-        date: todayStr,
-        cycleNumber,
-        cycleDay,
-        studentOnDuty,
-        title
-      });
-    }
-
-    // ── Save Unknown Item ───────────────────────────────────────────────
-    if (path.endsWith("/save-unknown")) {
-      const { text, type, context, setId, userName, databaseId: targetDatabaseId } = await req.json();
-      const databaseId = targetDatabaseId || Deno.env.get("NOTION_HELP_DATABASE_ID");
-
-      if (!databaseId) {
-        console.error("Missing Notion target database ID");
-        return jsonResponse(
-          { error: "Server configuration error: Missing NOTION_HELP_DATABASE_ID secret" }
-        );
-      }
-
-      const resp = await fetch(`${NOTION_API}/pages`, {
-        method: "POST",
-        headers: notionHeaders(notionToken),
-        body: JSON.stringify({
-          parent: { database_id: databaseId },
-          properties: {
-            "Name": {
-              title: [{ text: { content: text } }]
-            },
-            "Type": {
-              select: { name: type }
-            },
-            "Source Context": {
-              rich_text: [{ text: { content: context } }]
-            },
-            "Learning Set": {
-              rich_text: [{ text: { content: setId } }]
-            },
-            "User": {
-              rich_text: [{ text: { content: userName || "Unknown User" } }]
-            },
-            "Date Added": {
-              date: { start: new Date().toISOString().split('T')[0] }
-            },
-            "Status": {
-              select: { name: "New" }
-            }
+            date: { equals: hkDateStr }
           }
         })
       });
 
-      if (!resp.ok) {
-        const errorBody = await resp.text();
-        console.error("Notion save unknown failed:", resp.status, errorBody);
-        let details = errorBody;
-        try { const parsed = JSON.parse(errorBody); details = parsed.message || errorBody; } catch { }
-        return jsonResponse(
-          { error: `Notion API error (${resp.status}): ${details}` }
-        );
+      if (!resp.ok) return createCORSResponse(await resp.json(), resp.status, req);
+      const data = await resp.json();
+      
+      if (data.results && data.results.length > 0) {
+        const page = data.results[0];
+        const props = page.properties;
+        return createCORSResponse({
+          found: true,
+          cycleDay: props["Day of the cycle"]?.select?.name,
+          cycleNumber: props["Cycle"]?.select?.name,
+          studentOnDuty: props["Student on Duty"]?.number,
+          date: props["Date"]?.date?.start
+        }, 200, req);
       }
-
-      return jsonResponse({ success: true });
+      return createCORSResponse({ found: false, searchDate: hkDateStr }, 200, req);
     }
 
-    return jsonResponse({ error: "Unknown endpoint" });
+    // ── 2. query-mcq-database / list-activities ───────────────────────
+    if (action === "query-mcq-database" || action === "list-activities") {
+      const targetDbId = dbId || "3239baca6fa380a9b501deceb133946d";
+      const resp = await fetch(`${NOTION_API}/databases/${targetDbId}/query`, {
+        method: "POST",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      return createCORSResponse(await resp.json(), resp.status, req);
+    }
+
+    // ── 3. list-all-databases (Internal/Debug) ────────────────────────
+    if (action === "list-all-databases") {
+      const resp = await fetch(`${NOTION_API}/search`, {
+        method: "POST",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({
+          filter: { property: "object", value: "database" },
+          page_size: 100
+        }),
+      });
+      const data = await resp.json();
+      return createCORSResponse(data, resp.status, req);
+    }
+
+    return createCORSResponse({ error: `Unknown action: ${action}`, version: VERSION }, 404, req);
   } catch (error) {
-    console.error("Error in notion-api function:", error);
-    return jsonResponse(
-      {
-        error: `Internal server error: ${error instanceof Error ? error.message : String(error)}`,
-      }
-    );
+    return createCORSResponse({ error: error.message }, 500, req);
   }
 });

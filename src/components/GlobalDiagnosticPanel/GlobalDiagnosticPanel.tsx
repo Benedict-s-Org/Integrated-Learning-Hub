@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings, RotateCcw, MapPin, Palette, Save, Undo } from 'lucide-react';
+import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings, RotateCcw, MapPin, Palette, Save, Undo, MousePointer2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardTheme } from '../../context/DashboardThemeContext';
 import { DiagnosticCheck, ErrorDetails, formatErrorForCopy, runPageChecks } from '../../utils/diagnosticUtils';
@@ -85,12 +85,64 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
 
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [isInspectorMode, setIsInspectorMode] = useState(false);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleSaveTheme = async () => {
     setIsSavingTheme(true);
-    await saveTheme();
-    setIsSavingTheme(false);
+    try {
+      await saveTheme();
+      alert('Theme saved successfully!');
+    } catch (err: any) {
+      console.error(err);
+      alert(`Failed to save theme: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsSavingTheme(false);
+    }
   };
+
+  useEffect(() => {
+    if (!isInspectorMode) {
+      setHoveredKey(null);
+      return;
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const themeKey = target.closest('[data-theme-key]')?.getAttribute('data-theme-key');
+      setHoveredKey(themeKey || null);
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const themeElement = target.closest('[data-theme-key]') as HTMLElement;
+      const themeKey = themeElement?.getAttribute('data-theme-key');
+
+      if (themeKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentVal = (theme as any)[themeKey] || theme.fontSize;
+        const newVal = window.prompt(`Enter new font size for ${themeKey.replace('FontSize', '')}:`, String(currentVal));
+        
+        if (newVal !== null) {
+          const fontSize = parseInt(newVal);
+          if (!isNaN(fontSize)) {
+            updateTheme({ [themeKey]: fontSize });
+          }
+        }
+        setIsInspectorMode(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('click', handleClick, true);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('click', handleClick, true);
+    };
+  }, [isInspectorMode, theme, updateTheme]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -495,6 +547,26 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
 
             {isThemeExpanded && (
               <div className="mt-4 space-y-6">
+                {/* Inspector Mode Toggle */}
+                <button
+                  onClick={() => setIsInspectorMode(!isInspectorMode)}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all border-2 ${
+                    isInspectorMode 
+                      ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20' 
+                      : 'bg-purple-50 border-purple-100 text-purple-700 hover:bg-purple-100'
+                  }`}
+                >
+                  <MousePointer2 size={16} className={isInspectorMode ? 'animate-bounce' : ''} />
+                  {isInspectorMode ? 'Click to Select Component' : 'Pick Font Size (Inspector)'}
+                </button>
+
+                {isInspectorMode && (
+                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg animate-pulse">
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest text-center">
+                      Hover and click a dashboard component to change its font size
+                    </p>
+                  </div>
+                )}
                 {/* Typography Section */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Typography</h4>
@@ -777,6 +849,20 @@ export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ cu
           </div>
         </div>
       </div>
+      {/* Inspector Highlight Overlay */}
+      {isInspectorMode && hoveredKey && (
+        <style>
+          {`
+            [data-theme-key="${hoveredKey}"] {
+              outline: 3px solid #9333ea !important;
+              outline-offset: 4px !important;
+              background-color: rgba(147, 51, 234, 0.1) !important;
+              cursor: crosshair !important;
+              transition: all 0.2s ease !important;
+            }
+          `}
+        </style>
+      )}
     </div>
   );
 };

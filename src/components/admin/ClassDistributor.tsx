@@ -134,8 +134,12 @@ function UserItemComponent({
 
                     {/* Name */}
                     <span
-                        className="font-bold text-sm leading-tight text-right truncate w-full mt-0.5"
-                        style={{ color: theme.cardText }}
+                        className="font-bold leading-tight text-right truncate w-full mt-0.5"
+                        style={{ 
+                            color: theme.cardText,
+                            fontSize: `${theme.cardNameFontSize || 14}px`
+                        }}
+                        data-theme-key="cardNameFontSize"
                     >
                         {user.display_name || 'Unnamed Student'}
                     </span>
@@ -157,7 +161,11 @@ function UserItemComponent({
                             }}
                         >
                             <span className="text-xs shrink-0">🪙</span>
-                            <span className="text-sm font-black tabular-nums">
+                            <span 
+                                className="font-black tabular-nums"
+                                style={{ fontSize: `${theme.cardCoinFontSize || 14}px` }}
+                                data-theme-key="cardCoinFontSize"
+                            >
                                 {user.coins?.toLocaleString() || 0}
                             </span>
                             {(user.virtual_coins ?? 0) > 0 && (
@@ -332,7 +340,8 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
 
 const SortableUserItem = React.memo(SortableUserItemComponent, arePropsEqual);
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, consequenceCounts = {}, showEmail, className }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, consequenceCounts = {}, showEmail }: ClassDistributorProps) {
+    const { theme } = useDashboardTheme();
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -438,7 +447,13 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Classroom</h2>
+                    <h2 
+                        className="font-bold text-gray-800"
+                        style={{ fontSize: `${(theme.headerFontSize || 24) * 0.8}px` }}
+                        data-theme-key="headerFontSize"
+                    >
+                        Classroom
+                    </h2>
                     <p className="text-gray-500 mb-2">Drag items or use arrow buttons to rearrange class numbers.</p>
 
                 </div>

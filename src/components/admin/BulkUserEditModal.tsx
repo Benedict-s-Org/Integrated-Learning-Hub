@@ -82,7 +82,7 @@ export function BulkUserEditModal({
                 classNumber: userUpdates[user.id].classNumber,
             }));
 
-            const { data, error: fnError } = await supabase.functions.invoke("auth/bulk-update-users", {
+            const { data, error: fnError } = await supabase.functions.invoke("user-management/bulk-update-users", {
                 body: {
                     adminUserId,
                     updates,

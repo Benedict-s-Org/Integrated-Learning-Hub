@@ -16,7 +16,7 @@ export const componentRegistry: Record<string, ComponentDebugInfo> = {
       reads: ['proofreading_practice_assignments'],
       writes: ['proofreading_practice_assignments'],
     },
-    edgeFunctions: ['auth/list-users'],
+    edgeFunctions: ['user-management/list-users'],
     actions: [
       'Select students to assign',
       'Bulk assign practice to selected students',
@@ -166,7 +166,7 @@ export const componentRegistry: Record<string, ComponentDebugInfo> = {
 
   'AdminPanel': {
     description: 'Admin user management panel',
-    edgeFunctions: ['auth/list-users', 'auth/create-user', 'auth/delete-user'],
+    edgeFunctions: ['user-management/list-users', 'user-management/create-user', 'user-management/delete-user'],
     tables: {
       reads: ['users'],
     },

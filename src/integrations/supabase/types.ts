@@ -815,6 +815,151 @@ export type Database = {
         }
         Relationships: []
       }
+      reading_practices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_deleted: boolean | null
+          passage_image_url: string
+          source_pdf_url: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          passage_image_url: string
+          source_pdf_url?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          passage_image_url?: string
+          source_pdf_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_practices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      reading_questions: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          evidence_coords: Json | null
+          id: string
+          interaction_type: string
+          level: number | null
+          metadata: Json | null
+          order_index: number | null
+          practice_id: string | null
+          question_text: string | null
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          evidence_coords?: Json | null
+          id?: string
+          interaction_type: string
+          level?: number | null
+          metadata?: Json | null
+          order_index?: number | null
+          practice_id?: string | null
+          question_text?: string | null
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          evidence_coords?: Json | null
+          id?: string
+          interaction_type?: string
+          level?: number | null
+          metadata?: Json | null
+          order_index?: number | null
+          practice_id?: string | null
+          question_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_questions_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "reading_practices"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      reading_student_responses: {
+        Row: {
+          bonus_evidence_completed: boolean | null
+          correct_chunks: Json | null
+          created_at: string
+          hint_usage_count: number | null
+          id: string
+          is_correct: boolean | null
+          is_skipped: boolean | null
+          question_id: string | null
+          session_id: string | null
+          student_id: string
+          time_spent_seconds: number | null
+          user_answer: string | null
+        }
+        Insert: {
+          bonus_evidence_completed?: boolean | null
+          correct_chunks?: Json | null
+          created_at?: string
+          hint_usage_count?: number | null
+          id?: string
+          is_correct?: boolean | null
+          is_skipped?: boolean | null
+          question_id?: string | null
+          session_id?: string | null
+          student_id: string
+          time_spent_seconds?: number | null
+          user_answer?: string | null
+        }
+        Update: {
+          bonus_evidence_completed?: boolean | null
+          correct_chunks?: Json | null
+          created_at?: string
+          hint_usage_count?: number | null
+          id?: string
+          is_correct?: boolean | null
+          is_skipped?: boolean | null
+          question_id?: string | null
+          session_id?: string | null
+          student_id?: string
+          time_spent_seconds?: number | null
+          user_answer?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_student_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "reading_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_student_responses_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       rooms: {
         Row: {
           created_at: string | null

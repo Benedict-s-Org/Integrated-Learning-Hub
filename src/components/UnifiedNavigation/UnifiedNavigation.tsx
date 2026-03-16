@@ -199,6 +199,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('spacedRepetition')}
                             />
                         )}
+                        <NavItem
+                            icon={BookOpen}
+                            label="Reading Practice"
+                            isActive={currentPage === 'readingComprehension'}
+                            onClick={() => onPageChange('readingComprehension')}
+                        />
                         {user && (
                             <NavItem
                                 icon={Tablet}
@@ -361,6 +367,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 label="Assignment Management"
                                 isActive={currentPage === 'assignmentManagement'}
                                 onClick={() => onPageChange('assignmentManagement')}
+                            />
+                            <NavItem
+                                icon={BookOpen}
+                                label="Reading Practice Management"
+                                isActive={currentPage === 'readingComprehension'}
+                                onClick={() => onPageChange('readingComprehension')}
                             />
                             <NavItem
                                 icon={Camera}

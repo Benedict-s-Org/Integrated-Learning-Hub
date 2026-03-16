@@ -104,6 +104,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
             { icon: Building2, label: 'My Learning Community', onClick: () => onPageChange('learningHub'), isActive: currentPage === 'learningHub' },
             { icon: BookOpen, label: 'Notion Hub', onClick: () => onPageChange('notionHub'), isActive: currentPage === 'notionHub' },
             { icon: Users, label: 'Phonics Sound Wall', onClick: () => onPageChange('phonics'), isActive: currentPage === 'phonics' },
+            { icon: BookOpen, label: 'Reading Practice', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
         ],
     });
 
@@ -141,6 +142,8 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
             title: 'Admin Tools',
             items: [
                 { icon: Shield, label: 'Admin Panel', onClick: () => onPageChange('admin'), isActive: currentPage === 'admin' },
+                { icon: BookOpen, label: 'Reading Practice Management', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
+                { icon: Layout, label: 'Timetable Management', onClick: () => (window.location.href = '/admin/timetable') },
                 { icon: ClipboardList, label: 'Homework Record', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
                 { icon: FolderKanban, label: 'Assignment Management', onClick: () => onPageChange('assignmentManagement'), isActive: currentPage === 'assignmentManagement' },
                 { icon: Database, label: 'Database', onClick: () => onPageChange('database'), isActive: currentPage === 'database' },

@@ -43,7 +43,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
     try {
       setError(null);
 
-      const { data, error } = await supabase.functions.invoke('auth/list-users', {
+      const { data, error } = await supabase.functions.invoke('user-management/list-users', {
         body: { adminUserId: currentUser?.id },
       });
 

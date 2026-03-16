@@ -64,7 +64,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         if (role === 'class_staff') {
           setIsLoadingAssignments(true);
           try {
-            const { data } = await supabase.functions.invoke('auth/get-staff-assignments', {
+            const { data } = await supabase.functions.invoke('user-management/get-staff-assignments', {
               body: { userId: user.id }
             });
             if (data?.assignments) {
@@ -266,7 +266,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
       console.log("Sending update request:", updateData);
 
-      const { data, error: fnError } = await supabase.functions.invoke("auth/update-user", {
+      const { data, error: fnError } = await supabase.functions.invoke("user-management/update-user", {
         body: updateData,
       });
 

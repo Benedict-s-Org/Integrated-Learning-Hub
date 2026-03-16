@@ -682,10 +682,10 @@ export function getPageChecks(
     'admin': {
       checks: [
         ...adminChecks,
-        () => checkEdgeFunction('auth/list-users', 'List Users'),
+        () => checkEdgeFunction('user-management/list-users', 'List Users'),
         () => checkEdgeFunction('auth/bulk-create-users', 'Bulk Create Users'),
         () => checkEdgeFunction('auth/change-password', 'Change Password'),
-        () => checkEdgeFunction('auth/delete-user', 'Delete User'),
+        () => checkEdgeFunction('user-management/delete-user', 'Delete User'),
         () => checkEdgeFunction('auth/update-permissions', 'Update Permissions'),
         () => checkTableAccess('users', 'read'),
       ]
@@ -760,7 +760,7 @@ export function getPageChecks(
     'proofreading-assignment': {
       checks: [
         ...adminChecks,
-        () => checkEdgeFunction('auth/list-users', 'List Users'),
+        () => checkEdgeFunction('user-management/list-users', 'List Users'),
         () => checkTableAccess('proofreading_practice_assignments', 'write'),
       ]
     },

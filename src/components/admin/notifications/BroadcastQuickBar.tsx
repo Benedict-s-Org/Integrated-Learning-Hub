@@ -122,7 +122,11 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                                         }`}>
                                             <Zap size={14} fill="currentColor" />
                                         </div>
-                                        <p className="text-sm md:text-base font-black text-slate-900 tracking-tight line-clamp-1">
+                                        <p 
+                                            className="font-black text-slate-900 tracking-tight line-clamp-1"
+                                            style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
+                                            data-theme-key="broadcastFontSize"
+                                        >
                                             {msg.message}
                                         </p>
                                     </div>

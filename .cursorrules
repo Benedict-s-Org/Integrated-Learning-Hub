@@ -17,3 +17,8 @@ If the user asks you to fix an error, bug, or issue:
 
 1. **Default Manifest**: Whenever the user mentions "the manifest," it **ALWAYS** refers to the **codebase manifest** located at `.agent/codebase_manifest.md` unless "web app manifest" or another specific manifest is explicitly mentioned.
 2. **Contextual Awareness**: Always prioritize updating or reading the codebase manifest when requested to "update the manifest" after code changes.
+
+**🚨 LOOP PREVENTION & STABILITY 🚨**
+
+1. **Repetition Limit**: If a system summary, specific thought, or tool call (like `replace_file_content`) fails or repeats more than **3 times** consecutively, **STOP IMMEDIATELY**.
+2. **Threshold Protocol**: After the third attempt, do not retry. Instead, notify the user about the specific roadblock or repetition and wait for input to prevent token wastage.

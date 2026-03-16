@@ -103,7 +103,7 @@ export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: Gr
 
             console.log('[GroupMemberModal] Sending updates:', JSON.stringify(updates, null, 2));
 
-            const { data, error } = await supabase.functions.invoke('auth/bulk-update-users', {
+            const { data, error } = await supabase.functions.invoke('user-management/bulk-update-users', {
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates

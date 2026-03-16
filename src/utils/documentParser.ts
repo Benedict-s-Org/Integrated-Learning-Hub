@@ -3,10 +3,12 @@
 
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore - Vite handled worker import
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import Papa from 'papaparse';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// Set up PDF.js worker using Vite's URL import
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export interface ParsedContent {
   type: 'text' | 'html' | 'data';

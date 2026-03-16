@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, X } from 'lucide-react';
+import { useDashboardTheme } from '@/context/DashboardThemeContext';
 
 interface UserWithCoins {
     id: string;
@@ -18,6 +19,7 @@ interface StudentNameSidebarProps {
 }
 
 export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, onQuickAward, onClose, onPopOut, isPoppedOut }) => {
+    const { theme } = useDashboardTheme();
     const [cooldowns, setCooldowns] = React.useState<Set<string>>(new Set());
 
     const handleAward = (userId: string) => {
@@ -144,7 +146,11 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[11px] truncate leading-tight">
+                                <p 
+                                    className="font-bold truncate leading-tight"
+                                    style={{ fontSize: `${theme.sidebarFontSize || 11}px` }}
+                                    data-theme-key="sidebarFontSize"
+                                >
                                     {user.display_name}({user.class_number || '-'})
                                 </p>
                                 <div className="flex items-center gap-1 mt-0.5">

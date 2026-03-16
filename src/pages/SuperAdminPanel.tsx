@@ -162,7 +162,7 @@ export function SuperAdminPanel() {
         setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, role: newRole } : u));
 
         // Use edge function to ensure sync with Auth metadata
-        const { data, error } = await supabase.functions.invoke("auth/bulk-update-users", {
+        const { data, error } = await supabase.functions.invoke("user-management/bulk-update-users", {
             body: {
                 adminUserId: realUser?.id,
                 updates: ids.map(id => ({ id, role: newRole }))

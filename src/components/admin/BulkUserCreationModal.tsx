@@ -64,7 +64,7 @@ export function BulkUserCreationModal({ isOpen, onClose, onSuccess, adminUserId 
         setResults(null);
 
         try {
-            const response = await supabase.functions.invoke('auth/bulk-create-users', {
+            const response = await supabase.functions.invoke('user-management/bulk-create-users', {
                 body: {
                     users,
                     adminUserId

@@ -121,7 +121,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     setAssignmentSuccess(null);
 
     try {
-      const usersApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/list-users`;
+      const usersApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/user-management/list-users`;
       const usersResponse = await fetch(usersApiUrl, {
         method: 'POST',
         headers: {

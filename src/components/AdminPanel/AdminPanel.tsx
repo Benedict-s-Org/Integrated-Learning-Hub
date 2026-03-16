@@ -108,7 +108,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.functions.invoke('auth/list-users', {
+      const { data, error } = await supabase.functions.invoke('user-management/list-users', {
         body: { adminUserId: currentUser?.id },
       });
 
@@ -174,7 +174,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     try {
       const userIds = Array.from(selectedUserIds);
       for (const userId of userIds) {
-        const { error } = await supabase.functions.invoke('auth/update-user', {
+        const { error } = await supabase.functions.invoke('user-management/update-user', {
           body: {
             adminUserId: currentUser?.id,
             userId,
@@ -248,7 +248,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setSuccess(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auth/bulk-create-users', {
+      const { data, error } = await supabase.functions.invoke('user-management/bulk-create-users', {
         body: {
           adminUserId: currentUser?.id,
           users: validUsers.map(u => ({
@@ -302,7 +302,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auth/update-user', {
+      const { data, error } = await supabase.functions.invoke('user-management/update-user', {
         body: {
           adminUserId: currentUser?.id,
           userId: selectedUserId,
@@ -352,7 +352,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('auth/delete-user', {
+      const { data, error } = await supabase.functions.invoke('user-management/delete-user', {
         body: {
           adminUserId: currentUser?.id,
           userIdToDelete: userId
@@ -445,7 +445,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     try {
       for (const userId of userIds) {
         const permissions = pendingPermissions[userId];
-        const { error } = await supabase.functions.invoke('auth/update-permissions', {
+        const { error } = await supabase.functions.invoke('user-management/update-permissions', {
           body: {
             adminUserId: currentUser?.id,
             userId,

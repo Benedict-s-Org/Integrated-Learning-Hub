@@ -47,7 +47,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
     try {
       setError(null);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/list-users`;
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/user-management/list-users`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {

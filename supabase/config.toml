@@ -30,3 +30,9 @@ verify_jwt = false
 
 [functions.weekly-coin-transfer]
 verify_jwt = false
+
+[functions.user-management]
+verify_jwt = false
+
+[functions.reading-api]
+verify_jwt = false

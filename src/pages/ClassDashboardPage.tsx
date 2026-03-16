@@ -7,7 +7,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw } from 'lucide-react';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
 import { SendNotificationModal } from '@/components/admin/notifications/SendNotificationModal';
@@ -144,6 +144,7 @@ export function ClassDashboardPage() {
 
     // New Selection State
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [showMorningDuties, setShowMorningDuties] = useState(() => isHKMorningTime());
     const [showProgressLog, setShowProgressLog] = useState(false);
     const [showNameSidebar, setShowNameSidebar] = useState(false);
@@ -159,8 +160,14 @@ export function ClassDashboardPage() {
     const fetchCycleData = async () => {
         setIsCycleLoading(true);
         try {
-            const { data, error } = await supabase.functions.invoke('notion-api/get-cycle-day', {
-                body: {}
+            const { data, error } = await supabase.functions.invoke('notion-api', {
+                headers: {
+                    'x-action': 'get-cycle-day'
+                },
+                body: { 
+                    action: 'get-cycle-day' 
+                },
+                method: 'POST'
             });
 
             if (error) {
@@ -188,6 +195,27 @@ export function ClassDashboardPage() {
             console.error('Error fetching cycle data:', err);
         } finally {
             setIsCycleLoading(false);
+        }
+    };
+
+    const handleSyncUsers = async () => {
+        if (!isAdmin) return;
+        setIsSyncing(true);
+        try {
+            console.log('[Dashboard] Starting manual user sync...');
+            const { data, error } = await supabase.functions.invoke('user-management/sync-all-users', {
+                body: { adminUserId: currentUser?.id }
+            });
+
+            if (error) throw error;
+
+            alert(`Successfully synced ${data.synced} users from Auth.`);
+            await fetchUsers({ forceRefresh: true });
+        } catch (err: any) {
+            console.error('Sync failed:', err);
+            alert(`Sync failed: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -238,7 +266,7 @@ export function ClassDashboardPage() {
             if (useAuthCache) {
                 phase1Promises.push(Promise.resolve({ type: 'users', data: globalAuthUserCache!.users }));
             } else {
-                phase1Promises.push(supabase.functions.invoke('auth/list-users', { body: { adminUserId: currentUser?.id } })
+                phase1Promises.push(supabase.functions.invoke('user-management/list-users', { body: { adminUserId: currentUser?.id } })
                     .then(res => {
                         return { type: 'users', data: res.data?.users || [] };
                     }) as any);
@@ -440,6 +468,10 @@ export function ClassDashboardPage() {
 
                 const batchId = crypto.randomUUID();
                 for (const userId of userIds) {
+                    // Check for existing homework/handbook record before awarding
+                    const canProceed = await ensureOneHomeworkRecordPerDay(userId, reason || REWARD_REASONS.CLASS_REWARD);
+                    if (!canProceed) continue;
+
                     const result = await coinService.awardCoins({
                         userId,
                         amount,
@@ -494,42 +526,57 @@ export function ClassDashboardPage() {
         }
     };
 
+    /**
+     * Helper to ensure only one homework/handbook record exists for a student today.
+     * If records exist, asks user for confirmation before reverting them.
+     */
+    const ensureOneHomeworkRecordPerDay = async (studentId: string, reason: string): Promise<boolean> => {
+        const isHomeworkReason =
+            reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK ||
+            reason === REWARD_REASONS.MISSING_HOMEWORK ||
+            reason === REWARD_REASONS.HANDBOOK_ENTRY ||
+            reason.startsWith('功課:');
+
+        if (!isHomeworkReason) return true;
+
+        // Today's start in HK time
+        const todayStart = getHKTodayStartISO();
+
+        const { data: existingRecords, error: fetchError } = await supabase
+            .from('student_records')
+            .select('id, message')
+            .eq('student_id', studentId)
+            .gte('created_at', todayStart)
+            .or(`message.like.完成班務（交齊功課）%,message.like.完成班務（欠功課）%,message.like.完成班務（寫手冊）%,message.like.功課:%`);
+
+        if (fetchError) {
+            console.error('Error checking existing homework records:', fetchError);
+            return true;
+        }
+
+        if (existingRecords && existingRecords.length > 0) {
+            const confirmChange = window.confirm("You already have a homework/handbook record for today. Do you want to overwrite it?");
+            if (!confirmChange) return false;
+
+            // Revert all matching records for today via refined RPC
+            const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
+                p_student_id: studentId
+            });
+
+            if (revertError) {
+                console.error('Error reverting homework records:', revertError);
+                alert(`Failed to reset previous records: ${revertError.message}`);
+                return false;
+            }
+        }
+
+        return true;
+    };
+
     const handleHomeworkRecord = async (studentId: string, reason: string) => {
         try {
-            // Check for existing records today for "交齊功課" or "欠功課"
-            const isHomeworkReason =
-                reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK ||
-                reason === REWARD_REASONS.MISSING_HOMEWORK ||
-                reason.startsWith('功課:');
-
-            if (isHomeworkReason) {
-                // Today's start in HK time
-                const todayStart = getHKTodayStartISO();
-
-                const { data: existingRecords, error: fetchError } = await supabase
-                    .from('student_records')
-                    .select('id, message')
-                    .eq('student_id', studentId)
-                    .gte('created_at', todayStart)
-                    .or(`message.like.完成班務（交齊功課）%,message.like.完成班務（欠功課）%,message.like.功課:%`);
-
-                if (fetchError) {
-                    console.error('Error checking existing homework records:', fetchError);
-                } else if (existingRecords && existingRecords.length > 0) {
-                    const confirmChange = window.confirm("You have record in the system. Do you want to change the record?");
-                    if (!confirmChange) return;
-
-                    // Revert the previous record
-                    const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
-                        p_student_id: studentId
-                    });
-                    if (revertError) {
-                        console.error('Error reverting homework record (Admin):', revertError);
-                        alert(`Failed to reset previous record: ${revertError.message}`);
-                        return;
-                    }
-                }
-            }
+            const canProceed = await ensureOneHomeworkRecordPerDay(studentId, reason);
+            if (!canProceed) return;
 
             let amount = 0;
             if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) amount = 20;
@@ -537,36 +584,34 @@ export function ClassDashboardPage() {
             else if (reason === REWARD_REASONS.MISSING_HOMEWORK) amount = 10;
             else if (reason.startsWith('功課:')) amount = 10; // Missing specific items
 
-            {
-                // Optimistic UI updates for Homework
-                setGroupedUsers(prev => {
-                    const newGrouped = { ...prev };
-                    Object.keys(newGrouped).forEach(cls => {
-                        const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
-                        if (userIdx !== -1) {
-                            const user = newGrouped[cls][userIdx];
-                            const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
+            // Optimistic UI updates for Homework
+            setGroupedUsers(prev => {
+                const newGrouped = { ...prev };
+                Object.keys(newGrouped).forEach(cls => {
+                    const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
+                    if (userIdx !== -1) {
+                        const user = newGrouped[cls][userIdx];
+                        const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
 
-                            newGrouped[cls][userIdx] = {
-                                ...user,
-                                coins: (user.coins || 0) + (amount > 0 ? amount : 0),
-                                daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
-                                daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
-                            };
-                        }
-                    });
-                    return newGrouped;
+                        newGrouped[cls][userIdx] = {
+                            ...user,
+                            coins: (user.coins || 0) + (amount > 0 ? amount : 0),
+                            daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
+                            daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
+                        };
+                    }
                 });
+                return newGrouped;
+            });
 
-                const result = await coinService.awardCoins({
-                    userId: studentId,
-                    amount: amount,
-                    reason: reason,
-                    type: amount >= 0 ? 'reward' : 'consequence',
-                    batchId: crypto.randomUUID()
-                });
-                if (!result.success) throw result.error;
-            }
+            const result = await coinService.awardCoins({
+                userId: studentId,
+                amount: amount,
+                reason: reason,
+                type: amount >= 0 ? 'reward' : 'consequence',
+                batchId: crypto.randomUUID()
+            });
+            if (!result.success) throw result.error;
 
             await fetchUsers({ silent: true, forceRefresh: true }); // Ensure synchronization
             playSuccessSound();
@@ -672,7 +717,7 @@ export function ClassDashboardPage() {
                 class: student.class
             }));
 
-            const { error } = await supabase.functions.invoke('auth/bulk-update-class-numbers', {
+            const { error } = await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates,
@@ -805,11 +850,18 @@ export function ClassDashboardPage() {
 
                     <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="flex flex-col items-center md:items-start text-center md:text-left gap-1">
-                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100/50 mb-2">
+                            <div 
+                                className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100/50 mb-2"
+                                data-theme-key="headerFontSize"
+                            >
                                 <Sparkles size={14} className="animate-pulse" />
                                 <span className="text-[10px] font-black uppercase tracking-[0.2em]">School Session</span>
                             </div>
-                            <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
+                            <h2 
+                                className="font-black text-slate-900 tracking-tight"
+                                style={{ fontSize: `${theme.headerFontSize || theme.fontSize}px` }}
+                                data-theme-key="headerFontSize"
+                            >
                                 {isCycleLoading ? (
                                     <span className="inline-block w-48 h-10 bg-slate-100 animate-pulse rounded-lg" />
                                 ) : (
@@ -820,8 +872,17 @@ export function ClassDashboardPage() {
 
                         <div className="flex items-center gap-4 md:gap-8">
                             <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Current Cycle</span>
-                                <div className="text-3xl md:text-5xl font-black text-blue-600 tracking-tighter tabular-nums drop-shadow-sm">
+                                <span 
+                                    className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1"
+                                    data-theme-key="headerFontSize"
+                                >
+                                    Current Cycle
+                                </span>
+                                <div 
+                                    className="font-black text-blue-600 tracking-tighter tabular-nums drop-shadow-sm"
+                                    style={{ fontSize: `${(theme.headerFontSize || theme.fontSize) * 1.2}px` }}
+                                    data-theme-key="headerFontSize"
+                                >
                                     {isCycleLoading ? '...' : (cycleData?.cycle || '-')}
                                 </div>
                             </div>
@@ -830,16 +891,34 @@ export function ClassDashboardPage() {
 
                             <div className="flex flex-col items-center px-6 py-3 bg-slate-900 rounded-3xl shadow-xl shadow-slate-200 border border-slate-800 transition-transform active:scale-95 group overflow-hidden relative">
                                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10">Today Is</span>
-                                <div className="text-3xl md:text-5xl font-black text-white tracking-tighter relative z-10 flex items-center gap-2">
+                                <span 
+                                    className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10"
+                                    data-theme-key="headerFontSize"
+                                >
+                                    Today Is
+                                </span>
+                                <div 
+                                    className="font-black text-white tracking-tighter relative z-10 flex items-center gap-2"
+                                    style={{ fontSize: `${(theme.headerFontSize || theme.fontSize) * 1.2}px` }}
+                                    data-theme-key="headerFontSize"
+                                >
                                     {isCycleLoading ? '...' : (cycleData?.day || '-')}
                                 </div>
                             </div>
 
                             <div className="flex flex-col items-center px-6 py-3 bg-slate-900 rounded-3xl shadow-xl shadow-slate-200 border border-slate-800 transition-transform active:scale-95 group overflow-hidden relative">
                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10">Student on Duty</span>
-                                <div className="text-3xl md:text-5xl font-black text-white tracking-tighter relative z-10 flex items-center gap-2">
+                                <span 
+                                    className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 relative z-10"
+                                    data-theme-key="headerFontSize"
+                                >
+                                    Student on Duty
+                                </span>
+                                <div 
+                                    className="font-black text-white tracking-tighter relative z-10 flex items-center gap-2"
+                                    style={{ fontSize: `${(theme.headerFontSize || theme.fontSize) * 1.2}px` }}
+                                    data-theme-key="headerFontSize"
+                                >
                                     {isCycleLoading ? '...' : (cycleData?.studentOnDuty || '-')}
                                 </div>
                             </div>
@@ -849,7 +928,11 @@ export function ClassDashboardPage() {
 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <h1 className="text-xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
+                        <h1 
+                            className="font-bold text-slate-900 flex items-center gap-3"
+                            style={{ fontSize: `${theme.headerFontSize || 30}px` }}
+                            data-theme-key="headerFontSize"
+                        >
                             Class Dashboard
                         </h1>
                         <p className="text-xs md:text-base text-slate-500 mt-1">
@@ -944,6 +1027,16 @@ export function ClassDashboardPage() {
                             <Settings2 size={18} className="text-slate-400" />
                             Manage Rewards
                         </button>
+                        {isAdmin && (
+                            <button
+                                onClick={handleSyncUsers}
+                                disabled={isSyncing}
+                                className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl font-semibold shadow-sm transition-all text-sm ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <RotateCcw size={18} className={`text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                                {isSyncing ? 'Syncing...' : 'Sync Users'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1077,12 +1170,34 @@ export function ClassDashboardPage() {
                 <div className="space-y-4 md:space-y-8">
                     {isLoading ? (
                         <div className="p-8 text-center">Loading users...</div>
+                    ) : Object.keys(groupedUsers).length === 0 || Object.values(groupedUsers).flat().length === 0 ? (
+                        <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+                            <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                            <h3 className="text-lg font-bold text-slate-800 mb-2">No Students Found</h3>
+                            <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                                We couldn't find any student records in the database. You might need to synchronize users from the authentication system.
+                            </p>
+                            {isAdmin && (
+                                <button
+                                    onClick={handleSyncUsers}
+                                    disabled={isSyncing}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
+                                >
+                                    <RotateCcw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                                    {isSyncing ? 'Syncing Now...' : 'Sync Users Now'}
+                                </button>
+                            )}
+                        </div>
                     ) : (
                         <>
                             {activeClass === 'all' ? (
                                 sortedClassNames.map(className => (
                                     <div key={className} className="bg-white rounded-xl md:rounded-3xl shadow-sm border border-slate-200 p-4 md:p-8">
-                                        <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
+                                        <h2 
+                                            className="font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center"
+                                            style={{ fontSize: `${(theme.headerFontSize || 18) * 0.7}px` }}
+                                            data-theme-key="headerFontSize"
+                                        >
                                             <span>{className === 'Unassigned' ? 'No Class Assigned' : className}</span>
                                             <span className="text-sm font-normal text-slate-400">{groupedUsers[className]?.length} Students</span>
                                         </h2>
@@ -1113,7 +1228,11 @@ export function ClassDashboardPage() {
                                         </div>
                                     ) : (
                                         <>
-                                            <h2 className="text-lg font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center">
+                                            <h2 
+                                                className="font-bold text-slate-800 mb-3 px-2 border-l-4 border-blue-500 pl-3 flex justify-between items-center"
+                                                style={{ fontSize: `${(theme.headerFontSize || 18) * 0.7}px` }}
+                                                data-theme-key="headerFontSize"
+                                            >
                                                 <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
                                                 <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length} Students</span>
                                             </h2>

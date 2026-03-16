@@ -15,6 +15,12 @@ export interface DashboardTheme {
     numberTagText: string;
     fontFamily: string;
     fontSize: number;
+    // Granular font sizes
+    headerFontSize?: number;
+    broadcastFontSize?: number;
+    sidebarFontSize?: number;
+    cardNameFontSize?: number;
+    cardCoinFontSize?: number;
     broadcastBg: string;
     broadcastText: string;
 }
@@ -32,6 +38,11 @@ const DEFAULT_THEME: DashboardTheme = {
     numberTagText: '#ffffff', // text-white
     fontFamily: 'Outfit',
     fontSize: 16,
+    headerFontSize: 36,
+    broadcastFontSize: 14,
+    sidebarFontSize: 16,
+    cardNameFontSize: 18,
+    cardCoinFontSize: 24,
     broadcastBg: 'rgba(255, 255, 255, 0.4)',
     broadcastText: '#1e293b',
 };
@@ -54,7 +65,8 @@ export const useDashboardTheme = () => useContext(DashboardThemeContext);
 
 export const DashboardThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [theme, setTheme] = useState<DashboardTheme>(DEFAULT_THEME);
-    const { isAdmin } = useAuth();
+    const { user } = useAuth();
+    const isStaff = user?.role === 'admin' || user?.role === 'class_staff';
 
     // Fetch initial theme
     useEffect(() => {
@@ -127,7 +139,7 @@ export const DashboardThemeProvider: React.FC<{ children: React.ReactNode }> = (
 
     // Database sync (called by save button or debounced)
     const saveTheme = useCallback(async () => {
-        if (!isAdmin) return;
+        if (!isStaff) return;
         try {
             const { error } = await (supabase
                 .from('system_config' as any)
@@ -139,10 +151,10 @@ export const DashboardThemeProvider: React.FC<{ children: React.ReactNode }> = (
             console.error('Error saving dashboard theme:', err);
             alert('Failed to save theme to database.');
         }
-    }, [theme, isAdmin]);
+    }, [theme, isStaff]);
 
     const resetTheme = useCallback(async () => {
-        if (!isAdmin) return;
+        if (!isStaff) return;
         setTheme(DEFAULT_THEME);
         try {
             const { error } = await (supabase
@@ -154,7 +166,7 @@ export const DashboardThemeProvider: React.FC<{ children: React.ReactNode }> = (
         } catch (err) {
             console.error('Error resetting dashboard theme:', err);
         }
-    }, [isAdmin]);
+    }, [isStaff]);
 
     return (
         <DashboardThemeContext.Provider value={{ theme, updateTheme, saveTheme, resetTheme }}>

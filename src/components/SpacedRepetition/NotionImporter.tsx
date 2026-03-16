@@ -35,9 +35,26 @@ export function NotionImporter({ title, description, onImport, onCancel }: Notio
         setErrors([]);
 
         try {
-            const { data, error } = await supabase.functions.invoke('notion-api/query-mcq-database', {
-                body: { databaseId: databaseId.trim() }
+            console.log('[SpacedRepetition NotionImporter] Debug Info:', {
+                url: (supabase as any).functions.url,
+                functionName: 'notion-api'
             });
+
+            const { data, error } = await supabase.functions.invoke('notion-api', {
+                headers: {
+                    'x-action': 'query-mcq-database',
+                    'x-database-id': databaseId.trim()
+                },
+                body: { 
+                    databaseId: databaseId.trim(),
+                    action: 'query-mcq-database'
+                },
+                method: 'POST'
+            });
+
+            if (error && (error as any).status === 404) {
+                console.error('[SpacedRepetition NotionImporter] 404 ERROR: Edge Function "notion-api" not found.');
+            }
 
             if (error) throw error;
             if (data.error) throw new Error(data.error);

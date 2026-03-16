@@ -60,6 +60,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
+  // Proactive self-healing synchronization
+  useEffect(() => {
+    if (session?.user?.id) {
+      console.log('[AuthContext] Session active, performing self-sync check...');
+      supabase.functions.invoke('user-management/sync-current-user', {
+        body: { userId: session.user.id }
+      }).catch(err => {
+        console.warn('[AuthContext] Proactive sync failed (non-critical):', err);
+      });
+    }
+  }, [session?.user?.id]);
+
+
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({

@@ -86,7 +86,8 @@ type AppState =
   | { page: 'interactiveScanner' }
   | { page: 'adminHomeworkRecord' }
   | { page: 'broadcastManagement' }
-  | { page: 'adminTimetable' };
+  | { page: 'adminTimetable' }
+  | { page: 'readingComprehension' };
 
 function AppContent() {
   const location = useLocation();
@@ -100,7 +101,7 @@ function AppContent() {
     deleteProofreadingPractice,
     addSavedContent,
   } = useAppContext();
-  const { user, loading, toggleViewMode, isAdmin, isStaff, signOut, isMobileEmulator, setIsMobileEmulator } = useAuth();
+  const { user, loading, toggleViewMode, isAdmin, isStaff, signOut, isMobileEmulator, setIsMobileEmulator, isUserView } = useAuth();
 
   // Memory Palace Context Handlers
   const {
@@ -282,7 +283,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable')) {
       setShowLoginModal(true);
       return;
     }
@@ -366,6 +367,10 @@ function AppContent() {
       setAppState({ page: 'adminHomeworkRecord' });
     } else if (page === 'broadcastManagement') {
       setAppState({ page: 'broadcastManagement' });
+    } else if (page === 'readingComprehension') {
+      setAppState({ page: 'readingComprehension' });
+    } else if (page === 'adminTimetable') {
+      setAppState({ page: 'adminTimetable' });
     }
   };
 
@@ -1029,6 +1034,8 @@ function AppContent() {
               return <AdminTimetablePage />;
             case 'broadcastManagement':
               return <BroadcastManagementPage />;
+            case 'readingComprehension':
+              return isAdmin && !isUserView ? <ReadingManagementPage /> : <ReadingLearningPage />;
           }
         })()}
       </Suspense>
@@ -1077,6 +1084,9 @@ function AppContent() {
     }
     if (appState.page === 'assignmentManagement') {
       return 'assignmentManagement';
+    }
+    if (appState.page === 'readingComprehension') {
+      return 'readingComprehension';
     }
     return appState.page;
   };
@@ -1361,6 +1371,8 @@ const PhonicsQuiz = lazy(() => import('./components/phonics/PhonicsQuiz.tsx').th
 const WordBuilder = lazy(() => import('./components/phonics/WordBuilder.tsx').then(m => ({ default: m.WordBuilder })));
 const CodebaseManifestPage = lazy(() => import('./pages/CodebaseManifestPage.tsx'));
 const BroadcastManagementPage = lazy(() => import('./pages/admin/BroadcastManagementPage.tsx'));
+const ReadingManagementPage = lazy(() => import('./pages/admin/ReadingManagementPage.tsx'));
+const ReadingLearningPage = lazy(() => import('./pages/student/ReadingLearningPage.tsx').then(m => ({ default: m.ReadingLearningPage })));
 
 const SpacedRepetitionPage = lazy(() => import('./components/SpacedRepetition/SpacedRepetitionPage').then(m => ({ default: m.SpacedRepetitionPage })));
 const NotionHub = lazy(() => import('./components/NotionHub/NotionHub').then(m => ({ default: m.NotionHub })));

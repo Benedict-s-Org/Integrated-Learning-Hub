@@ -16,3 +16,4 @@
 
 1. **Concise Planning**: When updating `implementation_plan.md` or `task.md`, **ONLY include currently discussed matters and unresolved/pending tasks**. 
 2. **Remove Finished Items**: Actively remove or truncate completed items from previous discussions to save tokens and maintain context efficiency. Do not let artifacts grow indefinitely with historical completed tasks.
+3. **Loop Prevention & Error Handling**: If you find yourself repeatedly failing a task or repeating the same summary/thought (e.g., more than 3 times), **STOP IMMEDIATELY**. Do not keep trying. Notify the user with a concise explanation of the error and wait for further instructions.
