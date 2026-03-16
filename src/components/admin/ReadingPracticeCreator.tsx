@@ -10,6 +10,7 @@ import {
   Loader2, Check, Layers, Type, 
   RotateCcw, Database, Upload
 } from 'lucide-react';
+import { getVerbForms, isVerb } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
@@ -26,7 +27,7 @@ interface ReadingPdf {
 interface ChunkOption {
   id: string;
   text: string;
-  alternatives: string[];
+  alternatives: { text: string; prefix?: string }[];
 }
 
 interface NotionQuestion {
@@ -355,11 +356,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
   const initializeChunks = (text: string) => {
     const words = text.split(/\s+/).filter(w => w.length > 0);
-    const initialChunks: ChunkOption[] = words.map(w => ({
-      id: crypto.randomUUID(),
-      text: w,
-      alternatives: []
-    }));
+    const initialChunks: ChunkOption[] = words.map(w => {
+      const verbForms = getVerbForms(w);
+      return {
+        id: crypto.randomUUID(),
+        text: w,
+        alternatives: verbForms.map((vf: any) => ({ text: vf.text, prefix: vf.prefix }))
+      };
+    });
     setChunks(initialChunks);
   };
 
@@ -384,7 +388,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     const firstIdx = selectedIndices[0];
     const lastIdx = selectedIndices[selectedIndices.length - 1];
     const chunksToCombine = chunks.slice(firstIdx, lastIdx + 1);
-    const allVariations = chunksToCombine.map(c => [c.text, ...c.alternatives]);
+    const allVariations = chunksToCombine.map(c => [c.text, ...c.alternatives.map(a => a.text)]);
     
     let combinations: string[] = [""];
     for (const variations of allVariations) {
@@ -398,18 +402,30 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     }
 
     const finalAlternatives = Array.from(new Set(combinations)).slice(0, 4);
+    
+    // Auto-enhance with verb forms if the combined text is a verb
+    const combinedText = finalAlternatives[0];
+    let alternatives: { text: string; prefix?: string }[] = finalAlternatives.slice(1).map(a => ({ text: a }));
+    
+    if (isVerb(combinedText)) {
+      const verbForms = getVerbForms(combinedText);
+      if (verbForms.length > 0) {
+        alternatives = verbForms.map((vf: any) => ({ text: vf.text, prefix: vf.prefix }));
+      }
+    }
+
     const newChunk: ChunkOption = {
       id: crypto.randomUUID(),
-      text: finalAlternatives[0],
-      alternatives: finalAlternatives.slice(1)
+      text: combinedText,
+      alternatives
     };
 
     setChunks([...chunks.slice(0, firstIdx), newChunk, ...chunks.slice(lastIdx + 1)]);
     setSelectedChunkIds([]);
   };
 
-  const updateChunkAlternatives = (id: string, alts: string[]) => {
-    setChunks(prev => prev.map(c => c.id === id ? { ...c, alternatives: alts.filter(a => a.trim() !== '') } : c));
+  const updateChunkAlternatives = (id: string, alts: { text: string; prefix?: string }[]) => {
+    setChunks(prev => prev.map(c => c.id === id ? { ...c, alternatives: alts.filter(a => a.text.trim() !== '') } : c));
   };
 
   const handleSaveAll = async (randomizedIds: string[]) => {
@@ -780,14 +796,25 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                             </div>
                             <div className="space-y-1.5 mt-1 border-t border-slate-100 pt-3">
                               {[0, 1, 2].map(idx => (
-                                <input 
-                                  key={idx} 
-                                  type="text" 
-                                  value={chunk.alternatives[idx] || ''} 
-                                  onChange={(e) => { const n = [...chunk.alternatives]; n[idx] = e.target.value; updateChunkAlternatives(chunk.id, n); }} 
-                                  placeholder={`Ans ${idx + 2}`} 
-                                  className="w-full h-8 px-3 rounded-xl border border-slate-100 bg-slate-50/30 outline-none text-[10px] font-bold focus:border-indigo-500 transition-all" 
-                                />
+                                <div key={idx} className="flex gap-1">
+                                  {chunk.alternatives[idx]?.prefix && (
+                                    <div className="bg-amber-50 text-amber-700 text-[8px] font-black px-1.5 flex items-center rounded-lg border border-amber-100 shrink-0 uppercase tracking-tighter">
+                                      {chunk.alternatives[idx].prefix}
+                                    </div>
+                                  )}
+                                  <input 
+                                    type="text" 
+                                    value={chunk.alternatives[idx]?.text || ''} 
+                                    onChange={(e) => { 
+                                      const n = [...chunk.alternatives]; 
+                                      if (!n[idx]) n[idx] = { text: '' };
+                                      n[idx] = { ...n[idx], text: e.target.value }; 
+                                      updateChunkAlternatives(chunk.id, n); 
+                                    }} 
+                                    placeholder={`Ans ${idx + 2}`} 
+                                    className="w-full h-8 px-3 rounded-xl border border-slate-100 bg-slate-50/30 outline-none text-[10px] font-bold focus:border-indigo-500 transition-all font-inter" 
+                                  />
+                                </div>
                               ))}
                             </div>
                           </div>

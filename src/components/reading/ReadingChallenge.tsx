@@ -56,10 +56,11 @@ interface ReadingChallengeProps {
 const SortableWord: React.FC<{ 
   id: string; 
   text: string; 
-  options?: string[]; 
-  onOptionChange?: (val: string) => void;
+  options?: { text: string; prefix?: string }[]; 
+  onOptionChange?: (val: string, prefixVal?: string) => void;
   isSelected?: boolean;
-}> = ({ id, text, options, onOptionChange, isSelected }) => {
+  prefixValue?: string;
+}> = ({ id, text, options, onOptionChange, isSelected, prefixValue }) => {
   const {
     attributes,
     listeners,
@@ -85,14 +86,29 @@ const SortableWord: React.FC<{
       className={`px-4 py-2 bg-white border-2 ${isSelected ? 'border-indigo-500 shadow-indigo-100' : 'border-slate-200'} rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-300 transition-all font-medium flex items-center gap-2`}
     >
       {options && options.length > 0 ? (
-        <select 
-          className="bg-indigo-50 text-indigo-700 font-bold rounded px-1 outline-none pointer-events-auto cursor-pointer"
-          onChange={(e) => onOptionChange && onOptionChange(e.target.value)}
-          onClick={(e) => e.stopPropagation()} // Prevent drag trigger on click
-        >
-          <option value={text}>{text}</option>
-          {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          {/* Prefix Input Box for Verbs (e.g. is/are) */}
+          {options.some(opt => opt.prefix) && (
+            <input 
+              type="text"
+              placeholder={options.find(opt => opt.prefix)?.prefix || '...'}
+              value={prefixValue || ''}
+              onChange={(e) => onOptionChange && onOptionChange(text, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-16 h-7 px-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20"
+            />
+          )}
+          <select 
+            className="bg-indigo-50 text-indigo-700 font-bold rounded px-1 outline-none pointer-events-auto cursor-pointer"
+            onChange={(e) => {
+              onOptionChange && onOptionChange(e.target.value, prefixValue);
+            }}
+            onClick={(e) => e.stopPropagation()} // Prevent drag trigger on click
+          >
+            <option value={text}>{text}</option>
+            {options.map(opt => <option key={`${opt.text}-${opt.prefix}`} value={opt.text}>{opt.text}</option>)}
+          </select>
+        </div>
       ) : (
         <span>{text}</span>
       )}
@@ -116,10 +132,11 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [bonusCoins, setBonusCoins] = useState(0);
   
   // Interaction State
-  const [rearrangeWords, setRearrangeWords] = useState<{id: string, text: string, options?: string[]}[]>([]);
+  const [rearrangeWords, setRearrangeWords] = useState<{id: string, text: string, options?: {text: string, prefix?: string}[]}[]>([]);
   const [proofreadingChunks, setProofreadingChunks] = useState<any[]>([]);
   const [selectedProofreadingIndex, setSelectedProofreadingIndex] = useState<number | null>(null);
   const [userSelections, setUserSelections] = useState<Record<string, string>>({}); // For options/dropdowns
+  const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For auxiliary verb inputs
   
   // Progress State
   const [status, setStatus] = useState<'idle' | 'answering' | 'submitting' | 'feedback' | 'finished'>('answering');
@@ -180,15 +197,17 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
     if (q.interaction_type === 'rearrange') {
       const metadata = q.metadata || {};
-      const words = metadata.chunks || q.correct_answer.split(' ').map(w => w.trim());
-      // Shuffle words for level 1 & 2
-      const shuffled = [...words]
-        .sort(() => Math.random() - 0.5)
-        .map((w, idx) => ({ 
-          id: `${w}-${idx}`, 
-          text: w,
-          options: metadata.options?.[w] || [] 
-        }));
+      const rawChunks = metadata.chunks || [];
+      
+      // Map to interaction format
+      const words = rawChunks.map((c: any, idx: number) => ({
+        id: c.id || `${c.text}-${idx}`,
+        text: c.text,
+        options: c.alternatives || []
+      }));
+
+      // Shuffle for student view
+      const shuffled = [...words].sort(() => Math.random() - 0.5);
       setRearrangeWords(shuffled);
     } else if (q.interaction_type === 'proofreading') {
       // Setup proofreading chunks
@@ -219,9 +238,15 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
     if (q.interaction_type === 'rearrange') {
       const currentOrder = rearrangeWords.map(w => {
-        return userSelections[w.id] || w.text;
+        const text = userSelections[w.id] || w.text;
+        const prefix = userPrefixes[w.id];
+        return prefix ? `${prefix} ${text}` : text;
       }).join(' ');
-      isUserCorrect = currentOrder.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+      
+      // Clean up multiple spaces and check against correct answer
+      const normalizedAnswer = currentOrder.replace(/\s+/g, ' ').trim().toLowerCase();
+      const actualCorrect = q.correct_answer.replace(/\s+/g, ' ').trim().toLowerCase();
+      isUserCorrect = normalizedAnswer === actualCorrect;
     } else if (q.interaction_type === 'proofreading') {
       const userCorrection = userSelections['proofread-correction'];
       isUserCorrect = userCorrection === q.correct_answer;
@@ -400,8 +425,12 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                         id={word.id} 
                         text={word.text} 
                         options={word.options}
-                        onOptionChange={(val) => {
+                        prefixValue={userPrefixes[word.id]}
+                        onOptionChange={(val, prefixVal) => {
                           setUserSelections(prev => ({ ...prev, [word.id]: val }));
+                          if (prefixVal !== undefined) {
+                            setUserPrefixes(prev => ({ ...prev, [word.id]: prefixVal }));
+                          }
                         }}
                       />
                     ))}
