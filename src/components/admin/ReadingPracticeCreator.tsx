@@ -588,39 +588,127 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
               </div>
             </div>
-          )}
-
-          {/* STEP 2: UNIFIED WORKSPACE */}
+          )}          {/* STEP 2: UNIFIED WORKSPACE (VERTICAL REDESIGN) */}
           {step === 'workspace' && (
-            <div className="w-full h-full flex gap-6 overflow-hidden min-h-[600px]">
+            <div className="w-full h-full flex flex-col gap-6 overflow-hidden min-h-[800px] max-w-7xl mx-auto px-4 pb-8">
               
-              {/* LEFT PANE: PDF & CROPPING */}
-              <div className="flex-1 flex flex-col gap-4 min-w-[500px] overflow-hidden">
-                <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl shadow-sm border border-slate-100 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum <= 1 || loading} className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                    <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(v); } else { setPageNumInput(pageNum.toString()); } }} className="w-8 h-7 text-center font-black border rounded-md text-xs" />
-                    <span className="text-[10px] font-bold text-slate-400">/ {numPages}</span>
-                    <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum >= numPages || loading} className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"><ChevronRight className="w-4 h-4" /></button>
+              {/* TOP: QUESTION BANK (FULL WIDTH) */}
+              <div className="h-[220px] shrink-0 flex flex-col bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="px-6 py-3 border-b flex items-center justify-between bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-100">
+                      <Database className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em]">Notion Bank</h3>
+                      <p className="text-[9px] font-bold text-slate-400 -mt-0.5">Select a task to begin evidence cropping</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Crop Evidence</span>
-                    <button onClick={() => { setCropStart(null); setCropEnd(null); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-red-500 rounded-lg transition-all"><RotateCcw className="w-4 h-4" /></button>
+                    <div className="relative">
+                      <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-xl transition-all ${showConfig ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100 hover:border-indigo-200'}`}><Database className="w-4 h-4" /></button>
+                      {showConfig && (
+                        <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border p-5 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <p className="text-[10px] font-black text-slate-800 mb-3 uppercase tracking-wider">Database Configuration</p>
+                          <input type="text" value={questionsDbId} onChange={(e) => setQuestionsDbId(e.target.value)} className="w-full h-10 px-4 bg-slate-50 border rounded-xl outline-none text-[11px] mb-3 font-mono focus:ring-2 focus:ring-indigo-500/20" placeholder="32-char Database ID..." />
+                          <div className="bg-indigo-50/50 p-3 rounded-2xl mb-4 border border-indigo-100/50">
+                            <p className="text-[10px] font-bold text-indigo-700 leading-snug">
+                              💡 The ID is the 32-character string in your Notion URL after 'notion.so/'.
+                            </p>
+                          </div>
+                          <button onClick={() => { localStorage.setItem('aplus_questions_db_id', questionsDbId); setShowConfig(false); fetchQuestionsForPage(); }} className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all">Save & Sync</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-x-auto p-4">
+                  <div className="flex gap-4 h-full">
+                    {loading ? (
+                      <div className="flex gap-4 w-full">{[...Array(4)].map((_, i) => <div key={i} className="min-w-[280px] h-full bg-slate-50 rounded-2xl animate-pulse" />)}</div>
+                    ) : fetchError ? (
+                      <div className="w-full p-6 bg-red-50 rounded-2xl border border-red-100 flex flex-col justify-center items-center text-center">
+                        <Database className="w-8 h-8 text-red-200 mb-2" />
+                        <p className="text-[11px] font-black uppercase text-red-600">Sync Failed</p>
+                        <p className="text-[10px] font-bold text-red-800/70 max-w-md mt-1">{fetchError.message}</p>
+                      </div>
+                    ) : questionsOnPage.length === 0 ? (
+                      <div className="w-full flex flex-col items-center justify-center text-slate-300 gap-3 opacity-50">
+                        <Search className="w-10 h-10" />
+                        <p className="text-xs font-black uppercase tracking-widest">No questions in this database</p>
+                      </div>
+                    ) : (
+                      questionsOnPage.map(q => (
+                        <button 
+                          key={q.id} 
+                          onClick={() => handleSelectQuestion(q)} 
+                          className={`min-w-[320px] max-w-[320px] h-full text-left p-4 rounded-3xl border-2 transition-all flex gap-4 group relative overflow-hidden ${
+                            selectedQuestion?.id === q.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-100 hover:border-indigo-300 hover:shadow-xl hover:bg-white'
+                          }`}
+                        >
+                          <div className={`w-14 shrink-0 flex flex-col items-center justify-center border-r-2 pr-3 ${selectedQuestion?.id === q.id ? 'border-indigo-100' : 'border-slate-50'}`}>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Day</span>
+                            <span className={`text-2xl font-black leading-none ${selectedQuestion?.id === q.id ? 'text-indigo-600' : 'text-slate-700'}`}>{q.day || '-'}</span>
+                            <span className="text-[8px] font-black text-slate-400 mt-1 uppercase">Pg {q.page || '-'}</span>
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col justify-center pr-2">
+                            <p className={`text-xs font-black leading-tight mb-2 line-clamp-2 ${selectedQuestion?.id === q.id ? 'text-indigo-900' : 'text-slate-800'}`}>{q.question}</p>
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <div className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                              <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-500 truncate italic">Ans: {q.answer}</p>
+                            </div>
+                          </div>
+                          {selectedQuestion?.id === q.id && (
+                            <div className="absolute top-3 right-3 w-4 h-4 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 scale-110">
+                              <Check className="w-2.5 h-2.5" />
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* MIDDLE: PDF & CROPPING (FULL WIDTH) */}
+              <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-[450px]">
+                <div className="flex items-center justify-between bg-white px-6 py-4 rounded-[2rem] shadow-xl border border-slate-100 shrink-0">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
+                      <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+                      <div className="flex items-center gap-2 px-3">
+                        <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(v); } else { setPageNumInput(pageNum.toString()); } }} className="w-10 h-8 text-center font-black border-2 border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none transition-all" />
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">of {numPages}</span>
+                      </div>
+                      <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum >= numPages || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 pr-4 border-r-2 border-slate-100">
+                      <span className="text-[10px] font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-600" /> Evidence Canvas
+                      </span>
+                    </div>
+                    <button onClick={() => { setCropStart(null); setCropEnd(null); }} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-slate-100">
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear Selection
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-auto bg-slate-200 rounded-3xl border-4 border-white shadow-inner relative flex justify-center p-4">
+                <div className="flex-1 overflow-auto bg-slate-100/50 rounded-[2.5rem] border-4 border-white shadow-2xl relative flex justify-center p-8 backdrop-blur-sm">
                   <div 
-                    className="relative bg-white shadow-2xl h-fit w-fit" 
+                    className="relative bg-white shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] h-fit w-fit transition-transform hover:scale-[1.002]" 
                     onMouseDown={handleMouseDown} 
                     onMouseMove={handleMouseMove} 
                     onMouseUp={handleMouseUp}
                   >
-                    {loading && <div className="absolute inset-0 bg-white/40 flex items-center justify-center z-10 backdrop-blur-[2px]"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>}
-                    <canvas ref={canvasRef} className="max-w-full h-auto cursor-crosshair block" />
+                    {loading && <div className="absolute inset-0 bg-white/60 flex flex-col items-center justify-center z-10 backdrop-blur-md"><Loader2 className="w-12 h-12 animate-spin text-indigo-600" /><p className="mt-4 text-xs font-black text-indigo-900 uppercase tracking-widest">Rendering Page...</p></div>}
+                    <canvas ref={canvasRef} className="max-w-full h-auto cursor-crosshair block rounded-sm shadow-sm" />
                     {cropStart && cropEnd && (
                       <div 
-                        className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+                        className="absolute border-[3px] border-indigo-500 bg-indigo-500/10 pointer-events-none shadow-[0_0_25px_rgba(79,70,229,0.4)] transition-all ring-2 ring-white/50" 
                         style={{ 
                           left: Math.min(cropStart.x, cropEnd.x), 
                           top: Math.min(cropStart.y, cropEnd.y), 
@@ -633,131 +721,61 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
               </div>
 
-              {/* RIGHT PANE: QUESTIONS & CHUNKS */}
-              <div className="w-[450px] flex flex-col gap-6 overflow-hidden">
+              {/* BOTTOM: CHUNK EDITOR (FULL WIDTH) */}
+              <div className="h-[280px] shrink-0 flex flex-col bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="px-6 py-4 border-b flex items-center justify-between bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-100">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em]">Chunk Synthesizer</h3>
+                      <p className="text-[9px] font-bold text-slate-400 -mt-0.5">Divide the answer into manageable learning steps</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => initializeChunks(selectedQuestion?.answer || '')} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all"><RotateCcw className="w-3.5 h-3.5" /> Reset</button>
+                    <button onClick={combineChunks} disabled={selectedChunkIds.length < 2} className="px-5 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all disabled:opacity-30">Combine Steps</button>
+                    <button onClick={() => setStep('preview')} disabled={!cropStart || chunks.length === 0} className="px-8 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-indigo-100 transition-all disabled:opacity-30 flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></button>
+                  </div>
+                </div>
                 
-                {/* RIGHT TOP: QUESTION SELECTION */}
-                <div className="h-1/2 flex flex-col bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-                  <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
-                    <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
-                      <Database className="w-3.5 h-3.5" /> Notion Questions
-                    </h3>
-                    <div className="relative">
-                      <button onClick={() => setShowConfig(!showConfig)} className={`p-1.5 rounded-lg transition-all ${showConfig ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}><Database className="w-3.5 h-3.5" /></button>
-                      {showConfig && (
-                        <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <p className="text-[10px] font-black text-slate-800 mb-2 uppercase tracking-wider">Question Bank Config</p>
-                          <input type="text" value={questionsDbId} onChange={(e) => setQuestionsDbId(e.target.value)} className="w-full h-8 px-3 bg-slate-50 border rounded-lg outline-none text-[10px] mb-2 font-mono" placeholder="32-char Database ID..." />
-                          <div className="bg-blue-50 p-2 rounded-lg mb-4">
-                            <p className="text-[9px] font-bold text-blue-700 leading-tight">
-                              💡 Tip: The ID is the 32-character string in your Notion URL after 'notion.so/'.
-                            </p>
-                          </div>
-                          <button onClick={() => { localStorage.setItem('aplus_questions_db_id', questionsDbId); setShowConfig(false); fetchQuestionsForPage(); }} className="w-full py-1.5 bg-blue-600 text-white rounded-lg font-black text-xs shadow-lg shadow-blue-100 italic">Save & Refresh</button>
-                        </div>
-                      )}
+                <div className="flex-1 overflow-x-auto p-6">
+                  {chunks.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3 opacity-50">
+                      <Type className="w-10 h-10" />
+                      <p className="text-xs font-black uppercase tracking-widest">Select a question to edit chunks</p>
                     </div>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                    {loading ? (
-                      <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />)}</div>
-                    ) : fetchError ? (
-                      <div className="p-4 bg-red-50 rounded-2xl border border-red-100 space-y-2">
-                        <div className="flex items-center gap-2 text-red-600">
-                          <Database className="w-4 h-4" />
-                          <p className="text-[11px] font-black uppercase">Configuration Error</p>
-                        </div>
-                        <p className="text-[10px] font-bold text-red-800">{fetchError.message}</p>
-                        {fetchError.hint && <p className="text-[9px] text-red-600/70 italic bg-white/50 p-2 rounded-lg">{fetchError.hint}</p>}
-                        {fetchError.found && (
-                          <div className="pt-2 border-t border-red-100">
-                            <p className="text-[9px] font-black text-red-400 uppercase mb-1">Columns found in your DB:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {fetchError.found.map(f => <span key={f} className="text-[8px] px-1.5 py-0.5 bg-white text-red-400 rounded-md border border-red-50 font-bold">{f}</span>)}
+                  ) : (
+                    <div className="flex gap-4 h-full pb-2">
+                      {chunks.map((chunk) => {
+                        const isSelected = selectedChunkIds.includes(chunk.id);
+                        return (
+                          <div key={chunk.id} className={`flex flex-col gap-3 p-4 min-w-[240px] max-w-[240px] rounded-3xl border-2 transition-all ${isSelected ? 'bg-indigo-50/50 border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+                            <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleChunkSelection(chunk.id)}>
+                              <span className={`text-sm font-black truncate pr-2 ${isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>{chunk.text}</span>
+                              <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 text-white rotate-0' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600'}`}>{isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}</div>
+                            </div>
+                            <div className="space-y-1.5 mt-1 border-t border-slate-100 pt-3">
+                              {[0, 1, 2].map(idx => (
+                                <input 
+                                  key={idx} 
+                                  type="text" 
+                                  value={chunk.alternatives[idx] || ''} 
+                                  onChange={(e) => { const n = [...chunk.alternatives]; n[idx] = e.target.value; updateChunkAlternatives(chunk.id, n); }} 
+                                  placeholder={`Alternative Answer ${idx + 2}...`} 
+                                  className="w-full h-8 px-3 rounded-xl border border-slate-100 bg-slate-50/30 outline-none text-[10px] font-bold focus:border-indigo-500 transition-all" 
+                                />
+                              ))}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    ) : questionsOnPage.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
-                        <Search className="w-8 h-8 opacity-20" />
-                        <p className="text-[10px] font-black uppercase">No questions found</p>
-                      </div>
-                    ) : (
-                      questionsOnPage.map(q => (
-                        <button 
-                          key={q.id} 
-                          onClick={() => handleSelectQuestion(q)} 
-                          className={`w-full text-left p-3 rounded-2xl border-2 transition-all group ${
-                            selectedQuestion?.id === q.id ? 'border-blue-500 bg-blue-50/50' : 'border-slate-50 hover:border-blue-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <p className="text-[11px] font-black text-slate-700 leading-tight truncate flex-1">{q.question}</p>
-                            {q.day && (
-                              <span className="shrink-0 text-[8px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md font-black uppercase border border-indigo-100/50">
-                                Day {q.day}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[9px] font-bold text-slate-400 group-hover:text-slate-500">Ans: {q.answer}</p>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* RIGHT BOTTOM: CHUNK EDITOR */}
-                <div className="h-1/2 flex flex-col bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-                  <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
-                    <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5" /> Chunk Editor
-                    </h3>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => initializeChunks(selectedQuestion?.answer || '')} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg font-black text-[10px] hover:bg-slate-200 transition-all"><RotateCcw className="w-3.5 h-3.5" /></button>
-                      <button onClick={combineChunks} disabled={selectedChunkIds.length < 2} className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-black text-[10px] disabled:opacity-30">Combine</button>
-                      <button onClick={() => setStep('preview')} disabled={!cropStart || chunks.length === 0} className="px-3 py-1 bg-blue-600 text-white rounded-lg font-black text-[10px] disabled:opacity-30">Preview</button>
+                        );
+                      })}
                     </div>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4">
-                    {chunks.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
-                        <Type className="w-8 h-8 opacity-20" />
-                        <p className="text-[10px] font-black uppercase">Select a question to edit chunks</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {chunks.map((chunk) => {
-                          const isSelected = selectedChunkIds.includes(chunk.id);
-                          return (
-                            <div key={chunk.id} className={`flex flex-col gap-1.5 p-2 rounded-xl border-2 transition-all ${isSelected ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-slate-50'}`}>
-                              <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleChunkSelection(chunk.id)}>
-                                <span className={`text-[10px] font-black truncate ${isSelected ? 'text-indigo-700' : 'text-slate-800'}`}>{chunk.text}</span>
-                                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-300'}`}>{isSelected ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5" />}</div>
-                              </div>
-                              <div className="space-y-1 mt-1 border-t pt-2">
-                                {[0, 1, 2].map(idx => (
-                                  <input 
-                                    key={idx} 
-                                    type="text" 
-                                    value={chunk.alternatives[idx] || ''} 
-                                    onChange={(e) => { const n = [...chunk.alternatives]; n[idx] = e.target.value; updateChunkAlternatives(chunk.id, n); }} 
-                                    placeholder={`Alt ${idx + 2}`} 
-                                    className="w-full h-5 px-2 rounded-md border border-slate-100 bg-slate-50/50 outline-none text-[9px] font-bold" 
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-
               </div>
+
             </div>
           )}
 
