@@ -212,62 +212,86 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setLoading(true);
     setFetchError(null);
     try {
-      const { data, error } = await supabase.functions.invoke('reading-api', {
+      // Use notion-api directly — the same proven pattern as Spaced Repetition's NotionImporter
+      const { data, error } = await supabase.functions.invoke('notion-api', {
         headers: {
-          'x-action': 'list-page-questions',
-          'x-database-id': questionsDbId,
-          'x-day-number': selectedPdf.day?.toString() || ''
+          'x-action': 'query-mcq-database',
+          'x-database-id': questionsDbId
         },
         body: { 
-          action: 'list-page-questions',
-          sourcePageId: selectedPdf.pageId, 
-          dayNumber: selectedPdf.day,
-          pageNumber: page,
-          questionsDatabaseId: questionsDbId
-        }
+          databaseId: questionsDbId,
+          action: 'query-mcq-database'
+        },
+        method: 'POST'
       });
       
       if (error) {
-        // Handle Edge Function errors safely
-        let errMessage = 'Failed to fetch questions';
-        let errHint = undefined;
-        let errFound = undefined;
-
-        try {
-          // Attempt to parse if it's JSON
-          const errData = typeof error.message === 'string' && error.message.startsWith('{') 
-            ? JSON.parse(error.message) 
-            : { error: error.message };
-            
-          errMessage = errData.error || errMessage;
-          errHint = errData.hint;
-          errFound = errData.found;
-        } catch (e) {
-          // If parsing fails (e.g. HTML 404), use the raw message
-          errMessage = error.message || 'Edge Function returned an invalid response (404/500)';
-          errHint = 'This usually means the function is not deployed or the URL is incorrect.';
-        }
-
+        console.error('[ReadingPractice] notion-api error:', error);
         setFetchError({
-          message: errMessage,
-          hint: errHint,
-          found: errFound
+          message: error.message || 'Failed to fetch from Notion',
+          hint: 'Make sure the database is shared with the integration and ID is correct.'
         });
         setQuestionsOnPage([]);
         return;
       }
 
       if (data?.error) {
-        setFetchError({
-          message: data.error,
-          hint: data.hint,
-          found: data.found
-        });
+        setFetchError({ message: data.error });
         setQuestionsOnPage([]);
-      } else {
-        const results = parseReadingNotionResponse(data?.results || []);
-        setQuestionsOnPage(results);
+        return;
       }
+
+      if (!data?.results || data.results.length === 0) {
+        setFetchError({ message: 'No questions found in this Notion database.' });
+        setQuestionsOnPage([]);
+        return;
+      }
+
+      // Parse raw Notion results on the frontend (same as Spaced Repetition)
+      const allQuestions = parseReadingNotionResponse(data.results);
+      
+      // Frontend filtering by Day and Page if available
+      let filtered = allQuestions;
+      if (selectedPdf.day) {
+        filtered = filtered.filter(q => {
+          // Check if question has matching day info in its raw data
+          const rawPage = data.results.find((r: any) => r.id === q.id);
+          if (!rawPage) return true; // Keep if we can't check
+          const props = rawPage.properties || {};
+          const dayProp = props['Day'] || props['day'];
+          if (!dayProp) return true; // Keep if no Day column
+          
+          let dayVal: any = null;
+          if (dayProp.number !== undefined && dayProp.number !== null) dayVal = dayProp.number;
+          else if (dayProp.select?.name) dayVal = dayProp.select.name;
+          else if (dayProp.rich_text?.[0]?.plain_text) dayVal = dayProp.rich_text[0].plain_text;
+          
+          return dayVal !== null && String(dayVal) === String(selectedPdf.day);
+        });
+      }
+
+      // Also filter by page number if available
+      if (page) {
+        const pageFiltered = filtered.filter(q => {
+          const rawPage = data.results.find((r: any) => r.id === q.id);
+          if (!rawPage) return true;
+          const props = rawPage.properties || {};
+          const pageProp = props['Page'] || props['page'] || props['Page Number'];
+          if (!pageProp) return true; // Keep if no Page column
+          
+          let pageVal: any = null;
+          if (pageProp.number !== undefined && pageProp.number !== null) pageVal = pageProp.number;
+          else if (pageProp.select?.name) pageVal = pageProp.select.name;
+          else if (pageProp.rich_text?.[0]?.plain_text) pageVal = pageProp.rich_text[0].plain_text;
+          
+          return pageVal !== null && String(pageVal) === String(page);
+        });
+        // Only apply page filter if it doesn't eliminate everything
+        if (pageFiltered.length > 0) filtered = pageFiltered;
+      }
+
+      console.log(`[ReadingPractice] Fetched ${allQuestions.length} total, ${filtered.length} after filtering (day=${selectedPdf.day}, page=${page})`);
+      setQuestionsOnPage(filtered);
     } catch (err) {
       console.error('Error fetching questions:', err);
       setFetchError({ message: 'Connection error. Please check your Notion configuration.' });
