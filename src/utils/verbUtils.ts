@@ -8,7 +8,8 @@ export type VerbFormType =
   | 'past_continuous' 
   | 'future' 
   | 'present_perfect'
-  | 'plural';
+  | 'plural'
+  | 'singular';
 
 export interface VerbForm {
   text: string;
@@ -84,15 +85,23 @@ export const getVerbForms = (text: string): VerbForm[] => {
 };
 
 /**
- * Generates noun forms (specifically plural).
+ * Generates noun forms (singular and plural).
  */
 export const getNounForms = (text: string): VerbForm[] => {
   if (!text) return [];
   const doc = nlp(text);
+  const singular = doc.nouns().toSingular().text().trim();
   const plural = doc.nouns().toPlural().text().trim();
   
-  // If pluralization didn't change the word, don't return an alternative
-  if (plural.toLowerCase() === text.trim().toLowerCase()) return [];
+  const forms: VerbForm[] = [];
+  
+  if (singular && singular.toLowerCase() !== text.trim().toLowerCase()) {
+    forms.push({ text: singular, type: 'singular' });
+  }
+  
+  if (plural && plural.toLowerCase() !== text.trim().toLowerCase()) {
+    forms.push({ text: plural, type: 'plural' });
+  }
 
-  return [{ text: plural, type: 'plural' }];
+  return forms;
 };

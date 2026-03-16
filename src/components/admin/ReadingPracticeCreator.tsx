@@ -98,6 +98,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const overlayRef = useRef<HTMLDivElement>(null);
   const cropStartRef = useRef<{ x: number; y: number } | null>(null);
   const cropEndRef = useRef<{ x: number; y: number } | null>(null);
+  
+  // Preview Selection State
+  const [previewSelections, setPreviewSelections] = useState<Record<string, string>>({});
+  const [previewPrefixes, setPreviewPrefixes] = useState<Record<string, string>>({});
 
   // 1. Initial Load & Fetching
   useEffect(() => {
@@ -106,6 +110,34 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       handleRemotePdf(initialPdfUrl, initialTitle || 'Untitled');
     }
   }, []);
+
+  // Sync Preview state when entering preview step
+  useEffect(() => {
+    if (step === 'preview') {
+      const selections: Record<string, string> = {};
+      const prefixes: Record<string, string> = {};
+
+      chunks.forEach(c => {
+        if (c.alternatives.length > 0) {
+          // Default selection to base form for verbs, singular for nouns
+          let defaultOpt = c.alternatives[0];
+          
+          if (c.mode === 'verb') {
+            const base = c.alternatives.find(a => a.type === 'base');
+            if (base) defaultOpt = base;
+          } else if (c.mode === 'noun') {
+            const singular = c.alternatives.find(a => a.type === 'singular');
+            if (singular) defaultOpt = singular;
+          }
+          
+          selections[c.id] = defaultOpt.text;
+          if (defaultOpt.prefix) prefixes[c.id] = ''; // Pupil enters this
+        }
+      });
+      setPreviewSelections(selections);
+      setPreviewPrefixes(prefixes);
+    }
+  }, [step, chunks]);
 
   const fetchPdfs = async () => {
     setLoading(true);
@@ -480,10 +512,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       if (newMode === 'noun') {
         const nounForms = getNounForms(c.text);
         newAlts = nounForms.map(vf => ({ text: vf.text, type: vf.type }));
-        selectedTypes = ['plural'];
+        selectedTypes = nounForms.map(vf => vf.type);
       } else {
         const verbForms = getVerbForms(c.text);
-        // Default to base form for verbs
         newAlts = verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type }));
         selectedTypes = ['base'];
       }
@@ -940,9 +971,44 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   <p className="font-black text-lg text-slate-800">{selectedQuestion ? selectedQuestion.question : title}</p>
                 </div>
                 <div className="flex flex-wrap gap-3 p-2">
-                  {chunks.map(c => (
-                    <div key={c.id} className="px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-sm font-black text-slate-700">{c.text}{c.alternatives.length > 0 && <span className="ml-2 text-[8px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full">+{c.alternatives.length}</span>}</div>
-                  ))}
+                  {chunks.map(c => {
+                    const hasOptions = c.alternatives.length > 0;
+                    if (!hasOptions) {
+                      return (
+                        <div key={c.id} className="px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl shadow-sm text-sm font-black text-slate-700">
+                          {c.text}
+                        </div>
+                      );
+                    }
+
+                    const options = [{ text: c.text }, ...c.alternatives];
+                    const uniqueOptions = Array.from(new Map(options.map(o => [`${o.prefix || ''}:${o.text}`, o])).values());
+                    const showPrefix = c.alternatives.some(a => a.prefix);
+
+                    return (
+                      <div key={c.id} className="flex items-center gap-2 p-1 bg-slate-50 rounded-[1.5rem] border border-slate-100 shadow-inner">
+                        {showPrefix && (
+                          <input 
+                            type="text"
+                            placeholder={c.alternatives.find(a => a.prefix)?.prefix || '...'}
+                            value={previewPrefixes[c.id] || ''}
+                            onChange={(e) => setPreviewPrefixes(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            className="w-16 h-10 px-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20"
+                          />
+                        )}
+                        <select 
+                          value={previewSelections[c.id] || ''}
+                          onChange={(e) => setPreviewSelections(prev => ({ ...prev, [c.id]: e.target.value }))}
+                          className="h-10 px-4 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:border-indigo-300 transition-all appearance-none pr-8 relative bg-no-repeat bg-[right_0.5rem_center]"
+                          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` }}
+                        >
+                          {uniqueOptions.map((opt, i) => (
+                            <option key={i} value={opt.text}>{opt.text}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
                 <button onClick={() => handleSaveAll(chunks.map(c => c.id).sort(() => Math.random() - 0.5))} disabled={saving} className="w-full mt-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg hover:bg-blue-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
                   {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
