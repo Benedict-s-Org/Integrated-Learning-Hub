@@ -87,7 +87,7 @@ type AppState =
   | { page: 'adminHomeworkRecord' }
   | { page: 'broadcastManagement' }
   | { page: 'adminTimetable' }
-  | { page: 'readingComprehension' };
+  | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string };
 
 function AppContent() {
   const location = useLocation();
@@ -929,6 +929,13 @@ function AppContent() {
                       page: 'spacedRepetition'
                     });
                   }}
+                  onLoadReading={(assignment) => {
+                    setAppState({
+                      page: 'readingComprehension',
+                      practiceId: assignment.content_data.practice_id,
+                      assignmentId: assignment.assignment_id,
+                    });
+                  }}
                 />
               );
             case 'assignmentManagement':
@@ -1035,7 +1042,14 @@ function AppContent() {
             case 'broadcastManagement':
               return <BroadcastManagementPage />;
             case 'readingComprehension':
-              return isAdmin && !isUserView ? <ReadingManagementPage /> : <ReadingLearningPage />;
+              return isAdmin && !isUserView ? (
+                <ReadingManagementPage />
+              ) : (
+                <ReadingLearningPage 
+                  practiceId={appState.page === 'readingComprehension' ? appState.practiceId : undefined}
+                  assignmentId={appState.page === 'readingComprehension' ? appState.assignmentId : undefined}
+                />
+              );
           }
         })()}
       </Suspense>

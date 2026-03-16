@@ -12,11 +12,20 @@ interface ReadingPractice {
   question_count?: number;
 }
 
-export const ReadingLearningPage: React.FC = () => {
+interface ReadingLearningPageProps {
+  practiceId?: string;
+  assignmentId?: string;
+}
+
+export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
+  practiceId: initialPracticeId,
+  assignmentId: initialAssignmentId
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [practices, setPractices] = useState<ReadingPractice[]>([]);
-  const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
+  const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(initialPracticeId || null);
+  const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(initialAssignmentId || null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -36,12 +45,14 @@ export const ReadingLearningPage: React.FC = () => {
       
       // Filter for reading modes and format
       const readingAssignments = (data || [])
-        .filter((a: any) => a.type === 'reading-rearrange' || a.type === 'reading-proof')
+        .filter((a: any) => a.assignment_type === 'reading' || a.type === 'reading-rearrange' || a.type === 'reading-proof')
         .map((a: any) => ({
-          id: a.id,
+          id: a.content_data?.practice_id || a.id,
+          assignmentId: a.assignment_id,
           title: a.title,
-          type: a.type,
-          level_info: a.level_info,
+          type: a.content_data?.interaction_type === 'rearrange' ? 'reading-rearrange' : 
+                a.content_data?.interaction_type === 'proofreading' ? 'reading-proof' : a.type,
+          level_info: a.assignment_level || a.level_info,
           // We still need the image URL, so we fetch it or use a default
           passage_image_url: '', // Will fetch below
           question_count: 0
@@ -70,6 +81,12 @@ export const ReadingLearningPage: React.FC = () => {
         });
 
         setPractices(finalData);
+
+        // If we have an initial practice but it wasn't selected yet (due to detail loading)
+        // ensure it has proper interaction mode from data
+        if (initialPracticeId && !selectedPracticeId) {
+          setSelectedPracticeId(initialPracticeId);
+        }
       } else {
         setPractices([]);
       }
@@ -91,13 +108,18 @@ export const ReadingLearningPage: React.FC = () => {
       <ReadingChallenge 
         practiceId={selectedPracticeId}
         studentId={user.id}
+        assignmentId={activeAssignmentId || (selectedPractice as any)?.assignmentId}
         interactionMode={(selectedPractice as any)?.type === 'reading-rearrange' ? 'rearrange' : 'proofreading'}
         onComplete={(score, bonus) => {
           console.log(`Completed with score: ${score}, bonus: ${bonus}`);
           setSelectedPracticeId(null);
+          setActiveAssignmentId(null);
           fetchPractices();
         }}
-        onExit={() => setSelectedPracticeId(null)}
+        onExit={() => {
+          setSelectedPracticeId(null);
+          setActiveAssignmentId(null);
+        }}
       />
     );
   }

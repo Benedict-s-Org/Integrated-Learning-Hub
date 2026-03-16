@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
 import { ReadingNotionBrowser } from '@/components/admin/ReadingNotionBrowser';
+import { ReadingPracticePreviewModal } from '@/components/admin/ReadingPracticePreviewModal';
+import { ReadingAssignmentModal } from '@/components/admin/ReadingAssignmentModal';
 
 interface ReadingPractice {
   id: string;
@@ -20,6 +22,9 @@ export const ReadingManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [notionParams, setNotionParams] = useState<{ url: string; title: string } | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [selectedPracticeTitle, setSelectedPracticeTitle] = useState('');
 
   useEffect(() => {
     if (view === 'list') fetchPractices();
@@ -42,7 +47,7 @@ export const ReadingManagementPage: React.FC = () => {
       
       const formattedData = data.map((p: any) => ({
         ...p,
-        question_count: p.reading_questions?.[0]?.count || 0
+        question_count: (p.reading_questions as any)?.[0]?.count || 0
       }));
 
       setPractices(formattedData);
@@ -75,20 +80,20 @@ export const ReadingManagementPage: React.FC = () => {
     if (!confirm('Are you sure you want to delete this question?')) return;
     try {
       // 1. Get the image URL before deleting the record
-      const { data: question } = await supabase
-        .from('reading_questions')
+      const { data: question } = await (supabase
+        .from('reading_questions' as any) as any)
         .select('question_image_url')
         .eq('id', id)
         .single();
       
       if (question?.question_image_url) {
-        const fileName = question.question_image_url.split('/').pop();
+        const fileName = (question as any).question_image_url.split('/').pop();
         if (fileName) {
           await supabase.storage.from('reading-passages').remove([fileName]);
         }
       }
 
-      const { error } = await supabase.from('reading_questions').delete().eq('id', id);
+      const { error } = await (supabase.from('reading_questions' as any) as any).delete().eq('id', id);
       if (error) throw error;
       setAplusQuestions(prev => prev.filter(q => q.id !== id));
     } catch (error) {
@@ -355,13 +360,55 @@ export const ReadingManagementPage: React.FC = () => {
                     }}
                     className="text-indigo-600 text-sm font-bold flex items-center gap-1 hover:underline"
                   >
-                    Manage Questions <ArrowRight className="w-3 h-3" />
+                    Manage <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="mt-6 flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      setActivePracticeId(practice.id);
+                      setShowPreviewModal(true);
+                    }}
+                    className="w-full py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all text-xs"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Practice
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActivePracticeId(practice.id);
+                      setSelectedPracticeTitle(practice.title);
+                      setShowAssignmentModal(true);
+                    }}
+                    className="w-full py-2 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all text-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Assign to Students
                   </button>
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+      {/* Modals */}
+      {showPreviewModal && activePracticeId && (
+        <ReadingPracticePreviewModal 
+          isOpen={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          practiceId={activePracticeId}
+        />
+      )}
+
+      {showAssignmentModal && activePracticeId && (
+        <ReadingAssignmentModal 
+          isOpen={showAssignmentModal}
+          onClose={() => setShowAssignmentModal(false)}
+          practiceId={activePracticeId}
+          practiceTitle={selectedPracticeTitle}
+        />
       )}
     </div>
   );

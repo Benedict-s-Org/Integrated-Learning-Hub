@@ -46,6 +46,7 @@ interface Question {
 interface ReadingChallengeProps {
   practiceId: string;
   studentId: string;
+  assignmentId?: string;
   interactionMode?: 'rearrange' | 'proofreading';
   onComplete: (score: number, bonus: number) => void;
   onExit: () => void;
@@ -121,7 +122,8 @@ const SortableWord: React.FC<{
 export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   practiceId,
   studentId,
-  interactionMode,
+  assignmentId,
+  interactionMode: propInteractionMode,
   onComplete,
   onExit
 }) => {
@@ -177,9 +179,9 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         .eq('practice_id', practiceId);
 
       // Filter by interaction mode if provided
-      if (interactionMode) {
+      if (propInteractionMode) {
         // 'rearrange' from UI maps to 'rearrange' or 'aplus-coordinates' in DB
-        if (interactionMode === 'rearrange') {
+        if (propInteractionMode === 'rearrange') {
           query = query.in('interaction_type', ['rearrange', 'aplus-coordinates']);
         } else {
           query = query.eq('interaction_type', 'proofreading');
@@ -195,9 +197,9 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       // This means if student is Level 2, they ONLY see Level 2. If student is Level 1, they see 1 and 2.
       const { data: userData } = await supabase.from('users').select('*').eq('id', studentId).single();
       const u = userData as any;
-      const studentLevel = interactionMode === 'rearrange' 
-        ? u?.reading_rearranging_level || 1
-        : u?.reading_proofreading_level || 1;
+      const studentLevel = propInteractionMode === 'rearrange' 
+        ? (u.reading_level || 1) 
+        : (u.reading_proof_level || 1);
 
       const filteredQuestions = (qData as unknown as Question[] || []).filter(q => {
         if (studentLevel === 1) return true; // Level 1 sees everything (1 and 2, or 1,2,3)
@@ -358,13 +360,31 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     });
   };
 
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     if (currentIndex < questions.length - 1) {
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
       setupInteraction(questions[nextIdx]);
     } else {
       setStatus('finished');
+      
+      // Update assignment table if needed
+      if (assignmentId) {
+        try {
+          const finalScore = score;
+          await (supabase
+            .from('reading_practice_assignments' as any) as any)
+            .update({
+              completed: true,
+              completed_at: new Date().toISOString(),
+              score: finalScore
+            })
+            .eq('id', assignmentId);
+        } catch (err) {
+          console.error('Error updating reading assignment:', err);
+        }
+      }
+
       onComplete(score, bonusCoins);
     }
   };
