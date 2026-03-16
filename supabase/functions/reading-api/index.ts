@@ -37,16 +37,24 @@ Deno.serve(async (req: Request) => {
     const notionToken = Deno.env.get("NOTION_TOKEN");
     if (!notionToken) return createCORSResponse({ error: "Missing NOTION_TOKEN" }, 500, req);
 
-    const VERSION = "1.0.0-reading";
+    const VERSION = "1.0.2-routing-fix";
     const url = new URL(req.url);
-    const path = url.pathname.replace(/\/+$/, "");
+    const pathParts = url.pathname.split("/").filter(Boolean);
     
     let body: any = {};
     if (req.method === "POST" || req.method === "PUT") {
       try { body = await req.json(); } catch { /* ignore */ }
     }
     
-    const action = req.headers.get("x-action") || body.action || url.searchParams.get("action") || path.split("/").pop();
+    // Priority: Header > Body > Query Param > Path Suffix (if not function name)
+    let action = req.headers.get("x-action") || body.action || url.searchParams.get("action");
+    if (!action && pathParts.length > 0) {
+      const lastPart = pathParts[pathParts.length - 1];
+      if (lastPart !== "reading-api") {
+        action = lastPart;
+      }
+    }
+
     const dbId = req.headers.get("x-database-id") || body.databaseId || url.searchParams.get("databaseId") || "3239baca6fa380a9b501deceb133946d";
 
     console.log(`[reading-api] [${VERSION}] Action: ${action}, DB ID: ${dbId}`);
@@ -200,7 +208,7 @@ Deno.serve(async (req: Request) => {
         Object.keys(props).find(p => possibleNames.includes(p.toLowerCase()));
 
       const questionProp = findProp(["question", "問題", "題目", "name", "名稱"]);
-      const sourcePdfProp = findProp(["source pdf", "來源檔案", "pdf", "file", "檔案"]);
+      const sourcePdfProp = findProp(["source pdf", "來源檔案", "pdf", "file", "檔案", "day", "日期"]);
       const pageNumberProp = findProp(["page number", "頁碼", "頁面", "page"]);
       const answerProp = findProp(["answer", "答案", "correct answer", "正確答案", "choice a"]);
 
@@ -213,22 +221,33 @@ Deno.serve(async (req: Request) => {
         }, 400, req);
       }
 
+      const sourcePdfType = props[sourcePdfProp]?.type;
+      const pageNumberType = props[pageNumberProp]?.type;
+
+      // Build the filter dynamically based on property types
+      const andFilters: any[] = [];
+
+      // 1. Source/PDF/Day Filter
+      if (sourcePdfType === 'relation') {
+        andFilters.push({ property: sourcePdfProp, relation: { contains: sourcePageId } });
+      } else if (sourcePdfType === 'number' || sourcePdfType === 'select') {
+        // Fallback: If it's a number/select, try to find by title/name of the source page
+        // or just skip if we don't have a numeric ID (though usually sourcePageId is UUID)
+        // For now, if it's a relation we match it, otherwise we might need a different linker
+      }
+
+      // 2. Page Number Filter
+      if (pageNumberType === 'number') {
+        andFilters.push({ property: pageNumberProp, number: { equals: parseInt(pageNumber) } });
+      } else if (pageNumberType === 'select' || pageNumberType === 'rich_text') {
+        andFilters.push({ property: pageNumberProp, [pageNumberType]: { equals: pageNumber.toString() } });
+      }
+
       const resp = await fetch(`${NOTION_API}/databases/${qDbId}/query`, {
         method: "POST",
         headers: notionHeaders(notionToken),
         body: JSON.stringify({
-          filter: {
-            and: [
-              {
-                property: sourcePdfProp,
-                relation: { contains: sourcePageId }
-              },
-              {
-                property: pageNumberProp,
-                number: { equals: parseInt(pageNumber) }
-              }
-            ]
-          }
+          filter: andFilters.length > 0 ? { and: andFilters } : undefined
         })
       });
 

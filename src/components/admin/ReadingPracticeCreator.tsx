@@ -99,7 +99,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('reading-api', {
-        body: { action: 'list-reading-pdfs' }
+        body: { action: 'list-activities' }
       });
       
       if (error) throw error;
@@ -210,12 +210,30 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       });
       
       if (error) {
-        // Handle Edge Function errors
-        const errData = error.message ? JSON.parse(error.message) : error;
+        // Handle Edge Function errors safely
+        let errMessage = 'Failed to fetch questions';
+        let errHint = undefined;
+        let errFound = undefined;
+
+        try {
+          // Attempt to parse if it's JSON
+          const errData = typeof error.message === 'string' && error.message.startsWith('{') 
+            ? JSON.parse(error.message) 
+            : { error: error.message };
+            
+          errMessage = errData.error || errMessage;
+          errHint = errData.hint;
+          errFound = errData.found;
+        } catch (e) {
+          // If parsing fails (e.g. HTML 404), use the raw message
+          errMessage = error.message || 'Edge Function returned an invalid response (404/500)';
+          errHint = 'This usually means the function is not deployed or the URL is incorrect.';
+        }
+
         setFetchError({
-          message: errData.error || 'Failed to fetch questions',
-          hint: errData.hint,
-          found: errData.found
+          message: errMessage,
+          hint: errHint,
+          found: errFound
         });
         setQuestionsOnPage([]);
         return;
