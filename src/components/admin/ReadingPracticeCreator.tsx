@@ -116,7 +116,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       const results = (data?.results || []).map((item: any) => ({
         ...item,
         day: item.day
-      }));
+      })).sort((a: any, b: any) => (Number(a.day) || 0) - (Number(b.day) || 0));
       setPdfs(results);
     } catch (err) {
       console.error('Error fetching PDFs:', err);
@@ -291,6 +291,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         // Only apply page filter if it doesn't eliminate everything
         if (pageFiltered.length > 0) filtered = pageFiltered;
       }
+
+      // Sort by Day then Page ascending
+      filtered.sort((a, b) => {
+        const dayA = Number(a.day) || 0;
+        const dayB = Number(b.day) || 0;
+        if (dayA !== dayB) return dayA - dayB;
+        return (a.page || 0) - (b.page || 0);
+      });
 
       console.log(`[ReadingPractice] Fetched ${allQuestions.length} total, ${filtered.length} after filtering (day=${selectedPdf.day}, page=${page})`);
       setQuestionsOnPage(filtered);
