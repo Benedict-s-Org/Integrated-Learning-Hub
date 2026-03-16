@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-client-info",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-client-info, x-action, x-database-id, x-day-number",
 };
 
 const VERSION = "1.0.0 (Split)";
@@ -242,7 +242,7 @@ Deno.serve(async (req: Request) => {
             managed_by_id: metadata.managed_by_id || null,
             class_number: metadata.class_number || metadata.classNumber || null,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'username' });
+          }, { onConflict: 'id' });
 
           if (upsertError) {
             errors.push({ email: authUser.email, error: upsertError.message });
@@ -283,7 +283,7 @@ Deno.serve(async (req: Request) => {
         class: metadata.class || null,
         managed_by_id: metadata.managed_by_id || null,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'username' });
+      }, { onConflict: 'id' });
 
       if (upsertError) return new Response(JSON.stringify({ error: upsertError.message }), { status: 500, headers: corsHeaders });
 

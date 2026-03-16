@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-action, x-database-id",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-action, x-database-id, x-day-number",
   "Vary": "Origin",
 };
 
