@@ -93,6 +93,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const cropStartRef = useRef<{ x: number; y: number } | null>(null);
+  const cropEndRef = useRef<{ x: number; y: number } | null>(null);
 
   // 1. Initial Load & Fetching
   useEffect(() => {
@@ -318,21 +321,59 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setCropStart({ x, y });
-    setCropEnd({ x, y });
+    
+    const pos = { x, y };
+    cropStartRef.current = pos;
+    cropEndRef.current = pos;
+    setCropStart(pos);
+    setCropEnd(pos);
     setIsCropping(true);
+
+    // Immediate visual reset for the overlay
+    if (overlayRef.current) {
+      overlayRef.current.style.display = 'block';
+      overlayRef.current.style.left = `${x}px`;
+      overlayRef.current.style.top = `${y}px`;
+      overlayRef.current.style.width = '0px';
+      overlayRef.current.style.height = '0px';
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isCropping || !canvasRef.current) return;
+    if (!isCropping || !canvasRef.current || !overlayRef.current || !cropStartRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setCropEnd({ x, y });
+    
+    // Direct DOM update for performance
+    const startX = cropStartRef.current.x;
+    const startY = cropStartRef.current.y;
+    
+    cropEndRef.current = { x, y };
+    
+    const left = Math.min(startX, x);
+    const top = Math.min(startY, y);
+    const width = Math.abs(startX - x);
+    const height = Math.abs(startY - y);
+    
+    overlayRef.current.style.left = `${left}px`;
+    overlayRef.current.style.top = `${top}px`;
+    overlayRef.current.style.width = `${width}px`;
+    overlayRef.current.style.height = `${height}px`;
   };
 
-  const handleMouseUp = () => {
-    if (step !== 'workspace') return;
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (step !== 'workspace' || !isCropping || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const pos = { x, y };
+    cropEndRef.current = pos;
+    
+    // Final state sync for React components
+    setCropEnd(pos);
     setIsCropping(false);
   };
 
@@ -744,17 +785,17 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   >
                     {loading && <div className="absolute inset-0 bg-white/60 flex flex-col items-center justify-center z-10 backdrop-blur-md"><Loader2 className="w-12 h-12 animate-spin text-indigo-600" /><p className="mt-4 text-xs font-black text-indigo-900 uppercase tracking-widest">Rendering Page...</p></div>}
                     <canvas ref={canvasRef} className="max-w-full h-auto cursor-crosshair block rounded-sm shadow-sm" />
-                    {cropStart && cropEnd && (
-                      <div 
-                        className="absolute border-[3px] border-indigo-500 bg-indigo-500/10 pointer-events-none shadow-[0_0_25px_rgba(79,70,229,0.4)] transition-all ring-2 ring-white/50" 
-                        style={{ 
-                          left: Math.min(cropStart.x, cropEnd.x), 
-                          top: Math.min(cropStart.y, cropEnd.y), 
-                          width: Math.abs(cropStart.x - cropEnd.x), 
-                          height: Math.abs(cropStart.y - cropEnd.y) 
-                        }} 
-                      />
-                    )}
+                    <div 
+                      ref={overlayRef}
+                      className="absolute border-[3px] border-indigo-500 bg-indigo-500/10 pointer-events-none shadow-[0_0_25px_rgba(79,70,229,0.4)] ring-2 ring-white/50"
+                      style={{ 
+                        display: cropStart && cropEnd ? 'block' : 'none',
+                        left: cropStart ? Math.min(cropStart.x, cropEnd?.x || cropStart.x) : 0,
+                        top: cropStart ? Math.min(cropStart.y, cropEnd?.y || cropStart.y) : 0,
+                        width: cropStart && cropEnd ? Math.abs(cropStart.x - cropEnd.x) : 0,
+                        height: cropStart && cropEnd ? Math.abs(cropStart.y - cropEnd.y) : 0
+                      }} 
+                    />
                   </div>
                 </div>
               </div>
