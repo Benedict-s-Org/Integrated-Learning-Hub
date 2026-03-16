@@ -34,6 +34,7 @@ interface NotionQuestion {
   question: string;
   answer: string;
   day?: string;
+  page?: number;
 }
 
 type CreatorStep = 'select-pdf' | 'workspace' | 'preview';
@@ -334,6 +335,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       setTitle(q.question);
     }
     initializeChunks(q.answer);
+    
+    // Auto-jump to page if available in properties
+    if (q.page && q.page >= 1 && q.page <= numPages && q.page !== pageNum) {
+      setPageNum(q.page);
+      setPageNumInput(q.page.toString());
+      fetchQuestionsForPage(q.page);
+    }
   };
 
 

@@ -263,6 +263,7 @@ export interface ReadingQuestion {
   question: string;
   answer: string;
   day?: string;
+  page?: number;
 }
 
 /**
@@ -278,14 +279,17 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
     const questionText = extractNotionProperty(props, ['Question', 'question', '問題', '題目', 'Name', '名稱']);
     const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer']);
     const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
+    const pageText = extractNotionProperty(props, ['Page', 'page', '頁', '頁數', 'Page Number']);
     
     // We only need question and answer for the creator's list
     if (questionText) {
+      const pageNum = parseInt(pageText, 10);
       questions.push({
         id: page.id,
         question: questionText,
         answer: answerText || '',
-        day: dayText || undefined
+        day: dayText || undefined,
+        page: isNaN(pageNum) ? undefined : pageNum
       });
     }
   }
