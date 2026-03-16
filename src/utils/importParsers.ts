@@ -262,6 +262,7 @@ export interface ReadingQuestion {
   id: string;
   question: string;
   answer: string;
+  day?: string;
 }
 
 /**
@@ -276,13 +277,15 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
 
     const questionText = extractNotionProperty(props, ['Question', 'question', '問題', '題目', 'Name', '名稱']);
     const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer']);
+    const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
     
     // We only need question and answer for the creator's list
     if (questionText) {
       questions.push({
         id: page.id,
         question: questionText,
-        answer: answerText || ''
+        answer: answerText || '',
+        day: dayText || undefined
       });
     }
   }

@@ -33,6 +33,7 @@ interface NotionQuestion {
   id: string;
   question: string;
   answer: string;
+  day?: string;
 }
 
 type CreatorStep = 'select-pdf' | 'workspace' | 'preview';
@@ -676,7 +677,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                             selectedQuestion?.id === q.id ? 'border-blue-500 bg-blue-50/50' : 'border-slate-50 hover:border-blue-200'
                           }`}
                         >
-                          <p className="text-[11px] font-black text-slate-700 leading-tight mb-1">{q.question}</p>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="text-[11px] font-black text-slate-700 leading-tight truncate flex-1">{q.question}</p>
+                            {q.day && (
+                              <span className="shrink-0 text-[8px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md font-black uppercase border border-indigo-100/50">
+                                Day {q.day}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[9px] font-bold text-slate-400 group-hover:text-slate-500">Ans: {q.answer}</p>
                         </button>
                       ))
