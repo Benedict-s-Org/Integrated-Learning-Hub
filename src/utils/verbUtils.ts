@@ -7,7 +7,8 @@ export type VerbFormType =
   | 'past' 
   | 'past_continuous' 
   | 'future' 
-  | 'present_perfect';
+  | 'present_perfect'
+  | 'plural';
 
 export interface VerbForm {
   text: string;
@@ -80,4 +81,18 @@ export const getVerbForms = (text: string): VerbForm[] => {
   }
 
   return result;
+};
+
+/**
+ * Generates noun forms (specifically plural).
+ */
+export const getNounForms = (text: string): VerbForm[] => {
+  if (!text) return [];
+  const doc = nlp(text);
+  const plural = doc.nouns().toPlural().text().trim();
+  
+  // If pluralization didn't change the word, don't return an alternative
+  if (plural.toLowerCase() === text.trim().toLowerCase()) return [];
+
+  return [{ text: plural, type: 'plural' }];
 };

@@ -10,7 +10,7 @@ import {
   Loader2, Check, Layers, Type, 
   RotateCcw, Database, Upload
 } from 'lucide-react';
-import { getVerbForms, isVerb } from '@/utils/verbUtils';
+import { getVerbForms, isVerb, getNounForms } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 
@@ -28,6 +28,7 @@ interface ChunkOption {
   id: string;
   text: string;
   alternatives: { text: string; prefix?: string }[];
+  mode?: 'verb' | 'noun';
 }
 
 interface NotionQuestion {
@@ -465,6 +466,22 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setSelectedChunkIds([]);
   };
 
+  const handleToggleMode = (id: string) => {
+    setChunks(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const newMode = c.mode === 'noun' ? 'verb' : 'noun';
+      let newAlts = [];
+      if (newMode === 'noun') {
+        const nounForms = getNounForms(c.text);
+        newAlts = nounForms.map(vf => ({ text: vf.text }));
+      } else {
+        const verbForms = getVerbForms(c.text);
+        newAlts = verbForms.map(vf => ({ text: vf.text, prefix: vf.prefix }));
+      }
+      return { ...c, mode: newMode, alternatives: newAlts };
+    }));
+  };
+
   const updateChunkAlternatives = (id: string, alts: { text: string; prefix?: string }[]) => {
     setChunks(prev => prev.map(c => c.id === id ? { ...c, alternatives: alts.filter(a => a.text.trim() !== '') } : c));
   };
@@ -831,10 +848,18 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         const isSelected = selectedChunkIds.includes(chunk.id);
                         return (
                           <div key={chunk.id} className={`flex flex-col gap-3 p-4 min-w-[140px] w-fit rounded-3xl border-2 transition-all ${isSelected ? 'bg-indigo-50/50 border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
-                            <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleChunkSelection(chunk.id)}>
+                            <div className={`flex items-center justify-between cursor-pointer`} onClick={() => toggleChunkSelection(chunk.id)}>
                               <span className={`text-sm font-black truncate pr-2 ${isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>{chunk.text}</span>
                               <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 text-white rotate-0' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600'}`}>{isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}</div>
                             </div>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleToggleMode(chunk.id); }}
+                              className={`w-full py-1 text-[8px] font-black uppercase tracking-widest rounded-lg border transition-all ${chunk.mode === 'noun' ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-100' : 'bg-white border-slate-100 text-slate-400 hover:border-amber-200 hover:text-amber-600'}`}
+                            >
+                              {chunk.mode === 'noun' ? 'Noun Mode' : 'Switch to Noun'}
+                            </button>
+
                             <div className="space-y-1.5 mt-1 border-t border-slate-100 pt-3">
                               {[0, 1, 2].map(idx => (
                                 <div key={idx} className="flex gap-1">
