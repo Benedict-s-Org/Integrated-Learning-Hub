@@ -773,7 +773,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                       {chunks.map((chunk) => {
                         const isSelected = selectedChunkIds.includes(chunk.id);
                         return (
-                          <div key={chunk.id} className={`flex flex-col gap-3 p-4 min-w-[180px] max-w-[180px] rounded-3xl border-2 transition-all ${isSelected ? 'bg-indigo-50/50 border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+                          <div key={chunk.id} className={`flex flex-col gap-3 p-4 min-w-[140px] w-fit rounded-3xl border-2 transition-all ${isSelected ? 'bg-indigo-50/50 border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
                             <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleChunkSelection(chunk.id)}>
                               <span className={`text-sm font-black truncate pr-2 ${isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>{chunk.text}</span>
                               <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 text-white rotate-0' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600'}`}>{isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}</div>
