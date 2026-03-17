@@ -844,8 +844,50 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     }
   };
 
-  const handleRemoveLocalQuestion = (id: string) => {
+  const handleRemoveLocalQuestion = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setLocalQuestions(prev => prev.filter(lq => lq.id !== id));
+  };
+
+  const handleLoadFromQueue = (lq: typeof localQuestions[0]) => {
+    // 1. Restore question and chunks
+    setSelectedQuestion(lq.question);
+    setChunks([...lq.chunks]);
+    
+    // 2. Restore PDF Page
+    if (lq.coords.page !== pageNum) {
+      setPageNum(lq.coords.page);
+      setPageNumInput(lq.coords.page.toString());
+      fetchQuestionsForPage(lq.coords.page);
+    }
+    
+    // 3. Restore Crop Coordinates (scaled back to current canvas pixels)
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const x = lq.coords.x * canvas.width;
+      const y = lq.coords.y * canvas.width; // Should be canvas.width if coords were normalized by width, wait let me check handleAddQuestion
+      
+      // Let's re-read handleAddQuestion logic for coords normalization
+      // 805: x: pxX / canvas.width, 
+      // 806: y: pxY / canvas.height, 
+      
+      const restoredStart = { x: lq.coords.x * canvas.width, y: lq.coords.y * canvas.height };
+      const restoredEnd = { 
+        x: (lq.coords.x + lq.coords.w) * canvas.width, 
+        y: (lq.coords.y + lq.coords.h) * canvas.height 
+      };
+      
+      setCropStart(restoredStart);
+      setCropEnd(restoredEnd);
+      cropStartRef.current = restoredStart;
+      cropEndRef.current = restoredEnd;
+    }
+
+    // 4. Remove from queue so it can be re-added
+    handleRemoveLocalQuestion(lq.id);
+    
+    // 5. Scroll to workspace area
+    containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
   const handlePreviewDragEnd = (event: DragEndEvent) => {
@@ -1426,10 +1468,15 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                       {localQuestions.map((lq, idx) => (
-                        <div key={lq.id} className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-200 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col">
+                        <div 
+                          key={lq.id} 
+                          onClick={() => handleLoadFromQueue(lq)}
+                          className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-400 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col cursor-pointer active:scale-[0.98]"
+                        >
                           <button 
-                            onClick={() => handleRemoveLocalQuestion(lq.id)}
-                            className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            onClick={(e) => handleRemoveLocalQuestion(lq.id, e)}
+                            className="absolute top-6 right-6 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
+                            title="Remove from queue"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1437,6 +1484,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                           <div className="flex items-center gap-2 mb-4">
                             <span className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                            <div className="flex-1" />
+                            <div className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[8px] font-black opacity-0 group-hover:opacity-100 transition-opacity">
+                              CLICK TO EDIT
+                            </div>
                           </div>
 
                           <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden mb-4 border border-slate-100">
