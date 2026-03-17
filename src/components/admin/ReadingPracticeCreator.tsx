@@ -783,18 +783,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
       setLocalQuestions(prev => [...prev, newLocalQuestion]);
       
-      // Reset current question selection state
-      setSelectedQuestion(null);
-      setChunks([]);
-      setCropStart(null);
-      setCropEnd(null);
-      setPreviewSelections({});
-      setPreviewPrefixes({});
-      
-      // Scroll to bottom to show the queue
-      setTimeout(() => {
-        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
-      }, 100);
+      // 6. Fresh Start for next question
+      handleStartNewQuestion();
 
     } catch (err: any) {
       console.error('[ReadingCreator] Add error:', err);
@@ -846,6 +836,23 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
+  const handleStartNewQuestion = () => {
+    setSelectedQuestion(null);
+    setChunks([]);
+    setSelectedChunkIds([]);
+    setPreviewSelections({});
+    setPreviewPrefixes({});
+    setPreviewChunkOrder([]);
+    setCropStart(null);
+    setCropEnd(null);
+    cropStartRef.current = null;
+    cropEndRef.current = null;
+    setIsCropping(false);
+    
+    // Scroll to Top
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const renderPracticeQueue = (isInsideCard: boolean = false) => {
     const shouldShow = localQuestions.length > 0 || (step === 'workspace' && isInsideCard);
     if (!shouldShow) return null;
@@ -864,7 +871,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           
           <div className="flex items-center gap-3">
             <button
-              onClick={() => containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' })}
+              onClick={handleStartNewQuestion}
               className="px-6 py-4 bg-white border-2 border-slate-100 text-indigo-600 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-95 flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
