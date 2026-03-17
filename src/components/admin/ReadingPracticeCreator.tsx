@@ -415,7 +415,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         
         // Advance to next step if we have a proper PDF
         setStep('workspace');
-        fetchQuestionsForPage(1); // Explicitly pass 1 for initial load
+        fetchQuestionsForPage();
       } catch (error) {
         console.error('Error loading PDF:', error);
         alert('Failed to load PDF.');
@@ -464,7 +464,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     };
   }, [pdfDoc, pageNum, step]);
 
-  const fetchQuestionsForPage = async (page: number = pageNum) => {
+  const fetchQuestionsForPage = async () => {
     if (!selectedPdf || selectedPdf.pageId === 'local') {
       setQuestionsOnPage([]);
       return;
@@ -506,64 +506,22 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         setQuestionsOnPage([]);
         return;
       }
-
       // Parse raw Notion results on the frontend (same as Spaced Repetition)
       const allQuestions = parseReadingNotionResponse(data.results);
+      setQuestionsOnPage(allQuestions);
       
-      // Frontend filtering by Day and Page if available
-      let filtered = allQuestions;
-      const targetDay = selectedPdf.day || selectedDay; // Use selectedDay as fallback during init
-      
-      if (targetDay) {
-        filtered = filtered.filter(q => {
-          // Check if question has matching day info in its raw data
-          const rawPage = data.results.find((r: any) => r.id === q.id);
-          if (!rawPage) return true; // Keep if we can't check
-          const props = rawPage.properties || {};
-          const dayProp = props['Day'] || props['day'];
-          if (!dayProp) return true; // Keep if no Day column
-          
-          let dayVal: any = null;
-          if (dayProp.number !== undefined && dayProp.number !== null) dayVal = dayProp.number;
-          else if (dayProp.select?.name) dayVal = dayProp.select.name;
-          else if (dayProp.rich_text?.[0]?.plain_text) dayVal = dayProp.rich_text[0].plain_text;
-          
-          return dayVal !== null && String(dayVal) === String(targetDay);
-        });
-      }
-
-      // Also filter by page number if available
-      if (page) {
-        const pageFiltered = filtered.filter(q => {
-          const rawPage = data.results.find((r: any) => r.id === q.id);
-          if (!rawPage) return true;
-          const props = rawPage.properties || {};
-          const pageProp = props['Page'] || props['page'] || props['Page Number'];
-          if (!pageProp) return true; // Keep if no Page column
-          
-          let pageVal: any = null;
-          if (pageProp.number !== undefined && pageProp.number !== null) pageVal = pageProp.number;
-          else if (pageProp.select?.name) pageVal = pageProp.select.name;
-          else if (pageProp.rich_text?.[0]?.plain_text) pageVal = pageProp.rich_text[0].plain_text;
-          
-          return pageVal !== null && String(pageVal) === String(page);
-        });
-        // Only apply page filter if it doesn't eliminate everything
-        if (pageFiltered.length > 0) filtered = pageFiltered;
-      }
-
       // Sort by Day then Page ascending
-      filtered.sort((a, b) => {
+      allQuestions.sort((a, b) => {
         const dayA = Number(a.day) || 0;
         const dayB = Number(b.day) || 0;
         if (dayA !== dayB) return dayA - dayB;
         return (a.page || 0) - (b.page || 0);
       });
 
-      console.log(`[ReadingPractice] Fetched ${allQuestions.length} total, ${filtered.length} after filtering (day=${selectedPdf.day}, page=${page})`);
-      setQuestionsOnPage(filtered);
+      console.log(`[ReadingPractice] Fetched ${allQuestions.length} total questions from Notion.`);
+      setQuestionsOnPage(allQuestions);
       
-      const uniqueDays = Array.from(new Set(filtered.map(q => q.day).filter(Boolean))) as string[];
+      const uniqueDays = Array.from(new Set(allQuestions.map(q => q.day).filter(Boolean))) as string[];
       if (uniqueDays.length > 0 && !selectedDay) {
         setSelectedDay(uniqueDays[0]);
       }
@@ -651,7 +609,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     if (q.page && q.page >= 1 && q.page <= numPages && q.page !== pageNum) {
       setPageNum(q.page);
       setPageNumInput(q.page.toString());
-      fetchQuestionsForPage(q.page);
+      fetchQuestionsForPage();
     }
   };
 
@@ -858,7 +816,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     if (lq.coords.page !== pageNum) {
       setPageNum(lq.coords.page);
       setPageNumInput(lq.coords.page.toString());
-      fetchQuestionsForPage(lq.coords.page);
+      fetchQuestionsForPage();
     }
     
     // 3. Restore Crop Coordinates (scaled back to current canvas pixels)
@@ -1260,12 +1218,12 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 <div className="flex items-center justify-between bg-white px-6 py-4 rounded-[2rem] shadow-xl border border-slate-100 shrink-0">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                      <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+                      <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
                       <div className="flex items-center gap-2 px-3">
-                        <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(v); } else { setPageNumInput(pageNum.toString()); } }} className="w-10 h-8 text-center font-black border-2 border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none transition-all" />
+                        <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(); } else { setPageNumInput(pageNum.toString()); } }} className="w-10 h-8 text-center font-black border-2 border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none transition-all" />
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">of {numPages}</span>
                       </div>
-                      <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(p); }} disabled={pageNum >= numPages || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
+                      <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum >= numPages || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
                     </div>
                   </div>
                   
