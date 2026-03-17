@@ -1456,14 +1456,24 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         </div>
                       </div>
                       
-                      <button
-                        onClick={handleSavePractice}
-                        disabled={saving}
-                        className="px-8 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:bg-emerald-600 shadow-xl shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
-                      >
-                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
-                        {saving ? 'Completing Save...' : (editId ? 'Update Practice' : 'Save Practice & Finalize')}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' })}
+                          className="px-6 py-4 bg-white border-2 border-slate-100 text-indigo-600 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-95 flex items-center gap-2"
+                        >
+                          <Plus className="w-5 h-5" />
+                          Add Question
+                        </button>
+                        
+                        <button
+                          onClick={handleSavePractice}
+                          disabled={saving}
+                          className="px-8 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:bg-emerald-600 shadow-xl shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
+                        >
+                          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
+                          {saving ? 'Completing Save...' : (editId ? 'Update Practice' : 'Save Practice & Finalize')}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
