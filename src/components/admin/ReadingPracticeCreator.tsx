@@ -218,6 +218,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     previewUrl: string;
     randomizedIds: string[];
   }[]>([]);
+  const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
 
   // 1. Initial Load & Fetching
   useEffect(() => {
@@ -766,7 +767,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       const previewUrl = URL.createObjectURL(blob);
       
       const newLocalQuestion = {
-        id: crypto.randomUUID(),
+        id: editingLocalId || crypto.randomUUID(),
         question: selectedQuestion,
         chunks: [...chunks],
         coords: { 
@@ -781,7 +782,11 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         randomizedIds
       };
 
-      setLocalQuestions(prev => [...prev, newLocalQuestion]);
+      if (editingLocalId) {
+        setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? newLocalQuestion : lq));
+      } else {
+        setLocalQuestions(prev => [...prev, newLocalQuestion]);
+      }
       
       // 6. Fresh Start for next question
       handleStartNewQuestion();
@@ -812,11 +817,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     // 3. Restore Crop Coordinates (scaled back to current canvas pixels)
     if (canvasRef.current) {
       const canvas = canvasRef.current;
-      
-      // Let's re-read handleAddQuestion logic for coords normalization
-      // 805: x: pxX / canvas.width, 
-      // 806: y: pxY / canvas.height, 
-      
       const restoredStart = { x: lq.coords.x * canvas.width, y: lq.coords.y * canvas.height };
       const restoredEnd = { 
         x: (lq.coords.x + lq.coords.w) * canvas.width, 
@@ -829,14 +829,15 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       cropEndRef.current = restoredEnd;
     }
 
-    // 4. Remove from queue so it can be re-added
-    handleRemoveLocalQuestion(lq.id);
+    // 4. Set as active editing item
+    setEditingLocalId(lq.id);
     
     // 5. Scroll to workspace area
     containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
   const handleStartNewQuestion = () => {
+    setEditingLocalId(null);
     setSelectedQuestion(null);
     setChunks([]);
     setSelectedChunkIds([]);
