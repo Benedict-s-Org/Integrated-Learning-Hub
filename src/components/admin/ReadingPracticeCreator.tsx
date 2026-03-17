@@ -278,9 +278,17 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         setSelectedDay(firstDay);
       }
 
-      // 4. Handle PDF loading if source exists
+      // 4. Restore Context
+      const firstMetadata = (mappedQuestions[0] as any)?.metadata;
+      if (firstMetadata?.questions_db_id) {
+        setQuestionsDbId(firstMetadata.questions_db_id);
+      }
+      
+      // 5. Handle PDF loading if source exists
       if (practice.source_pdf_url) {
-        handleRemotePdf(practice.source_pdf_url, practice.title || 'Untitled');
+        // Try to find full context for Day restoration
+        const fullContext = pdfs.find(p => p.fileUrl === practice.source_pdf_url);
+        handleRemotePdf(practice.source_pdf_url, practice.title || 'Untitled', fullContext);
       }
     } catch (err) {
       console.error('Error fetching practice for editing:', err);
@@ -358,8 +366,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     }
   };
 
-  const handleRemotePdf = async (url: string, name: string) => {
-    setSelectedPdf({ pageId: 'remote', name, fileUrl: url });
+  const handleRemotePdf = async (url: string, name: string, fullContext?: ReadingPdf) => {
+    setSelectedPdf(fullContext || { pageId: 'remote', name, fileUrl: url });
     // This will trigger the PDF loader useEffect
   };
 
@@ -504,7 +512,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       
       // Frontend filtering by Day and Page if available
       let filtered = allQuestions;
-      if (selectedPdf.day) {
+      const targetDay = selectedPdf.day || selectedDay; // Use selectedDay as fallback during init
+      
+      if (targetDay) {
         filtered = filtered.filter(q => {
           // Check if question has matching day info in its raw data
           const rawPage = data.results.find((r: any) => r.id === q.id);
@@ -518,7 +528,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           else if (dayProp.select?.name) dayVal = dayProp.select.name;
           else if (dayProp.rich_text?.[0]?.plain_text) dayVal = dayProp.rich_text[0].plain_text;
           
-          return dayVal !== null && String(dayVal) === String(selectedPdf.day);
+          return dayVal !== null && String(dayVal) === String(targetDay);
         });
       }
 
