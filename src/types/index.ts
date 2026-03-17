@@ -52,7 +52,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics';
 
 export type AppPage = PageType;
 

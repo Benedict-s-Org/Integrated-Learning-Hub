@@ -335,6 +335,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={window.location.pathname === '/admin/users'}
                                 onClick={() => navigate('/admin/users')}
                             />
+                            <NavItem
+                                icon={TrendingUp}
+                                label="Analytics Dashboard (Beta)"
+                                isActive={currentPage === 'adminAnalytics'}
+                                onClick={() => onPageChange('adminAnalytics')}
+                            />
                             {realIsSuperAdmin && (
                                 <NavItem
                                     icon={Crown}

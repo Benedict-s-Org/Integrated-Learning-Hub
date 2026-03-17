@@ -21,6 +21,7 @@ import { FurnitureUploader } from './components/furniture/FurnitureUploader';
 import { FurnitureEditor } from './components/editor/FurnitureEditor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
+import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
 import {
   Word,
   MemorizationState,
@@ -87,7 +88,8 @@ type AppState =
   | { page: 'adminHomeworkRecord' }
   | { page: 'broadcastManagement' }
   | { page: 'adminTimetable' }
-  | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string };
+  | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
+  | { page: 'adminAnalytics' };
 
 function AppContent() {
   const location = useLocation();
@@ -269,6 +271,7 @@ function AppContent() {
     appState.page === 'spacedRepetition' ||
     appState.page === 'wordSnake' ||
     appState.page === 'flowithTest' ||
+    appState.page === 'adminAnalytics' ||
     (appState.page === 'classDashboard' && !isStaff);
 
   if (!user && isRestrictedPage) {
@@ -283,7 +286,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics')) {
       setShowLoginModal(true);
       return;
     }
@@ -371,6 +374,8 @@ function AppContent() {
       setAppState({ page: 'readingComprehension' });
     } else if (page === 'adminTimetable') {
       setAppState({ page: 'adminTimetable' });
+    } else if (page === 'adminAnalytics') {
+      setAppState({ page: 'adminAnalytics' });
     }
   };
 
@@ -986,6 +991,8 @@ function AppContent() {
               );
             case 'flowithTest':
               return <FlowithTestPage />;
+            case 'adminAnalytics':
+              return <AdminAnalyticsPage />;
             case 'wordSnake':
               return <IPadInteractiveZone />;
             case 'classDashboard':

@@ -219,6 +219,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     randomizedIds: string[];
   }[]>([]);
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   // 1. Initial Load & Fetching
   useEffect(() => {
@@ -226,6 +227,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     if (initialPdfUrl) {
       handleRemotePdf(initialPdfUrl, initialTitle || 'Untitled');
     }
+  }, []);
+
+  useEffect(() => {
     if (editId) {
       fetchPracticeForEditing();
     }
@@ -765,9 +769,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       if (!blob) throw new Error('Failed to capture selection as image.');
       
       const previewUrl = URL.createObjectURL(blob);
+      const newId = crypto.randomUUID(); // ALWAYS generate a new ID for Add
       
       const newLocalQuestion = {
-        id: editingLocalId || crypto.randomUUID(),
+        id: newId,
         question: selectedQuestion,
         chunks: [...chunks],
         coords: { 
@@ -782,18 +787,72 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         randomizedIds
       };
 
-      if (editingLocalId) {
-        setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? newLocalQuestion : lq));
-      } else {
-        setLocalQuestions(prev => [...prev, newLocalQuestion]);
-      }
-      
-      // 6. Fresh Start for next question
-      handleStartNewQuestion();
+      // ALWAYS append on Add
+      setLocalQuestions(prev => [...prev, newLocalQuestion]);
+      // After adding, detach so the next addition is completely fresh
+      setEditingLocalId(null);
 
     } catch (err: any) {
       console.error('[ReadingCreator] Add error:', err);
       alert(`Failed to add question: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleUpdateQuestion = async (randomizedIds: string[]) => {
+    if (!editingLocalId) return;
+    if (!pdfDoc || !cropStart || !cropEnd || !selectedQuestion) {
+      alert('Please select a question and draw a crop selection on the PDF first.');
+      return;
+    }
+
+    const pxW = Math.abs(cropStart.x - cropEnd.x);
+    const pxH = Math.abs(cropStart.y - cropEnd.y);
+    
+    if (pxW < 10 || pxH < 10) {
+      alert('Crop selection is too small. Please draw a larger area.');
+      return;
+    }
+
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) throw new Error('Canvas not ready');
+      
+      const pxX = Math.min(cropStart.x, cropEnd.x);
+      const pxY = Math.min(cropStart.y, cropEnd.y);
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = pxW;
+      cropCanvas.height = pxH;
+      const cropCtx = cropCanvas.getContext('2d');
+      if (!cropCtx) throw new Error('Could not create crop canvas context');
+      cropCtx.drawImage(canvas, pxX, pxY, pxW, pxH, 0, 0, pxW, pxH);
+      
+      const blob = await new Promise<Blob | null>(resolve => cropCanvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Failed to capture selection as image.');
+      
+      const previewUrl = URL.createObjectURL(blob);
+      
+      const updatedLocalQuestion = {
+        id: editingLocalId,
+        question: selectedQuestion,
+        chunks: [...chunks],
+        coords: { 
+          x: pxX / canvas.width, 
+          y: pxY / canvas.height, 
+          w: pxW / canvas.width, 
+          h: pxH / canvas.height, 
+          page: pageNum 
+        },
+        imageBlob: blob,
+        previewUrl,
+        randomizedIds
+      };
+
+      setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? updatedLocalQuestion : lq));
+      // Keep attached after update to allow further continuous editing
+    } catch (err: any) {
+      console.error('[ReadingCreator] Update error:', err);
+      alert(`Failed to update question: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -837,6 +896,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   };
 
   const handleStartNewQuestion = () => {
+    setIsResetting(true);
     setEditingLocalId(null);
     setSelectedQuestion(null);
     setChunks([]);
@@ -851,6 +911,18 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setIsCropping(false);
     
     // Scroll to Top
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // End transition
+    setTimeout(() => {
+      setIsResetting(false);
+    }, 400);
+  };
+
+  const handlePrepareNewCard = () => {
+    // This is the "Templating" reset: only clear the editing ID 
+    // so the purple button becomes "Add as NEW" again, but keep data.
+    setEditingLocalId(null);
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -872,11 +944,11 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           
           <div className="flex items-center gap-3">
             <button
-              onClick={handleStartNewQuestion}
+              onClick={handlePrepareNewCard}
               className="px-6 py-4 bg-white border-2 border-slate-100 text-indigo-600 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-95 flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              Add Question
+              Prepare Next Question (Keep current as template)
             </button>
             
             <button
@@ -1129,7 +1201,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isResetting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
         <div className="p-4 bg-white/50 border-b">{renderStepIndicator()}</div>
         <div className="flex-1 overflow-auto p-8 flex flex-col items-center">
           
@@ -1327,8 +1399,16 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         <FileText className="w-4 h-4 text-indigo-600" /> Evidence Canvas
                       </span>
                     </div>
-                    <button onClick={() => { setCropStart(null); setCropEnd(null); }} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-slate-100">
-                      <RotateCcw className="w-3.5 h-3.5" /> Clear Selection
+                    
+                    <button 
+                      onClick={handleStartNewQuestion} 
+                      className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 hover:text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border-2 border-slate-100 hover:border-red-100 shadow-sm group"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 group-hover:-rotate-90 transition-transform" /> Full Reset (Blank Slot)
+                    </button>
+
+                    <button onClick={() => { setCropStart(null); setCropEnd(null); }} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-500 hover:bg-slate-100 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-slate-100">
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear Crop Only
                     </button>
                   </div>
                 </div>
@@ -1436,8 +1516,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
               </div>
 
-              {/* PRACTICE CONTENT QUEUE (TOP) */}
-              {renderPracticeQueue()}
 
                 {/* UNIFIED INTERACTIVE PREVIEW & SAVE */}
                 {chunks.length > 0 && (
@@ -1483,14 +1561,37 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         </SortableContext>
                       </DndContext>
 
-                      <button
-                        onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
-                        disabled={saving || !cropStart}
-                        className="w-full mt-8 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
-                      >
-                        <Plus className="w-6 h-6" />
-                        Add Question to Practice Queue
-                      </button>
+                      <div className="flex flex-col gap-3 mt-8">
+                        {editingLocalId ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
+                              disabled={saving || !cropStart}
+                              className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                            >
+                              <Check className="w-6 h-6" />
+                              {`Update Card #${localQuestions.findIndex(q => q.id === editingLocalId) + 1} in Queue`}
+                            </button>
+                            <button
+                              onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
+                              disabled={saving || !cropStart}
+                              className="w-full py-3 bg-emerald-600 text-white rounded-[1.5rem] font-bold text-sm hover:bg-emerald-700 shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add as NEW Question (Card #{localQuestions.length + 1})
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
+                            disabled={saving || !cropStart}
+                            className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                          >
+                            <Plus className="w-6 h-6" />
+                            {`Add as NEW Question (Card #${localQuestions.length + 1})`}
+                          </button>
+                        )}
+                      </div>
 
                       {/* PRACTICE CONTENT QUEUE (IN-CARD) */}
                       {renderPracticeQueue(true)}
