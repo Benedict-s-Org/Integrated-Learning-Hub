@@ -154,8 +154,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   editId
 }) => {
   const { user } = useAuth();
-  const [step, setStep] = useState<CreatorStep>((editId || initialPdfUrl) ? 'workspace' : 'select-pdf');
-  const loadedUrlRef = useRef<string | null>(null);
+  const [step, setStep] = useState<CreatorStep>('select-pdf');
   
   // PDF State
   const [pdfs, setPdfs] = useState<ReadingPdf[]>([]);
@@ -385,15 +384,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   useEffect(() => {
     const loadPdfDoc = async () => {
       if (!selectedPdf) return;
-      
-      // Safety check: Don't re-load the same PDF if the URL is identical
-      // (This avoids re-fetching when we "upgrade" selectedPdf with Day/Metadata)
-      if (selectedPdf.fileUrl && loadedUrlRef.current === selectedPdf.fileUrl && pdfDoc) {
-        console.log('[ReadingCreator] PDF already loaded, skipping re-fetch:', selectedPdf.fileUrl);
-        setStep('workspace');
-        return;
-      }
-
       setLoading(true);
       try {
         let arrayBuffer: ArrayBuffer;
@@ -419,7 +409,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const doc = await loadingTask.promise;
         setPdfDoc(doc);
-        loadedUrlRef.current = selectedPdf.fileUrl || 'local'; // Track what we loaded
         setNumPages(doc.numPages);
         setPageNum(1);
         setPageNumInput('1');
