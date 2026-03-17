@@ -146,6 +146,22 @@ This workflow documents common errors encountered during development and best pr
 - **Ignore Literal Meaning**: Ignore the literal meaning of the options.
 - **Strict Adherence**: If the user makes it a reward, it is a reward permanently. If the user makes it a consequence, it is a consequence permanently.
 - **No Nature Editing**: The system should not edit the nature in all circumstances. Never hardcode logic that changes an item's behavior or type purely based on assumptions about its title.
+### 19. RPC Parameter & Name Mismatch
+**Problem**: Calling `supabase.rpc('func', { p_limit: 50 })` failed because the database function actually expected `limit_count`. Also, functions returning single objects instead of arrays caused `.map()` crashes.
+
+**Prevention**:
+- Always check the **SQL definition** of an RPC before calling it from the frontend.
+- Standardize parameter names (e.g., always use `p_` prefix or camelCase consistently).
+- Handle return types defensively: `Array.isArray(data) ? data.map(...) : []`.
+
+### 20. Accidental Logic Truncation
+**Problem**: During a `replace_file_content` call, a large block of logic (like the `fetchAnalytics` body) was accidentally removed or replaced with a comment, breaking the feature.
+
+**Prevention**:
+- Avoid replacing large blocks with "remains same" comments unless you are 100% sure the tool or system will handle the merge correctly (it often doesn't).
+- After a multi-line edit, use `view_file` to verify the code is still structurally sound.
+- If a file is critical, favor `multi_replace_file_content` with small, non-contiguous chunks to preserve the surrounding logic.
+
 ### 18. Outdated Codebase Manifest
 **Problem**: Making structural changes to the codebase (adding pages, renaming core services, shifting database logic) but forgetting to update `.agent/codebase_manifest.md` causes future AI agents to base their logic on outdated architecture.
 

@@ -30,6 +30,11 @@ interface ClassSummary {
     total_sessions: number;
     total_time_minutes: number;
   };
+  spaced_repetition: {
+    total_attempts: number;
+    average_accuracy: number;
+    total_time_minutes: number;
+  };
 }
 
 interface StudentPerformance {
@@ -42,6 +47,8 @@ interface StudentPerformance {
   proofreading_avg_accuracy: number;
   proofreading_practices: number;
   memorization_sessions: number;
+  sr_attempts: number;
+  sr_avg_accuracy: number;
   total_practices: number;
   overall_avg_accuracy: number;
 }
@@ -79,14 +86,16 @@ export function AdminAnalyticsPage() {
         class_name: d.class_name || 'Unassigned',
         spelling: d.spelling || { total_practices: 0, average_accuracy: 0, total_time_minutes: 0 },
         proofreading: d.proofreading || { total_practices: 0, average_accuracy: 0, total_time_minutes: 0 },
-        memorization: d.memorization || { total_sessions: 0, total_time_minutes: 0 }
+        memorization: d.memorization || { total_sessions: 0, total_time_minutes: 0 },
+        spaced_repetition: d.spaced_repetition || { total_attempts: 0, average_accuracy: 0, total_time_minutes: 0 }
       })) : [];
       
       const validSummaries = parsedSummaries.filter((c: any) => 
         c.class_name !== 'Unassigned' || 
         c.spelling.total_practices > 0 || 
         c.proofreading.total_practices > 0 || 
-        c.memorization.total_sessions > 0
+        c.memorization.total_sessions > 0 ||
+        c.spaced_repetition.total_attempts > 0
       );
       setClassSummaries(validSummaries.sort((a: any, b: any) => a.class_name.localeCompare(b.class_name)));
       
@@ -136,12 +145,14 @@ export function AdminAnalyticsPage() {
     Spelling: c.spelling.total_practices,
     Proofreading: c.proofreading.total_practices,
     Memorization: c.memorization.total_sessions,
+    'SR Review': c.spaced_repetition.total_attempts,
   }));
 
   const accuracyData = classSummaries.map(c => ({
     name: c.class_name,
-    'Spelling Acc %': Math.round(c.spelling.average_accuracy),
-    'Proofreading Acc %': Math.round(c.proofreading.average_accuracy),
+    'Spell Acc %': Math.round(c.spelling.average_accuracy),
+    'Proof Acc %': Math.round(c.proofreading.average_accuracy),
+    'SR Acc %': Math.round(c.spaced_repetition.average_accuracy),
   }));
 
   return (
@@ -225,9 +236,9 @@ export function AdminAnalyticsPage() {
                     <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3">
                       <Clock className="text-orange-600" size={24} />
                     </div>
-                    <p className="text-sm font-medium text-slate-500">Total Practice Sessions</p>
+                    <p className="text-sm font-medium text-slate-500">Total Practice Volume</p>
                     <h3 className="text-3xl font-bold text-slate-800 mt-1">
-                      {studentPerformance.reduce((acc, curr) => acc + (curr.spelling_practices || 0) + (curr.proofreading_practices || 0) + (curr.memorization_sessions || 0), 0)}
+                      {studentPerformance.reduce((acc, curr) => acc + (curr.total_practices || 0), 0)}
                     </h3>
                   </div>
                 </div>
@@ -248,6 +259,7 @@ export function AdminAnalyticsPage() {
                           <Bar dataKey="Spelling" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="Proofreading" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="Memorization" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="SR Review" fill="#EC4899" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -264,8 +276,9 @@ export function AdminAnalyticsPage() {
                           <YAxis axisLine={false} tickLine={false} domain={[0, 100]} />
                           <Tooltip cursor={{ fill: '#F1F5F9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                           <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                          <Bar dataKey="Spelling Acc %" fill="#10B981" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="Proofreading Acc %" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Spell Acc %" fill="#10B981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Proof Acc %" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="SR Acc %" fill="#F43F5E" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -286,11 +299,11 @@ export function AdminAnalyticsPage() {
                         <thead className="bg-white sticky top-0 shadow-sm z-10 text-slate-500 uppercase text-xs font-semibold">
                           <tr>
                             <th className="px-4 py-3">Student</th>
-                            <th className="px-4 py-3 text-center">Spell Acc</th>
-                            <th className="px-4 py-3 text-center">Spell Vol</th>
-                            <th className="px-4 py-3 text-center">Proof Acc</th>
-                            <th className="px-4 py-3 text-center">Proof Vol</th>
-                            <th className="px-4 py-3 text-center">Mem Vol</th>
+                             <th className="px-4 py-3 text-center">Spell Acc</th>
+                             <th className="px-4 py-3 text-center">SR Acc</th>
+                             <th className="px-4 py-3 text-center">Total Vol</th>
+                             <th className="px-4 py-3 text-center">SR Vol</th>
+                             <th className="px-4 py-3 text-center">Mem Vol</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -305,18 +318,18 @@ export function AdminAnalyticsPage() {
                                   <span className="text-xs text-slate-400">({student.class})</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-center">
+                               <td className="px-4 py-3 text-center">
                                 <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${student.spelling_avg_accuracy >= 90 ? 'bg-emerald-100 text-emerald-700' : student.spelling_avg_accuracy >= 70 ? 'bg-amber-100 text-amber-700' : student.spelling_practices > 0 ? 'bg-red-100 text-red-700' : 'text-slate-400'}`}>
                                   {student.spelling_practices > 0 ? `${Math.round(student.spelling_avg_accuracy)}%` : '-'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-center text-slate-600">{student.spelling_practices || '-'}</td>
                               <td className="px-4 py-3 text-center">
-                                 <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${student.proofreading_avg_accuracy >= 90 ? 'bg-emerald-100 text-emerald-700' : student.proofreading_avg_accuracy >= 70 ? 'bg-amber-100 text-amber-700' : student.proofreading_practices > 0 ? 'bg-red-100 text-red-700' : 'text-slate-400'}`}>
-                                  {student.proofreading_practices > 0 ? `${Math.round(student.proofreading_avg_accuracy)}%` : '-'}
+                                <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${student.sr_avg_accuracy >= 90 ? 'bg-emerald-100 text-emerald-700' : student.sr_avg_accuracy >= 70 ? 'bg-amber-100 text-amber-700' : student.sr_attempts > 0 ? 'bg-red-100 text-red-700' : 'text-slate-400'}`}>
+                                  {student.sr_attempts > 0 ? `${Math.round(student.sr_avg_accuracy)}%` : '-'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-center text-slate-600">{student.proofreading_practices || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600 font-bold">{student.total_practices || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600">{student.sr_attempts || '-'}</td>
                               <td className="px-4 py-3 text-center text-slate-600">{student.memorization_sessions || '-'}</td>
                             </tr>
                           ))}
@@ -350,7 +363,12 @@ export function AdminAnalyticsPage() {
 
                           return (
                             <div key={i} className="flex gap-3 items-start group">
-                              <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${isSpelling ? 'bg-blue-100 text-blue-600' : isProofreading ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>
+                              <div className={`mt-1 p-2 rounded-full flex-shrink-0 ${
+                                activity.activity_type === 'spelling' ? 'bg-blue-100 text-blue-600' : 
+                                activity.activity_type === 'proofreading' ? 'bg-purple-100 text-purple-600' : 
+                                activity.activity_type === 'spaced_repetition' ? 'bg-pink-100 text-pink-600' :
+                                'bg-orange-100 text-orange-600'
+                              }`}>
                                 <Activity size={16} />
                               </div>
                               <div className="min-w-0 flex-1">
