@@ -864,8 +864,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     // 3. Restore Crop Coordinates (scaled back to current canvas pixels)
     if (canvasRef.current) {
       const canvas = canvasRef.current;
-      const x = lq.coords.x * canvas.width;
-      const y = lq.coords.y * canvas.width; // Should be canvas.width if coords were normalized by width, wait let me check handleAddQuestion
       
       // Let's re-read handleAddQuestion logic for coords normalization
       // 805: x: pxX / canvas.width, 
@@ -1386,62 +1384,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
               </div>
 
-                {/* UNIFIED INTERACTIVE PREVIEW & SAVE */}
-                {chunks.length > 0 && (
-                  <div className="mt-8 border-t-2 border-slate-50 pt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-100">
-                          <Check className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Interactive Preview</h3>
-                          <p className="text-[10px] font-bold text-slate-400 -mt-0.5">Test the student experience and stage the question</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50/50 p-8 rounded-[3rem] border border-slate-100 relative mb-8">
-                      <DndContext 
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handlePreviewDragEnd}
-                      >
-                        <SortableContext 
-                          items={previewChunkOrder}
-                          strategy={horizontalListSortingStrategy}
-                        >
-                          <div className="flex flex-wrap gap-3 p-2">
-                            {previewChunkOrder.map(chunkId => {
-                              const chunk = chunks.find(c => c.id === chunkId);
-                              if (!chunk) return null;
-                              return (
-                                <SortablePreviewChunk 
-                                  key={chunk.id}
-                                  chunk={chunk}
-                                  previewSelections={previewSelections}
-                                  setPreviewSelections={setPreviewSelections}
-                                  previewPrefixes={previewPrefixes}
-                                  setPreviewPrefixes={setPreviewPrefixes}
-                                />
-                              );
-                            })}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-
-                      <button
-                        onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
-                        disabled={saving || !cropStart}
-                        className="w-full mt-8 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
-                      >
-                        <Plus className="w-6 h-6" />
-                        Add Question to Practice Queue
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 {/* LOCAL QUESTIONS QUEUE */}
                 {localQuestions.length > 0 && (
                   <div className="mt-12 pt-12 border-t-4 border-dashed border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -1518,6 +1460,63 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* UNIFIED INTERACTIVE PREVIEW & SAVE */}
+                {chunks.length > 0 && (
+                  <div className="mt-8 border-t-2 border-slate-50 pt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-100">
+                          <Check className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Interactive Preview</h3>
+                          <p className="text-[10px] font-bold text-slate-400 -mt-0.5">Test the student experience and stage the question</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50/50 p-8 rounded-[3rem] border border-slate-100 relative mb-8">
+                      <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handlePreviewDragEnd}
+                      >
+                        <SortableContext 
+                          items={previewChunkOrder}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <div className="flex flex-wrap gap-3 p-2">
+                            {previewChunkOrder.map(chunkId => {
+                              const chunk = chunks.find(c => c.id === chunkId);
+                              if (!chunk) return null;
+                              return (
+                                <SortablePreviewChunk 
+                                  key={chunk.id}
+                                  chunk={chunk}
+                                  previewSelections={previewSelections}
+                                  setPreviewSelections={setPreviewSelections}
+                                  previewPrefixes={previewPrefixes}
+                                  setPreviewPrefixes={setPreviewPrefixes}
+                                />
+                              );
+                            })}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+
+                      <button
+                        onClick={() => handleAddQuestion(chunks.map(c => c.id).sort(() => Math.random() - 0.5))}
+                        disabled={saving || !cropStart}
+                        className="w-full mt-8 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-lg hover:bg-indigo-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                        <Plus className="w-6 h-6" />
+                        Add Question to Practice Queue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
