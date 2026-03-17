@@ -266,6 +266,14 @@ export interface ReadingQuestion {
   page?: number;
 }
 
+export interface ProofreadingImportData {
+  id: string;
+  original: string; // The sentence with the error
+  corrected: string; // The fully corrected sentence
+  tip?: string;
+  day?: string;
+}
+
 /**
  * Robustly parses a Notion API response for Reading Practice questions.
  * Handles variations of "Question", "Answer", "Page", "Day".
@@ -290,6 +298,35 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
         answer: answerText || '',
         day: dayText || undefined,
         page: isNaN(pageNum) ? undefined : pageNum
+      });
+    }
+  }
+
+  return questions;
+}
+
+/**
+ * Robustly parses a Notion API response for Proofreading Practice questions.
+ * Handles variations for Original, Corrected, Tip, and Day.
+ */
+export function parseProofreadingNotionResponse(results: any[]): ProofreadingImportData[] {
+  const questions: ProofreadingImportData[] = [];
+
+  for (const page of results) {
+    const props = page.properties || {};
+
+    const originalText = extractNotionProperty(props, ['Question', 'question', 'Original', 'original', 'Sentence', 'sentence', '錯誤句子', '題目']);
+    const correctedText = extractNotionProperty(props, ['Answer', 'answer', 'Corrected', 'corrected', 'Correction', 'correction', '正確句子', '答案']);
+    const tipText = extractNotionProperty(props, ['Tip', 'tip', 'Explanation', 'explanation', 'Hint', 'hint', '提示', '解釋']);
+    const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
+    
+    if (originalText && correctedText) {
+      questions.push({
+        id: page.id,
+        original: originalText,
+        corrected: correctedText,
+        tip: tipText || undefined,
+        day: dayText || undefined
       });
     }
   }

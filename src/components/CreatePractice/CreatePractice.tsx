@@ -11,6 +11,7 @@ export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved 
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [words, setWords] = useState<string[]>(['']);
+  const [isPhraseMode, setIsPhraseMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -64,6 +65,7 @@ export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved 
           title: title.trim(),
           words: filteredWords,
           userId: user.id,
+          isPhraseMode: isPhraseMode,
         }),
       });
 
@@ -132,8 +134,22 @@ export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Week 1 Spelling Words"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg"
             />
+          </div>
+
+          <div className="mb-6 flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
+            <div>
+              <p className="font-bold text-blue-900">Phrase Mode</p>
+              <p className="text-sm text-blue-700">Treat each line as a multi-word phrase with letter jumbles</p>
+            </div>
+            <button
+              onClick={() => setIsPhraseMode(!isPhraseMode)}
+              className={`w-14 h-8 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none ${isPhraseMode ? 'bg-blue-600' : 'bg-slate-300'}`}
+            >
+              <div
+                className={`bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-200 ${isPhraseMode ? 'translate-x-6' : 'translate-x-0'}`}
+              />
+            </button>
           </div>
 
           <div className="mb-6">

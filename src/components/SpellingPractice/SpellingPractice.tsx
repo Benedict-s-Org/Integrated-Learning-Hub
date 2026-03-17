@@ -12,9 +12,10 @@ interface SpellingPracticeProps {
   onBack: () => void;
   practiceId?: string;
   assignmentId?: string;
+  isPhraseMode?: boolean;
 }
 
-const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId }) => {
+const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode }) => {
   const { accentPreference, user } = useAuth();
   const startTimeRef = useRef<number>(Date.now());
   const [level, setLevel] = useState<1 | 2>(1);
@@ -288,7 +289,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
         <Card className="p-4 md:p-8">
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-              <h1 className="text-xl md:text-3xl font-bold text-foreground text-center sm:text-left">{title}</h1>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-xl md:text-3xl font-bold text-foreground text-center sm:text-left">{title}</h1>
+                {isPhraseMode && (
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full border border-indigo-200 uppercase tracking-wider">
+                    Phrase Mode
+                  </span>
+                )}
+              </div>
               <span className="text-lg text-muted-foreground font-medium">
                 Word {currentWordIndex + 1} of {words.length}
               </span>
@@ -347,9 +355,9 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                       clickedLetters.map((letter, index) => (
                         <span
                           key={index}
-                          className="text-3xl font-mono bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200"
+                          className={`text-3xl font-mono px-4 py-2 rounded-lg shadow-sm border border-gray-200 ${letter === ' ' ? 'bg-blue-50 border-blue-200 w-12 text-center' : 'bg-white'}`}
                         >
-                          {letter}
+                          {letter === ' ' ? '␣' : letter}
                         </span>
                       ))
                     ) : (
@@ -368,9 +376,9 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                         key={index}
                         onClick={() => handleLetterClick(letter, index)}
                         disabled={showFeedback}
-                        className="text-xl md:text-2xl font-mono bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className={`text-xl md:text-2xl font-mono px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${letter === ' ' ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
                       >
-                        {letter}
+                        {letter === ' ' ? 'Space' : letter}
                       </button>
                     ))}
                   </div>

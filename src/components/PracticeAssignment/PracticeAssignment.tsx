@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, CheckCircle, XCircle, BookOpen, Plus, Play } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import SpellingPreview from '../SpellingPreview/SpellingPreview';
@@ -15,6 +15,7 @@ interface Practice {
   id: string;
   title: string;
   words: string[];
+  is_phrase_mode?: boolean;
   created_at: string;
 }
 
@@ -128,6 +129,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
       const insertData = usersToAssign.map(userId => ({
         practice_id: practice.id,
         user_id: userId,
+        assigned_by: currentUser?.id,
       }));
 
       const { error: insertError } = await supabase
@@ -156,6 +158,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
       <SpellingPreview
         title={practice.title}
         words={practice.words}
+        isPhraseMode={practice.is_phrase_mode}
         onNext={() => setView('practice')}
         onBack={() => isAdmin ? setView('assign') : onBack()}
       />
@@ -167,6 +170,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
       <SpellingPractice
         title={practice.title}
         words={practice.words}
+        isPhraseMode={practice.is_phrase_mode}
         onBack={onBack}
       />
     );

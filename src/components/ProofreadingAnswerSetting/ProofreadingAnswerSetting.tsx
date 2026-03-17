@@ -5,6 +5,7 @@ import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 
 interface ProofreadingAnswerSettingProps {
   sentences: string[];
+  prefilledAnswers?: ProofreadingAnswer[];
   onNext: (answers: ProofreadingAnswer[]) => void;
   onBack: () => void;
   onViewSaved?: () => void;
@@ -12,6 +13,7 @@ interface ProofreadingAnswerSettingProps {
 
 const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
   sentences,
+  prefilledAnswers,
   onNext,
   onBack,
   onViewSaved,
@@ -56,7 +58,28 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
     });
 
     setParsedSentences(parsed);
-  }, [sentences]);
+
+    // Auto-fill if we have prefilledAnswers
+    if (prefilledAnswers && prefilledAnswers.length > 0) {
+      const newSelectedWords = new Map<number, number>();
+      const newCorrections = new Map<number, string>();
+      const newTips = new Map<number, string>();
+
+      prefilledAnswers.forEach(ans => {
+        if (ans.wordIndex !== undefined && ans.lineNumber !== undefined) {
+          newSelectedWords.set(ans.lineNumber, ans.wordIndex);
+          newCorrections.set(ans.lineNumber, ans.correction);
+          if (ans.tip) {
+            newTips.set(ans.lineNumber, ans.tip);
+          }
+        }
+      });
+
+      setSelectedWords(newSelectedWords);
+      setCorrections(newCorrections);
+      setTips(newTips);
+    }
+  }, [sentences, prefilledAnswers]);
 
   const handleWordClick = (lineNumber: number, wordIndex: number) => {
     setSelectedWords(prev => {

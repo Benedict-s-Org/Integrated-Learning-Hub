@@ -11,6 +11,7 @@ interface CreatePracticeRequest {
   title: string;
   words: string[];
   userId: string;
+  isPhraseMode?: boolean;
 }
 
 interface DeletePracticeRequest {
@@ -69,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const path = url.pathname;
 
     if (path.endsWith("/create")) {
-      const { title, words, userId }: CreatePracticeRequest = await req.json();
+      const { title, words, userId, isPhraseMode }: CreatePracticeRequest = await req.json();
 
       const { data: user, error: userError } = await supabase
         .from("users")
@@ -103,6 +104,7 @@ Deno.serve(async (req: Request) => {
           title,
           words,
           created_by: userId,
+          is_phrase_mode: isPhraseMode || false,
         })
         .select()
         .single();

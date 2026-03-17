@@ -58,7 +58,7 @@ type AppState =
   | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
   | { page: 'proofreading'; step: 'input' }
-  | { page: 'proofreading'; step: 'answerSetting'; sentences: string[] }
+  | { page: 'proofreading'; step: 'answerSetting'; sentences: string[]; prefilledAnswers?: ProofreadingAnswer[] }
   | { page: 'proofreading'; step: 'preview'; sentences: string[]; answers: ProofreadingAnswer[] }
   | { page: 'proofreading'; step: 'practice'; sentences: string[]; answers: ProofreadingAnswer[] }
   | { page: 'proofreading'; step: 'saved' }
@@ -514,8 +514,8 @@ function AppContent() {
     setAppState({ page: 'new', step: 'input' });
   };
 
-  const handleProofreadingSentencesSubmit = (sentences: string[]) => {
-    setAppState({ page: 'proofreading', step: 'answerSetting', sentences });
+  const handleProofreadingSentencesSubmit = (sentences: string[], prefilledAnswers?: ProofreadingAnswer[]) => {
+    setAppState({ page: 'proofreading', step: 'answerSetting', sentences, prefilledAnswers });
   };
 
   const handleProofreadingAnswersSet = (answers: ProofreadingAnswer[]) => {
@@ -790,6 +790,7 @@ function AppContent() {
                   return (
                     <ProofreadingAnswerSetting
                       sentences={appState.sentences}
+                      prefilledAnswers={appState.prefilledAnswers}
                       onNext={handleProofreadingAnswersSet}
                       onBack={handleBackToProofreadingInput}
                       onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}

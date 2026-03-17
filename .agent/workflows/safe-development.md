@@ -177,6 +177,19 @@ This workflow documents common errors encountered during development and best pr
 - Whenever you add a new page, service, or major database table, update `.agent/codebase_manifest.md` before finishing the task.
 - Ensure the line ranges in the Index table remain accurate.
 
+### 22. Mandatory Analytics Integration for New Features
+**Goal**: Ensure the Admin Analytics Dashboard remains a "Single Source of Truth" for all student activities.
+
+**Protocol**:
+Whenever a new learning function, interaction mode, or practice system is created:
+1.  **Identify Metrics**: Determine what constitutes "Volume" (attempts/sessions) and "Accuracy" (correctness/perfect rate) for the feature.
+2.  **Update Database RPCs**:
+    - Add the new data source to `get_class_analytics_summary`.
+    - Add columns and calculations to `get_all_students_performance`.
+    - Add a union branch to `get_recent_activity`.
+3.  **Update Frontend**: Integrate the new metrics into `AdminAnalyticsPage.tsx` charts, KPIs, and Leaderboard.
+4.  **Clarification**: If it's unclear how to measure performance for a specific feature (e.g., a "free-form drawing" mode), **ASK THE USER** for the preferred recording logic before implementing.
+
 ---
 
 ## 📊 Automatic Error Logging

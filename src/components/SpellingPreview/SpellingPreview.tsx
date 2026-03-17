@@ -11,11 +11,12 @@ interface SpellingPreviewProps {
   words: string[];
   onNext: () => void;
   onBack: () => void;
+  isPhraseMode?: boolean;
   onSave?: () => void;
   onViewSaved?: () => void;
 }
 
-const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, onSave, onViewSaved }) => {
+const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, isPhraseMode, onSave, onViewSaved }) => {
   const { accentPreference, voicePreference, updateVoicePreference, user } = useAuth();
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [currentAccent, setCurrentAccent] = useState(accentPreference);
@@ -176,6 +177,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
           title: title.trim(),
           words: words,
           userId: user.id,
+          isPhraseMode: isPhraseMode,
         }),
       });
 
