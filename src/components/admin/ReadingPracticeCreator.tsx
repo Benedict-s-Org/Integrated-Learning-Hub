@@ -847,7 +847,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   };
 
   const renderPracticeQueue = (isInsideCard: boolean = false) => {
-    if (localQuestions.length === 0) return null;
+    const shouldShow = localQuestions.length > 0 || (step === 'workspace' && isInsideCard);
+    if (!shouldShow) return null;
     return (
       <div className={`${isInsideCard ? 'mt-8' : 'mt-12 pt-12 border-t-4 border-dashed border-slate-100'} animate-in fade-in slide-in-from-bottom-8 duration-700`}>
         <div className="flex items-center justify-between mb-8">
@@ -881,46 +882,52 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {localQuestions.map((lq, idx) => (
-            <div 
-              key={lq.id} 
-              onClick={() => handleLoadFromQueue(lq)}
-              className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-400 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col cursor-pointer active:scale-[0.98]"
-            >
-              <button 
-                onClick={(e) => handleRemoveLocalQuestion(lq.id, e)}
-                className="absolute top-6 right-6 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
-                title="Remove from queue"
+        {localQuestions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {localQuestions.map((lq, idx) => (
+              <div 
+                key={lq.id} 
+                onClick={() => handleLoadFromQueue(lq)}
+                className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-400 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col cursor-pointer active:scale-[0.98]"
               >
-                <Trash2 className="w-4 h-4" />
-              </button>
-              
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
-                <div className="flex-1" />
-                <div className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[8px] font-black opacity-0 group-hover:opacity-100 transition-opacity">
-                  CLICK TO EDIT
+                <button 
+                  onClick={(e) => handleRemoveLocalQuestion(lq.id, e)}
+                  className="absolute top-6 right-6 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
+                  title="Remove from queue"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                  <div className="flex-1" />
+                  <div className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[8px] font-black opacity-0 group-hover:opacity-100 transition-opacity">
+                    CLICK TO EDIT
+                  </div>
+                </div>
+
+                <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden mb-4 border border-slate-100">
+                  <img src={lq.previewUrl} className="w-full h-full object-cover" alt="Passage Crop" />
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-xs font-black text-slate-800 line-clamp-2 leading-relaxed mb-3">{lq.question.question}</p>
+                  <div className="flex flex-wrap gap-1.5 opacity-60">
+                    {lq.chunks.slice(0, 4).map(c => (
+                      <span key={c.id} className="px-2 py-0.5 bg-slate-100 rounded-lg text-[8px] font-bold text-slate-500 uppercase">{c.text}</span>
+                    ))}
+                    {lq.chunks.length > 4 && <span className="text-[8px] font-bold text-slate-300">+{lq.chunks.length - 4} more</span>}
+                  </div>
                 </div>
               </div>
-
-              <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden mb-4 border border-slate-100">
-                <img src={lq.previewUrl} className="w-full h-full object-cover" alt="Passage Crop" />
-              </div>
-
-              <div className="flex-1">
-                <p className="text-xs font-black text-slate-800 line-clamp-2 leading-relaxed mb-3">{lq.question.question}</p>
-                <div className="flex flex-wrap gap-1.5 opacity-60">
-                  {lq.chunks.slice(0, 4).map(c => (
-                    <span key={c.id} className="px-2 py-0.5 bg-slate-100 rounded-lg text-[8px] font-bold text-slate-500 uppercase">{c.text}</span>
-                  ))}
-                  {lq.chunks.length > 4 && <span className="text-[8px] font-bold text-slate-300">+{lq.chunks.length - 4} more</span>}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200 p-8 text-center mb-8">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No other questions in queue</p>
+          </div>
+        )}
       </div>
     );
   };
