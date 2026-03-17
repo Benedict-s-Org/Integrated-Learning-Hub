@@ -162,6 +162,14 @@ This workflow documents common errors encountered during development and best pr
 - After a multi-line edit, use `view_file` to verify the code is still structurally sound.
 - If a file is critical, favor `multi_replace_file_content` with small, non-contiguous chunks to preserve the surrounding logic.
 
+### 21. Ambiguous Column References in SQL
+**Problem**: Joining tables with overlapping column names (e.g., `id`, `created_at`, `user_id`) without qualifying them causes `42702: column reference is ambiguous`. This is especially common when joining practice results with the `users` table for grouped analytics.
+
+**Prevention**:
+- **Always use table aliases** (e.g., `FROM table1 t1 JOIN table2 t2`) in any query involving more than one table.
+- **Explicitly qualify all common columns** (like `created_at`, `updated_at`, `id`, `user_id`) in `WHERE`, `JOIN`, and `SELECT` clauses.
+- **Cross-Check CTEs**: When using Common Table Expressions, ensure that join conditions within the CTE are also fully qualified.
+
 ### 18. Outdated Codebase Manifest
 **Problem**: Making structural changes to the codebase (adding pages, renaming core services, shifting database logic) but forgetting to update `.agent/codebase_manifest.md` causes future AI agents to base their logic on outdated architecture.
 

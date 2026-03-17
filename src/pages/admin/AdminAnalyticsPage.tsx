@@ -35,6 +35,11 @@ interface ClassSummary {
     average_accuracy: number;
     total_time_minutes: number;
   };
+  reading: {
+    total_responses: number;
+    perfect_responses: number;
+    average_accuracy: number;
+  };
 }
 
 interface StudentPerformance {
@@ -49,6 +54,8 @@ interface StudentPerformance {
   memorization_sessions: number;
   sr_attempts: number;
   sr_avg_accuracy: number;
+  reading_attempts: number;
+  reading_perfect_count: number;
   total_practices: number;
   overall_avg_accuracy: number;
 }
@@ -87,7 +94,8 @@ export function AdminAnalyticsPage() {
         spelling: d.spelling || { total_practices: 0, average_accuracy: 0, total_time_minutes: 0 },
         proofreading: d.proofreading || { total_practices: 0, average_accuracy: 0, total_time_minutes: 0 },
         memorization: d.memorization || { total_sessions: 0, total_time_minutes: 0 },
-        spaced_repetition: d.spaced_repetition || { total_attempts: 0, average_accuracy: 0, total_time_minutes: 0 }
+        spaced_repetition: d.spaced_repetition || { total_attempts: 0, average_accuracy: 0, total_time_minutes: 0 },
+        reading: d.reading || { total_responses: 0, perfect_responses: 0, average_accuracy: 0 }
       })) : [];
       
       const validSummaries = parsedSummaries.filter((c: any) => 
@@ -95,7 +103,8 @@ export function AdminAnalyticsPage() {
         c.spelling.total_practices > 0 || 
         c.proofreading.total_practices > 0 || 
         c.memorization.total_sessions > 0 ||
-        c.spaced_repetition.total_attempts > 0
+        c.spaced_repetition.total_attempts > 0 ||
+        c.reading.total_responses > 0
       );
       setClassSummaries(validSummaries.sort((a: any, b: any) => a.class_name.localeCompare(b.class_name)));
       
@@ -146,6 +155,7 @@ export function AdminAnalyticsPage() {
     Proofreading: c.proofreading.total_practices,
     Memorization: c.memorization.total_sessions,
     'SR Review': c.spaced_repetition.total_attempts,
+    'Reading': c.reading.total_responses,
   }));
 
   const accuracyData = classSummaries.map(c => ({
@@ -153,6 +163,7 @@ export function AdminAnalyticsPage() {
     'Spell Acc %': Math.round(c.spelling.average_accuracy),
     'Proof Acc %': Math.round(c.proofreading.average_accuracy),
     'SR Acc %': Math.round(c.spaced_repetition.average_accuracy),
+    'Read Acc %': Math.round(c.reading.average_accuracy),
   }));
 
   return (
@@ -260,6 +271,7 @@ export function AdminAnalyticsPage() {
                           <Bar dataKey="Proofreading" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="Memorization" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="SR Review" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Reading" fill="#6366F1" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -279,6 +291,7 @@ export function AdminAnalyticsPage() {
                           <Bar dataKey="Spell Acc %" fill="#10B981" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="Proof Acc %" fill="#6366F1" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="SR Acc %" fill="#F43F5E" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Read Acc %" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -301,14 +314,18 @@ export function AdminAnalyticsPage() {
                             <th className="px-4 py-3">Student</th>
                              <th className="px-4 py-3 text-center">Spell Acc</th>
                              <th className="px-4 py-3 text-center">SR Acc</th>
-                             <th className="px-4 py-3 text-center">Total Vol</th>
-                             <th className="px-4 py-3 text-center">SR Vol</th>
-                             <th className="px-4 py-3 text-center">Mem Vol</th>
+                             <th className="px-4 py-3 text-center">Read Acc</th>
+                             <th className="px-4 py-3 text-center">Total PV</th>
+                             <th className="px-4 py-3 text-center">Spell</th>
+                             <th className="px-4 py-3 text-center">Proof</th>
+                             <th className="px-4 py-3 text-center">Mem</th>
+                             <th className="px-4 py-3 text-center">SR</th>
+                             <th className="px-4 py-3 text-center">Read</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {studentPerformance
-                              .sort((a,b) => (b.spelling_practices + b.proofreading_practices) - (a.spelling_practices + a.proofreading_practices))
+                              .sort((a,b) => (b.total_practices || 0) - (a.total_practices || 0))
                               .map((student, idx) => (
                             <tr key={student.user_id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-4 py-3 font-medium text-slate-800">
@@ -328,9 +345,17 @@ export function AdminAnalyticsPage() {
                                   {student.sr_attempts > 0 ? `${Math.round(student.sr_avg_accuracy)}%` : '-'}
                                 </span>
                               </td>
+                               <td className="px-4 py-3 text-center">
+                                <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${student.reading_perfect_count / (student.reading_attempts || 1) >= 0.9 ? 'bg-emerald-100 text-emerald-700' : student.reading_perfect_count / (student.reading_attempts || 1) >= 0.7 ? 'bg-amber-100 text-amber-700' : student.reading_attempts > 0 ? 'bg-red-100 text-red-700' : 'text-slate-400'}`}>
+                                  {student.reading_attempts > 0 ? `${Math.round((student.reading_perfect_count / student.reading_attempts) * 100)}%` : '-'}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 text-center text-slate-600 font-bold">{student.total_practices || '-'}</td>
-                              <td className="px-4 py-3 text-center text-slate-600">{student.sr_attempts || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600">{student.spelling_practices || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600">{student.proofreading_practices || '-'}</td>
                               <td className="px-4 py-3 text-center text-slate-600">{student.memorization_sessions || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600">{student.sr_attempts || '-'}</td>
+                              <td className="px-4 py-3 text-center text-slate-600">{student.reading_attempts || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -367,6 +392,7 @@ export function AdminAnalyticsPage() {
                                 activity.activity_type === 'spelling' ? 'bg-blue-100 text-blue-600' : 
                                 activity.activity_type === 'proofreading' ? 'bg-purple-100 text-purple-600' : 
                                 activity.activity_type === 'spaced_repetition' ? 'bg-pink-100 text-pink-600' :
+                                activity.activity_type === 'reading' ? 'bg-indigo-100 text-indigo-600' :
                                 'bg-orange-100 text-orange-600'
                               }`}>
                                 <Activity size={16} />
