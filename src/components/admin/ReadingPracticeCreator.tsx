@@ -846,10 +846,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     containerRef.current?.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
-  const renderPracticeQueue = () => {
+  const renderPracticeQueue = (isInsideCard: boolean = false) => {
     if (localQuestions.length === 0) return null;
     return (
-      <div className="mt-12 pt-12 border-t-4 border-dashed border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <div className={`${isInsideCard ? 'mt-8' : 'mt-12 pt-12 border-t-4 border-dashed border-slate-100'} animate-in fade-in slide-in-from-bottom-8 duration-700`}>
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-100">
@@ -1476,10 +1476,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         <Plus className="w-6 h-6" />
                         Add Question to Practice Queue
                       </button>
-                    </div>
 
-                    {/* PRACTICE CONTENT QUEUE (BOTTOM) */}
-                    {renderPracticeQueue()}
+                      {/* PRACTICE CONTENT QUEUE (IN-CARD) */}
+                      {renderPracticeQueue(true)}
+                    </div>
                   </div>
                 )}
 
