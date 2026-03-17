@@ -83,12 +83,14 @@ export const AdminStudentLevelsPage: React.FC = () => {
   };
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s => {
+    const filtered = students.filter(s => {
       const matchesClass = filterClass === 'all' || s.class === filterClass;
       const matchesSearch = s.display_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            s.username.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesClass && matchesSearch;
-    }).sort((a, b) => {
+    });
+
+    return [...filtered].sort((a, b) => {
       if (a.class !== b.class) return (a.class || '').localeCompare(b.class || '');
       return (a.class_number || 0) - (b.class_number || 0);
     });

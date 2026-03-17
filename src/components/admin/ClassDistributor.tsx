@@ -329,8 +329,8 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
     if (pUser.display_name !== nUser.display_name) return false;
 
     // Check avatar items and offsets
-    const prevIds = pUser.equipped_item_ids?.sort().join(',') || '';
-    const nextIds = nUser.equipped_item_ids?.sort().join(',') || '';
+    const prevIds = Array.isArray(pUser.equipped_item_ids) ? [...pUser.equipped_item_ids].filter(Boolean).sort().join(',') : '';
+    const nextIds = Array.isArray(nUser.equipped_item_ids) ? [...nUser.equipped_item_ids].filter(Boolean).sort().join(',') : '';
     if (prevIds !== nextIds) return false;
 
     if (JSON.stringify(pUser.custom_offsets) !== JSON.stringify(nUser.custom_offsets)) return false;

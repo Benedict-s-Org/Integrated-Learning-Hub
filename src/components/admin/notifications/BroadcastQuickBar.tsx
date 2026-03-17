@@ -30,40 +30,124 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
     const currentClassUpper = className.trim().toUpperCase();
     const isAllClasses = currentClassUpper === 'ALL';
 
+    const stripCoinSuffix = (msg: string | null | undefined) => (msg || '').replace(/\s\([+-]?\d+\)$/, '');
+
     const fetchBroadcasts = async () => {
         try {
             const { data, error } = await (supabase as any)
                 .from('student_records')
-                .select('id, message, created_at, type, target_classes, student:student_id(display_name, class)')
+                .select('id, message, created_at, type, target_classes, student_id, broadcast_group_id, hidden_on_board, student:student_id(display_name, class)')
                 .eq('record_type', 'broadcast')
                 .eq('source', BROADCAST_SOURCE)
+                .eq('is_trash', false)
                 .order('created_at', { ascending: false })
-                .limit(3);
+                .limit(50);
 
             if (error) throw error;
 
-            // Filter by class visibility
-            const visibleMessages = (data || []).filter((r: any) => {
+            // Grouping logic (similar to BroadcastBoard)
+            const groups: Record<string, any> = {};
+            
+            (data || []).forEach((r: any) => {
+                // Filter by class visibility
                 const targetClasses = (r.target_classes || []).map((c: string) => (c || '').trim().toUpperCase());
-                if (isAllClasses) return true;
-                if (targetClasses.includes('ALL')) return true;
-                if (targetClasses.length > 0) {
-                    return targetClasses.includes(currentClassUpper);
-                }
+                let isVisible = false;
                 
-                if (!r.student_id) return true;
-                const studentClass = (r.student?.class || '').trim().toUpperCase();
-                return studentClass === currentClassUpper || !studentClass;
+                if (isAllClasses) isVisible = true;
+                else if (targetClasses.includes('ALL')) isVisible = true;
+                else if (targetClasses.length > 0) {
+                    isVisible = targetClasses.includes(currentClassUpper);
+                } else if (!r.student_id) {
+                    isVisible = true;
+                } else {
+                    const studentClass = (r.student?.class || '').trim().toUpperCase();
+                    isVisible = studentClass === currentClassUpper || !studentClass;
+                }
+
+                if (!isVisible || r.hidden_on_board) return;
+
+                const fullMsg = r.message || '';
+                const strippedOfCoins = stripCoinSuffix(fullMsg);
+                const strippedOfClasses = strippedOfCoins.split(' @@{')[0];
+                let displayTitle = strippedOfClasses;
+                
+                if (displayTitle.includes(' ||{')) {
+                    displayTitle = displayTitle.split(' ||{')[0].trim();
+                } else {
+                    displayTitle = displayTitle.trim();
+                }
+
+                if (displayTitle.startsWith('功課:')) return;
+                
+                const gId = r.broadcast_group_id || displayTitle;
+                
+                if (!groups[gId]) {
+                    groups[gId] = { 
+                        groupId: gId,
+                        title: displayTitle, 
+                        students: [], 
+                        type: r.type,
+                        isWholeClass: !r.student_id,
+                        wholeClassRecordId: !r.student_id ? r.id : undefined,
+                        createdAt: r.created_at
+                    };
+                }
+
+                if (r.student?.display_name && r.student_id) {
+                    if (!groups[gId].students.some((s: any) => s.name === r.student.display_name)) {
+                        groups[gId].students.push({ 
+                            name: r.student.display_name, 
+                            recordId: r.id 
+                        });
+                    }
+                }
             });
 
-            // Strip suffixes for display
-            setMessages(visibleMessages.map((m: any) => ({
-                ...m,
-                message: m.message ? m.message.split(' ||{')[0].split(' @@{')[0] : ''
-            })));
+            // Convert to array and sort by latest activity
+            const sortedGroups = Object.values(groups).sort((a: any, b: any) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+
+            setMessages(sortedGroups);
             setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         } catch (err) {
             console.error('Error fetching integrated broadcasts:', err);
+        }
+    };
+
+    const handleRemoveStudent = async (recordId: string, name: string, groupId: string) => {
+        const isWholeClass = name === 'Whole Class' || name === 'Entire Class';
+        if (!confirm(isWholeClass ? `Mark this broadcast as completed?` : `Completed the task? (${name})`)) return;
+
+        try {
+            const { error: hiddenError } = await supabase
+                .from('student_records')
+                .update({ hidden_on_board: true } as any)
+                .eq('id', recordId);
+
+            if (hiddenError) throw hiddenError;
+
+            // Check if group is now fully hidden
+            const { data: siblings, error: sibError } = await supabase
+                .from('student_records')
+                .select('id, hidden_on_board')
+                .eq('broadcast_group_id', groupId)
+                .is('is_trash', false);
+
+            if (sibError) throw sibError;
+
+            const allHidden = (siblings || []).every((s: any) => s.hidden_on_board);
+            
+            if (isWholeClass || (allHidden && siblings && siblings.length > 0)) {
+                const { error: trashError } = await (supabase as any).rpc('trash_broadcast_group', { p_group_id: groupId });
+                if (trashError) throw trashError;
+            }
+
+            fetchBroadcasts();
+            onRefresh();
+        } catch (err) {
+            console.error('Removal failed:', err);
+            alert('Failed to remove student from board.');
         }
     };
 
@@ -114,21 +198,42 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
 
                         <div className="flex flex-col gap-1">
                             {messages.length > 0 ? (
-                                messages.slice(0, 1).map((msg) => (
-                                    <div key={msg.id} className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                                messages.slice(0, 1).map((group) => (
+                                    <div key={group.groupId} className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
                                         <div className={`p-1.5 rounded-lg ${
-                                            msg.type === 'positive' ? 'bg-green-100 text-green-600' : 
-                                            msg.type === 'negative' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                                            group.type === 'negative' ? 'bg-red-100 text-red-600' : 
+                                            group.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
                                         }`}>
                                             <Zap size={14} fill="currentColor" />
                                         </div>
                                         <p 
-                                            className="font-black text-slate-900 tracking-tight line-clamp-1"
+                                            className="font-black text-slate-900 tracking-tight"
                                             style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
                                             data-theme-key="broadcastFontSize"
                                         >
-                                            {msg.message}
+                                            {group.title}
                                         </p>
+
+                                        {/* Student Tags */}
+                                        <div className="flex flex-wrap gap-1.5 ml-2">
+                                            {group.isWholeClass && (
+                                                <button 
+                                                    onClick={() => group.wholeClassRecordId && handleRemoveStudent(group.wholeClassRecordId, 'Whole Class', group.groupId)}
+                                                    className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all shadow-sm"
+                                                >
+                                                    Mark as Completed
+                                                </button>
+                                            )}
+                                            {group.students.map((s: any, si: number) => (
+                                                <button 
+                                                    key={si} 
+                                                    onClick={() => handleRemoveStudent(s.recordId, s.name, group.groupId)}
+                                                    className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all shadow-sm"
+                                                >
+                                                    {s.name}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))
                             ) : (

@@ -244,7 +244,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       filterClass
     });
 
-    return filtered.sort((a, b) => {
+    const finalFiltered = Array.isArray(filtered) ? filtered : [];
+    return finalFiltered.sort((a, b) => {
       // Sort by class first
       const classA = a.class_name || 'Unassigned';
       const classB = b.class_name || 'Unassigned';

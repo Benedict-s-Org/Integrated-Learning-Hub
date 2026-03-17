@@ -62,6 +62,7 @@ interface ReadingPracticeCreatorProps {
   onCancel?: () => void;
   initialPdfUrl?: string;
   initialTitle?: string;
+  editId?: string;
 }
 
 // 1. Sortable Preview Chunk Item
@@ -149,7 +150,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   onComplete, 
   onCancel,
   initialPdfUrl,
-  initialTitle
+  initialTitle,
+  editId
 }) => {
   const { user } = useAuth();
   const [step, setStep] = useState<CreatorStep>('select-pdf');
@@ -173,6 +175,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [questionsOnPage, setQuestionsOnPage] = useState<NotionQuestion[]>([]);
   const [fetchError, setFetchError] = useState<{ message: string; hint?: string; found?: string[] } | null>(null);
   const [selectedQuestion, setSelectedQuestion] = useState<NotionQuestion | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
   // Notion Config
   const [questionsDbId, setQuestionsDbId] = useState(() => 
@@ -222,7 +225,81 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     if (initialPdfUrl) {
       handleRemotePdf(initialPdfUrl, initialTitle || 'Untitled');
     }
-  }, []);
+    if (editId) {
+      fetchPracticeForEditing();
+    }
+  }, [editId]);
+
+  const fetchPracticeForEditing = async () => {
+    if (!editId) return;
+    setLoading(true);
+    try {
+      // 1. Fetch practice metadata
+      const { data: practice, error: practiceError } = await supabase
+        .from('reading_practices')
+        .select('*')
+        .eq('id', editId)
+        .single();
+
+      if (practiceError) throw practiceError;
+      if (practice.title) setTitle(practice.title);
+      
+      // 2. Fetch associated questions
+      const { data: questions, error: questionsError } = await supabase
+        .from('reading_questions')
+        .select('*')
+        .eq('practice_id', editId)
+        .order('order_index', { ascending: true });
+
+      if (questionsError) throw questionsError;
+
+      // 3. Map to localQuestions format
+      const mappedQuestions = questions.map((q: any) => ({
+        id: q.id,
+        question: {
+          id: q.metadata?.notion_question_id || q.id,
+          question: q.question_text,
+          answer: q.correct_answer,
+          day: q.metadata?.day,
+        },
+        chunks: q.metadata?.chunks || [],
+        coords: q.evidence_coords,
+        imageBlob: new Blob(), // We use the existing URL instead of re-capturing
+        previewUrl: q.question_image_url,
+        randomizedIds: q.metadata?.randomized_ids || [],
+        metadata: q.metadata // Preserve all metadata
+      }));
+
+      setLocalQuestions(mappedQuestions);
+
+      // Restore selectedDay from the first question if available
+      const firstDay = (mappedQuestions[0]?.question as any)?.day || (mappedQuestions[0] as any)?.metadata?.day;
+      if (firstDay) {
+        setSelectedDay(firstDay);
+      }
+
+      // 4. Handle PDF loading if source exists
+      if (practice.source_pdf_url) {
+        handleRemotePdf(practice.source_pdf_url, practice.title || 'Untitled');
+      }
+    } catch (err) {
+      console.error('Error fetching practice for editing:', err);
+      alert('Failed to load practice for editing.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 1.5 Restore Activity Context if PDF URL matches known activity
+  useEffect(() => {
+    if (pdfs.length > 0 && selectedPdf && selectedPdf.pageId === 'remote' && selectedPdf.fileUrl) {
+      const match = pdfs.find(p => p.fileUrl === selectedPdf.fileUrl);
+      if (match && match.pageId !== selectedPdf.pageId) {
+        console.log('[ReadingCreator] Restored Activity Context:', match.name);
+        setSelectedPdf(match);
+      }
+    }
+  }, [pdfs, selectedPdf]);
 
   // Sync Preview state and Shuffle Chunks
   useEffect(() => {
@@ -475,6 +552,11 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
       console.log(`[ReadingPractice] Fetched ${allQuestions.length} total, ${filtered.length} after filtering (day=${selectedPdf.day}, page=${page})`);
       setQuestionsOnPage(filtered);
+      
+      const uniqueDays = Array.from(new Set(filtered.map(q => q.day).filter(Boolean))) as string[];
+      if (uniqueDays.length > 0 && !selectedDay) {
+        setSelectedDay(uniqueDays[0]);
+      }
     } catch (err) {
       console.error('Error fetching questions:', err);
       setFetchError({ message: 'Connection error. Please check your Notion configuration.' });
@@ -778,32 +860,59 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       // 1. Create the Reading Practice record
       // Use the first question as a base for the title if not set
       const practiceTitle = title || localQuestions[0].question.question.substring(0, 50);
-      console.log('[ReadingCreator] Creating practice record:', practiceTitle);
+      console.log('[ReadingCreator] Saving practice record:', practiceTitle, editId ? `(Editing: ${editId})` : '(New)');
       
-      // We'll upload images first to get a "cover" image for the practice
-      const firstQue = localQuestions[0];
-      const firstFileName = `${user?.id || 'guest'}_p_${Date.now()}.png`;
-      const { error: firstUploadError } = await supabase.storage.from('reading-passages').upload(firstFileName, firstQue.imageBlob);
-      if (firstUploadError) throw firstUploadError;
-      
-      const { data: { publicUrl: coverUrl } } = supabase.storage.from('reading-passages').getPublicUrl(firstFileName);
+      let coverUrl = localQuestions[0].previewUrl;
 
-      const { data: practiceData, error: dbError } = await supabase.from('reading_practices').insert({
+      // If it's a new image (from an actual blob), upload it
+      if (localQuestions[0].imageBlob.size > 0) {
+        const fileName = `${user?.id || 'guest'}_p_${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage.from('reading-passages').upload(fileName, localQuestions[0].imageBlob);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('reading-passages').getPublicUrl(fileName);
+        coverUrl = publicUrl;
+      }
+
+      const practicePayload = {
         title: practiceTitle,
         passage_image_url: coverUrl,
         created_by: user?.id,
-        source_pdf_url: selectedPdf?.fileUrl || null
-      }).select().single();
+        source_pdf_url: selectedPdf?.fileUrl || null,
+        is_deleted: false // Ensure it's not deleted if we're editing
+      };
 
-      if (dbError) throw dbError;
-      const practiceId = practiceData.id;
+      let practiceId = editId;
 
-      // 2. Upload all question images and save records
+      if (editId) {
+        const { error: dbError } = await supabase
+          .from('reading_practices')
+          .update(practicePayload)
+          .eq('id', editId);
+        if (dbError) throw dbError;
+      } else {
+        const { data: practiceData, error: dbError } = await supabase
+          .from('reading_practices')
+          .insert(practicePayload)
+          .select()
+          .single();
+        if (dbError) throw dbError;
+        practiceId = practiceData.id;
+      }
+
+      // 2. Refresh questions: delete old ones and insert new ones
+      if (editId) {
+        const { error: deleteError } = await supabase
+          .from('reading_questions')
+          .delete()
+          .eq('practice_id', editId);
+        if (deleteError) throw deleteError;
+      }
+
       const questionPromises = localQuestions.map(async (lq, index) => {
-        let imageUrl = coverUrl;
+        let imageUrl = lq.previewUrl;
         
-        // If it's not the first question (which we already uploaded), upload it now
-        if (index > 0) {
+        // If it's a new image (from an actual blob), upload it
+        if (lq.imageBlob.size > 0) {
           const fileName = `${user?.id || 'guest'}_q_${Date.now()}_${index}.png`;
           const { error: uploadError } = await supabase.storage.from('reading-passages').upload(fileName, lq.imageBlob);
           if (uploadError) throw uploadError;
@@ -824,7 +933,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             randomized_ids: lq.randomizedIds,
             source_pdf_id: selectedPdf?.pageId,
             notion_question_id: lq.question.id,
-            questions_db_id: questionsDbId
+            questions_db_id: questionsDbId,
+            day: lq.question.day // Preserve the day in metadata
           }
         });
       });
@@ -836,10 +946,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       }
 
       console.log('[ReadingCreator] Save complete!');
-      alert('Reading practice with multiple questions saved successfully!');
+      alert(editId ? 'Reading practice updated successfully!' : 'Reading practice saved successfully!');
       
-      // Cleanup preview URLs
-      localQuestions.forEach(q => URL.revokeObjectURL(q.previewUrl));
+      // Cleanup preview URLs (only for new blobs)
+      localQuestions.forEach(q => {
+        if (q.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(q.previewUrl);
+        }
+      });
       
       if (onComplete) onComplete('success');
       else if (onCancel) onCancel();
@@ -889,7 +1003,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-800 uppercase tracking-tighter text-sm">Universal Reading Creator</h2>
+            <h2 className="font-bold text-slate-800 uppercase tracking-tighter text-sm">{editId ? 'Edit' : 'Universal'} Reading Creator</h2>
             <div className="flex items-center gap-2">
               <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold uppercase">{step}</span>
               {selectedPdf && <span className="text-[10px] text-blue-500 font-bold truncate max-w-xs">{selectedPdf.name}</span>}
@@ -1010,53 +1124,80 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         <p className="text-xs font-black uppercase tracking-widest">No questions in this database</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-4">
-                        {/* Table Header */}
-                        <div className="flex px-4 py-2 bg-slate-100/50 rounded-xl border border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                          <div className="w-16 shrink-0">Day / Page</div>
-                          <div className="flex-1 pl-4">Question & Answer Detail</div>
+                      <div className="flex h-full min-h-0 gap-6">
+                        {/* Column 1: Day Sidebar */}
+                        <div className="w-24 shrink-0 flex flex-col gap-2 overflow-y-auto pr-2 custom-scrollbar border-r border-slate-100">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Select Day</p>
+                          {Array.from(new Set(questionsOnPage.map(q => q.day).filter(Boolean)))
+                            .sort((a, b) => {
+                              const dayA = parseInt(a!.replace(/\D/g, '')) || 0;
+                              const dayB = parseInt(b!.replace(/\D/g, '')) || 0;
+                              return dayA - dayB;
+                            })
+                            .map(day => (
+                              <button
+                                key={day}
+                                onClick={() => setSelectedDay(day!)}
+                                className={`px-3 py-2 rounded-xl text-left transition-all font-black text-xs ${
+                                  selectedDay === day 
+                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                }`}
+                              >
+                                {day}
+                              </button>
+                            ))}
                         </div>
 
-                        {/* Table Rows */}
-                        <div className="flex flex-col gap-2">
-                          {questionsOnPage.map(q => (
-                            <button 
-                              key={q.id} 
-                              onClick={() => handleSelectQuestion(q)} 
-                              className={`w-full text-left rounded-3xl border-2 transition-all flex group relative overflow-hidden ${
-                                selectedQuestion?.id === q.id 
-                                  ? 'border-indigo-600 bg-indigo-50/30' 
-                                  : 'border-slate-50 hover:border-indigo-100 hover:bg-white hover:shadow-lg'
-                              }`}
-                            >
-                              {/* Left Column: Day/Page info */}
-                              <div className={`w-16 shrink-0 flex flex-col items-center justify-center p-4 border-r-2 ${selectedQuestion?.id === q.id ? 'border-indigo-100 bg-indigo-600/5' : 'border-slate-50 bg-slate-50/30'}`}>
-                                <span className={`text-xl font-black leading-none ${selectedQuestion?.id === q.id ? 'text-indigo-600' : 'text-slate-700'}`}>
-                                  {q.day || '-'}
-                                </span>
-                                <span className="text-[8px] font-black text-slate-400 mt-1 uppercase">Pg {q.page || '-'}</span>
-                              </div>
-
-                              {/* Right Column: Question Content */}
-                              <div className="flex-1 p-4 pl-6 relative">
-                                <p className={`text-xs font-black leading-relaxed mb-1 ${selectedQuestion?.id === q.id ? 'text-indigo-900' : 'text-slate-800'}`}>
-                                  {q.question}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-1 h-1 rounded-full shrink-0 ${selectedQuestion?.id === q.id ? 'bg-indigo-400' : 'bg-slate-300'}`} />
-                                  <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-500 italic truncate">
-                                    Ans: {q.answer}
-                                  </p>
-                                </div>
-
-                                {selectedQuestion?.id === q.id && (
-                                  <div className="absolute top-1/2 -translate-y-1/2 right-6 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 animate-in zoom-in-50 duration-200">
-                                    <Check className="w-3 h-3" />
+                        {/* Column 2: Question List */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Questions for {selectedDay || 'Selected Day'}</p>
+                            {questionsOnPage
+                              .filter(q => q.day === selectedDay)
+                              .map(q => (
+                                <button 
+                                  key={q.id} 
+                                  onClick={() => handleSelectQuestion(q)} 
+                                  className={`w-full text-left rounded-2xl border-2 transition-all flex group relative overflow-hidden ${
+                                    selectedQuestion?.id === q.id 
+                                      ? 'border-indigo-600 bg-indigo-50/30' 
+                                      : 'border-slate-50 hover:border-indigo-100 hover:bg-white hover:shadow-md'
+                                  }`}
+                                >
+                                  {/* Left Strip: Page info */}
+                                  <div className={`w-12 shrink-0 flex flex-col items-center justify-center p-2 border-r-2 ${selectedQuestion?.id === q.id ? 'border-indigo-100 bg-indigo-600/5' : 'border-slate-50 bg-slate-50/30'}`}>
+                                    <span className={`text-xs font-black leading-none ${selectedQuestion?.id === q.id ? 'text-indigo-600' : 'text-slate-700'}`}>
+                                      P{q.page || '-'}
+                                    </span>
                                   </div>
-                                )}
+
+                                  {/* Content Area */}
+                                  <div className="flex-1 p-3 pl-4 relative">
+                                    <p className={`text-[11px] font-black leading-tight mb-1 line-clamp-2 ${selectedQuestion?.id === q.id ? 'text-indigo-900' : 'text-slate-800'}`}>
+                                      {q.question}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-1 h-1 rounded-full shrink-0 ${selectedQuestion?.id === q.id ? 'bg-indigo-400' : 'bg-slate-300'}`} />
+                                      <p className="text-[9px] font-bold text-slate-400 group-hover:text-slate-500 italic truncate max-w-[200px]">
+                                        Ans: {q.answer}
+                                      </p>
+                                    </div>
+
+                                    {selectedQuestion?.id === q.id && (
+                                      <div className="absolute top-1/2 -translate-y-1/2 right-4 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-200 animate-in zoom-in-50 duration-200">
+                                        <Check className="w-3 h-3" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            {questionsOnPage.filter(q => q.day === selectedDay).length === 0 && (
+                              <div className="h-20 flex items-center justify-center text-slate-300 italic text-[10px] font-bold uppercase tracking-widest">
+                                Select a day to view questions
                               </div>
-                            </button>
-                          ))}
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1269,7 +1410,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         className="px-8 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:bg-emerald-600 shadow-xl shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
                       >
                         {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
-                        {saving ? 'Completing Save...' : 'Save Practice & Finalize'}
+                        {saving ? 'Completing Save...' : (editId ? 'Update Practice' : 'Save Practice & Finalize')}
                       </button>
                     </div>
 

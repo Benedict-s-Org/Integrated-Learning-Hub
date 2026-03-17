@@ -70,8 +70,13 @@ export const AvatarRenderer = React.memo(AvatarRendererComponent, (prevProps, ne
     if (prevProps.showBackground !== nextProps.showBackground) return false;
 
     // Fast check for equipped items via IDs
-    const prevIds = prevProps.equippedItems.map(i => i.id).sort().join(',');
-    const nextIds = nextProps.equippedItems.map(i => i.id).sort().join(',');
+    const getIdsSafe = (items: any[]) => {
+        if (!Array.isArray(items)) return '';
+        return items.map(i => i?.id).filter(Boolean).sort().join(',');
+    };
+
+    const prevIds = getIdsSafe(prevProps.equippedItems);
+    const nextIds = getIdsSafe(nextProps.equippedItems);
     if (prevIds !== nextIds) return false;
 
     // Deep check for user config offsets

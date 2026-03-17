@@ -394,7 +394,12 @@ export function ClassDashboardPage() {
                 });
             });
 
-            Object.keys(grouped).forEach(key => { grouped[key].sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); });
+            Object.keys(grouped).forEach(key => { 
+                const list = grouped[key];
+                if (Array.isArray(list)) {
+                    list.sort((a, b) => (a.class_number || 999) - (b.class_number || 999)); 
+                }
+            });
             setGroupedUsers(grouped);
         } catch (err) {
             console.error('Error in fetchUsers:', err);

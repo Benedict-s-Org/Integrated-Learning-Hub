@@ -58,11 +58,12 @@ interface ReadingChallengeProps {
 const SortableWord: React.FC<{ 
   id: string; 
   text: string; 
+  selectedValue?: string;
   options?: { text: string; prefix?: string }[]; 
   onOptionChange?: (val: string, prefixVal?: string) => void;
   isSelected?: boolean;
   prefixValue?: string;
-}> = ({ id, text, options, onOptionChange, isSelected, prefixValue }) => {
+}> = ({ id, text, selectedValue, options, onOptionChange, isSelected, prefixValue }) => {
   const {
     attributes,
     listeners,
@@ -102,13 +103,13 @@ const SortableWord: React.FC<{
           )}
           <select 
             className="bg-indigo-50 text-indigo-700 font-bold rounded px-1 outline-none pointer-events-auto cursor-pointer"
+            value={selectedValue || text}
             onChange={(e) => {
               onOptionChange && onOptionChange(e.target.value, prefixValue);
             }}
             onClick={(e) => e.stopPropagation()} // Prevent drag trigger on click
           >
-            <option value={text}>{text}</option>
-            {options.map(opt => <option key={`${opt.text}-${opt.prefix}`} value={opt.text}>{opt.text}</option>)}
+            {options.map((opt, oIdx) => <option key={`${opt.text}-${oIdx}`} value={opt.text}>{opt.text}</option>)}
           </select>
         </div>
       ) : (
@@ -239,15 +240,14 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         
         if (options.length > 0) {
           // Include the correct answer in the options if it's not already there
-          const optionsWithCorrect = [ { text: c.text }, ...options ];
-          const uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [`${o.prefix || ''}:${o.text}`, o])).values());
+          // The USER wants the FIRST option (base form) to be the initial selection
+          const optionsWithCorrect = [ ...options, { text: c.text } ];
+          const uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [o.text, o])).values());
           
           // Default selection to the first alternative (usually the base form)
-          // instead of the correct text
           const defaultOpt = options[0];
           initialSelections[chunkId] = defaultOpt.text;
-          if (defaultOpt.prefix) initialPrefixes[chunkId] = ''; // Keep prefix empty for student to type
-          else initialPrefixes[chunkId] = ''; // Ensure it's explicitly cleared if switch happens
+          initialPrefixes[chunkId] = ''; 
 
           return {
             id: chunkId,
@@ -296,7 +296,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     const q = questions[currentIndex];
     let isUserCorrect = false;
 
-    if (q.interaction_type === 'rearrange') {
+    if (q.interaction_type === 'rearrange' || q.interaction_type === 'aplus-coordinates') {
       const currentOrder = rearrangeWords.map(w => {
         const text = userSelections[w.id] || w.text;
         const prefix = userPrefixes[w.id];
@@ -390,13 +390,13 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="h-full flex items-center justify-center bg-slate-50">
       <Loader2 className="w-12 h-12 animate-spin text-indigo-600" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-full bg-slate-50 flex flex-col overflow-hidden">
       {/* 1. Header & Progress */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-4">
@@ -444,7 +444,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       </div>
 
       {/* 2. Main Content (Scrollable) */}
-      <div className="flex-1 overflow-y-auto pb-32">
+      <div className="flex-1 overflow-y-auto pb-10 custom-scrollbar">
         {/* Passage Area */}
         <div className="max-w-4xl mx-auto p-6">
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 relative group">
@@ -486,7 +486,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
           {/* Answering Component */}
           <div className="bg-white rounded-3xl p-10 border-2 border-slate-100 shadow-lg min-h-[300px] flex flex-col items-center justify-center">
-            {questions[currentIndex]?.interaction_type === 'rearrange' ? (
+            {questions[currentIndex]?.interaction_type === 'rearrange' || questions[currentIndex]?.interaction_type === 'aplus-coordinates' ? (
               <DndContext 
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -502,6 +502,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                         key={word.id} 
                         id={word.id} 
                         text={word.text} 
+                        selectedValue={userSelections[word.id]}
                         options={word.options}
                         prefixValue={userPrefixes[word.id]}
                         onOptionChange={(val, prefixVal) => {
@@ -583,7 +584,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       </div>
 
       {/* 3. Bottom Action Bar */}
-      <div className="bg-white border-t border-slate-200 p-6 fixed bottom-0 w-full z-50">
+      <div className="bg-white border-t border-slate-200 p-6 sticky bottom-0 w-full z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, ArrowRight, Database, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, ArrowRight, Database, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
@@ -107,8 +107,8 @@ export const ReadingManagementPage: React.FC = () => {
     
     try {
       // 1. Get all associated questions to clean up their images
-      const { data: questions } = await supabase
-        .from('reading_questions')
+      const { data: questions } = await (supabase
+        .from('reading_questions' as any) as any)
         .select('question_image_url')
         .eq('practice_id', id);
 
@@ -124,7 +124,7 @@ export const ReadingManagementPage: React.FC = () => {
         if (pFile) filesToDelete.push(pFile);
       }
 
-      questions?.forEach(q => {
+      questions?.forEach((q: any) => {
         if (q.question_image_url) {
           const qFile = q.question_image_url.split('/').pop();
           if (qFile && !filesToDelete.includes(qFile)) filesToDelete.push(qFile);
@@ -148,19 +148,22 @@ export const ReadingManagementPage: React.FC = () => {
     }
   };
 
-  if (view === 'create') {
+  if (view === 'create' || view === 'edit') {
     return (
       <ReadingPracticeCreator 
         initialPdfUrl={notionParams?.url || undefined}
         initialTitle={notionParams?.title}
+        editId={view === 'edit' ? activePracticeId || undefined : undefined}
         onComplete={(_id) => {
           setView('list');
           setNotionParams(null);
+          setActivePracticeId(null);
           fetchPractices();
         }}
         onCancel={() => {
           setView('list');
           setNotionParams(null);
+          setActivePracticeId(null);
         }}
       />
     );
@@ -323,6 +326,16 @@ export const ReadingManagementPage: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                  <button 
+                    onClick={() => {
+                      setActivePracticeId(practice.id);
+                      setView('edit');
+                    }}
+                    className="p-3 bg-white rounded-full text-slate-700 hover:text-indigo-600 transition-colors shadow-lg"
+                    title="Edit Practice"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </button>
                   <button 
                     onClick={() => {
                       setActivePracticeId(practice.id);
