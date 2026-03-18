@@ -472,6 +472,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('admin')}
                             />
                             <NavItem
+                                icon={Zap}
+                                label="Group Competition (6-Lane)"
+                                isActive={currentPage === 'groupCompetition'}
+                                onClick={() => onPageChange('groupCompetition')}
+                            />
+                            <NavItem
                                 icon={Database}
                                 label="Database"
                                 isActive={currentPage === 'database'}

@@ -43,6 +43,7 @@ import ShuffledGameView from './components/ShuffledGameView/ShuffledGameView';
 import DictationView from './components/MemorizationView/DictationView';
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
+import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -90,7 +91,8 @@ type AppState =
   | { page: 'broadcastManagement' }
   | { page: 'adminTimetable' }
   | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
-  | { page: 'adminAnalytics' };
+  | { page: 'adminAnalytics' }
+  | { page: 'groupCompetition' };
 
 function AppContent() {
   const location = useLocation();
@@ -384,6 +386,8 @@ function AppContent() {
       setAppState({ page: 'adminTimetable' });
     } else if (page === 'adminAnalytics') {
       setAppState({ page: 'adminAnalytics' });
+    } else if (page === 'groupCompetition') {
+      setAppState({ page: 'groupCompetition' });
     }
   };
 
@@ -719,6 +723,8 @@ function AppContent() {
               />;
             case 'interactiveScanner':
               return <InteractiveScanQuizPage />;
+            case 'groupCompetition':
+              return <GroupCompetitionPage />;
             case 'markerGenerator':
               return <MarkerGenerator onBack={() => setAppState({ page: 'admin' })} />;
             case 'assetUpload':

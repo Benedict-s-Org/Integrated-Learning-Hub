@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, Play, Square, Settings, Users, X, Plus, ChevronRight, Video, FileText, CheckCircle2, SlidersHorizontal, Trash2, Camera } from 'lucide-react';
+import { ArrowLeft, Play, Square, Settings, Users, X, Plus, ChevronRight, Video, FileText, CheckCircle2, SlidersHorizontal, Trash2, Camera, Check } from 'lucide-react';
 
 // Import AR from js-aruco2
 import { AR } from 'js-aruco2';
@@ -865,20 +865,25 @@ export function InteractiveScanQuizPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(['A', 'B', 'C', 'D'] as const).map(opt => (
                                         <div key={opt} className={`relative flex items-center p-3 rounded-2xl border-2 transition-all ${q.correct === opt ? 'border-emerald-400 bg-emerald-50/50 shadow-sm' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}>
-                                            <button
-                                                onClick={() => updateQuestion(q.id, 'correct', opt)}
-                                                className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-all ${q.correct === opt ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-100'}`}
-                                                title={`Mark ${opt} as correct`}
+                                            <div
+                                                className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-all ${q.correct === opt ? 'bg-emerald-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
                                             >
                                                 {opt}
-                                            </button>
+                                            </div>
                                             <input
                                                 type="text"
                                                 value={q[opt.toLowerCase() as 'a' | 'b' | 'c' | 'd']}
                                                 onChange={e => updateQuestion(q.id, opt.toLowerCase(), e.target.value)}
                                                 placeholder={`Option ${opt} text`}
-                                                className="flex-1 ml-3 bg-transparent font-medium text-slate-700 outline-none placeholder:text-slate-300"
+                                                className="flex-1 ml-3 bg-transparent font-bold text-slate-700 outline-none placeholder:text-slate-300"
                                             />
+                                            <button
+                                                onClick={() => updateQuestion(q.id, 'correct', opt)}
+                                                className={`flex items-center justify-center p-2 rounded-xl transition-all active:scale-95 ${q.correct === opt ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-200 hover:text-slate-400 hover:bg-slate-100'}`}
+                                                title={`Mark ${opt} as correct`}
+                                            >
+                                                <Check size={24} strokeWidth={4} />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
