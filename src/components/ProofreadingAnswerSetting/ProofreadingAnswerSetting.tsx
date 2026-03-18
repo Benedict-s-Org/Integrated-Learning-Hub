@@ -147,14 +147,24 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
     try {
 
 
-      const { data, error: fnError } = await supabase.functions.invoke('ai-proofread', {
-        body: { sentences }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-proofread`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({ sentences })
       });
 
-      if (fnError) {
-        alert(`AI processing failed: ${fnError.message || 'Unknown error'}`);
-        return;
+      if (!response.ok) {
+        throw new Error(`AI processing failed: ${response.statusText}`);
       }
+
+      const data = await response.json();
       const results = data.results || [];
 
       const newSelectedWords = new Map<number, number>();

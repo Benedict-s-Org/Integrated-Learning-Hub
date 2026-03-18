@@ -100,16 +100,13 @@ export function QuestionCard({
         : question.question_text;
 
       const { data, error } = await supabase.functions.invoke('notion-api/save-unknown', {
-        body: JSON.stringify({
+        body: {
           text: textToSave,
           type: type,
           context: contextStr,
           setId: setTitle || question.set_id,
           databaseId: question.notion_database_id || null,
           userName: profile?.display_name || profile?.username || "Anonymous Student"
-        }),
-        headers: {
-          'Content-Type': 'application/json'
         }
       });
 

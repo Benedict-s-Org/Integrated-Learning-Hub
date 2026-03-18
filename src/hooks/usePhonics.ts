@@ -112,12 +112,25 @@ export function usePhonics() {
   }, []);
 
   const generateTTS = useCallback(async (text: string): Promise<string> => {
-    const { data: audioBlob, error: fnError } = await supabase.functions.invoke('tts-phonics', {
-      body: { text }
-    });
+    const response = await fetch(
+      `https://lpyhtbvycxqjjqpwjxyh.supabase.co/functions/v1/tts-phonics`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxweWh0YnZ5Y3hxampxcHdqeHloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODYyNDQsImV4cCI6MjA4MjI2MjI0NH0.cLmBHopkqJz3R8CtaVy3Cx6o9obOalczV5tAmVbofjg",
+          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxweWh0YnZ5Y3hxampxcHdqeHloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODYyNDQsImV4cCI6MjA4MjI2MjI0NH0.cLmBHopkqJz3R8CtaVy3Cx6o9obOalczV5tAmVbofjg`,
+        },
+        body: JSON.stringify({ text }),
+      }
+    );
 
-    if (fnError) throw fnError;
-    if (!audioBlob) throw new Error("TTS generation failed");
+    if (!response.ok) {
+      throw new Error("TTS generation failed");
+    }
+
+    // Get the audio blob and upload to storage
+    const audioBlob = await response.blob();
     const fileName = `tts-${crypto.randomUUID()}.mp3`;
     const filePath = `generated/${fileName}`;
 

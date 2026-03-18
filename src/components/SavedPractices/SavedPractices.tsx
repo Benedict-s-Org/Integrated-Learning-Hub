@@ -68,11 +68,24 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     try {
       setError(null);
 
-      const { data, error } = await supabase.functions.invoke('spelling-practices/list', {
-        body: { userId: user.id }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/spelling-practices/list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({ userId: user.id })
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to load practices');
+      }
+
+      const data = await response.json();
 
       setPractices(data.practices || []);
     } catch (err) {
@@ -86,14 +99,27 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     try {
       setError(null);
 
-      const { data, error } = await supabase.functions.invoke('spelling-practices/delete', {
-        body: {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/spelling-practices/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({
           practiceId,
           userId: user!.id,
-        }
+        })
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to delete practice');
+      }
+
+      const data = await response.json();
 
       setPractices(practices.filter((p) => p.id !== practiceId));
       setDeleteConfirm(null);
@@ -110,23 +136,46 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     setAssignmentSuccess(null);
 
     try {
-      const { data: usersData, error: usersError } = await supabase.functions.invoke('user-management/list-users', {
-        body: { adminUserId: user?.id }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const usersResponse = await fetch(`${supabaseUrl}/functions/v1/user-management/list-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({ adminUserId: user?.id })
       });
 
-      if (usersError) throw usersError;
+      if (!usersResponse.ok) {
+        throw new Error('Failed to load users');
+      }
+
+      const usersData = await usersResponse.json();
 
       const nonAdminUsers = (usersData.users || []).filter((u: User) => u.role !== 'admin');
       setUsers(nonAdminUsers);
 
-      const { data: assignmentsData, error: assignmentsError } = await supabase.functions.invoke('spelling-practices/get-assignments', {
-        body: {
+      const assignmentsResponse = await fetch(`${supabaseUrl}/functions/v1/spelling-practices/get-assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({
           practiceId: practice.id,
           userId: user?.id,
-        }
+        })
       });
 
-      if (assignmentsError) throw assignmentsError;
+      if (!assignmentsResponse.ok) {
+        throw new Error('Failed to load assignments');
+      }
+
+      const assignmentsData = await assignmentsResponse.json();
 
       const assignedUserIds = new Set<string>(assignmentsData.assignments || []);
       setPendingAssignments(new Set<string>(assignedUserIds));
@@ -156,16 +205,29 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     setError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('spelling-practices/update-assignments', {
-        body: {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/spelling-practices/update-assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({
           practiceId: selectedPractice.id,
           userId: user!.id,
           userIds: Array.from(pendingAssignments),
           level: assignmentLevel,
-        }
+        })
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to update assignments');
+      }
+
+      const data = await response.json();
 
       setAssignmentSuccess(`Successfully updated assignments for ${selectedPractice.title}`);
       await fetchPractices();
