@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       force_password_change: false, // Default
       created_at: supabaseUser.created_at,
       updated_at: supabaseUser.updated_at || supabaseUser.created_at,
-      accent_preference: supabaseUser.user_metadata?.accent_preference || 'en-US',
+      accent_preference: supabaseUser.user_metadata?.accent_preference || 'en-GB',
       class: supabaseUser.user_metadata?.class,
       // Default permissions to true for simplicity or based on role
       can_access_proofreading: true,
@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       proofreading_level: supabaseUser.user_metadata?.proofreading_level || 1,
       reading_level: supabaseUser.user_metadata?.reading_level || 1,
       spelling_level: supabaseUser.user_metadata?.spelling_level || 1,
+      voice_preference: supabaseUser.user_metadata?.voice_preference || null,
     };
   };
 
@@ -132,7 +133,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (error) {
       console.error('Failed to update accent preference', error);
-      // Revert if needed, but keeping simple for now
+    }
+  }, [sessionUser]);
+
+  const updateVoicePreference = useCallback(async (voiceName: string, voiceLang: string, voiceURI: string) => {
+    if (!sessionUser) return;
+
+    const voicePref = { voiceName, voiceLang, voiceURI };
+
+    // Optimistic update
+    setSessionUser(prev => prev ? { ...prev, voice_preference: voicePref } : null);
+
+    // Save to user_metadata
+    const { error } = await supabase.auth.updateUser({
+      data: { voice_preference: voicePref }
+    });
+
+    if (error) {
+      console.error('Failed to update voice preference', error);
     }
   }, [sessionUser]);
 
@@ -198,7 +216,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = sessionUser?.role === 'admin' && !isUserView;
   const isClassStaff = sessionUser?.role === 'class_staff' && !isUserView;
   const isStaff = isAdmin || isClassStaff;
-  const accentPreference = sessionUser?.accent_preference || 'en-US';
+  const accentPreference = sessionUser?.accent_preference || 'en-GB';
+  const voicePreference = sessionUser?.voice_preference || null;
 
   const [impersonatedAdminProfile, setImpersonatedAdminProfile] = useState<UserProfile | null>(null);
 
@@ -228,6 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               proofreading_level: profileData.proofreading_level || 1,
               reading_level: profileData.reading_level || 1,
               spelling_level: profileData.spelling_level || 1,
+              voice_preference: profileData.voice_preference || null,
             } as UserProfile);
           }
         });
@@ -273,7 +293,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isMobileEmulator,
     setIsMobileEmulator,
     accentPreference,
+    voicePreference,
     updateAccentPreference,
+    updateVoicePreference,
     impersonatedAdminId,
     setImpersonatedAdminId,
     isImpersonating: !!impersonatedAdminId,
@@ -291,7 +313,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isUserView,
     isMobileEmulator,
     accentPreference,
+    voicePreference,
     updateAccentPreference,
+    updateVoicePreference,
     impersonatedAdminId,
     sessionUser,
     realIsSuperAdmin,

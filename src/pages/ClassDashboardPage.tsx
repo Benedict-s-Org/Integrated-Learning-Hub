@@ -945,7 +945,7 @@ export function ClassDashboardPage() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:flex gap-2 w-full md:w-auto">
+                    <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                         <button
                             onClick={() => setShowProgressLog(true)}
                             className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"

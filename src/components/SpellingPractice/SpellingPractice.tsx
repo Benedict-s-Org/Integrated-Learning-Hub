@@ -6,6 +6,8 @@ import { Input } from '../ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
+import VoiceSettings from './VoiceSettings';
+import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
 
 interface SpellingPracticeProps {
   title: string;
@@ -17,7 +19,7 @@ interface SpellingPracticeProps {
 }
 
 const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode }) => {
-  const { accentPreference, user } = useAuth();
+  const { accentPreference, voicePreference, updateVoicePreference, user } = useAuth();
   const { recordWordAttempt } = useSpellingSrs();
   const startTimeRef = useRef<number>(Date.now());
   const wordStartTimeRef = useRef<number>(Date.now());
@@ -30,16 +32,44 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   const [isCorrect, setIsCorrect] = useState(false);
   const [results, setResults] = useState<{ word: string; userAnswer: string; isCorrect: boolean; level: number }[]>([]);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
 
   useEffect(() => {
-    if (!('speechSynthesis' in window)) {
-      setSpeechSupported(false);
-    } else {
-      speakWord(words[0]);
+    const initVoice = async () => {
+      if (!('speechSynthesis' in window)) {
+        setSpeechSupported(false);
+        return;
+      }
+
+      // Wait for voices to be available
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = initVoice;
+        return;
+      }
+
+      const bestVoice = await findBestVoiceMatch(voicePreference, accentPreference);
+      console.log(`[SpellingPractice] initVoice: Found best voice: ${bestVoice?.name} (${bestVoice?.lang})`, { voicePreference, accentPreference });
+      setCurrentVoice(bestVoice);
+    };
+
+    initVoice();
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, [voicePreference, accentPreference]);
+
+  useEffect(() => {
+    if (speechSupported && words.length > 0) {
+      console.log(`[SpellingPractice] Initializing word: ${words[0]}, Voice current status:`, !!currentVoice);
+      if (currentVoice) {
+        speakWord(words[0]);
+      }
       initializeShuffledLetters(words[0]);
     }
-  }, []);
+  }, [currentVoice]);
 
   const shuffleArray = (array: string[]): string[] => {
     const shuffled = [...array];
@@ -55,16 +85,46 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
     setShuffledLetters(shuffleArray(letters));
   };
 
-  const speakWord = (word: string) => {
-    if (!('speechSynthesis' in window)) return;
+  const utteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
+
+  const speakWord = async (word: string) => {
+    console.log(`[SpellingPractice] speakWord called for: "${word}"`, { accentPreference });
+
+    // 1. Try Google Cloud TTS for premium consistency
+    try {
+      const audioDataUri = await fetchCloudAudio(word, accentPreference);
+      if (audioDataUri) {
+        console.log('[SpellingPractice] Using Google Cloud TTS audio');
+        const audio = new Audio(audioDataUri);
+        // Slightly slower playback was already handled in Edge Function config (speakingRate: 0.9)
+        // Set volume and play
+        audio.volume = 1;
+        await audio.play();
+        return; // Success!
+      }
+    } catch (err) {
+      console.warn('[SpellingPractice] Cloud TTS failed, falling back to browser voice:', err);
+    }
+
+    // 2. Fallback to Browser native speechSynthesis
+    console.log('[SpellingPractice] Using browser-native fallback voice');
+    if (!('speechSynthesis' in window) || !currentVoice) {
+      console.warn('[SpellingPractice] speakWord: Cannot speak. Synthesis supported:', 'speechSynthesis' in window, 'Voice present:', !!currentVoice);
+      return;
+    }
 
     window.speechSynthesis.cancel();
+    const utterance = createUtterance(word, currentVoice);
+    utteranceRef.current = utterance; // Prevent GC
 
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = accentPreference;
-    utterance.rate = 0.8;
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    utterance.onend = () => {
+      utteranceRef.current = null;
+    };
+
+    utterance.onerror = (event) => {
+      console.error('[SpellingPractice] Browser Utterance error:', event);
+      utteranceRef.current = null;
+    };
 
     window.speechSynthesis.speak(utterance);
   };
@@ -295,7 +355,15 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
       <div className="max-w-3xl mx-auto">
         <Card className="p-4 md:p-8">
           <div className="mb-6">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+            <VoiceSettings
+              currentAccent={accentPreference}
+              currentVoiceURI={voicePreference?.voiceURI}
+              onVoiceChange={async (_accent, voiceName, voiceLang, voiceURI) => {
+                await updateVoicePreference(voiceName, voiceLang, voiceURI);
+                // The currentVoice state will be updated via the useEffect watching voicePreference
+              }}
+            />
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 pt-4">
               <div className="flex items-center space-x-3">
                 <h1 className="text-xl md:text-3xl font-bold text-foreground text-center sm:text-left">{title}</h1>
                 {isPhraseMode && (

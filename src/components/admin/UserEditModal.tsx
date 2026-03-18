@@ -3,6 +3,7 @@ import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield, Has
 import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
+import AccentSelector from "../AccentSelector/AccentSelector";
 
 interface UserWithProfile {
   id: string;
@@ -20,6 +21,12 @@ interface UserWithProfile {
   memorization_level?: number;
   proofreading_level?: number;
   ecas?: string[];
+  accent_preference?: string;
+  voice_preference?: {
+    voiceName: string;
+    voiceLang: string;
+    voiceURI: string;
+  } | null;
 }
 
 interface UserEditModalProps {
@@ -50,6 +57,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
   const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string }[]>([]);
   const [managedClasses, setManagedClasses] = useState<string[]>([]);
+  const [accentPreference, setAccentPreference] = useState(user.accent_preference || "en-US");
+  const [voicePreference, setVoicePreference] = useState(user.voice_preference || null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,6 +284,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (role === 'class_staff') {
         (updateData as any).managed_classes = managedClasses;
       }
+      (updateData as any).accent_preference = accentPreference;
+      (updateData as any).voice_preference = voicePreference;
 
       console.log("Sending update request:", updateData);
 
@@ -305,6 +316,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (memorizationLevel !== undefined) directUpdate.memorization_level = memorizationLevel;
       if (proofreadingLevel !== undefined) directUpdate.proofreading_level = proofreadingLevel;
       if (ecas !== undefined) directUpdate.ecas = ecas;
+      directUpdate.accent_preference = accentPreference;
+      directUpdate.voice_preference = voicePreference;
 
       const { error: directError } = await supabase
         .from('users')
@@ -626,6 +639,23 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             </div>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               Level 1 學生可以嘗試 Level 2 練習；Level 2 學生只能看到 Level 2 練習。
+            </p>
+          </div>
+
+          {/* Voice Preference Section */}
+          <div className="space-y-4 p-4 border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--muted)/0.3)]">
+            <h3 className="text-sm font-bold text-[hsl(var(--foreground))]">預設發音設定 (Default Voice)</h3>
+            <AccentSelector
+              currentAccent={accentPreference}
+              currentVoiceURI={voicePreference?.voiceURI}
+              showVoiceSelection={true}
+              onChange={(accent, voiceName, voiceLang, voiceURI) => {
+                setAccentPreference(accent);
+                setVoicePreference({ voiceName, voiceLang, voiceURI });
+              }}
+            />
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              為學生設定預設的口音和人聲。學生可以在練習時自行更改，但此處設定將作為起始預設。
             </p>
           </div>
 

@@ -3,7 +3,7 @@ import { Volume2, ArrowLeft, ArrowRight, CheckCircle, XCircle, Save } from 'luci
 import { useAuth } from '../../context/AuthContext';
 import AccentSelector from '../AccentSelector/AccentSelector';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
-import { findBestVoiceMatch, createUtterance } from '../../utils/voiceManager';
+import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPreviewProps {
@@ -39,14 +39,18 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
 
   const loadVoice = async () => {
     try {
-      const { data: recommendedVoices } = await supabase
-        .from('recommended_voices')
+      const { data: recommendedVoices, error: recError } = await supabase
+        .from('recommended_voices' as any)
         .select('voice_name')
         .eq('accent_code', accentPreference)
         .order('priority', { ascending: false })
         .limit(1);
 
-      const recommendedVoiceName = recommendedVoices?.[0]?.voice_name;
+      if (recError) {
+        console.warn('[SpellingPreview] Could not fetch recommended voices:', recError);
+      }
+
+      const recommendedVoiceName = (recommendedVoices as any)?.[0]?.voice_name;
 
       const voice = await findBestVoiceMatch(
         voicePreference,
@@ -67,14 +71,18 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     setCurrentVoiceURI(voiceURI);
 
     try {
-      const { data: recommendedVoices } = await supabase
-        .from('recommended_voices')
+      const { data: recommendedVoices, error: recError } = await supabase
+        .from('recommended_voices' as any)
         .select('voice_name')
         .eq('accent_code', accent)
         .order('priority', { ascending: false })
         .limit(1);
 
-      const recommendedVoiceName = recommendedVoices?.[0]?.voice_name;
+      if (recError) {
+        console.warn('[SpellingPreview] Could not fetch recommended voices on change:', recError);
+      }
+
+      const recommendedVoiceName = (recommendedVoices as any)?.[0]?.voice_name;
 
       const voice = await findBestVoiceMatch(
         { voiceName, voiceLang, voiceURI },
@@ -91,8 +99,28 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     }
   };
 
-  const speakWord = (word: string) => {
-    if (!('speechSynthesis' in window) || !currentVoice) return;
+  const speakWord = async (word: string) => {
+    // 1. Try Google Cloud TTS for premium consistency
+    try {
+      setIsPlaying(true);
+      const audioDataUri = await fetchCloudAudio(word, currentAccent);
+      if (audioDataUri) {
+        console.log('[SpellingPreview] Using Google Cloud TTS audio');
+        const audio = new Audio(audioDataUri);
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => setIsPlaying(false);
+        await audio.play();
+        return; // Success!
+      }
+    } catch (err) {
+      console.warn('[SpellingPreview] Cloud TTS failed, falling back to browser voice:', err);
+    }
+
+    // 2. Fallback to Browser native speechSynthesis
+    if (!('speechSynthesis' in window) || !currentVoice) {
+      setIsPlaying(false);
+      return;
+    }
 
     window.speechSynthesis.cancel();
     setIsPlaying(true);
@@ -115,38 +143,44 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     speakWord(words[index]);
   };
 
-  const handlePlayAll = () => {
-    if (!('speechSynthesis' in window) || !currentVoice || words.length === 0) return;
+  const handlePlayAll = async () => {
+    if (words.length === 0) return;
 
     window.speechSynthesis.cancel();
     setIsPlaying(true);
     setCurrentWordIndex(0);
 
-    let index = 0;
-
-    const playNext = () => {
-      if (index < words.length) {
-        setCurrentWordIndex(index);
-        const utterance = createUtterance(words[index], currentVoice);
-
-        utterance.onend = () => {
-          index++;
-          if (index < words.length) {
-            setTimeout(playNext, 500);
-          } else {
-            setIsPlaying(false);
-          }
-        };
-
-        utterance.onerror = () => {
-          setIsPlaying(false);
-        };
-
-        window.speechSynthesis.speak(utterance);
+    for (let i = 0; i < words.length; i++) {
+      if (!isPlaying && i > 0) break; // Allow stopping
+      setCurrentWordIndex(i);
+      
+      try {
+        const audioDataUri = await fetchCloudAudio(words[i], currentAccent);
+        if (audioDataUri) {
+          await new Promise((resolve, reject) => {
+            const audio = new Audio(audioDataUri);
+            audio.onended = resolve;
+            audio.onerror = reject;
+            audio.play().catch(reject);
+          });
+        } else if (currentVoice) {
+          await new Promise((resolve) => {
+            const utterance = createUtterance(words[i], currentVoice);
+            utterance.onend = resolve;
+            utterance.onerror = resolve;
+            window.speechSynthesis.speak(utterance);
+          });
+        }
+        
+        if (i < words.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (err) {
+        console.error('Error in play all:', err);
       }
-    };
-
-    playNext();
+    }
+    
+    setIsPlaying(false);
   };
 
   const handleStopAll = () => {

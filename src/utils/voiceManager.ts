@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 export interface VoiceInfo {
   name: string;
   lang: string;
@@ -12,6 +14,19 @@ export interface VoicePreference {
   voiceLang: string;
   voiceURI: string;
 }
+
+export interface AccentOption {
+  code: string;
+  label: string;
+  flag: string;
+}
+
+export const ACCENT_OPTIONS: AccentOption[] = [
+  { code: 'en-GB', label: 'British English', flag: '🇬🇧' },
+  { code: 'en-US', label: 'American English', flag: '🇺🇸' },
+  { code: 'en-AU', label: 'Australian English', flag: '🇦🇺' },
+  { code: 'en-IE', label: 'Irish English', flag: '🇮🇪' },
+];
 
 /**
  * Get all available voices from the browser
@@ -39,7 +54,9 @@ export const getAvailableVoices = async (): Promise<SpeechSynthesisVoice[]> => {
     // Fallback timeout
     setTimeout(() => {
       window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
-      resolve(window.speechSynthesis.getVoices());
+      const finalVoices = window.speechSynthesis.getVoices();
+      console.log(`[VoiceManager] getAvailableVoices fallback timeout. Found ${finalVoices.length} voices.`);
+      resolve(finalVoices);
     }, 1000);
   });
 };
@@ -54,6 +71,34 @@ const isIOSNativeVoice = (voice: SpeechSynthesisVoice): boolean => {
          !voice.name.includes('Google') &&
          !voice.name.includes('Microsoft') &&
          !voice.name.includes('Chrome');
+};
+
+/**
+ * Check if a voice is considered "High Quality" (Premium, Enhanced, or stable native)
+ */
+const isHighQualityVoice = (voice: SpeechSynthesisVoice): boolean => {
+  const name = voice.name.toLowerCase();
+  
+  // 1. Explicit high-quality markers
+  if (name.includes('premium') || 
+      name.includes('enhanced') || 
+      name.includes('natural') || 
+      name.includes('neural')) {
+    return true;
+  }
+
+  // 2. Known reliable iOS/macOS native voices
+  const reliableNames = ['samantha', 'alex', 'daniel', 'karen', 'moira', 'rishi', 'veena', 'tessa'];
+  if (reliableNames.some(reliable => name.includes(reliable))) {
+    return true;
+  }
+
+  // 3. iOS Native is generally high quality for our use case (iPad focus)
+  if (isIOSNativeVoice(voice)) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
@@ -81,16 +126,37 @@ export const groupVoicesByLanguage = async (): Promise<Record<string, VoiceInfo[
     });
   });
 
-  // Sort voices within each language group
-  // Prioritize: 1) iOS Native, 2) Local, 3) Remote
+  // Sort and filter voices within each language group
   Object.keys(grouped).forEach(lang => {
-    grouped[lang].sort((a, b) => {
+    // Determine if we have any high-quality voices in this group
+    const hasHighQuality = grouped[lang].some(v => isHighQualityVoice(v.voice));
+
+    // If we have high-quality voices, filter out the "legacy" or low-quality ones
+    // to keep the list clean and reliable.
+    let filteredVoices = grouped[lang];
+    if (hasHighQuality) {
+      filteredVoices = grouped[lang].filter(v => isHighQualityVoice(v.voice));
+    }
+
+    filteredVoices.sort((a, b) => {
+      // Prioritize: 1) iOS Native, 2) High Quality (non-native), 3) Local
+      const aHQ = isHighQualityVoice(a.voice);
+      const bHQ = isHighQualityVoice(b.voice);
+      
       if (a.isIOSNative && !b.isIOSNative) return -1;
       if (!a.isIOSNative && b.isIOSNative) return 1;
+      
+      if (aHQ && !bHQ) return -1;
+      if (!aHQ && bHQ) return 1;
+      
       if (a.isLocal && !b.isLocal) return -1;
       if (!a.isLocal && b.isLocal) return 1;
+      
       return a.name.localeCompare(b.name);
     });
+
+    // Limit to top 3 voices per accent for each OS
+    grouped[lang] = filteredVoices.slice(0, 3);
   });
 
   return grouped;
@@ -124,6 +190,12 @@ export const findBestVoiceMatch = async (
   recommendedVoiceName?: string
 ): Promise<SpeechSynthesisVoice | null> => {
   const voices = await getAvailableVoices();
+  console.log(`[VoiceManager] findBestVoiceMatch: Searching among ${voices.length} voices for accent: ${accentCode}`, { preference, recommendedVoiceName });
+
+  if (voices.length === 0) {
+    console.warn('[VoiceManager] findBestVoiceMatch: No voices available in browser.');
+    return null;
+  }
 
   // 1. Try exact match with preference
   if (preference) {
@@ -155,16 +227,22 @@ export const findBestVoiceMatch = async (
     return voices.length > 0 ? voices[0] : null;
   }
 
-  // 4. Prioritize iOS native voices
-  const iosNative = accentVoices.find(v => isIOSNativeVoice(v));
+  // 4. Prioritize high-quality voices for the accent
+  const highQualityVoices = accentVoices.filter(v => isHighQualityVoice(v));
+  
+  const iosNative = (highQualityVoices.length > 0 ? highQualityVoices : accentVoices)
+    .find(v => isIOSNativeVoice(v));
   if (iosNative) return iosNative;
 
-  // 5. Prioritize local voices
-  const localVoice = accentVoices.find(v => v.localService);
+  // 5. Prioritize local voices among high quality (or all if none are HQ)
+  const localVoice = (highQualityVoices.length > 0 ? highQualityVoices : accentVoices)
+    .find(v => v.localService);
   if (localVoice) return localVoice;
 
   // 6. Return first available voice for accent
-  return accentVoices[0];
+  const finalVoice = accentVoices[0];
+  console.log(`[VoiceManager] findBestVoiceMatch: Selected fallback accent voice: ${finalVoice?.name} (${finalVoice?.lang})`);
+  return finalVoice;
 };
 
 /**
@@ -182,6 +260,32 @@ export const createUtterance = (
   utterance.volume = 1;
 
   return utterance;
+};
+
+/**
+ * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function
+ */
+export const fetchCloudAudio = async (text: string, accent: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('google-tts', {
+      body: { text, accent }
+    });
+
+    if (error) {
+      console.error('[VoiceManager] Error invoking google-tts:', error);
+      return null;
+    }
+
+    if (data?.audioContent) {
+      // Return as a data URI that can be played by an Audio object
+      return `data:audio/mp3;base64,${data.audioContent}`;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[VoiceManager] fetchCloudAudio failed:', error);
+    return null;
+  }
 };
 
 /**

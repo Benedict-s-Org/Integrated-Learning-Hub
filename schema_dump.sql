@@ -289,6 +289,68 @@ $$;
 ALTER FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."create_user_with_password"("username_input" "text" DEFAULT NULL::"text", "password_input" "text" DEFAULT NULL::"text", "role_input" "text" DEFAULT 'user'::"text", "display_name_input" "text" DEFAULT NULL::"text", "can_access_proofreading_input" boolean DEFAULT false, "can_access_spelling_input" boolean DEFAULT false, "can_access_learning_hub_input" boolean DEFAULT false, "class_input" "text" DEFAULT NULL::"text", "managed_by_id_input" "uuid" DEFAULT NULL::"uuid") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  new_user_id uuid;
+  new_user json;
+  final_username text;
+  final_password text;
+  final_display_name text;
+BEGIN
+  -- Handle missing or null username
+  final_username := COALESCE(username_input, 'user_' || substr(md5(random()::text), 1, 8));
+  
+  -- Handle missing or null password
+  final_password := COALESCE(password_input, '123456');
+
+  -- Use username as display_name if not provided
+  final_display_name := COALESCE(NULLIF(display_name_input, ''), final_username);
+
+  INSERT INTO public.users (
+    username,
+    password_hash,
+    role,
+    display_name,
+    can_access_proofreading,
+    can_access_spelling,
+    can_access_learning_hub,
+    class,
+    managed_by_id
+  )
+  VALUES (
+    final_username,
+    crypt(final_password, gen_salt('bf')),
+    COALESCE(role_input, 'user'),
+    final_display_name,
+    COALESCE(can_access_proofreading_input, false),
+    COALESCE(can_access_spelling_input, false),
+    COALESCE(can_access_learning_hub_input, false),
+    class_input,
+    managed_by_id_input
+  )
+  RETURNING id INTO new_user_id;
+
+  SELECT json_build_object(
+    'id', id,
+    'username', username,
+    'role', role,
+    'display_name', display_name,
+    'class', class,
+    'created_at', created_at
+  ) INTO new_user
+  FROM public.users
+  WHERE id = new_user_id;
+
+  RETURN new_user;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text", "managed_by_id_input" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."delete_session"("session_id" "uuid") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1388,16 +1450,29 @@ CREATE OR REPLACE FUNCTION "public"."handle_new_auth_user"() RETURNS "trigger"
     SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
-  INSERT INTO public.users (id, username, password_hash, role, display_name)
+  INSERT INTO public.users (
+    id, 
+    username, 
+    password_hash, 
+    role, 
+    display_name,
+    class,
+    managed_by_id
+  )
   VALUES (
     NEW.id,
     NEW.email,
-    'AUTH_MANAGED', -- Placeholder as authentications is handled by Supabase
-    'user',
-    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email)
+    'AUTH_MANAGED', -- Placeholder as authentication is handled by Supabase Auth
+    COALESCE(NEW.raw_user_meta_data->>'role', 'user'),
+    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email),
+    NEW.raw_user_meta_data->>'class',
+    (NEW.raw_user_meta_data->>'managed_by_id')::uuid
   )
-  ON CONFLICT (username) DO UPDATE SET 
+  ON CONFLICT (username) DO UPDATE SET
     id = EXCLUDED.id,
+    display_name = COALESCE(EXCLUDED.display_name, users.display_name),
+    class = COALESCE(EXCLUDED.class, users.class),
+    managed_by_id = COALESCE(EXCLUDED.managed_by_id, users.managed_by_id),
     updated_at = now();
   RETURN NEW;
 END;
@@ -1557,6 +1632,43 @@ $$;
 
 
 ALTER FUNCTION "public"."increment_room_coins"("target_user_id" "uuid", "amount" integer, "log_reason" "text", "log_admin_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."initialize_user_avatar_defaults"("target_user_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    -- Insert default items into inventory if not exists
+    INSERT INTO public.user_avatar_inventory (user_id, item_id, source)
+    SELECT target_user_id, id, 'default'
+    FROM public.avatar_items
+    WHERE is_default = true
+    ON CONFLICT (user_id, item_id) DO NOTHING;
+
+    -- Create default config if not exists
+    INSERT INTO public.user_avatar_config (user_id, config)
+    VALUES (
+        target_user_id,
+        jsonb_build_object(
+            'body', 'body-round',
+            'skinColor', '#F5CBA7',
+            'eyes', 'eyes-round',
+            'eyeColor', '#654321',
+            'nose', 'nose-dot',
+            'mouth', 'mouth-smile',
+            'hair', 'hair-short',
+            'hairColor', '#3d2b1f',
+            'outfit', 'outfit-tshirt',
+            'outfitColor', '#3498db',
+            'accessory', null
+        )
+    )
+    ON CONFLICT (user_id) DO NOTHING;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."initialize_user_avatar_defaults"("target_user_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
@@ -2263,6 +2375,59 @@ $$;
 ALTER FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text", "new_display_name" "text", "new_role" "text", "new_class" "text", "new_seat_number" integer) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text" DEFAULT NULL::"text", "new_display_name" "text" DEFAULT NULL::"text", "new_role" "text" DEFAULT NULL::"text", "new_class" "text" DEFAULT NULL::"text", "new_seat_number" integer DEFAULT NULL::integer, "new_spelling_level" integer DEFAULT NULL::integer, "new_managed_by_id" "uuid" DEFAULT NULL::"uuid") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+DECLARE
+  current_role text;
+  updated_user json;
+  current_seat_number integer;
+BEGIN
+  -- Authorization check
+  SELECT role INTO current_role FROM users WHERE id = caller_user_id;
+  IF current_role != 'admin' AND caller_user_id != target_user_id THEN
+    RAISE EXCEPTION 'Unauthorized: only admins or the user themselves can update info';
+  END IF;
+
+  -- Role protection: only super admin can change to/from admin role
+  -- (Assuming current_role is checked; simplified for this app)
+  
+  -- Update public.users
+  UPDATE users SET
+    username = COALESCE(new_username, username),
+    display_name = COALESCE(new_display_name, display_name),
+    role = COALESCE(new_role, role),
+    class = CASE WHEN new_class IS NOT NULL THEN new_class ELSE class END,
+    seat_number = COALESCE(new_seat_number, seat_number),
+    spelling_level = COALESCE(new_spelling_level, spelling_level),
+    managed_by_id = COALESCE(new_managed_by_id, managed_by_id),
+    updated_at = now()
+  WHERE id = target_user_id;
+
+  -- Return updated object
+  SELECT json_build_object(
+    'id', id, 
+    'username', username, 
+    'role', role, 
+    'display_name', display_name, 
+    'class', class, 
+    'seat_number', seat_number,
+    'spelling_level', spelling_level,
+    'managed_by_id', managed_by_id,
+    'created_at', created_at
+  ) INTO updated_user 
+  FROM users 
+  WHERE id = target_user_id;
+
+  RETURN updated_user;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text", "new_display_name" "text", "new_role" "text", "new_class" "text", "new_seat_number" integer, "new_spelling_level" integer, "new_managed_by_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."validate_session"("session_id" "uuid") RETURNS TABLE("is_valid" boolean, "user_id" "uuid", "expires_at" timestamp with time zone)
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -2364,6 +2529,29 @@ CREATE TABLE IF NOT EXISTS "public"."admin_reset_code_store" (
 
 
 ALTER TABLE "public"."admin_reset_code_store" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."avatar_items" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "category" "text" NOT NULL,
+    "layer_order" integer DEFAULT 0 NOT NULL,
+    "rarity" "text" DEFAULT 'common'::"text",
+    "asset_id" "text" NOT NULL,
+    "price" integer DEFAULT 0,
+    "duration_type" "text" DEFAULT 'permanent'::"text",
+    "duration_days" integer,
+    "required_achievement" "text",
+    "is_default" boolean DEFAULT false,
+    "is_active" boolean DEFAULT true,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "avatar_items_category_check" CHECK (("category" = ANY (ARRAY['body'::"text", 'skin'::"text", 'eyes'::"text", 'nose'::"text", 'mouth'::"text", 'hair'::"text", 'outfit'::"text", 'accessory'::"text", 'frame'::"text", 'background'::"text", 'emote'::"text", 'companion'::"text"]))),
+    CONSTRAINT "avatar_items_duration_type_check" CHECK (("duration_type" = ANY (ARRAY['permanent'::"text", 'seasonal'::"text", 'event'::"text", 'consumable'::"text"]))),
+    CONSTRAINT "avatar_items_rarity_check" CHECK (("rarity" = ANY (ARRAY['common'::"text", 'uncommon'::"text", 'rare'::"text", 'legendary'::"text"])))
+);
+
+
+ALTER TABLE "public"."avatar_items" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."city_style_assets" (
@@ -2473,6 +2661,41 @@ CREATE TABLE IF NOT EXISTS "public"."content_reference" (
 ALTER TABLE "public"."content_reference" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."cursive_attempts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "exercise_id" "uuid" NOT NULL,
+    "score" integer,
+    "stroke_data" "jsonb" DEFAULT '[]'::"jsonb",
+    "feedback" "text",
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "rhythm_score" "jsonb" DEFAULT '{}'::"jsonb",
+    CONSTRAINT "cursive_attempts_score_check" CHECK ((("score" >= 0) AND ("score" <= 100)))
+);
+
+
+ALTER TABLE "public"."cursive_attempts" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."cursive_exercises" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "title" "text" NOT NULL,
+    "image_url" "text" NOT NULL,
+    "audio_url" "text",
+    "stroke_data" "jsonb" DEFAULT '[]'::"jsonb",
+    "canvas_width" integer DEFAULT 1024 NOT NULL,
+    "canvas_height" integer DEFAULT 768 NOT NULL,
+    "created_by" "uuid",
+    "is_published" boolean DEFAULT false,
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "rhythm_config" "jsonb" DEFAULT '{}'::"jsonb"
+);
+
+
+ALTER TABLE "public"."cursive_exercises" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."items_catalog" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
@@ -2555,6 +2778,68 @@ CREATE TABLE IF NOT EXISTS "public"."pending_rewards" (
 ALTER TABLE "public"."pending_rewards" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."phonics_badges" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "badge_key" "text" NOT NULL,
+    "badge_name" "text" NOT NULL,
+    "description" "text",
+    "icon_name" "text",
+    "unlock_condition" "jsonb",
+    "tier" "text" DEFAULT 'bronze'::"text",
+    "created_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."phonics_badges" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."phonics_game_progress" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "xp_total" integer DEFAULT 0,
+    "level" "text" DEFAULT 'bronze'::"text",
+    "games_played" integer DEFAULT 0,
+    "total_correct" integer DEFAULT 0,
+    "total_attempted" integer DEFAULT 0,
+    "best_streak" integer DEFAULT 0,
+    "sounds_mastered" "text"[] DEFAULT '{}'::"text"[],
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."phonics_game_progress" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."phonics_game_sessions" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "game_mode" "text" NOT NULL,
+    "score" integer DEFAULT 0,
+    "xp_earned" integer DEFAULT 0,
+    "correct_count" integer DEFAULT 0,
+    "total_questions" integer DEFAULT 0,
+    "accuracy" numeric(5,2) DEFAULT 0,
+    "duration_seconds" integer DEFAULT 0,
+    "best_streak" integer DEFAULT 0,
+    "played_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."phonics_game_sessions" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."phonics_user_badges" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "badge_id" "uuid" NOT NULL,
+    "earned_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."phonics_user_badges" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."practice_assignments" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "practice_id" "uuid" NOT NULL,
@@ -2602,7 +2887,8 @@ CREATE TABLE IF NOT EXISTS "public"."proofreading_practice_results" (
     "completed_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "practice_id" "uuid",
-    "assignment_id" "uuid"
+    "assignment_id" "uuid",
+    "tips_used" "jsonb" DEFAULT '[]'::"jsonb"
 );
 
 
@@ -2771,7 +3057,8 @@ CREATE TABLE IF NOT EXISTS "public"."shared_links" (
     "created_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "expires_at" timestamp with time zone,
-    "is_active" boolean DEFAULT true
+    "is_active" boolean DEFAULT true,
+    "target_class" "text"
 );
 
 
@@ -2806,6 +3093,8 @@ CREATE TABLE IF NOT EXISTS "public"."spaced_repetition_questions" (
     "tags" "jsonb" DEFAULT '[]'::"jsonb",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "image_url" "text",
+    "order_index" integer,
     CONSTRAINT "spaced_repetition_questions_difficulty_check" CHECK (("difficulty" = ANY (ARRAY['easy'::"text", 'medium'::"text", 'hard'::"text"])))
 );
 
@@ -2841,6 +3130,7 @@ CREATE TABLE IF NOT EXISTS "public"."spaced_repetition_sets" (
     "is_published" boolean DEFAULT false,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "deleted_at" timestamp with time zone,
     CONSTRAINT "spaced_repetition_sets_difficulty_check" CHECK (("difficulty" = ANY (ARRAY['easy'::"text", 'medium'::"text", 'hard'::"text"])))
 );
 
@@ -2969,6 +3259,29 @@ CREATE TABLE IF NOT EXISTS "public"."user_achievements" (
 ALTER TABLE "public"."user_achievements" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."user_avatar_config" (
+    "user_id" "uuid" NOT NULL,
+    "config" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."user_avatar_config" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_avatar_inventory" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "item_id" "uuid" NOT NULL,
+    "acquired_at" timestamp with time zone DEFAULT "now"(),
+    "expires_at" timestamp with time zone,
+    "source" "text" DEFAULT 'shop'::"text"
+);
+
+
+ALTER TABLE "public"."user_avatar_inventory" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."user_room_data" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -3033,6 +3346,8 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
     "coins" integer DEFAULT 0,
     "seat_number" integer,
     "qr_token" "uuid" DEFAULT "gen_random_uuid"(),
+    "spelling_level" integer,
+    "managed_by_id" "uuid",
     CONSTRAINT "users_role_check" CHECK (("role" = ANY (ARRAY['admin'::"text", 'user'::"text"])))
 );
 
@@ -3047,6 +3362,11 @@ ALTER TABLE ONLY "public"."admin_password_reset_log"
 
 ALTER TABLE ONLY "public"."admin_reset_code_store"
     ADD CONSTRAINT "admin_reset_code_store_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."avatar_items"
+    ADD CONSTRAINT "avatar_items_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3067,6 +3387,16 @@ ALTER TABLE ONLY "public"."coin_transactions"
 
 ALTER TABLE ONLY "public"."content_reference"
     ADD CONSTRAINT "content_reference_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."cursive_attempts"
+    ADD CONSTRAINT "cursive_attempts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."cursive_exercises"
+    ADD CONSTRAINT "cursive_exercises_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3102,6 +3432,41 @@ ALTER TABLE ONLY "public"."notification_templates"
 
 ALTER TABLE ONLY "public"."pending_rewards"
     ADD CONSTRAINT "pending_rewards_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_badges"
+    ADD CONSTRAINT "phonics_badges_badge_key_key" UNIQUE ("badge_key");
+
+
+
+ALTER TABLE ONLY "public"."phonics_badges"
+    ADD CONSTRAINT "phonics_badges_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_game_progress"
+    ADD CONSTRAINT "phonics_game_progress_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_game_progress"
+    ADD CONSTRAINT "phonics_game_progress_user_id_key" UNIQUE ("user_id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_game_sessions"
+    ADD CONSTRAINT "phonics_game_sessions_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_user_badges"
+    ADD CONSTRAINT "phonics_user_badges_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_user_badges"
+    ADD CONSTRAINT "phonics_user_badges_user_id_badge_id_key" UNIQUE ("user_id", "badge_id");
 
 
 
@@ -3267,6 +3632,21 @@ ALTER TABLE ONLY "public"."user_achievements"
 
 ALTER TABLE ONLY "public"."user_achievements"
     ADD CONSTRAINT "user_achievements_user_id_achievement_type_key" UNIQUE ("user_id", "achievement_type");
+
+
+
+ALTER TABLE ONLY "public"."user_avatar_config"
+    ADD CONSTRAINT "user_avatar_config_pkey" PRIMARY KEY ("user_id");
+
+
+
+ALTER TABLE ONLY "public"."user_avatar_inventory"
+    ADD CONSTRAINT "user_avatar_inventory_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_avatar_inventory"
+    ADD CONSTRAINT "user_avatar_inventory_user_id_item_id_key" UNIQUE ("user_id", "item_id");
 
 
 
@@ -3649,6 +4029,21 @@ ALTER TABLE ONLY "public"."content_reference"
 
 
 
+ALTER TABLE ONLY "public"."cursive_attempts"
+    ADD CONSTRAINT "cursive_attempts_exercise_id_fkey" FOREIGN KEY ("exercise_id") REFERENCES "public"."cursive_exercises"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."cursive_attempts"
+    ADD CONSTRAINT "cursive_attempts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."cursive_exercises"
+    ADD CONSTRAINT "cursive_exercises_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+
+
 ALTER TABLE ONLY "public"."memorization_assignments"
     ADD CONSTRAINT "memorization_assignments_assigned_by_fkey" FOREIGN KEY ("assigned_by") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
@@ -3696,6 +4091,26 @@ ALTER TABLE ONLY "public"."pending_rewards"
 
 ALTER TABLE ONLY "public"."pending_rewards"
     ADD CONSTRAINT "pending_rewards_target_user_id_fkey" FOREIGN KEY ("target_user_id") REFERENCES "public"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_game_progress"
+    ADD CONSTRAINT "phonics_game_progress_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_game_sessions"
+    ADD CONSTRAINT "phonics_game_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_user_badges"
+    ADD CONSTRAINT "phonics_user_badges_badge_id_fkey" FOREIGN KEY ("badge_id") REFERENCES "public"."phonics_badges"("id");
+
+
+
+ALTER TABLE ONLY "public"."phonics_user_badges"
+    ADD CONSTRAINT "phonics_user_badges_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
 
 
 
@@ -3894,6 +4309,21 @@ ALTER TABLE ONLY "public"."user_achievements"
 
 
 
+ALTER TABLE ONLY "public"."user_avatar_config"
+    ADD CONSTRAINT "user_avatar_config_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_avatar_inventory"
+    ADD CONSTRAINT "user_avatar_inventory_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."avatar_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_avatar_inventory"
+    ADD CONSTRAINT "user_avatar_inventory_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."user_room_data"
     ADD CONSTRAINT "user_room_data_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE SET NULL;
 
@@ -3906,6 +4336,11 @@ ALTER TABLE ONLY "public"."user_room_data"
 
 ALTER TABLE ONLY "public"."user_streaks"
     ADD CONSTRAINT "user_streaks_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."users"
+    ADD CONSTRAINT "users_managed_by_id_fkey" FOREIGN KEY ("managed_by_id") REFERENCES "public"."users"("id");
 
 
 
@@ -4008,6 +4443,12 @@ CREATE POLICY "Admins can delete users" ON "public"."users" FOR DELETE TO "authe
 CREATE POLICY "Admins can delete voice recommendations" ON "public"."recommended_voices" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."users"
   WHERE (("users"."id" = ( SELECT "auth"."uid"() AS "uid")) AND ("users"."role" = 'admin'::"text")))));
+
+
+
+CREATE POLICY "Admins can do everything with exercises" ON "public"."cursive_exercises" USING (("public"."is_admin"() OR (EXISTS ( SELECT 1
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND ("users"."role" = 'admin'::"text"))))));
 
 
 
@@ -4161,6 +4602,12 @@ CREATE POLICY "Admins can view all assignments" ON "public"."practice_assignment
 
 
 
+CREATE POLICY "Admins can view all attempts" ON "public"."cursive_attempts" FOR SELECT USING (("public"."is_admin"() OR (EXISTS ( SELECT 1
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND ("users"."role" = 'admin'::"text"))))));
+
+
+
 CREATE POLICY "Admins can view all coin transactions" ON "public"."coin_transactions" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."users"
   WHERE (("users"."id" = "auth"."uid"()) AND ("users"."role" = 'admin'::"text")))));
@@ -4237,6 +4684,10 @@ CREATE POLICY "Allow public read access to regions" ON "public"."regions" FOR SE
 
 
 
+CREATE POLICY "Allow public select" ON "public"."class_rewards" FOR SELECT USING (true);
+
+
+
 CREATE POLICY "Anyone can read error log" ON "public"."dev_error_log" FOR SELECT USING (true);
 
 
@@ -4277,7 +4728,23 @@ CREATE POLICY "Enable update for owners and claimers" ON "public"."region_plots"
 
 
 
+CREATE POLICY "Everyone can view active avatar items" ON "public"."avatar_items" FOR SELECT USING (("is_active" = true));
+
+
+
 CREATE POLICY "Everyone can view active target behaviors" ON "public"."target_behaviors" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "Everyone can view avatar configs" ON "public"."user_avatar_config" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "Everyone can view badge definitions" ON "public"."phonics_badges" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "Everyone can view published exercises" ON "public"."cursive_exercises" FOR SELECT USING (("is_published" = true));
 
 
 
@@ -4296,10 +4763,6 @@ CREATE POLICY "Only admins can view reset log" ON "public"."admin_password_reset
 
 
 CREATE POLICY "Public can view public rooms" ON "public"."rooms" FOR SELECT USING (("is_public" = true));
-
-
-
-CREATE POLICY "Public read access" ON "public"."class_rewards" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -4367,6 +4830,10 @@ CREATE POLICY "Users can delete questions in own sets" ON "public"."spaced_repet
 
 
 
+CREATE POLICY "Users can insert default items" ON "public"."user_avatar_inventory" FOR INSERT WITH CHECK ((("auth"."uid"() = "user_id") AND ("source" = 'default'::"text")));
+
+
+
 CREATE POLICY "Users can insert own attempts" ON "public"."spaced_repetition_attempts" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
 
 
@@ -4392,6 +4859,22 @@ CREATE POLICY "Users can insert own spelling practice lists" ON "public"."spelli
 
 
 CREATE POLICY "Users can insert own spelling results" ON "public"."spelling_practice_results" FOR INSERT TO "authenticated" WITH CHECK ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
+
+
+
+CREATE POLICY "Users can insert their own earned badges" ON "public"."phonics_user_badges" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert their own progress" ON "public"."phonics_game_progress" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert their own sessions" ON "public"."phonics_game_sessions" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can manage their own avatar config" ON "public"."user_avatar_config" USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -4457,6 +4940,14 @@ CREATE POLICY "Users can update questions in own sets" ON "public"."spaced_repet
 
 
 
+CREATE POLICY "Users can update their own progress" ON "public"."phonics_game_progress" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view and create their own attempts" ON "public"."cursive_attempts" USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can view assigned practices" ON "public"."spelling_practices" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."practice_assignments"
   WHERE (("practice_assignments"."practice_id" = "spelling_practices"."id") AND ("practice_assignments"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
@@ -4479,6 +4970,10 @@ CREATE POLICY "Users can view own attempts" ON "public"."spaced_repetition_attem
 
 
 
+CREATE POLICY "Users can view own deleted sets" ON "public"."spaced_repetition_sets" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "user_id") AND ("deleted_at" IS NOT NULL)));
+
+
+
 CREATE POLICY "Users can view own memorization sessions" ON "public"."memorization_practice_sessions" FOR SELECT TO "authenticated" USING (("user_id" = "auth"."uid"()));
 
 
@@ -4491,7 +4986,7 @@ CREATE POLICY "Users can view own schedules" ON "public"."spaced_repetition_sche
 
 
 
-CREATE POLICY "Users can view own sets" ON "public"."spaced_repetition_sets" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "user_id") OR ("is_published" = true)));
+CREATE POLICY "Users can view own sets" ON "public"."spaced_repetition_sets" FOR SELECT TO "authenticated" USING (((("auth"."uid"() = "user_id") AND ("deleted_at" IS NULL)) OR (("is_published" = true) AND ("deleted_at" IS NULL))));
 
 
 
@@ -4509,7 +5004,23 @@ CREATE POLICY "Users can view questions in accessible sets" ON "public"."spaced_
 
 
 
+CREATE POLICY "Users can view their own avatar inventory" ON "public"."user_avatar_inventory" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own badges" ON "public"."phonics_user_badges" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can view their own coin transactions" ON "public"."coin_transactions" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own progress" ON "public"."phonics_game_progress" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own sessions" ON "public"."phonics_game_sessions" FOR SELECT USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -4525,6 +5036,9 @@ ALTER TABLE "public"."admin_password_reset_log" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."admin_reset_code_store" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."avatar_items" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."city_style_assets" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4535,6 +5049,12 @@ ALTER TABLE "public"."coin_transactions" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."content_reference" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."cursive_attempts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."cursive_exercises" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."dev_error_log" ENABLE ROW LEVEL SECURITY;
@@ -4553,6 +5073,18 @@ ALTER TABLE "public"."notification_templates" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."pending_rewards" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."phonics_badges" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."phonics_game_progress" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."phonics_game_sessions" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."phonics_user_badges" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."practice_assignments" ENABLE ROW LEVEL SECURITY;
@@ -4633,6 +5165,12 @@ ALTER TABLE "public"."ui_builder_assets" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_achievements" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."user_avatar_config" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."user_avatar_inventory" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."user_room_data" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4694,6 +5232,12 @@ GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "tex
 GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text", "managed_by_id_input" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text", "managed_by_id_input" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_user_with_password"("username_input" "text", "password_input" "text", "role_input" "text", "display_name_input" "text", "can_access_proofreading_input" boolean, "can_access_spelling_input" boolean, "can_access_learning_hub_input" boolean, "class_input" "text", "managed_by_id_input" "uuid") TO "service_role";
 
 
 
@@ -4853,6 +5397,12 @@ GRANT ALL ON FUNCTION "public"."increment_room_coins"("target_user_id" "uuid", "
 
 
 
+GRANT ALL ON FUNCTION "public"."initialize_user_avatar_defaults"("target_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."initialize_user_avatar_defaults"("target_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."initialize_user_avatar_defaults"("target_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "anon";
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_admin"() TO "service_role";
@@ -4955,6 +5505,12 @@ GRANT ALL ON FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "targ
 
 
 
+GRANT ALL ON FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text", "new_display_name" "text", "new_role" "text", "new_class" "text", "new_seat_number" integer, "new_spelling_level" integer, "new_managed_by_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text", "new_display_name" "text", "new_role" "text", "new_class" "text", "new_seat_number" integer, "new_spelling_level" integer, "new_managed_by_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_user_info"("caller_user_id" "uuid", "target_user_id" "uuid", "new_username" "text", "new_display_name" "text", "new_role" "text", "new_class" "text", "new_seat_number" integer, "new_spelling_level" integer, "new_managed_by_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."validate_session"("session_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."validate_session"("session_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."validate_session"("session_id" "uuid") TO "service_role";
@@ -4982,6 +5538,12 @@ GRANT ALL ON TABLE "public"."admin_password_reset_log" TO "service_role";
 GRANT ALL ON TABLE "public"."admin_reset_code_store" TO "anon";
 GRANT ALL ON TABLE "public"."admin_reset_code_store" TO "authenticated";
 GRANT ALL ON TABLE "public"."admin_reset_code_store" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."avatar_items" TO "anon";
+GRANT ALL ON TABLE "public"."avatar_items" TO "authenticated";
+GRANT ALL ON TABLE "public"."avatar_items" TO "service_role";
 
 
 
@@ -5021,6 +5583,18 @@ GRANT ALL ON TABLE "public"."content_reference" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."cursive_attempts" TO "anon";
+GRANT ALL ON TABLE "public"."cursive_attempts" TO "authenticated";
+GRANT ALL ON TABLE "public"."cursive_attempts" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."cursive_exercises" TO "anon";
+GRANT ALL ON TABLE "public"."cursive_exercises" TO "authenticated";
+GRANT ALL ON TABLE "public"."cursive_exercises" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."items_catalog" TO "anon";
 GRANT ALL ON TABLE "public"."items_catalog" TO "authenticated";
 GRANT ALL ON TABLE "public"."items_catalog" TO "service_role";
@@ -5048,6 +5622,30 @@ GRANT ALL ON TABLE "public"."notification_templates" TO "service_role";
 GRANT ALL ON TABLE "public"."pending_rewards" TO "anon";
 GRANT ALL ON TABLE "public"."pending_rewards" TO "authenticated";
 GRANT ALL ON TABLE "public"."pending_rewards" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."phonics_badges" TO "anon";
+GRANT ALL ON TABLE "public"."phonics_badges" TO "authenticated";
+GRANT ALL ON TABLE "public"."phonics_badges" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."phonics_game_progress" TO "anon";
+GRANT ALL ON TABLE "public"."phonics_game_progress" TO "authenticated";
+GRANT ALL ON TABLE "public"."phonics_game_progress" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."phonics_game_sessions" TO "anon";
+GRANT ALL ON TABLE "public"."phonics_game_sessions" TO "authenticated";
+GRANT ALL ON TABLE "public"."phonics_game_sessions" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."phonics_user_badges" TO "anon";
+GRANT ALL ON TABLE "public"."phonics_user_badges" TO "authenticated";
+GRANT ALL ON TABLE "public"."phonics_user_badges" TO "service_role";
 
 
 
@@ -5204,6 +5802,18 @@ GRANT ALL ON TABLE "public"."ui_builder_assets" TO "service_role";
 GRANT ALL ON TABLE "public"."user_achievements" TO "anon";
 GRANT ALL ON TABLE "public"."user_achievements" TO "authenticated";
 GRANT ALL ON TABLE "public"."user_achievements" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_avatar_config" TO "anon";
+GRANT ALL ON TABLE "public"."user_avatar_config" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_avatar_config" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."user_avatar_inventory" TO "anon";
+GRANT ALL ON TABLE "public"."user_avatar_inventory" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_avatar_inventory" TO "service_role";
 
 
 

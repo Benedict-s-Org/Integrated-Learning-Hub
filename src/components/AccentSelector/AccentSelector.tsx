@@ -1,20 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Volume2, CheckCircle, AlertCircle, Star, Smartphone } from 'lucide-react';
-import { getAvailableVoices, groupVoicesByLanguage, getVoiceDisplayName, type VoiceInfo } from '../../utils/voiceManager';
+import { Globe, Volume2, CheckCircle, AlertCircle, Star, Smartphone, Info } from 'lucide-react';
+import { groupVoicesByLanguage, createUtterance, ACCENT_OPTIONS, type VoiceInfo } from '../../utils/voiceManager';
 import { supabase } from '../../lib/supabase';
+import VoiceHelpModal from './VoiceHelpModal';
 
-export type AccentOption = {
-  code: string;
-  label: string;
-  flag: string;
-};
-
-export const ACCENT_OPTIONS: AccentOption[] = [
-  { code: 'en-US', label: 'American English', flag: '🇺🇸' },
-  { code: 'en-GB', label: 'British English', flag: '🇬🇧' },
-  { code: 'en-AU', label: 'Australian English', flag: '🇦🇺' },
-  { code: 'en-IE', label: 'Irish English', flag: '🇮🇪' },
-];
+// Moved ACCENT_OPTIONS to voiceManager.ts to resolve Vite HMR conflicts
 
 interface AccentSelectorProps {
   currentAccent: string;
@@ -43,6 +33,7 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
   const [loading, setLoading] = useState(true);
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
   const [recommendedVoices, setRecommendedVoices] = useState<Record<string, RecommendedVoice>>({});
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const selectedOption = ACCENT_OPTIONS.find(opt => opt.code === selectedAccent) || ACCENT_OPTIONS[0];
   const availableVoices = voicesByLang[selectedAccent] || [];
@@ -61,19 +52,22 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
     try {
       setLoading(true);
 
-      const [grouped, { data: recommendations }] = await Promise.all([
+      const [grouped, recommendationsResponse] = await Promise.all([
         groupVoicesByLanguage(),
         supabase
-          .from('recommended_voices')
+          .from('recommended_voices' as any)
           .select('accent_code, voice_name, voice_uri, is_ios_native')
           .order('priority', { ascending: false })
       ]);
 
       setVoicesByLang(grouped);
 
-      if (recommendations) {
+      if (recommendationsResponse.error) {
+        // Log but don't break the UI if table is missing or query fails
+        console.warn('[AccentSelector] Could not load recommended voices (this is expected if the table hasn\'t been created yet):', recommendationsResponse.error);
+      } else if (recommendationsResponse.data) {
         const recMap: Record<string, RecommendedVoice> = {};
-        recommendations.forEach(rec => {
+        recommendationsResponse.data.forEach((rec: any) => {
           if (!recMap[rec.accent_code]) {
             recMap[rec.accent_code] = {
               voice_name: rec.voice_name,
@@ -159,12 +153,7 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
 
     setTestingVoice(voiceInfo.uri);
 
-    const utterance = new SpeechSynthesisUtterance('Hello, this is a test of this voice.');
-    utterance.voice = voiceInfo.voice;
-    utterance.lang = voiceInfo.lang;
-    utterance.rate = 0.8;
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    const utterance = createUtterance('Hello, this is a test of this voice.', voiceInfo.voice);
 
     utterance.onend = () => {
       setTestingVoice(null);
@@ -234,11 +223,20 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
           Loading voices...
         </div>
       ) : availableVoices.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start space-x-2">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start space-x-3">
           <AlertCircle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-yellow-800">
-            No voices available for this accent on this device.
-          </p>
+          <div className="flex-1">
+            <p className="text-sm text-yellow-800 font-medium">
+              No voices available for this accent on this device.
+            </p>
+            <button 
+              onClick={() => setShowHelpModal(true)}
+              className="mt-2 text-xs text-blue-600 font-bold flex items-center hover:underline bg-white/50 px-2 py-1 rounded"
+            >
+              <Info size={12} className="mr-1" />
+              How to download voices?
+            </button>
+          </div>
         </div>
       ) : (
         <div>
@@ -273,16 +271,29 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
                           {voiceInfo.name}
                         </span>
                         {isRecommended && (
-                          <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" title="Recommended by admin" />
+                          <span title="Recommended by admin">
+                            <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                          </span>
                         )}
                         {voiceInfo.isIOSNative && (
-                          <Smartphone size={14} className="text-green-600 flex-shrink-0" title="iOS Native - Best for iPads" />
+                          <span title="iOS Native - Best for iPads">
+                            <Smartphone size={14} className="text-green-600 flex-shrink-0" />
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center space-x-2 mt-0.5">
-                        <span className="text-xs text-gray-500">
-                          {voiceInfo.isIOSNative ? 'iOS Native' : voiceInfo.isLocal ? 'Local' : 'Download Required'}
-                        </span>
+                        {!voiceInfo.isIOSNative && !voiceInfo.isLocal && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowHelpModal(true);
+                            }}
+                            className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 font-bold hover:bg-indigo-100 transition-colors flex items-center"
+                          >
+                            <Info size={10} className="mr-1" />
+                            Download Required
+                          </button>
+                        )}
                         {isRecommended && (
                           <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">
                             Recommended
@@ -329,6 +340,11 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
           )}
         </div>
       )}
+      {/* Voice Download Help Modal */}
+      <VoiceHelpModal 
+        isOpen={showHelpModal} 
+        onClose={() => setShowHelpModal(false)} 
+      />
     </div>
   );
 };

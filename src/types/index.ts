@@ -107,6 +107,11 @@ export interface UserProfile {
   proofreading_level?: number;
   reading_level?: number;
   spelling_level?: number;
+  voice_preference?: {
+    voiceName: string;
+    voiceLang: string;
+    voiceURI: string;
+  } | null;
 }
 
 export interface AuthContextType {
@@ -126,7 +131,13 @@ export interface AuthContextType {
   isMobileEmulator: boolean;
   setIsMobileEmulator: (val: boolean) => void;
   accentPreference: string;
+  voicePreference: {
+    voiceName: string;
+    voiceLang: string;
+    voiceURI: string;
+  } | null;
   updateAccentPreference: (accent: string) => Promise<void>;
+  updateVoicePreference: (voiceName: string, voiceLang: string, voiceURI: string) => Promise<void>;
   impersonatedAdminId?: string | null;
   setImpersonatedAdminId: (id: string | null) => void;
   isImpersonating: boolean;

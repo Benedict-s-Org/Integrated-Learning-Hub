@@ -7,7 +7,8 @@ import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
 import { supabase } from '../../lib/supabase';
-import { findBestVoiceMatch, isSpeechSynthesisSupported } from '../../utils/voiceManager';
+import { findBestVoiceMatch, isSpeechSynthesisSupported, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
+import VoiceSettings from '../SpellingPractice/VoiceSettings';
 
 interface MemorizationViewProps {
   words: Word[];
@@ -42,7 +43,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const isStoppingRef = useRef(false);
 
   const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
-  const { user, isAdmin, accentPreference } = useAuth();
+  const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
 
   useEffect(() => {
     return () => {
@@ -193,39 +194,69 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const handlePlay = async () => {
     if (!speechSupported) return;
 
-    // Resume if paused
-    if (isPaused) {
+    // Resume if paused (only for browser synthesis)
+    if (isPaused && utteranceRef.current) {
       window.speechSynthesis.resume();
       setIsPaused(false);
       setIsPlaying(true);
       return;
     }
 
-    // Stop any current playback
-    if (window.speechSynthesis.speaking) {
-      isStoppingRef.current = true;
-      window.speechSynthesis.cancel();
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    // Stop and clear any current playback
+    isStoppingRef.current = true;
+    window.speechSynthesis.cancel();
+    if (utteranceRef.current) utteranceRef.current = null;
+    
+    // Stop any HTML5 Audio if playing
+    const existingAudios = document.querySelectorAll('audio.tts-audio');
+    existingAudios.forEach((a: any) => {
+      a.pause();
+      a.remove();
+    });
 
+    await new Promise(resolve => setTimeout(resolve, 100));
     isStoppingRef.current = false;
 
-    // Find the best voice
-    const voice = await findBestVoiceMatch(null, accentPreference);
+    // 1. Try Google Cloud TTS for premium consistency
+    try {
+      setIsPlaying(true);
+      const audioDataUri = await fetchCloudAudio(originalText, accentPreference);
+      if (audioDataUri && !isStoppingRef.current) {
+        console.log('[MemorizationView] Using Google Cloud TTS audio');
+        const audio = new Audio(audioDataUri);
+        audio.className = 'tts-audio';
+        audio.playbackRate = playbackSpeed;
+        audio.onended = () => {
+          setIsPlaying(false);
+          setIsPaused(false);
+        };
+        audio.onerror = () => {
+          setIsPlaying(false);
+          setIsPaused(false);
+        };
+        
+        // Handle manual pause for HTML5 Audio
+        utteranceRef.current = null; // Mark as NOT browser synthesis
+        await audio.play();
+        return; // Success!
+      }
+    } catch (err) {
+      console.warn('[MemorizationView] Cloud TTS failed, falling back to browser voice:', err);
+    }
+
+    // 2. Fallback to Browser native speechSynthesis
+    if (isStoppingRef.current) return;
+    
+    console.log('[MemorizationView] handlePlay: finding best voice match');
+    const voice = await findBestVoiceMatch(voicePreference, accentPreference);
     if (!voice) {
-      console.error('No voice available');
+      console.warn('[MemorizationView] handlePlay: No voice available');
+      setIsPlaying(false);
       return;
     }
 
-    // Create utterance
-    const utterance = new SpeechSynthesisUtterance(originalText);
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
+    const utterance = createUtterance(originalText, voice);
     utterance.rate = playbackSpeed;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    // Track word boundaries (removed visuals)
 
     utterance.onend = () => {
       if (!isStoppingRef.current) {
@@ -247,10 +278,21 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   };
 
   const handlePause = () => {
-    if (window.speechSynthesis.speaking && !isPaused) {
-      window.speechSynthesis.pause();
-      setIsPaused(true);
-      setIsPlaying(false);
+    if (utteranceRef.current) {
+      // Browser synthesis pause
+      if (window.speechSynthesis.speaking && !isPaused) {
+        window.speechSynthesis.pause();
+        setIsPaused(true);
+        setIsPlaying(false);
+      }
+    } else {
+      // HTML5 Audio pause (Cloud TTS)
+      const audio = document.querySelector('audio.tts-audio') as HTMLAudioElement;
+      if (audio && !audio.paused) {
+        audio.pause();
+        setIsPaused(true);
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -367,7 +409,17 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
 
               {speechSupported && (
                 <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4">
-                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 md:space-x-6">
+                  <VoiceSettings
+                    currentAccent={accentPreference}
+                    currentVoiceURI={voicePreference?.voiceURI}
+                    onVoiceChange={async (_accent, voiceName, voiceLang, voiceURI) => {
+                      await updateVoicePreference(voiceName, voiceLang, voiceURI);
+                      if (isPlaying) {
+                        handleReplay();
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 md:space-x-6 pt-4">
                     <div className="flex items-center space-x-3">
                       <Button
                         onClick={handlePlay}
