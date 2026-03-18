@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
 interface Practice {
@@ -38,10 +39,20 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null);
   const [assignmentLevel, setAssignmentLevel] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { getWordsDueForReview } = useSpellingSrs();
+  const [dueWords, setDueWords] = useState<string[]>([]);
 
   useEffect(() => {
     fetchPractices();
-  }, [user]);
+    if (user && !isAdmin) {
+      loadDueWords();
+    }
+  }, [user, isAdmin]);
+
+  const loadDueWords = async () => {
+    const words = await getWordsDueForReview();
+    setDueWords(words);
+  };
 
   if (!user) {
     return null;
@@ -262,6 +273,35 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                 }
               </p>
             </div>
+
+            {!isAdmin && dueWords.length > 0 && (
+              <div className="mb-8 p-6 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-orange-100 rounded-xl">
+                      <Clock className="w-8 h-8 text-orange-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-800">Review Flashcards</h2>
+                      <p className="text-gray-600">
+                        You have <span className="font-bold text-orange-600">{dueWords.length}</span> {dueWords.length === 1 ? 'word' : 'words'} due for review!
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onSelectPractice({
+                      id: 'srs-review',
+                      title: `Daily Review (${new Date().toLocaleDateString()})`,
+                      words: dueWords,
+                      created_at: new Date().toISOString()
+                    })}
+                    className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+                  >
+                    Start Review
+                  </button>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">

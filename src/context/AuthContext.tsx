@@ -31,6 +31,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       can_access_spelling: true,
       can_access_learning_hub: true,
       can_access_spaced_repetition: true,
+      proofreading_level: supabaseUser.user_metadata?.proofreading_level || 1,
+      reading_level: supabaseUser.user_metadata?.reading_level || 1,
+      spelling_level: supabaseUser.user_metadata?.spelling_level || 1,
     };
   };
 
@@ -222,6 +225,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               can_access_spelling: true,
               can_access_learning_hub: true,
               can_access_spaced_repetition: true,
+              proofreading_level: profileData.proofreading_level || 1,
+              reading_level: profileData.reading_level || 1,
+              spelling_level: profileData.spelling_level || 1,
             } as UserProfile);
           }
         });

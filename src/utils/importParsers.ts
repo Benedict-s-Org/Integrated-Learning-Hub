@@ -269,8 +269,12 @@ export interface ReadingQuestion {
 export interface ProofreadingImportData {
   id: string;
   original: string; // The sentence with the error
-  corrected: string; // The fully corrected sentence
-  tip?: string;
+  error?: string; // The explicit incorrect word
+  corrected?: string; // The fully corrected sentence or correction word
+  tip?: string; // Explanation or Tip
+  feature?: string; // e.g. "subject verb agreement"
+  level?: string; // e.g. "P.3"
+  levelSpecific?: string; // "yes" or "no"
   day?: string;
 }
 
@@ -316,15 +320,23 @@ export function parseProofreadingNotionResponse(results: any[]): ProofreadingImp
     const props = page.properties || {};
 
     const originalText = extractNotionProperty(props, ['Question', 'question', 'Original', 'original', 'Sentence', 'sentence', '錯誤句子', '題目']);
-    const correctedText = extractNotionProperty(props, ['Answer', 'answer', 'Corrected', 'corrected', 'Correction', 'correction', '正確句子', '答案']);
+    const errorWord = extractNotionProperty(props, ['error', 'Error', '錯誤', '錯字']);
+    const correctedContent = extractNotionProperty(props, ['Corrected', 'corrected', 'Correction', 'correction', 'Correct Answer', '正確答案', '答案', '正確句子']);
+    const featureText = extractNotionProperty(props, ['Feature', 'feature', 'Grammar', '特徵', '語法範疇']);
+    const levelText = extractNotionProperty(props, ['Level', 'level', '等級', '程度']);
+    const levelSpecific = extractNotionProperty(props, ['Level Specific', 'level specific', '特定等級', '是否特定']);
     const tipText = extractNotionProperty(props, ['Tip', 'tip', 'Explanation', 'explanation', 'Hint', 'hint', '提示', '解釋']);
     const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
     
-    if (originalText && correctedText) {
+    if (originalText) {
       questions.push({
         id: page.id,
         original: originalText,
-        corrected: correctedText,
+        error: errorWord || undefined,
+        corrected: correctedContent || undefined,
+        feature: featureText || undefined,
+        level: levelText || undefined,
+        levelSpecific: levelSpecific?.toLowerCase() || undefined,
         tip: tipText || undefined,
         day: dayText || undefined
       });

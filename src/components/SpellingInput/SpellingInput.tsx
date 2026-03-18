@@ -4,7 +4,7 @@ import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { useAuth } from '../../context/AuthContext';
 
 interface SpellingInputProps {
-  onNext: (title: string, words: string[]) => void;
+  onNext: (title: string, words: string[], isPhraseMode?: boolean) => void;
   onBack?: () => void;
   onViewSaved?: () => void;
 }
@@ -13,9 +13,24 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [wordsInput, setWordsInput] = useState('');
+  const [isPhraseMode, setIsPhraseMode] = useState(false);
   const [error, setError] = useState('');
 
   const parseWords = (input: string): string[] => {
+    if (isPhraseMode) {
+      // Split by newlines and filter empty lines
+      return input
+        .split('\n')
+        .map(line => {
+          return line
+            .replace(/^[\d\s\.\-\)]+/, '') // Remove leading numbers, dots, dashes, etc. (question numbers)
+            .replace(/\.+$/, '')            // Remove trailing full stops
+            .replace(/\./g, '')             // Remove any internal dots as well
+            .trim();
+        })
+        .filter(line => line.length > 0 && /^[a-zA-Z\s'-]+$/.test(line)); // Allow spaces, hyphens, apostrophes
+    }
+
     // Split by spaces, commas, numbers, and newlines
     const rawWords = input.split(/[\s,\d\n]+/).map(word => word.trim()).filter(word => word.length > 0);
 
@@ -44,7 +59,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
     }
 
     // Just proceed to preview, don't save yet
-    onNext(title.trim(), words);
+    onNext(title.trim(), words, isPhraseMode);
   };
 
   const wordCount = parseWords(wordsInput).length;
@@ -96,11 +111,44 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
               </div>
 
               <div>
+                <label className="block text-lg font-semibold text-gray-700 mb-2">
+                  Practice Mode
+                </label>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setIsPhraseMode(false)}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all font-medium ${!isPhraseMode
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                      }`}
+                  >
+                    Word Mode
+                  </button>
+                  <button
+                    onClick={() => setIsPhraseMode(true)}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all font-medium ${isPhraseMode
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                      }`}
+                  >
+                    Phrase Mode
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  {isPhraseMode
+                    ? "Each line you enter will be treated as a single phrase/question."
+                    : "Individual words separated by spaces or commas will be extracted."}
+                </p>
+              </div>
+
+              <div>
                 <label htmlFor="words" className="block text-lg font-semibold text-gray-700 mb-2">
                   Words
                 </label>
                 <p className="text-sm text-gray-500 mb-2">
-                  Enter words separated by spaces, commas, or numbers. Only English words will be recognized.
+                  {isPhraseMode
+                    ? "Enter each phrase on a new line. Spaces and basic punctuation are allowed."
+                    : "Enter words separated by spaces, commas, or numbers. Only English words will be recognized."}
                 </p>
                 <textarea
                   id="words"

@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { useAuth } from '../../context/AuthContext';
+import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPracticeProps {
@@ -17,7 +18,9 @@ interface SpellingPracticeProps {
 
 const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode }) => {
   const { accentPreference, user } = useAuth();
+  const { recordWordAttempt } = useSpellingSrs();
   const startTimeRef = useRef<number>(Date.now());
+  const wordStartTimeRef = useRef<number>(Date.now());
   const [level, setLevel] = useState<1 | 2>(1);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
@@ -86,6 +89,9 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
     setIsCorrect(correct);
     setShowFeedback(true);
 
+    const responseTimeMs = Date.now() - wordStartTimeRef.current;
+    recordWordAttempt(currentWord, correct, responseTimeMs);
+
     const newResult = {
       word: currentWord,
       userAnswer,
@@ -102,6 +108,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
       setUserInput('');
       setClickedLetters([]);
       setShowFeedback(false);
+      wordStartTimeRef.current = Date.now();
       speakWord(words[nextIndex]);
       initializeShuffledLetters(words[nextIndex]);
     } else {
@@ -126,7 +133,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
     }];
 
     try {
-      await supabase.from('spelling_practice_results').insert({
+      await (supabase as any).from('spelling_practice_results').insert({
         user_id: user.id,
         practice_id: practiceId || null,
         assignment_id: assignmentId || null,
@@ -142,7 +149,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
       });
 
       if (assignmentId) {
-        const { error: markError } = await supabase.rpc('mark_assignment_complete', {
+        const { error: markError } = await (supabase as any).rpc('mark_assignment_complete', {
           p_assignment_id: assignmentId,
           p_assignment_type: 'spelling'
         });

@@ -27,7 +27,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
   onViewSaved,
   isPreview = false
 }) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const startTimeRef = useRef<number>(Date.now());
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
@@ -356,7 +356,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                             <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 relative group">
                               <div className="flex flex-col items-center justify-center space-y-1">
                                 <span>{sentence.lineNumber + 1}</span>
-                                {correctAnswer?.tip && !showResults && !isPreview && (
+                                {correctAnswer?.tip && !showResults && (isPreview || isAdmin || user?.proofreading_level === 1) && (
                                   <button
                                     onClick={() => setRevealedTips(prev => new Set(prev).add(sentence.lineNumber))}
                                     className={`p-1 rounded-full transition-colors ${revealedTips.has(sentence.lineNumber)
@@ -369,7 +369,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                                   </button>
                                 )}
                               </div>
-                              {revealedTips.has(sentence.lineNumber) && correctAnswer?.tip && !showResults && (
+                              {revealedTips.has(sentence.lineNumber) && correctAnswer?.tip && !showResults && (isPreview || isAdmin || user?.proofreading_level === 1) && (
                                 <div className="absolute left-full top-0 ml-2 z-10 w-48 p-2 bg-yellow-50 border border-yellow-200 rounded shadow-sm text-xs text-yellow-800 italic text-left">
                                   Tip: {correctAnswer.tip}
                                 </div>
@@ -485,7 +485,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                       >
                         <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                           <span className="font-semibold text-gray-500 text-sm">Question {sentence.lineNumber + 1}</span>
-                          {correctAnswer?.tip && !showResults && !isPreview && (
+                          {correctAnswer?.tip && !showResults && (isPreview || isAdmin || user?.proofreading_level === 1) && (
                             <div className="relative">
                               <button
                                 onClick={() => {

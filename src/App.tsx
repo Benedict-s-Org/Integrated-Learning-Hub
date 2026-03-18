@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { DashboardThemeProvider } from './context/DashboardThemeContext';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
+import { SpellingSrsProvider } from './context/SpellingSrsContext';
 import { MemoryPalaceProvider, useMemoryPalaceContext } from './contexts/MemoryPalaceContext';
 import { useInventory } from './hooks/useInventory';
 import SourceInspector from './components/SourceInspector/SourceInspector';
@@ -65,8 +66,8 @@ type AppState =
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
   | { page: 'spelling'; step: 'input' }
-  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; practiceId?: string }
-  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; practiceId?: string; assignmentId?: string }
+  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string }
+  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string }
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
@@ -167,7 +168,14 @@ function AppContent() {
   useEffect(() => {
     const handleToggleNav = (e: any) => setIsNavOpen(e.detail);
     window.addEventListener('toggle-navigation', handleToggleNav);
-    return () => window.removeEventListener('toggle-navigation', handleToggleNav);
+    
+    const handleNavigate = () => setAppState({ page: 'spelling', step: 'saved' });
+    window.addEventListener('navigate-to-spelling-saved', handleNavigate);
+
+    return () => {
+      window.removeEventListener('toggle-navigation', handleToggleNav);
+      window.removeEventListener('navigate-to-spelling-saved', handleNavigate);
+    };
   }, []);
 
   // Close login modal when user signs in
@@ -579,8 +587,8 @@ function AppContent() {
     setAppState({ page: 'proofreadingAssignments' });
   };
 
-  const handleSpellingWordsSubmit = (title: string, words: string[]) => {
-    setAppState({ page: 'spelling', step: 'preview', title, words });
+  const handleSpellingWordsSubmit = (title: string, words: string[], isPhraseMode?: boolean) => {
+    setAppState({ page: 'spelling', step: 'preview', title, words, isPhraseMode });
   };
 
   const handleViewSavedSpelling = () => {
@@ -594,11 +602,8 @@ function AppContent() {
   const handleSpellingPreviewNext = () => {
     if (appState.page === 'spelling' && appState.step === 'preview') {
       setAppState({
-        page: 'spelling',
-        step: 'practice',
-        title: appState.title,
-        words: appState.words,
-        practiceId: appState.practiceId
+        ...appState,
+        step: 'practice'
       });
     }
   };
@@ -858,6 +863,7 @@ function AppContent() {
                     <SpellingPreview
                       title={appState.title}
                       words={appState.words}
+                      isPhraseMode={appState.isPhraseMode}
                       onNext={handleSpellingPreviewNext}
                       onBack={handleBackToSpellingInput}
                       onSave={isAdmin ? handleViewSavedSpelling : undefined}
@@ -869,6 +875,7 @@ function AppContent() {
                     <SpellingPractice
                       title={appState.title}
                       words={appState.words}
+                      isPhraseMode={appState.isPhraseMode}
                       practiceId={appState.practiceId}
                       assignmentId={appState.assignmentId}
                       onBack={handleBackToSpellingPreview}
@@ -1610,10 +1617,12 @@ function AppProviderWrapper() {
   return (
     <AppProvider userId={user?.id}>
       <SpacedRepetitionProvider userId={user?.id}>
-        <MemoryPalaceProvider>
-          <SourceInspector />
-          <AppContent />
-        </MemoryPalaceProvider>
+        <SpellingSrsProvider>
+          <MemoryPalaceProvider>
+            <SourceInspector />
+            <AppContent />
+          </MemoryPalaceProvider>
+        </SpellingSrsProvider>
       </SpacedRepetitionProvider>
     </AppProvider>
   );

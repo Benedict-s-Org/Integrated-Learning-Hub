@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb, RefreshCw, AlertCircle, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { LearningActivity } from '../../types';
 import InteractiveExperience from './InteractiveExperience';
 
@@ -10,10 +11,18 @@ const LearningHub: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<LearningActivity | null>(null);
+  const { getWordsDueForReview } = useSpellingSrs();
+  const [dueWordsCount, setDueWordsCount] = useState<number>(0);
 
   useEffect(() => {
     fetchActivities();
+    loadDueWords();
   }, []);
+
+  const loadDueWords = async () => {
+    const words = await getWordsDueForReview();
+    setDueWordsCount(words.length);
+  };
 
   const fetchActivities = async () => {
     setLoading(true);
@@ -93,6 +102,28 @@ const LearningHub: React.FC = () => {
               <span>Refresh</span>
             </button>
           </div>
+
+          {dueWordsCount > 0 && (
+            <div className="mb-8 p-6 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-2xl shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-orange-100 rounded-xl">
+                  <BookOpen className="w-8 h-8 text-orange-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Spelling Review Ready</h2>
+                  <p className="text-gray-600">
+                    You have <span className="font-bold text-orange-600">{dueWordsCount}</span> {dueWordsCount === 1 ? 'word' : 'words'} waiting for review in your Spelling Practice.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-spelling-saved'))}
+                className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+              >
+                Go to Spelling
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg flex items-center space-x-3">

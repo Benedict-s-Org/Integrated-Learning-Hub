@@ -104,6 +104,9 @@ export interface UserProfile {
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;
   can_access_spaced_repetition?: boolean;
+  proofreading_level?: number;
+  reading_level?: number;
+  spelling_level?: number;
 }
 
 export interface AuthContextType {
