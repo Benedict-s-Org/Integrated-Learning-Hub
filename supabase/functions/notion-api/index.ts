@@ -41,6 +41,26 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "");
     
+    // Standardized Auth Check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return createCORSResponse({ error: "Unauthorized: Missing Authorization header" }, 401, req);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    // Initialize Supabase for auth check
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { createClient } = await import("npm:@supabase/supabase-js@2");
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !authUser) {
+      console.error("[notion-api] Auth error:", authError);
+      return createCORSResponse({ error: "Unauthorized: Invalid token", details: authError?.message }, 401, req);
+    }
+
     let body: any = {};
     if (req.method === "POST" || req.method === "PUT") {
       try { body = await req.json(); } catch { /* ignore */ }
@@ -49,7 +69,7 @@ Deno.serve(async (req: Request) => {
     const action = req.headers.get("x-action") || body.action || url.searchParams.get("action") || path.split("/").pop();
     const dbId = req.headers.get("x-database-id") || body.databaseId || url.searchParams.get("databaseId");
 
-    console.log(`[notion-api] [${VERSION}] Action: ${action}`);
+    console.log(`[notion-api] [${VERSION}] Action: ${action}, User: ${authUser.email}`);
 
     // ── 0. save-unknown ───────────────────────────────────────────────
     if (action === "save-unknown") {

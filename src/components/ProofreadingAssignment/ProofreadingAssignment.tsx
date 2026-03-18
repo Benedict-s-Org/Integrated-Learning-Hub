@@ -44,7 +44,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
       setError(null);
 
       const { data, error } = await supabase.functions.invoke('user-management/list-users', {
-        body: { adminUserId: currentUser?.id },
+        body: { adminUserId: currentUser?.id }
       });
 
       if (error) throw error;
@@ -58,7 +58,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
         body: {
           practiceId: practice.id,
           adminUserId: currentUser?.id,
-        },
+        }
       });
 
       if (assignmentsError) throw assignmentsError;
@@ -128,7 +128,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
           practiceId: practice.id,
           userIds: usersToAssign,
           assignedBy: currentUser.id,
-        },
+        }
       });
 
       if (assignError) throw assignError;

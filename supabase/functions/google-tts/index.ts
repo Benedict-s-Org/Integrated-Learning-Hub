@@ -69,14 +69,33 @@ async function getAccessToken(serviceAccount: any) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
+  let raw = "";
+  try {
+    raw = await req.text();
+    console.log("RAW_BODY:", raw);
+  } catch (e) {
+    console.error("Failed to read request body text:", e.message);
+  }
+
+  let requestBody: any = {};
+  try {
+    if (raw.trim()) {
+      requestBody = JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error("PARSE_FAIL: request_body", e.message, "RAW_BODY:", raw);
+    return new Response(JSON.stringify({ error: "Invalid JSON in request body", details: e.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   try {
     // 1. Authenticate User (Require JWT)
     const authHeader = req.headers.get("Authorization");
-    console.log(`[google-tts] Request received. Auth Header: ${authHeader ? 'Present (' + authHeader.substring(0, 15) + '...)' : 'MISSING'}`);
-    
     if (!authHeader) {
-      console.warn("[google-tts] No authorization header found");
-      return new Response(JSON.stringify({ error: "Unauthorized: Missing Header" }), { status: 401, headers: corsHeaders });
+      console.error("[google-tts] Missing Authorization header");
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing Authorization header" }), { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
     }
 
     const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -84,22 +103,32 @@ Deno.serve(async (req: Request) => {
     });
 
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError) {
-      console.error("Auth error:", authError.message);
-      return new Response(JSON.stringify({ error: `Unauthorized: ${authError.message}` }), { status: 401, headers: corsHeaders });
-    }
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized: No user found" }), { status: 401, headers: corsHeaders });
+    if (authError || !user) {
+      console.error("[google-tts] Auth error:", authError?.message || "No user found");
+      return new Response(JSON.stringify({ 
+        error: `Unauthorized: ${authError?.message || "No user found"}`,
+        details: "JWT validation failed. Ensure you are logged in."
+      }), { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
     }
 
     // 2. Setup Admin Client for DB writes
     const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const saJson = JSON.parse(Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") || "{}");
+    
+    let saJson: any = {};
+    try {
+      const saEnv = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") || "{}";
+      saJson = JSON.parse(saEnv);
+    } catch (e) {
+      console.error("PARSE_FAIL: GOOGLE_SERVICE_ACCOUNT_JSON", e.message);
+      return new Response(JSON.stringify({ error: "Server Configuration Error", details: "Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    
     const folderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
 
-    const raw = await req.text();
-    console.log("RAW_BODY:", raw);
-    const { text, accent = "en-GB", voiceName } = JSON.parse(raw) as TTSRequest;
+    const { text, accent = "en-GB", voiceName } = requestBody as TTSRequest;
     console.log(`TTS Request: voice=${voiceName}, accent=${accent}, text="${text?.substring(0, 30)}..."`);
     
     if (!text) throw new Error("Text is required");

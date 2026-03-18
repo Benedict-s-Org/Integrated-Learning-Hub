@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { X, Search, Check, Users, Loader2 } from 'lucide-react';
@@ -37,12 +37,12 @@ export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: Gr
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase
                 .from('users')
                 .select('id, display_name, username, class, ecas')
                 .eq('role', 'user')
                 .order('class', { ascending: true })
-                .order('display_name', { ascending: true });
+                .order('display_name', { ascending: true }) as any);
 
             if (error) throw error;
 

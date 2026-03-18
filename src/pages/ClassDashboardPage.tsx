@@ -161,13 +161,9 @@ export function ClassDashboardPage() {
         setIsCycleLoading(true);
         try {
             const { data, error } = await supabase.functions.invoke('notion-api', {
-                headers: {
-                    'x-action': 'get-cycle-day'
-                },
                 body: { 
                     action: 'get-cycle-day' 
-                },
-                method: 'POST'
+                }
             });
 
             if (error) {
@@ -266,7 +262,9 @@ export function ClassDashboardPage() {
             if (useAuthCache) {
                 phase1Promises.push(Promise.resolve({ type: 'users', data: globalAuthUserCache!.users }));
             } else {
-                phase1Promises.push(supabase.functions.invoke('user-management/list-users', { body: { adminUserId: currentUser?.id } })
+                phase1Promises.push(supabase.functions.invoke('user-management/list-users', { 
+                    body: { adminUserId: currentUser?.id }
+                })
                     .then(res => {
                         return { type: 'users', data: res.data?.users || [] };
                     }) as any);

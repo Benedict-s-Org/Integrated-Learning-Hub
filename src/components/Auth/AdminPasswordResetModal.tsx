@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AdminPasswordResetModalProps {
   isOpen: boolean;
@@ -35,27 +36,12 @@ export const AdminPasswordResetModal: React.FC<AdminPasswordResetModalProps> = (
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/reset_admin_password_by_code`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            reset_code: resetCode,
-            new_password: newPassword,
-          }),
-        }
-      );
+      const { data, error: rpcError } = await supabase.rpc('reset_admin_password_by_code', {
+        reset_code: resetCode,
+        new_password: newPassword
+      });
 
-      if (!response.ok) {
-        throw new Error('Request failed');
-      }
-
-      const data = await response.json();
+      if (rpcError) throw rpcError;
 
       if (data?.success) {
         setSuccess(true);

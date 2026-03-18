@@ -38,7 +38,7 @@ export async function call_flowith_api(
     try {
         const { data, error } = await supabase.functions.invoke('flowith-proxy', {
             body: {
-                endpoint: endpointPath, // The proxy will prepend https://api.flowith.io
+                endpoint: endpointPath,
                 method: 'POST',
                 body: payload
             }

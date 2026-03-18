@@ -102,24 +102,23 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[user-management] [${VERSION}] Action: ${action}`);
 
-    // Private helper to check and sync roles
-    const getAuthenticatedRole = async (userIdFromReq?: string, authHeader?: string | null) => {
-      let finalUserId = userIdFromReq;
-      
-      // If we have an Auth header, we can verify the JWT
-      if (authHeader) {
-        try {
-          const token = authHeader.replace("Bearer ", "");
-          const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-          if (!authError && authUser) {
-            finalUserId = authUser.id;
-          }
-        } catch (e) {
-          console.error("[user-management] Auth header verification failed:", e);
-        }
-      }
+    // Standardized Auth Check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing Authorization header" }), { status: 401, headers: corsHeaders });
+    }
 
-      if (!finalUserId) return null;
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !authUser) {
+      console.error("[user-management] Auth error:", authError);
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid token", details: authError?.message }), { status: 401, headers: corsHeaders });
+    }
+
+    const getAuthenticatedRole = async (userIdFromReq?: string) => {
+      // We already have authUser from the strict check above
+      const finalUserId = authUser.id;
 
       const { data: publicUser } = await supabase
         .from("users")
@@ -129,26 +128,26 @@ Deno.serve(async (req: Request) => {
 
       if (publicUser) return publicUser.role as 'admin' | 'class_staff' | 'user';
 
-      const { data: authUser } = await supabase.auth.admin.getUserById(finalUserId);
-      if (!authUser.user) return null;
+      const { data: adminUserRes } = await supabase.auth.admin.getUserById(finalUserId);
+      if (!adminUserRes.user) return null;
 
-      const metadata = authUser.user.user_metadata || {};
-      const role = (metadata.role || authUser.user.app_metadata?.role || 'user') as 'admin' | 'class_staff' | 'user';
+      const metadata = adminUserRes.user.user_metadata || {};
+      const role = (metadata.role || adminUserRes.user.app_metadata?.role || 'user') as 'admin' | 'class_staff' | 'user';
 
       if (role === 'admin' || role === 'class_staff') {
         await supabase.from("users").upsert({
           id: finalUserId,
           role: role,
-          username: authUser.user.email,
-          display_name: authUser.user.user_metadata?.display_name || authUser.user.email?.split('@')[0]
+          username: adminUserRes.user.email,
+          display_name: adminUserRes.user.user_metadata?.display_name || adminUserRes.user.email?.split('@')[0]
         });
       }
 
       return role;
     };
 
-    const ensureAdminRole = (userId?: string, authHeader?: string | null) => getAuthenticatedRole(userId, authHeader).then(role => role === 'admin');
-    const ensureStaffRole = (userId?: string, authHeader?: string | null) => getAuthenticatedRole(userId, authHeader).then(role => role === 'admin' || role === 'class_staff');
+    const ensureAdminRole = (userId?: string) => getAuthenticatedRole(userId).then(role => role === 'admin');
+    const ensureStaffRole = (userId?: string) => getAuthenticatedRole(userId).then(role => role === 'admin' || role === 'class_staff');
 
     if (action === "create-user") {
       const { email, password, role, adminUserId, display_name, gender }: CreateUserRequest = await req.json();
@@ -342,7 +341,7 @@ Deno.serve(async (req: Request) => {
       const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password } = body;
       
       const authHeader = req.headers.get("Authorization");
-      const callerRole = await getAuthenticatedRole(adminUserId, authHeader);
+      const callerRole = await getAuthenticatedRole(adminUserId);
       if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
 
       const finalClass = classInput || classNameInput;
@@ -377,7 +376,7 @@ Deno.serve(async (req: Request) => {
       const body: BulkUpdateUsersRequest = await req.json();
       const { adminUserId, updates } = body;
       const authHeader = req.headers.get("Authorization");
-      const callerRole = await getAuthenticatedRole(adminUserId, authHeader);
+      const callerRole = await getAuthenticatedRole(adminUserId);
       if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
 
       if (!updates || !Array.isArray(updates)) return new Response(JSON.stringify({ error: "Invalid updates" }), { status: 400, headers: corsHeaders });

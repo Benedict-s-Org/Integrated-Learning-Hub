@@ -86,7 +86,7 @@ export function BulkUserEditModal({
                 body: {
                     adminUserId,
                     updates,
-                },
+                }
             });
 
             if (fnError) throw fnError;

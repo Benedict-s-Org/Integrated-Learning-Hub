@@ -30,7 +30,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
 
     try {
       const { data: responseData, error } = await supabase.functions.invoke('memorization-content/list', {
-        body: { userId },
+        body: { userId }
       });
 
       if (error) {
@@ -108,7 +108,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
 
       try {
         const { data, error } = await supabase.functions.invoke('proofreading-practices/list', {
-          body: { userId },
+          body: { userId }
         });
 
         if (error) {
@@ -149,7 +149,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           selectedWordIndices: content.selectedWordIndices,
           userId: userId,
           practiceMode: content.practiceMode || 'memorization',
-        },
+        }
       });
 
       if (error) {
@@ -355,7 +355,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           sentences,
           answers,
           userId,
-        },
+        }
       });
 
       if (error) {
@@ -395,7 +395,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
         body: {
           practiceId: id,
           userId,
-        },
+        }
       });
 
       if (error) {
@@ -421,7 +421,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           practiceId: id,
           title,
           userId,
-        },
+        }
       });
 
       if (error) {

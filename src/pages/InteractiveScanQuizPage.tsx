@@ -560,25 +560,25 @@ export function InteractiveScanQuizPage() {
     // --- RENDER ACTIVE SESSION ---
     const renderActiveSession = () => (
         <div className="w-full h-screen bg-slate-900 text-white flex flex-col md:flex-row overflow-hidden absolute inset-0 z-50 animate-in slide-in-from-bottom duration-500">
-            {/* Left Side: Camera & Grid */}
-            <div className="flex-1 flex flex-col min-w-0 pr-0 md:pr-4 p-4 md:p-6 pb-0">
-                <header className="flex justify-between items-center mb-6">
+            {/* Left Side: Camera & Grid (70%) */}
+            <div className="w-full md:w-[70%] flex flex-col min-w-0 p-4 md:p-6 pb-0">
+                <header className="flex justify-between items-center mb-4 h-12 shrink-0">
                     <div>
-                        <span className="text-orange-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
+                        <span className="text-orange-400 font-bold uppercase tracking-wider text-xs flex items-center gap-2">
                             QR Up! Live
                             {activeSession?.status === 'polling' && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">REC</span>}
                             {activeSession?.status === 'revealed' && <span className="bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full">REVEALED</span>}
                         </span>
-                        <h1 className="text-2xl font-black truncate">{activeSession?.title} <span className="text-slate-500 ml-2 font-medium">• Class {selectedClass}</span></h1>
+                        <h1 className="text-xl font-black truncate">{activeSession?.title} <span className="text-slate-500 ml-2 font-medium">• Class {selectedClass}</span></h1>
                     </div>
-                    <button onClick={endSessionAndReturn} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all active:scale-95">
+                    <button onClick={endSessionAndReturn} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-sm transition-all active:scale-95">
                         End Session
                     </button>
                 </header>
 
-                <div className="flex-1 flex flex-col gap-6 max-h-full pb-6">
-                    {/* Camera Feed */}
-                    <div className="flex-1 bg-black rounded-3xl border-4 border-slate-800 shadow-2xl relative overflow-hidden">
+                <div className="flex-1 flex flex-col gap-4 min-h-0 pb-6">
+                    {/* Camera Feed (50% of active area) */}
+                    <div className="flex-[5] bg-black rounded-3xl border-4 border-slate-800 shadow-2xl relative overflow-hidden min-h-0">
                         {isScanning ? (
                             <>
                                 <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover hidden" playsInline />
@@ -589,56 +589,60 @@ export function InteractiveScanQuizPage() {
                                     </button>
                                 </div>
                                 {activeSession?.status === 'polling' && (
-                                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur text-emerald-400 px-4 py-2 rounded-full font-bold flex items-center gap-2 animate-pulse mt-2 ml-2 shadow-lg">
-                                        <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                                        Scanning Active
+                                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur text-emerald-400 px-4 py-2 rounded-full font-bold flex items-center gap-2 animate-pulse shadow-lg">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                        <span className="text-sm">Scanning Active</span>
                                     </div>
                                 )}
                             </>
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <Video size={64} className="text-slate-700 mb-6" />
+                                <Video size={48} className="text-slate-700 mb-4" />
                                 <button
                                     onClick={startScan}
-                                    className="bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-4 rounded-full font-black text-lg shadow-[0_0_40px_rgba(16,185,129,0.3)] transition transform active:scale-95 flex items-center gap-2"
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-full font-black text-base shadow-[0_0_40px_rgba(16,185,129,0.3)] transition transform active:scale-95 flex items-center gap-2"
                                 >
-                                    <Play fill="currentColor" /> Start Camera
+                                    <Play fill="currentColor" size={18} /> Start Camera
                                 </button>
                             </div>
                         )}
                     </div>
 
-                    {/* Question Box */}
-                    <div className="bg-slate-800 rounded-3xl p-6 md:p-8 flex items-center justify-center min-h-[120px] shadow-2xl">
-                        <h2 className="text-2xl md:text-4xl font-black text-center leading-tight">
-                            {questions[currentQuestionIndex]?.question_text || "Waiting for question..."}
-                        </h2>
-                    </div>
+                    {/* Quiz Logic (50% of active area) */}
+                    <div className="flex-[5] flex flex-col gap-4 min-h-0">
+                        {/* Question Box (50% of quiz area) */}
+                        <div className="flex-1 bg-slate-800 rounded-3xl p-6 md:p-8 flex items-center justify-center shadow-2xl overflow-y-auto">
+                            <h2 className="text-xl md:text-3xl lg:text-4xl font-black text-center leading-tight">
+                                {questions[currentQuestionIndex]?.question_text || "Waiting for question..."}
+                            </h2>
+                        </div>
 
-                    {/* 2x2 Massive Color Grid */}
-                    <div className="grid grid-cols-2 grid-rows-2 gap-4 h-[35vh]">
-                        <button className="bg-red-500 hover:bg-red-400 rounded-3xl p-6 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
-                            <span className="absolute top-4 left-6 text-2xl font-black text-white/50">A</span>
-                            <span className="text-3xl lg:text-5xl font-black text-white text-center z-10">{questions[currentQuestionIndex]?.options?.A || 'Option A'}</span>
-                        </button>
-                        <button className="bg-orange-500 hover:bg-orange-400 rounded-3xl p-6 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
-                            <span className="absolute top-4 left-6 text-2xl font-black text-white/50">B</span>
-                            <span className="text-3xl lg:text-5xl font-black text-white text-center z-10">{questions[currentQuestionIndex]?.options?.B || 'Option B'}</span>
-                        </button>
-                        <button className="bg-blue-500 hover:bg-blue-400 rounded-3xl p-6 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
-                            <span className="absolute top-4 left-6 text-2xl font-black text-white/50">C</span>
-                            <span className="text-3xl lg:text-5xl font-black text-white text-center z-10">{questions[currentQuestionIndex]?.options?.C || 'Option C'}</span>
-                        </button>
-                        <button className="bg-purple-500 hover:bg-purple-400 rounded-3xl p-6 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
-                            <span className="absolute top-4 left-6 text-2xl font-black text-white/50">D</span>
-                            <span className="text-3xl lg:text-5xl font-black text-white text-center z-10">{questions[currentQuestionIndex]?.options?.D || 'Option D'}</span>
-                        </button>
+                        {/* 2x2 Massive Color Grid (50% of quiz area) */}
+                        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4">
+                            <button className="bg-red-500 hover:bg-red-400 rounded-3xl p-4 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
+                                <span className="absolute top-2 left-4 text-xl font-black text-white/40">A</span>
+                                <span className="text-xl lg:text-3xl font-black text-white text-center z-10 line-clamp-2">{questions[currentQuestionIndex]?.options?.A || 'Option A'}</span>
+                            </button>
+                            <button className="bg-orange-500 hover:bg-orange-400 rounded-3xl p-4 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
+                                <span className="absolute top-2 left-4 text-xl font-black text-white/40">B</span>
+                                <span className="text-xl lg:text-3xl font-black text-white text-center z-10 line-clamp-2">{questions[currentQuestionIndex]?.options?.B || 'Option B'}</span>
+                            </button>
+                            <button className="bg-blue-500 hover:bg-blue-400 rounded-3xl p-4 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
+                                <span className="absolute top-2 left-4 text-xl font-black text-white/40">C</span>
+                                <span className="text-xl lg:text-3xl font-black text-white text-center z-10 line-clamp-2">{questions[currentQuestionIndex]?.options?.C || 'Option C'}</span>
+                            </button>
+                            <button className="bg-purple-500 hover:bg-purple-400 rounded-3xl p-4 flex items-center justify-center shadow-lg transition-transform active:scale-95 group relative overflow-hidden">
+                                <span className="absolute top-2 left-4 text-xl font-black text-white/40">D</span>
+                                <span className="text-xl lg:text-3xl font-black text-white text-center z-10 line-clamp-2">{questions[currentQuestionIndex]?.options?.D || 'Option D'}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Right Side: Roster Panel */}
-            <div className="w-full md:w-80 lg:w-96 bg-slate-800 flex flex-col h-full shrink-0 border-l border-slate-700">
+            {/* Right Side: Roster Panel (30%) */}
+            <div className="w-full md:w-[30%] bg-slate-800 flex flex-col h-full shrink-0 border-l border-slate-700">
+
                 <div className="p-6 border-b border-slate-700 bg-slate-800/80 backdrop-blur z-10 flex justify-between items-center">
                     <div>
                         <h3 className="font-bold text-lg text-white mb-1">Live Roster</h3>

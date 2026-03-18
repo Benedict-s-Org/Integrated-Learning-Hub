@@ -68,8 +68,7 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('notion-api', {
-        body: { databaseId: notionDbId.trim() },
-        method: 'POST',
+        body: { databaseId: notionDbId.trim() }
       });
 
       if (fnError) throw fnError;

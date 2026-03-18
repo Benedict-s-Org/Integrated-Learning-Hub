@@ -295,27 +295,20 @@ export const createUtterance = (
 export const fetchCloudAudio = async (text: string, accent: string, voiceName?: string): Promise<string | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
 
     console.log(`[VoiceManager] Requesting cloud audio for: "${text.substring(0, 20)}..."`, { 
       accent, 
       voiceName,
-      hasToken: !!token,
-      tokenPrefix: token ? token.substring(0, 10) : 'none',
       userId: session?.user?.id 
     });
 
-    if (!token) {
-      console.warn('[VoiceManager] No active session token found. Cloud TTS requires authentication.');
+    if (!session) {
+      console.warn('[VoiceManager] No active session found. Cloud TTS requires authentication.');
       return null;
     }
 
     const { data, error } = await supabase.functions.invoke('google-tts', {
-      body: JSON.stringify({ text, accent, voiceName }),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      body: { text, accent, voiceName }
     });
 
     if (error) {

@@ -199,27 +199,16 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
       setSaveError(null);
       setSaveSuccess(false);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spelling-practices/create`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error: fnError } = await supabase.functions.invoke('spelling-practices/create', {
+        body: {
           title: title.trim(),
           words: words,
           userId: user.id,
           isPhraseMode: isPhraseMode,
-        }),
+        }
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save practice');
-      }
+      if (fnError) throw new Error(fnError.message || 'Failed to save practice');
 
       setSaveSuccess(true);
       if (onSave) {

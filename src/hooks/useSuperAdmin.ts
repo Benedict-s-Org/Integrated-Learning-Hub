@@ -21,7 +21,7 @@ export function useSuperAdmin() {
         const check = async () => {
             try {
                 const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
-                    body: { adminUserId: user.id },
+                    body: { adminUserId: user.id }
                 });
                 if (!error && data) {
                     setIsSuperAdmin(data.isSuperAdmin === true);

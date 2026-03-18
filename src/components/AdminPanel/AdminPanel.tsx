@@ -93,7 +93,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
   const checkSuperAdminStatus = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
-        body: { adminUserId: currentUser?.id },
+        body: { adminUserId: currentUser?.id }
       });
 
       if (!error && data) {
@@ -109,7 +109,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
     try {
       const { data, error } = await supabase.functions.invoke('user-management/list-users', {
-        body: { adminUserId: currentUser?.id },
+        body: { adminUserId: currentUser?.id }
       });
 
       if (error) throw error;
@@ -179,7 +179,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
             adminUserId: currentUser?.id,
             userId,
             class: batchClassName.trim(),
-          },
+          }
         });
 
         if (!error) {
@@ -255,7 +255,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
             ...u,
             role: createAsAdmin ? 'admin' : 'user'
           }))
-        },
+        }
       });
 
       if (error) throw error;
@@ -312,7 +312,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
           class: editClass,
           // @ts-ignore
           classNumber: editClassNumber ? parseInt(editClassNumber) : null,
-        },
+        }
       });
 
       if (error) throw error;
@@ -325,7 +325,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
               adminUserId: currentUser?.id,
               userId: selectedUserId,
               newPassword: editPassword
-            },
+            }
           });
           if (resetError) throw resetError;
         }
@@ -356,7 +356,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
         body: {
           adminUserId: currentUser?.id,
           userIdToDelete: userId
-        },
+        }
       });
 
       if (error) throw error;
@@ -388,7 +388,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
           userId: selectedUserId,
           newPassword: resetPassword,
           verificationCode: verificationCode
-        },
+        }
       });
 
       if (error) throw error;
@@ -451,7 +451,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
             userId,
             can_access_proofreading: permissions.proofreading,
             can_access_spelling: permissions.spelling
-          },
+          }
         });
 
         if (!error) {

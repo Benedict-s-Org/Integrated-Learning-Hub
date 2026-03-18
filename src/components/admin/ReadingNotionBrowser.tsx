@@ -34,31 +34,18 @@ export const ReadingNotionBrowser: React.FC<ReadingNotionBrowserProps> = ({ onSe
         functionName: 'reading-api'
       });
       
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/reading-api`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-          'apikey': anonKey
-        },
-        body: JSON.stringify({ 
+      const { data, error: fnError } = await supabase.functions.invoke('reading-api', {
+        body: { 
           action: 'list-activities',
           databaseId: DATABASE_ID 
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `HTTP ${response.status}`);
-      }
+      if (fnError) throw fnError;
 
-      const data = await response.json();
       console.log('[ReadingNotionBrowser] Notion API Response:', data);
 
-      setActivities(data.activities || []);
+      setActivities(data?.activities || []);
     } catch (err: any) {
       console.error('Error fetching Notion activities:', err);
       setError(err.message || 'Failed to connect to Notion.');

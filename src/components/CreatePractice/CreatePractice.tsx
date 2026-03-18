@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, X, Save, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../integrations/supabase/client';
 
 interface CreatePracticeProps {
   onBack: () => void;
@@ -53,27 +54,16 @@ export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved 
     try {
       setSaving(true);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/spelling-practices/create`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error: fnError } = await supabase.functions.invoke('spelling-practices/create', {
+        body: {
           title: title.trim(),
           words: filteredWords,
           userId: user.id,
           isPhraseMode: isPhraseMode,
-        }),
+        }
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save practice');
-      }
+      if (fnError) throw new Error(fnError.message || 'Failed to save practice');
 
       onSaved();
     } catch (err) {

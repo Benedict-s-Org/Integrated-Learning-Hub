@@ -351,10 +351,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('reading-api', {
-        headers: {
-          'x-action': 'list-activities',
-          'x-database-id': '3239baca6fa380a9b501deceb133946d'
-        },
         body: { action: 'list-activities' }
       });
       
@@ -479,15 +475,10 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     try {
       // Use notion-api directly — the same proven pattern as Spaced Repetition's NotionImporter
       const { data, error } = await supabase.functions.invoke('notion-api', {
-        headers: {
-          'x-action': 'query-mcq-database',
-          'x-database-id': questionsDbId
-        },
         body: { 
           databaseId: questionsDbId,
           action: 'query-mcq-database'
-        },
-        method: 'POST'
+        }
       });
       
       if (error) {

@@ -166,7 +166,7 @@ export function SuperAdminPanel() {
             body: {
                 adminUserId: realUser?.id,
                 updates: ids.map(id => ({ id, role: newRole }))
-            },
+            }
         });
 
         if (error || data?.error) {

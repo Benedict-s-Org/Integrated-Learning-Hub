@@ -43,12 +43,13 @@ export function NotionImporter({ title, description, onImport, onCancel }: Notio
             const { data, error } = await supabase.functions.invoke('notion-api', {
                 headers: {
                     'x-action': 'query-mcq-database',
-                    'x-database-id': databaseId.trim()
+                    'x-database-id': databaseId.trim(),
+                    'Content-Type': 'application/json'
                 },
-                body: { 
+                body: JSON.stringify({ 
                     databaseId: databaseId.trim(),
                     action: 'query-mcq-database'
-                },
+                }),
                 method: 'POST'
             });
 

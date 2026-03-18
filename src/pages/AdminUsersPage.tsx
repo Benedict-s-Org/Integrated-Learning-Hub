@@ -281,7 +281,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           adminUserId: forcedAdminId || currentUser?.id,
           display_name: displayName,
           gender,
-        },
+        }
       });
 
       if (error) throw error;
@@ -314,7 +314,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         body: {
           adminUserId: forcedAdminId || currentUser?.id,
           userIdsToDelete: selectedUserIds,
-        },
+        }
       });
 
       if (error) throw error;

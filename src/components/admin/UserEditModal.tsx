@@ -290,7 +290,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       console.log("Sending update request:", updateData);
 
       const { data, error: fnError } = await supabase.functions.invoke("user-management/update-user", {
-        body: updateData,
+        body: updateData
       });
 
       console.log("Update response:", { data, fnError });

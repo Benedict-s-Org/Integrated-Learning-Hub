@@ -48,20 +48,11 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
     try {
       setError(null);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/user-management/list-users`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          adminUserId: currentUser?.id,
-        }),
+      const { data, error: fnError } = await supabase.functions.invoke('user-management/list-users', {
+        body: { adminUserId: currentUser?.id }
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (fnError) throw new Error(fnError.message || 'Failed to load users');
 
       const nonAdminUsers = (data.users || []).filter((u: User) => u.role !== 'admin');
       setUsers(nonAdminUsers);

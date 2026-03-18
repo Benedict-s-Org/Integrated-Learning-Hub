@@ -199,6 +199,16 @@ Whenever a new learning function, interaction mode, or practice system is create
 - **Type Guarding**: Double-check that you aren't inserting `jsonb` into a `text[]` array (common in `user_room_data.inventory`). Use `ARRAY[...]::text[]` for arrays.
 - **Nullable Passwords**: Ensure the `password_hash` column in `public.users` is nullable (`DROP NOT NULL`) so Supabase Auth users (who don't have local hashes) can sync successfully.
 - **Robust Upsert**: Use `INSERT ... ON CONFLICT (id) DO UPDATE` to handle both new registrations and profile updates in a single script.
+- **Payload Verification**: If a function receives an empty body, explicitly use `JSON.stringify(body)` and set the `Content-Type: application/json` header in the `invoke` call.
+
+### 24. Supabase Edge Function Payload Mismatches
+**Problem**: Calling `supabase.functions.invoke('name', { body: { key: 'val' } })` often results in an empty body on the server-side, despite looking correct in the frontend code. This leads to silent failures or "missing parameter" errors.
+
+**Prevention**:
+- **Always Stringify**: Explicitly stringify the body: `body: JSON.stringify(payload)`.
+- **Set Content-Type**: Always include the header: `headers: { 'Content-Type': 'application/json' }`.
+- **Standardize**: Apply this pattern to **all** invocations, even if some seem to work without it, to ensure cross-environment consistency.
+- **Backend Secret Verification**: If a function fails despite correct payloads, verify that all required secrets (e.g., `GOOGLE_SERVICE_ACCOUNT_JSON`) are set in the Supabase Dashboard.
 
 ---
 

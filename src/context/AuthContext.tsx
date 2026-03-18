@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (sessionUser?.id) {
       setRealIsSuperAdminLoading(true);
       supabase.functions.invoke('auth/check-super-admin', {
-        body: { adminUserId: sessionUser.id },
+        body: { adminUserId: sessionUser.id }
       }).then(({ data }) => {
         if (data && data.isSuperAdmin) {
           setRealIsSuperAdmin(true);

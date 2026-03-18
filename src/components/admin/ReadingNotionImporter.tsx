@@ -40,8 +40,7 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
         body: { 
           databaseId: databaseId.trim(),
           action: 'query-mcq-database'
-        },
-        method: 'POST'
+        }
       });
 
       if (notionError && (notionError as any).status === 404) {
