@@ -92,9 +92,12 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
 
     // 1. Try Google Cloud TTS for premium consistency
     try {
-      const audioDataUri = await fetchCloudAudio(word, accentPreference);
+      // Pass the selected premium voice URI (which is the actual Google voice ID)
+      const premiumVoiceId = voicePreference?.voiceURI;
+      
+      const audioDataUri = await fetchCloudAudio(word, accentPreference, premiumVoiceId);
       if (audioDataUri) {
-        console.log('[SpellingPractice] Using Google Cloud TTS audio');
+        console.log('[SpellingPractice] Using Google Cloud TTS audio', { premiumVoiceId });
         const audio = new Audio(audioDataUri);
         // Slightly slower playback was already handled in Edge Function config (speakingRate: 0.9)
         // Set volume and play

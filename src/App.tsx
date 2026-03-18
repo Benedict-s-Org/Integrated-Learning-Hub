@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DashboardThemeProvider } from './context/DashboardThemeContext';
@@ -95,6 +95,7 @@ type AppState =
   | { page: 'groupCompetition' };
 
 function AppContent() {
+  const navigate = useNavigate();
   const location = useLocation();
   const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
 
@@ -320,6 +321,11 @@ function AppContent() {
     }
 
     window.location.hash = '';
+
+    // Clear special URL paths when navigating to standard views via state change
+    if (window.location.pathname !== '/' && !['interactiveScanner'].includes(page)) {
+      navigate('/', { replace: true });
+    }
 
     if (page === 'new') {
       setAppState({ page: 'new', step: 'input' });

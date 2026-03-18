@@ -10,10 +10,11 @@ const corsHeaders = {
 interface TTSRequest {
   text: string;
   accent?: string;
+  voiceName?: string;
 }
 
 const VOICE_FALLBACKS: Record<string, string[]> = {
-  "en-GB": ["en-GB-Neural2-B", "en-GB-Wavenet-B"],
+  "en-GB": ["en-GB-Neural2-B", "en-GB-Neural2-A", "en-GB-Wavenet-B"],
   "en-US": ["en-US-Neural2-F", "en-US-Wavenet-F"],
   "en-AU": ["en-AU-Neural2-A", "en-AU-Wavenet-A"],
 };
@@ -71,33 +72,51 @@ Deno.serve(async (req: Request) => {
   try {
     // 1. Authenticate User (Require JWT)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    console.log(`[google-tts] Request received. Auth Header: ${authHeader ? 'Present (' + authHeader.substring(0, 15) + '...)' : 'MISSING'}`);
+    
+    if (!authHeader) {
+      console.warn("[google-tts] No authorization header found");
+      return new Response(JSON.stringify({ error: "Unauthorized: Missing Header" }), { status: 401, headers: corsHeaders });
+    }
 
     const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
 
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    if (authError) {
+      console.error("Auth error:", authError.message);
+      return new Response(JSON.stringify({ error: `Unauthorized: ${authError.message}` }), { status: 401, headers: corsHeaders });
+    }
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized: No user found" }), { status: 401, headers: corsHeaders });
+    }
 
     // 2. Setup Admin Client for DB writes
     const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const saJson = JSON.parse(Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") || "{}");
     const folderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
 
-    const { text, accent = "en-GB" } = (await req.json()) as TTSRequest;
+    const raw = await req.text();
+    console.log("RAW_BODY:", raw);
+    const { text, accent = "en-GB", voiceName } = JSON.parse(raw) as TTSRequest;
+    console.log(`TTS Request: voice=${voiceName}, accent=${accent}, text="${text?.substring(0, 30)}..."`);
+    
     if (!text) throw new Error("Text is required");
 
     // 3. Normalize Text for Cache
     const normalizedText = text.trim().replace(/\s+/g, " ");
     const cacheKey = normalizedText.toLowerCase();
+    
+    // Cache per voice name if specified, otherwise per accent
+    const storageKey = voiceName ? `${accent}_${voiceName}` : accent;
 
     // 4. Check Cache
     const { data: cache } = await supabaseAdmin
       .from("tts_cache")
       .select("drive_file_id")
       .eq("text", cacheKey)
-      .eq("accent", accent)
+      .eq("accent", storageKey)
       .maybeSingle();
 
     const accessToken = await getAccessToken(saJson);
@@ -114,20 +133,29 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 5. Generate TTS using SSML and Voice Fallbacks
+    // 5. Generate TTS using SSML and Voice Preferences
     const ssml = toSSML(normalizedText);
-    const voices = VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"];
+    
+    // Build list of voices to try: 1) preferred voice (if provided), 2) fallbacks
+    const voicesToTry = [];
+    if (voiceName) voicesToTry.push(voiceName);
+    
+    const fallbacks = VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"];
+    fallbacks.forEach(v => {
+      if (v !== voiceName) voicesToTry.push(v);
+    });
+
     let ttsContent = null;
     let lastError = null;
 
-    for (const voiceName of voices) {
+    for (const currentVoice of voicesToTry) {
       try {
         const ttsResponse = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
           method: "POST",
           headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             input: { ssml },
-            voice: { languageCode: accent, name: voiceName },
+            voice: { languageCode: accent, name: currentVoice },
             audioConfig: { audioEncoding: "MP3", speakingRate: 0.9 },
           }),
         });
@@ -146,7 +174,7 @@ Deno.serve(async (req: Request) => {
 
     // 6. Upload to Drive and Save to Cache
     const safeText = cacheKey.replace(/[^a-z0-9]/g, "_").substring(0, 50);
-    const fileName = `${accent}_${safeText}.mp3`;
+    const fileName = `${storageKey}_${safeText}.mp3`;
     const metadata = { name: fileName, parents: [folderId], mimeType: "audio/mpeg" };
     const boundary = "-------314159265358979323846";
     const multipartBody = 
@@ -162,7 +190,11 @@ Deno.serve(async (req: Request) => {
 
     const driveData = await driveUpload.json();
     if (driveData.id) {
-      await supabaseAdmin.from("tts_cache").upsert({ text: cacheKey, accent, drive_file_id: driveData.id });
+      await supabaseAdmin.from("tts_cache").upsert({ 
+        text: cacheKey, 
+        accent: storageKey, 
+        drive_file_id: driveData.id 
+      });
     }
 
     return new Response(JSON.stringify({ audioContent: ttsContent, cached: false }), { 

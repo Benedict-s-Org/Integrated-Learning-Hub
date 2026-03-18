@@ -190,6 +190,16 @@ Whenever a new learning function, interaction mode, or practice system is create
 3.  **Update Frontend**: Integrate the new metrics into `AdminAnalyticsPage.tsx` charts, KPIs, and Leaderboard.
 4.  **Clarification**: If it's unclear how to measure performance for a specific feature (e.g., a "free-form drawing" mode), **ASK THE USER** for the preferred recording logic before implementing.
 
+### 23. Brittle Auth Sync Triggers (500 Internal Server Error)
+**Problem**: Background sync triggers on `auth.users` crashing during login or profile updates because of schema mismatches, missing columns (`voice_preference`, `custom_offsets`), or type errors (`jsonb` vs `text[]`). This often manifests as a generic `500 Internal Server Error` on the `/auth/v1/user` or `/token` endpoints.
+
+**Prevention**:
+- **Isolation (Try/Catch)**: Wrap updates to peripheral tables (`user_room_data`, `user_avatar_config`) in a `BEGIN ... EXCEPTION` block so one failure doesn't crash the entire transaction.
+- **Match by ID**: Always use `NEW.id` to match users between `auth` and `public` schemas. `email` and `username` can change or be missing.
+- **Type Guarding**: Double-check that you aren't inserting `jsonb` into a `text[]` array (common in `user_room_data.inventory`). Use `ARRAY[...]::text[]` for arrays.
+- **Nullable Passwords**: Ensure the `password_hash` column in `public.users` is nullable (`DROP NOT NULL`) so Supabase Auth users (who don't have local hashes) can sync successfully.
+- **Robust Upsert**: Use `INSERT ... ON CONFLICT (id) DO UPDATE` to handle both new registrations and profile updates in a single script.
+
 ---
 
 ## 📊 Automatic Error Logging

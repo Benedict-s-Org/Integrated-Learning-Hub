@@ -103,7 +103,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     // 1. Try Google Cloud TTS for premium consistency
     try {
       setIsPlaying(true);
-      const audioDataUri = await fetchCloudAudio(word, currentAccent);
+      const audioDataUri = await fetchCloudAudio(word, currentAccent, currentVoiceURI);
       if (audioDataUri) {
         console.log('[SpellingPreview] Using Google Cloud TTS audio');
         const audio = new Audio(audioDataUri);
@@ -155,7 +155,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
       setCurrentWordIndex(i);
       
       try {
-        const audioDataUri = await fetchCloudAudio(words[i], currentAccent);
+        const audioDataUri = await fetchCloudAudio(words[i], currentAccent, currentVoiceURI);
         if (audioDataUri) {
           await new Promise((resolve, reject) => {
             const audio = new Audio(audioDataUri);

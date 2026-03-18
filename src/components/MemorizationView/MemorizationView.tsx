@@ -220,7 +220,9 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     // 1. Try Google Cloud TTS for premium consistency
     try {
       setIsPlaying(true);
-      const audioDataUri = await fetchCloudAudio(originalText, accentPreference);
+      // Pass the selected premium voice URI (which is the actual Google voice ID)
+      const premiumVoiceId = voicePreference?.voiceURI;
+      const audioDataUri = await fetchCloudAudio(originalText, accentPreference, premiumVoiceId);
       if (audioDataUri && !isStoppingRef.current) {
         console.log('[MemorizationView] Using Google Cloud TTS audio');
         const audio = new Audio(audioDataUri);

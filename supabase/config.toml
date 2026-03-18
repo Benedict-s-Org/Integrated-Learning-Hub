@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.reading-api]
 verify_jwt = false
+
+[functions.google-tts]
+verify_jwt = false

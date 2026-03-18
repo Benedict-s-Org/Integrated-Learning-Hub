@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Volume2, CheckCircle, AlertCircle, Star, Smartphone, Info } from 'lucide-react';
-import { groupVoicesByLanguage, createUtterance, ACCENT_OPTIONS, type VoiceInfo } from '../../utils/voiceManager';
+import { Globe, Volume2, CheckCircle, AlertCircle, Smartphone, Info, Crown, ChevronDown, ChevronRight } from 'lucide-react';
+import { groupVoicesByLanguage, createUtterance, ACCENT_OPTIONS, PREMIUM_VOICES, type VoiceInfo, type PremiumVoice } from '../../utils/voiceManager';
 import { supabase } from '../../lib/supabase';
 import VoiceHelpModal from './VoiceHelpModal';
 
@@ -34,6 +34,7 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
   const [recommendedVoices, setRecommendedVoices] = useState<Record<string, RecommendedVoice>>({});
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showLegacyVoices, setShowLegacyVoices] = useState(false);
 
   const selectedOption = ACCENT_OPTIONS.find(opt => opt.code === selectedAccent) || ACCENT_OPTIONS[0];
   const availableVoices = voicesByLang[selectedAccent] || [];
@@ -146,6 +147,11 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
     onChange(selectedAccent, voiceInfo.name, voiceInfo.lang, voiceInfo.uri);
   };
 
+  const handlePremiumVoiceSelect = (premiumVoice: PremiumVoice) => {
+    setSelectedVoice(null); // Clear browser voice
+    onChange(selectedAccent, premiumVoice.name, selectedAccent, premiumVoice.id);
+  };
+
   const handleTestVoice = async (voiceInfo: VoiceInfo) => {
     if (testingVoice) {
       window.speechSynthesis.cancel();
@@ -240,104 +246,106 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
         </div>
       ) : (
         <div>
-          <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
-            <Volume2 size={16} />
-            <span>Select Voice</span>
-          </label>
-
-          <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-2">
-            {availableVoices.map((voiceInfo) => {
-              const isSelected = selectedVoice?.uri === voiceInfo.uri;
-              const isRecommended = isRecommendedVoice(voiceInfo);
-              const isTesting = testingVoice === voiceInfo.uri;
-
-              return (
-                <div
-                  key={voiceInfo.uri}
-                  className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-blue-50 border-blue-400 shadow-sm'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => handleVoiceSelect(voiceInfo)}
-                >
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    {isSelected && (
-                      <CheckCircle size={20} className="text-blue-600 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-800 truncate">
-                          {voiceInfo.name}
-                        </span>
-                        {isRecommended && (
-                          <span title="Recommended by admin">
-                            <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />
-                          </span>
-                        )}
-                        {voiceInfo.isIOSNative && (
-                          <span title="iOS Native - Best for iPads">
-                            <Smartphone size={14} className="text-green-600 flex-shrink-0" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2 mt-0.5">
-                        {!voiceInfo.isIOSNative && !voiceInfo.isLocal && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowHelpModal(true);
-                            }}
-                            className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 font-bold hover:bg-indigo-100 transition-colors flex items-center"
-                          >
-                            <Info size={10} className="mr-1" />
-                            Download Required
-                          </button>
-                        )}
-                        {isRecommended && (
-                          <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">
-                            Recommended
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
+          {/* Premium Google Voices Section */}
+          <div className="mb-4">
+            <label className="flex items-center space-x-2 text-sm font-semibold text-indigo-700 mb-3">
+              <Crown size={16} className="text-amber-500" />
+              <span>Premium Voices (Google Cloud)</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(PREMIUM_VOICES[selectedAccent] || []).map((pv) => {
+                const isSelected = currentVoiceURI === pv.id;
+                return (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTestVoice(voiceInfo);
-                    }}
-                    disabled={isTesting}
-                    className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      isTesting
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    key={pv.id}
+                    onClick={() => handlePremiumVoiceSelect(pv)}
+                    className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                      isSelected
+                        ? 'bg-indigo-50 border-indigo-400 shadow-sm'
+                        : 'bg-white border-gray-100 hover:border-indigo-200'
                     }`}
                   >
-                    <Volume2 size={14} />
-                    <span>{isTesting ? 'Playing...' : 'Test'}</span>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                        {pv.gender === 'MALE' ? '♂' : '♀'}
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold text-gray-800">{pv.name}</div>
+                        <div className="text-[10px] text-indigo-500 font-medium uppercase tracking-wider">{pv.type}</div>
+                      </div>
+                    </div>
+                    {isSelected && <CheckCircle size={18} className="text-indigo-600" />}
                   </button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
-          {selectedVoice && (
-            <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-start space-x-2">
-              <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-green-800">
-                  Selected: {selectedVoice.name}
-                </p>
-                <p className="text-xs text-green-700 mt-0.5">
-                  {selectedVoice.isIOSNative && 'iOS Native voice - optimal for consistency across iPads'}
-                  {!selectedVoice.isIOSNative && selectedVoice.isLocal && 'Local voice - no download required'}
-                  {!selectedVoice.isIOSNative && !selectedVoice.isLocal && 'May require download on first use'}
-                </p>
+          {/* Legacy Browser Voices Section */}
+          <div className="mt-6">
+            <button 
+              onClick={() => setShowLegacyVoices(!showLegacyVoices)}
+              className="flex items-center space-x-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors py-2"
+            >
+              {showLegacyVoices ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Show Offline/Browser Voices (Fallback)</span>
+            </button>
+
+            {showLegacyVoices && (
+              <div className="mt-2 space-y-2 max-h-64 overflow-y-auto border border-gray-100 rounded-lg p-2 bg-gray-50/50">
+                {availableVoices.map((voiceInfo) => {
+                  const isSelected = currentVoiceURI === voiceInfo.uri;
+                  const isTesting = testingVoice === voiceInfo.uri;
+
+                  return (
+                    <div
+                      key={voiceInfo.uri}
+                      className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50 border-blue-400 shadow-sm'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleVoiceSelect(voiceInfo)}
+                    >
+                      <div className="flex items-center space-x-3 flex-1 min-w-0">
+                        {isSelected && (
+                          <CheckCircle size={20} className="text-blue-600 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium text-gray-800 truncate">
+                              {voiceInfo.name}
+                            </span>
+                            {voiceInfo.isIOSNative && (
+                              <span title="iOS Native">
+                                <Smartphone size={14} className="text-green-600 flex-shrink-0" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTestVoice(voiceInfo);
+                        }}
+                        disabled={isTesting}
+                        className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isTesting
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Volume2 size={12} />
+                        <span>{isTesting ? 'Playing...' : 'Test'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       {/* Voice Download Help Modal */}

@@ -28,12 +28,39 @@ export const ACCENT_OPTIONS: AccentOption[] = [
   { code: 'en-IE', label: 'Irish English', flag: '🇮🇪' },
 ];
 
+export interface PremiumVoice {
+  id: string;
+  name: string;
+  gender: 'MALE' | 'FEMALE';
+  type: 'Neural2' | 'Studio' | 'Wavenet';
+}
+
+export const PREMIUM_VOICES: Record<string, PremiumVoice[]> = {
+  'en-GB': [
+    { id: 'en-GB-Neural2-B', name: 'Oliver', gender: 'MALE', type: 'Neural2' },
+    { id: 'en-GB-Neural2-A', name: 'Charlotte', gender: 'FEMALE', type: 'Neural2' },
+    { id: 'en-GB-Wavenet-B', name: 'Harry', gender: 'MALE', type: 'Wavenet' },
+    { id: 'en-GB-Wavenet-A', name: 'Alice', gender: 'FEMALE', type: 'Wavenet' },
+  ],
+  'en-US': [
+    { id: 'en-US-Neural2-J', name: 'James', gender: 'MALE', type: 'Neural2' },
+    { id: 'en-US-Neural2-F', name: 'Emma', gender: 'FEMALE', type: 'Neural2' },
+    { id: 'en-US-Studio-Q', name: 'Benjamin', gender: 'MALE', type: 'Studio' },
+    { id: 'en-US-Studio-O', name: 'Sophia', gender: 'FEMALE', type: 'Studio' },
+  ],
+  'en-AU': [
+    { id: 'en-AU-Neural2-B', name: 'Jack', gender: 'MALE', type: 'Neural2' },
+    { id: 'en-AU-Neural2-A', name: 'Isla', gender: 'FEMALE', type: 'Neural2' },
+  ],
+};
+
 /**
  * Get all available voices from the browser
  */
 export const getAvailableVoices = async (): Promise<SpeechSynthesisVoice[]> => {
   return new Promise((resolve) => {
     let voices = window.speechSynthesis.getVoices();
+    console.log(`[VoiceManager] Initial getVoices() found ${voices.length} voices.`);
 
     if (voices.length > 0) {
       resolve(voices);
@@ -265,10 +292,30 @@ export const createUtterance = (
 /**
  * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function
  */
-export const fetchCloudAudio = async (text: string, accent: string): Promise<string | null> => {
+export const fetchCloudAudio = async (text: string, accent: string, voiceName?: string): Promise<string | null> => {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    console.log(`[VoiceManager] Requesting cloud audio for: "${text.substring(0, 20)}..."`, { 
+      accent, 
+      voiceName,
+      hasToken: !!token,
+      tokenPrefix: token ? token.substring(0, 10) : 'none',
+      userId: session?.user?.id 
+    });
+
+    if (!token) {
+      console.warn('[VoiceManager] No active session token found. Cloud TTS requires authentication.');
+      return null;
+    }
+
     const { data, error } = await supabase.functions.invoke('google-tts', {
-      body: { text, accent }
+      body: JSON.stringify({ text, accent, voiceName }),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     });
 
     if (error) {
