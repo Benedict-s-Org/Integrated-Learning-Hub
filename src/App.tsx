@@ -67,8 +67,8 @@ type AppState =
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
   | { page: 'spelling'; step: 'input' }
-  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string }
-  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number }
+  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; wordLimit?: number }
+  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number; wordLimit?: number; isSRSReview?: boolean }
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
@@ -597,8 +597,8 @@ function AppContent() {
     setAppState({ page: 'proofreadingAssignments' });
   };
 
-  const handleSpellingWordsSubmit = (title: string, words: string[], isPhraseMode?: boolean) => {
-    setAppState({ page: 'spelling', step: 'preview', title, words, isPhraseMode });
+  const handleSpellingWordsSubmit = (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => {
+    setAppState({ page: 'spelling', step: 'preview', title, words, isPhraseMode, wordLimit });
   };
 
   const handleViewSavedSpelling = () => {
@@ -613,7 +613,8 @@ function AppContent() {
     if (appState.page === 'spelling' && appState.step === 'preview') {
       setAppState({
         ...appState,
-        step: 'practice'
+        step: 'practice',
+        wordLimit: (appState as any).wordLimit
       });
     }
   };
@@ -656,7 +657,7 @@ function AppContent() {
     if (appState.page === 'spelling' && appState.step === 'practice') {
       // Students go back to saved practices list, admins go to preview
       if (isAdmin) {
-        setAppState({ page: 'spelling', step: 'preview', title: appState.title, words: appState.words });
+        setAppState({ page: 'spelling', step: 'preview', title: appState.title, words: appState.words, wordLimit: (appState as any).wordLimit });
       } else {
         setAppState({ page: 'spelling', step: 'saved' });
       }
@@ -880,6 +881,7 @@ function AppContent() {
                       onBack={handleBackToSpellingInput}
                       onSave={isAdmin ? handleViewSavedSpelling : undefined}
                       onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
+                      wordLimit={(appState as any).wordLimit}
                     />
                   );
                 case 'practice':
@@ -892,6 +894,8 @@ function AppContent() {
                       assignmentId={appState.assignmentId}
                       initialLevel={appState.level}
                       onBack={handleBackToSpellingPreview}
+                      wordLimit={(appState as any).wordLimit}
+                      isSRSReview={(appState as any).isSRSReview}
                     />
                   );
                 case 'saved':
@@ -907,6 +911,7 @@ function AppContent() {
                             title: practice.title,
                             words: practice.words,
                             practiceId: practice.id,
+                            wordLimit: (practice as any).metadata?.wordLimit
                           });
                         } else {
                           setAppState({
@@ -917,6 +922,8 @@ function AppContent() {
                             practiceId: practice.id,
                             assignmentId: practice.assignment_id,
                             level: practice.level,
+                            wordLimit: (practice as any).metadata?.wordLimit,
+                            isSRSReview: practice.id === 'srs-review'
                           });
                         }
                       }}
@@ -928,6 +935,8 @@ function AppContent() {
                           words: practice.words,
                           practiceId: practice.id,
                           assignmentId: practice.assignment_id,
+                          wordLimit: (practice as any).metadata?.wordLimit,
+                          isSRSReview: practice.id === 'srs-review'
                         });
                       }}
                     />

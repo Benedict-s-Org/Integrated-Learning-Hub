@@ -30,7 +30,7 @@ interface StudentLevelInfo {
 
 const LEVEL_CONFIG = [
   { key: 'spelling_level', label: 'Spelling', max: 2, color: 'indigo' },
-  { key: 'reading_rearranging_level', label: 'Rearrange', max: 2, color: 'purple' },
+  { key: 'reading_rearranging_level', label: 'Unscramble', max: 2, color: 'purple' },
   { key: 'reading_proofreading_level', label: 'Read-Proof', max: 3, color: 'pink' },
   { key: 'memorization_level', label: 'Memorize', max: 3, color: 'emerald' },
   { key: 'proofreading_level', label: 'Proofread', max: 2, color: 'amber' },

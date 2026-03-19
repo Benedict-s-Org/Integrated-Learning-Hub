@@ -8,7 +8,7 @@ import {
   Loader2, Check, Layers, Type, 
   RotateCcw, Database, Upload, Trash2
 } from 'lucide-react';
-import { getVerbForms, isVerb, getNounForms, type VerbForm, type VerbFormType } from '@/utils/verbUtils';
+import { getVerbForms, isVerb, getNounForms, isPreposition, type VerbForm, type VerbFormType } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -44,7 +44,7 @@ interface ChunkOption {
   id: string;
   text: string;
   alternatives: { text: string; prefix?: string; type?: VerbFormType }[];
-  mode?: 'verb' | 'noun';
+  mode?: 'verb' | 'noun' | 'preposition';
   selectedFormTypes?: VerbFormType[];
 }
 
@@ -52,6 +52,8 @@ interface NotionQuestion {
   id: string;
   question: string;
   answer: string;
+  error_sentence?: string;
+  error?: string;
   day?: string;
   page?: number;
 }
@@ -155,7 +157,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   editId
 }) => {
   const { user, session } = useAuth();
-  const [step, setStep] = useState<CreatorStep>('select-pdf');
+  const [step, setStep] = useState<CreatorStep>(initialPdfUrl || editId ? 'workspace' : 'select-pdf');
   
   // PDF State
   const [pdfs, setPdfs] = useState<ReadingPdf[]>([]);
@@ -178,11 +180,29 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [selectedQuestion, setSelectedQuestion] = useState<NotionQuestion | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
-  // Notion Config
-  const [questionsDbId, setQuestionsDbId] = useState(() => 
-    localStorage.getItem('aplus_questions_db_id') || '3249baca6fa381f18526ca44ce27447c'
-  );
+  const [bankMode, setBankMode] = useState<'unscramble' | 'proofreading'>('unscramble');
+  const [questionsDbId, setQuestionsDbId] = useState('');
   const [showConfig, setShowConfig] = useState(false);
+
+  useEffect(() => {
+    const savedId = localStorage.getItem('aplus_questions_db_id');
+    if (savedId) {
+      setQuestionsDbId(savedId);
+    } else {
+      // Fallback for transition from mode-specific IDs
+      const savedUnscramble = localStorage.getItem('aplus_questions_db_id_unscramble');
+      if (savedUnscramble) {
+        setQuestionsDbId(savedUnscramble);
+        localStorage.setItem('aplus_questions_db_id', savedUnscramble);
+      } else {
+        setQuestionsDbId('3249baca6fa381f18526ca44ce27447c'); // Default fallback
+      }
+    }
+    
+    // Clear the question list when switching modes to avoid mixing up bank items
+    setQuestionsOnPage([]);
+    setSelectedQuestion(null);
+  }, [bankMode]);
   
   // Chunking State
   const [chunks, setChunks] = useState<ChunkOption[]>([]);
@@ -266,6 +286,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           id: q.metadata?.notion_question_id || q.id,
           question: q.question_text,
           answer: q.correct_answer,
+          error_sentence: q.error_sentence,
+          error: q.error,
           day: q.metadata?.day,
         },
         chunks: q.metadata?.chunks || [],
@@ -330,6 +352,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           } else if (c.mode === 'noun') {
             const singular = c.alternatives.find(a => a.type === 'singular');
             if (singular) defaultOpt = singular;
+          } else if (c.mode === 'preposition') {
+            // Sort custom options and correct text alphabetically to find default
+            const allOpts = Array.from(new Set([{ text: c.text }, ...c.alternatives].map(o => o.text)));
+            allOpts.sort((a, b) => a.localeCompare(b));
+            const first = c.alternatives.find(a => a.text === allOpts[0]);
+            if (first) defaultOpt = first;
+            else defaultOpt = { text: allOpts[0] };
           }
           if (defaultOpt) {
             selections[c.id] = defaultOpt.text;
@@ -515,6 +544,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       }
       // Parse raw Notion results on the frontend (same as Spaced Repetition)
       const allQuestions = parseReadingNotionResponse(data.results);
+      console.log('ReadingPracticeCreator: Parsed questions from Notion:', allQuestions);
       setQuestionsOnPage(allQuestions);
       
       // Sort by Day then Page ascending
@@ -618,6 +648,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       setPageNumInput(q.page.toString());
       fetchQuestionsForPage();
     }
+
+    // Auto-scroll to PDF canvas area
+    setTimeout(() => {
+      const canvasElement = canvasRef.current;
+      if (canvasElement) {
+        canvasElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
 
@@ -626,12 +664,27 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     const initialChunks: ChunkOption[] = words.map(w => {
       const verbForms = getVerbForms(w);
       const isV = isVerb(w);
+      const isPrep = isPreposition(w);
+      
+      let mode: 'verb' | 'preposition' | undefined = undefined;
+      let selectedFormTypes: VerbFormType[] = [];
+      let alternatives: { text: string; prefix?: string; type?: VerbFormType }[] = [];
+      
+      if (isPrep) {
+        mode = 'preposition';
+        selectedFormTypes = [];
+        alternatives = [];
+      } else if (isV) {
+        mode = 'verb';
+        selectedFormTypes = ['base'];
+        alternatives = verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type }));
+      }
       return {
         id: crypto.randomUUID(),
         text: w,
-        mode: isV ? 'verb' : undefined,
-        selectedFormTypes: isV ? ['base'] : [],
-        alternatives: isV ? verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type })) : []
+        mode,
+        selectedFormTypes,
+        alternatives
       };
     });
     setChunks(initialChunks);
@@ -697,18 +750,25 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const handleToggleMode = (id: string) => {
     setChunks(prev => prev.map(c => {
       if (c.id !== id) return c;
-      const newMode = c.mode === 'noun' ? 'verb' : 'noun';
-      let newAlts = [];
+      let newMode: 'verb' | 'noun' | 'preposition' | undefined;
+      if (!c.mode) newMode = 'verb';
+      else if (c.mode === 'verb') newMode = 'noun';
+      else if (c.mode === 'noun') newMode = 'preposition';
+      else newMode = undefined;
+
+      let newAlts: any[] = [];
       let selectedTypes: VerbFormType[] = [];
       
       if (newMode === 'noun') {
         const nounForms = getNounForms(c.text);
         newAlts = nounForms.map(vf => ({ text: vf.text, type: vf.type }));
         selectedTypes = nounForms.map(vf => vf.type);
-      } else {
+      } else if (newMode === 'verb') {
         const verbForms = getVerbForms(c.text);
         newAlts = verbForms.filter(f => f.type === 'base').map(vf => ({ text: vf.text, prefix: vf.prefix, type: vf.type }));
         selectedTypes = ['base'];
+      } else if (newMode === 'preposition') {
+        newAlts = [];
       }
       return { ...c, mode: newMode, alternatives: newAlts, selectedFormTypes: selectedTypes };
     }));
@@ -928,91 +988,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const renderPracticeQueue = (isInsideCard: boolean = false) => {
-    const shouldShow = localQuestions.length > 0 || (step === 'workspace' && isInsideCard);
-    if (!shouldShow) return null;
-    return (
-      <div className={`${isInsideCard ? 'mt-8' : 'mt-12 pt-12 border-t-4 border-dashed border-slate-100'} animate-in fade-in slide-in-from-bottom-8 duration-700`}>
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-100">
-              <Layers className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-800 text-xl uppercase tracking-widest">Practice Content Queue</h3>
-              <p className="text-xs font-bold text-slate-400 mt-0.5">You have {localQuestions.length} question(s) staged for this practice</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handlePrepareNewCard}
-              className="px-6 py-4 bg-white border-2 border-slate-100 text-indigo-600 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-95 flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Prepare Next Question (Keep current as template)
-            </button>
-            
-            <button
-              onClick={handleSavePractice}
-              disabled={saving}
-              className="px-8 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] hover:bg-emerald-600 shadow-xl shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
-            >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
-              {saving ? 'Completing Save...' : (editId ? 'Update Practice' : 'Save Practice & Finalize')}
-            </button>
-          </div>
-        </div>
-
-        {localQuestions.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {localQuestions.map((lq, idx) => (
-              <div 
-                key={lq.id} 
-                onClick={() => handleLoadFromQueue(lq)}
-                className="bg-white rounded-[2.5rem] border-2 border-slate-100 p-6 relative group hover:border-indigo-400 hover:shadow-2xl hover:shadow-indigo-50 transition-all flex flex-col cursor-pointer active:scale-[0.98]"
-              >
-                <button 
-                  onClick={(e) => handleRemoveLocalQuestion(lq.id, e)}
-                  className="absolute top-6 right-6 p-2 bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100 z-10"
-                  title="Remove from queue"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
-                  <div className="flex-1" />
-                  <div className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[8px] font-black opacity-0 group-hover:opacity-100 transition-opacity">
-                    CLICK TO EDIT
-                  </div>
-                </div>
-
-                <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden mb-4 border border-slate-100">
-                  <img src={lq.previewUrl} className="w-full h-full object-cover" alt="Passage Crop" />
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-xs font-black text-slate-800 line-clamp-2 leading-relaxed mb-3">{lq.question.question}</p>
-                  <div className="flex flex-wrap gap-1.5 opacity-60">
-                    {lq.chunks.slice(0, 4).map(c => (
-                      <span key={c.id} className="px-2 py-0.5 bg-slate-100 rounded-lg text-[8px] font-bold text-slate-500 uppercase">{c.text}</span>
-                    ))}
-                    {lq.chunks.length > 4 && <span className="text-[8px] font-bold text-slate-300">+{lq.chunks.length - 4} more</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200 p-8 text-center mb-8">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No other questions in queue</p>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const handlePreviewDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -1096,23 +1071,29 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           imageUrl = publicUrl;
         }
 
-        return supabase.from('reading_questions').insert({
+        const insertData = {
           practice_id: practiceId,
           question_text: lq.question.question,
           correct_answer: lq.question.answer,
-          interaction_type: 'aplus-coordinates',
+          error_sentence: lq.question.error_sentence,
+          error: lq.question.error,
+          interaction_type: lq.question.error_sentence ? 'proofreading' : 'aplus-coordinates',
+          level: lq.question.page || 1,
           evidence_coords: lq.coords,
           question_image_url: imageUrl,
           order_index: index,
           metadata: {
-            chunks: lq.chunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives })),
+            chunks: lq.chunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives, mode: c.mode })),
             randomized_ids: lq.randomizedIds,
             source_pdf_id: selectedPdf?.pageId,
             notion_question_id: lq.question.id,
             questions_db_id: questionsDbId,
-            day: lq.question.day // Preserve the day in metadata
+            day: lq.question.day,
           }
-        });
+        };
+
+        console.log('ReadingPracticeCreator: Saving question:', insertData);
+        return supabase.from('reading_questions').insert(insertData).select();
       });
 
       const results = await Promise.all(questionPromises);
@@ -1148,22 +1129,22 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       { key: 'workspace', label: 'Workspace' }
     ];
     return (
-      <div className="flex items-center justify-center gap-2 mb-6">
+      <div className="flex items-center justify-center gap-2 mb-4">
         {steps.map((s, i) => (
           <React.Fragment key={s.key}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === s.key ? 'bg-blue-600 text-white shadow-md' : 
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold transition-all ${
+              step === s.key ? 'bg-indigo-600 text-white shadow-sm' : 
               steps.findIndex(x => x.key === step) > i ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'
             }`}>
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                step === s.key ? 'bg-white text-blue-600' : 
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
+                step === s.key ? 'bg-white text-indigo-600' : 
                 steps.findIndex(x => x.key === step) > i ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-500'
               }`}>
-                {steps.findIndex(x => x.key === step) > i ? <Check className="w-3 h-3" /> : (i + 1)}
+                {steps.findIndex(x => x.key === step) > i ? <Check className="w-2.5 h-2.5" /> : (i + 1)}
               </div>
               {s.label}
             </div>
-            {i < steps.length - 1 && <div className="w-4 h-px bg-slate-200" />}
+            {i < steps.length - 1 && <div className="w-3 h-px bg-slate-200" />}
           </React.Fragment>
         ))}
       </div>
@@ -1203,12 +1184,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         </div>
       </div>
 
-      <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isResetting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-        <div className="p-4 bg-white/50 border-b">{renderStepIndicator()}</div>
-        <div className="flex-1 overflow-auto p-8 flex flex-col items-center">
-          
-          {/* STEP 1: SELECT PDF */}
-          {step === 'select-pdf' && (
+      <div className={`flex-1 flex overflow-hidden transition-all duration-300 ${isResetting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-2 bg-white/50 border-b">{renderStepIndicator()}</div>
+          <div className="flex-1 overflow-auto p-4 lg:p-8 flex flex-col items-center">
+            
+            {/* STEP 1: SELECT PDF */}
+            {step === 'select-pdf' && (
             <div className="w-full max-w-5xl space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Local Upload */}
@@ -1261,8 +1243,35 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                       <Database className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em]">Notion Bank</h3>
-                      <p className="text-[9px] font-bold text-slate-400 -mt-0.5">Select a task to begin evidence cropping</p>
+                      <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-4">
+                        Notion Bank
+                        
+                        {/* THE SWITCH TOGGLE */}
+                        <div 
+                          onClick={() => setBankMode(prev => prev === 'unscramble' ? 'proofreading' : 'unscramble')}
+                          className="relative flex items-center bg-slate-200/50 p-1 rounded-full w-[180px] h-8 cursor-pointer group hover:bg-slate-200 transition-all border border-slate-100 shadow-inner"
+                        >
+                          {/* Sliding Background */}
+                          <div 
+                            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full transition-all duration-300 shadow-sm ${
+                              bankMode === 'unscramble' ? 'left-1 bg-indigo-600' : 'left-[calc(50%+1px)] bg-amber-500'
+                            }`}
+                          />
+                          
+                          {/* Left Label */}
+                          <div className={`relative flex-1 text-center text-[8px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'unscramble' ? 'text-white' : 'text-slate-400'}`}>
+                            UNSCRAMBLE
+                          </div>
+                          
+                          {/* Right Label */}
+                          <div className={`relative flex-1 text-center text-[8px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'proofreading' ? 'text-white' : 'text-slate-400'}`}>
+                            PROOFREADING
+                          </div>
+                        </div>
+                      </h3>
+                      <p className="text-[9px] font-bold text-slate-400 -mt-0.5">
+                        {bankMode === 'unscramble' ? 'Select a task for unscrambling' : 'Select a task for proofreading'}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1273,11 +1282,23 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                           <p className="text-[10px] font-black text-slate-800 mb-3 uppercase tracking-wider">Database Configuration</p>
                           <input type="text" value={questionsDbId} onChange={(e) => setQuestionsDbId(e.target.value)} className="w-full h-10 px-4 bg-slate-50 border rounded-xl outline-none text-[11px] mb-3 font-mono focus:ring-2 focus:ring-indigo-500/20" placeholder="32-char Database ID..." />
                           <div className="bg-indigo-50/50 p-3 rounded-2xl mb-4 border border-indigo-100/50">
+                            <span className="text-[10px] font-bold text-indigo-500 uppercase">
+                              {bankMode === 'unscramble' ? 'Unscramble Mode' : 'Proofreading Mode'}
+                            </span>
                             <p className="text-[10px] font-bold text-indigo-700 leading-snug">
-                              💡 The ID is the 32-character string in your Notion URL after 'notion.so/'.
+                              💡 {bankMode === 'unscramble' ? "The ID is for the Unscramble database." : "The ID is for the Proofreading database."}
                             </p>
                           </div>
-                          <button onClick={() => { localStorage.setItem('aplus_questions_db_id', questionsDbId); setShowConfig(false); fetchQuestionsForPage(); }} className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all">Save & Sync</button>
+                          <button 
+                            onClick={() => { 
+                              localStorage.setItem('aplus_questions_db_id', questionsDbId); 
+                              setShowConfig(false); 
+                              fetchQuestionsForPage(); 
+                            }} 
+                            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all"
+                          >
+                            Save & Sync
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1331,6 +1352,15 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Questions for {selectedDay || 'Selected Day'}</p>
                             {questionsOnPage
                               .filter(q => q.day === selectedDay)
+                              .filter(q => {
+                                // Filter based on mode: Proofreading requires an error_sentence
+                                if (bankMode === 'proofreading') {
+                                  return !!q.error_sentence;
+                                } else {
+                                  // Unscramble mode shows everything else
+                                  return !q.error_sentence;
+                                }
+                              })
                               .map(q => (
                                 <button 
                                   key={q.id} 
@@ -1351,12 +1381,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                                   {/* Content Area */}
                                   <div className="flex-1 p-3 pl-4 relative">
                                     <p className={`text-[11px] font-black leading-tight mb-1 line-clamp-2 ${selectedQuestion?.id === q.id ? 'text-indigo-900' : 'text-slate-800'}`}>
-                                      {q.question}
+                                      {bankMode === 'proofreading' ? (q.error_sentence || q.question) : q.question}
                                     </p>
                                     <div className="flex items-center gap-2">
                                       <div className={`w-1 h-1 rounded-full shrink-0 ${selectedQuestion?.id === q.id ? 'bg-indigo-400' : 'bg-slate-300'}`} />
                                       <p className="text-[9px] font-bold text-slate-400 group-hover:text-slate-500 italic truncate max-w-[200px]">
                                         Ans: {q.answer}
+                                        {bankMode === 'proofreading' && q.error && <span className="text-red-400 ml-1">(Err: {q.error})</span>}
                                       </p>
                                     </div>
 
@@ -1476,40 +1507,92 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
                             <button
                               onClick={(e) => { e.stopPropagation(); handleToggleMode(chunk.id); }}
-                              className={`w-full py-1 text-[8px] font-black uppercase tracking-widest rounded-lg border transition-all ${chunk.mode === 'noun' ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-100' : 'bg-white border-slate-100 text-slate-400 hover:border-amber-200 hover:text-amber-600'}`}
+                              className={`w-full py-1 text-[8px] font-black uppercase tracking-widest rounded-lg border transition-all ${
+                                !chunk.mode ? 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200 hover:text-indigo-600' :
+                                chunk.mode === 'noun' ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-100' : 
+                                chunk.mode === 'preposition' ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-100' :
+                                'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100'
+                              }`}
                             >
-                              {chunk.mode === 'noun' ? 'Noun Mode' : 'Switch to Noun'}
+                              {!chunk.mode ? 'Switch Mode' : chunk.mode === 'noun' ? 'Noun Mode' : chunk.mode === 'preposition' ? 'Preposition Mode' : 'Verb Mode'}
                             </button>
 
-                            <div className="space-y-1 mt-1 border-t border-slate-100 pt-3 flex-1 overflow-y-auto min-h-0">
-                              {(chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).map((vForm) => {
-                                const isChecked = (chunk.selectedFormTypes || []).includes(vForm.type);
-                                return (
-                                  <label
-                                    key={vForm.type}
-                                    className={`flex items-start gap-2 p-1.5 rounded-xl cursor-pointer transition-all ${isChecked ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-slate-50 border-transparent'}`}
-                                    onClick={(e) => { e.stopPropagation(); handleToggleVerbForm(chunk.id, vForm); }}
-                                  >
-                                    <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isChecked ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
-                                      {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className={`text-[10px] font-bold leading-none ${isChecked ? 'text-indigo-900' : 'text-slate-600'}`}>
-                                        {vForm.prefix ? <span className="opacity-50 mr-1 italic">{vForm.prefix}</span> : null}
-                                        {vForm.text}
-                                      </span>
-                                      <span className="text-[7px] font-black uppercase tracking-tighter text-slate-400 mt-0.5">
-                                        {vForm.type.replace('_', ' ')}
-                                      </span>
-                                    </div>
-                                  </label>
-                                );
-                              })}
-                              {/* Fallback if no forms detected but mode is set */}
-                              {(chunk.mode === 'verb' || chunk.mode === 'noun') && (chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).length === 0 && (
-                                <p className="text-[9px] text-slate-400 italic text-center py-2">No forms detected</p>
-                              )}
-                            </div>
+                            {chunk.mode === 'preposition' ? (
+                              <div className="space-y-2 mt-1 border-t border-slate-100 pt-3 flex-1 overflow-y-auto min-h-0">
+                                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                  <input 
+                                    type="text" 
+                                    placeholder="Add option..." 
+                                    className="w-full text-[10px] px-2 py-1.5 border border-slate-200 rounded-lg outline-none focus:border-emerald-500"
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                      e.stopPropagation();
+                                      if (e.key === 'Enter' && e.currentTarget.value) {
+                                        const val = e.currentTarget.value.trim().toLowerCase();
+                                        if (!chunk.alternatives.find(a => a.text === val) && val !== chunk.text.toLowerCase()) {
+                                          setChunks(prev => prev.map(c => c.id === chunk.id ? {
+                                            ...c,
+                                            alternatives: [...c.alternatives, { text: val }]
+                                          } : c));
+                                        }
+                                        e.currentTarget.value = '';
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+                                  {chunk.alternatives.map(alt => (
+                                    <span key={alt.text} className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[9px] font-bold text-slate-700 flex items-center gap-1">
+                                      {alt.text}
+                                      <button
+                                        onPointerDown={e => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setChunks(prev => prev.map(c => c.id === chunk.id ? {
+                                            ...c,
+                                            alternatives: c.alternatives.filter(a => a.text !== alt.text)
+                                          } : c));
+                                        }}
+                                        className="text-slate-400 hover:text-red-500"
+                                      >x</button>
+                                    </span>
+                                  ))}
+                                  {chunk.alternatives.length === 0 && (
+                                    <p className="text-[9px] text-slate-400 italic text-center py-2 w-full">Press Enter to add options</p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1 mt-1 border-t border-slate-100 pt-3 flex-1 overflow-y-auto min-h-0">
+                                {chunk.mode && (chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).map((vForm) => {
+                                  const isChecked = (chunk.selectedFormTypes || []).includes(vForm.type!);
+                                  return (
+                                    <label
+                                      key={vForm.type}
+                                      className={`flex items-start gap-2 p-1.5 rounded-xl cursor-pointer transition-all ${isChecked ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-slate-50 border-transparent'}`}
+                                      onClick={(e) => { e.stopPropagation(); handleToggleVerbForm(chunk.id, vForm); }}
+                                    >
+                                      <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${isChecked ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                        {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className={`text-[10px] font-bold leading-none ${isChecked ? 'text-indigo-900' : 'text-slate-600'}`}>
+                                          {vForm.prefix ? <span className="opacity-50 mr-1 italic">{vForm.prefix}</span> : null}
+                                          {vForm.text}
+                                        </span>
+                                        <span className="text-[7px] font-black uppercase tracking-tighter text-slate-400 mt-0.5">
+                                          {vForm.type!.replace('_', ' ')}
+                                        </span>
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                                {/* Fallback if no forms detected but mode is set */}
+                                {(chunk.mode === 'verb' || chunk.mode === 'noun') && (chunk.mode === 'noun' ? getNounForms(chunk.text) : getVerbForms(chunk.text)).length === 0 && (
+                                  <p className="text-[9px] text-slate-400 italic text-center py-2">No forms detected</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1596,15 +1679,88 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                       </div>
 
                       {/* PRACTICE CONTENT QUEUE (IN-CARD) */}
-                      {renderPracticeQueue(true)}
                     </div>
                   </div>
                 )}
-
               </div>
             )}
-
+          </div>
         </div>
+
+        {step === 'workspace' && (
+          <div className="w-80 border-l bg-white flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-10">
+            <div className="p-4 border-b bg-slate-50/50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-600 text-white rounded-lg">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-wider">Practice Queue</h3>
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-lg uppercase">Unscramble</span>
+                </div>
+                <div className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-black">
+                  {localQuestions.length}
+                </div>
+              </div>
+              
+              <button
+                onClick={handleSavePractice}
+                disabled={saving || localQuestions.length === 0}
+                className="w-full py-3 bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 shadow-lg shadow-emerald-100 transition-all active:scale-95 disabled:opacity-30 flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+                {saving ? 'Saving...' : 'Finalize & Save'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
+              {localQuestions.length > 0 ? (
+                localQuestions.map((lq, idx) => (
+                  <div 
+                    key={lq.id} 
+                    onClick={() => handleLoadFromQueue(lq)}
+                    className={`group relative bg-white rounded-2xl border-2 p-3 transition-all cursor-pointer hover:shadow-md ${
+                      editingLocalId === lq.id ? 'border-indigo-500 shadow-indigo-50' : 'border-slate-100'
+                    }`}
+                  >
+                    <button 
+                      onClick={(e) => handleRemoveLocalQuestion(lq.id, e)}
+                      className="absolute top-2 right-2 p-1.5 bg-white text-slate-300 hover:text-red-500 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10 border"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                    
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-5 h-5 rounded-lg bg-slate-800 text-white flex items-center justify-center font-black text-[9px]">{idx + 1}</span>
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                    </div>
+
+                    <div className="aspect-video bg-slate-50 rounded-lg overflow-hidden mb-2 border border-slate-100">
+                      <img src={lq.previewUrl} className="w-full h-full object-cover" alt="Crop" />
+                    </div>
+
+                    <p className="text-[10px] font-bold text-slate-800 line-clamp-2 leading-tight">{lq.question.question}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-300">
+                  <Plus className="w-8 h-8 mb-2 opacity-20" />
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-50">Add questions to see them here</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t bg-slate-50/50">
+              <button
+                onClick={handlePrepareNewCard}
+                className="w-full py-3 bg-white border border-slate-200 text-indigo-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Template Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,13 +14,14 @@ interface SpellingPreviewProps {
   isPhraseMode?: boolean;
   onSave?: () => void;
   onViewSaved?: () => void;
+  wordLimit?: number;
 }
 
-const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, isPhraseMode, onSave, onViewSaved }) => {
-  const { accentPreference, voicePreference, updateVoicePreference, user, session } = useAuth();
+const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, isPhraseMode, onSave, onViewSaved, wordLimit }) => {
+  const { accentPreference, voicePreference, updateVoicePreference, user, session, isAdmin } = useAuth();
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [currentAccent, setCurrentAccent] = useState(accentPreference);
-  const [currentVoiceURI, setCurrentVoiceURI] = useState(voicePreference?.voiceURI);
+  const [currentVoiceURI, setCurrentVoiceURI] = useState<string | undefined>(voicePreference?.voiceURI);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [speechSupported, setSpeechSupported] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -214,6 +215,9 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
           words: words,
           userId: user.id,
           isPhraseMode: isPhraseMode,
+          metadata: {
+            wordLimit: wordLimit || 20
+          }
         })
       });
 
@@ -221,7 +225,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
         throw new Error('Failed to save practice');
       }
 
-      const data = await response.json();
+      await response.json();
 
       setSaveSuccess(true);
       if (onSave) {
@@ -293,14 +297,16 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
               </p>
             </div>
 
-            <div className="mb-6">
-              <AccentSelector
-                currentAccent={currentAccent}
-                currentVoiceURI={currentVoiceURI}
-                onChange={handleVoiceChange}
-                showVoiceSelection={true}
-              />
-            </div>
+            {isAdmin && (
+              <div className="mb-6">
+                <AccentSelector
+                  currentAccent={currentAccent}
+                  currentVoiceURI={currentVoiceURI}
+                  onChange={handleVoiceChange}
+                  showVoiceSelection={true}
+                />
+              </div>
+            )}
 
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">

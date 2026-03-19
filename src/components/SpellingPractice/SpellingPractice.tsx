@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ArrowLeft, CheckCircle, XCircle, Trophy, Undo2 } from 'lucide-react';
+import { Volume2, ArrowLeft, CheckCircle, XCircle, Trophy, Undo2, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
-import VoiceSettings from './VoiceSettings';
 import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
 
 interface SpellingPracticeProps {
@@ -17,14 +16,28 @@ interface SpellingPracticeProps {
   assignmentId?: string;
   isPhraseMode?: boolean;
   initialLevel?: number;
+  wordLimit?: number; // 10, 20, 40
+  isSRSReview?: boolean; // Whether this is an SRS review session
 }
 
-const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode, initialLevel }) => {
-  const { accentPreference, voicePreference, updateVoicePreference, user } = useAuth();
-  const { recordWordAttempt } = useSpellingSrs();
+const SpellingPractice: React.FC<SpellingPracticeProps> = ({ 
+  title, 
+  words: rawWords, 
+  onBack, 
+  practiceId, 
+  assignmentId, 
+  isPhraseMode, 
+  initialLevel,
+  wordLimit,
+  isSRSReview
+}) => {
+  const { accentPreference, voicePreference, user } = useAuth();
+  const { recordWordAttempt, getWordsDueForReview } = useSpellingSrs();
   const startTimeRef = useRef<number>(Date.now());
   const wordStartTimeRef = useRef<number>(Date.now());
-  const [level, setLevel] = useState<1 | 2>((initialLevel as 1 | 2) || 1);
+  
+  const [practiceWords, setPracticeWords] = useState<string[]>([]);
+  const [level] = useState<1 | 2>((initialLevel as 1 | 2) || 1);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [clickedLetters, setClickedLetters] = useState<string[]>([]);
@@ -35,6 +48,48 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   const [isCompleted, setIsCompleted] = useState(false);
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [isWordsLoading, setIsWordsLoading] = useState(true);
+
+  // Helper to shuffle array
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  useEffect(() => {
+    const initializePractice = async () => {
+      setIsWordsLoading(true);
+      let selectedWords: string[] = [];
+
+      if (isSRSReview) {
+        // Fetch due words directly to ensure freshness
+        const dueWords = await getWordsDueForReview();
+        selectedWords = shuffleArray(dueWords);
+      } else {
+        // Standard practice - shuffle and limit
+        selectedWords = shuffleArray(rawWords);
+      }
+
+      // Apply limit if specified
+      if (wordLimit && selectedWords.length > wordLimit) {
+        selectedWords = selectedWords.slice(0, wordLimit);
+      }
+
+      setPracticeWords(selectedWords);
+      setIsWordsLoading(false);
+
+      if (selectedWords.length > 0) {
+        initializeShuffledLetters(selectedWords[0]);
+      }
+    };
+
+    initializePractice();
+  }, [isSRSReview, rawWords, wordLimit]);
+
 
   useEffect(() => {
     const initVoice = async () => {
@@ -63,23 +118,16 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   }, [voicePreference, accentPreference]);
 
   useEffect(() => {
-    if (speechSupported && words.length > 0) {
-      console.log(`[SpellingPractice] Initializing word: ${words[0]}, Voice current status:`, !!currentVoice);
-      if (currentVoice) {
-        speakWord(words[0]);
-      }
-      initializeShuffledLetters(words[0]);
+    if (speechSupported && practiceWords.length > currentWordIndex && currentVoice) {
+      console.log(`[SpellingPractice] Initializing word: ${practiceWords[currentWordIndex]}, Voice current status:`, !!currentVoice);
+      speakWord(practiceWords[currentWordIndex]);
+      initializeShuffledLetters(practiceWords[currentWordIndex]);
     }
-  }, [currentVoice]);
+  }, [currentVoice, practiceWords]);
 
-  const shuffleArray = (array: string[]): string[] => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
+
+  // shuffleArray was moved outside or into functional scope
+
 
   const initializeShuffledLetters = (word: string) => {
     const letters = word.split('');
@@ -134,11 +182,13 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   };
 
   const handlePlayAudio = () => {
-    speakWord(words[currentWordIndex]);
+    if (practiceWords[currentWordIndex]) {
+      speakWord(practiceWords[currentWordIndex]);
+    }
   };
 
   const handleCheck = () => {
-    const currentWord = words[currentWordIndex];
+    const currentWord = practiceWords[currentWordIndex];
     let correct = false;
     let userAnswer = '';
 
@@ -166,15 +216,15 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   };
 
   const handleNext = async () => {
-    if (currentWordIndex < words.length - 1) {
+    if (currentWordIndex < practiceWords.length - 1) {
       const nextIndex = currentWordIndex + 1;
       setCurrentWordIndex(nextIndex);
       setUserInput('');
       setClickedLetters([]);
       setShowFeedback(false);
       wordStartTimeRef.current = Date.now();
-      speakWord(words[nextIndex]);
-      initializeShuffledLetters(words[nextIndex]);
+      speakWord(practiceWords[nextIndex]);
+      initializeShuffledLetters(practiceWords[nextIndex]);
     } else {
       await saveResults();
       setIsCompleted(true);
@@ -190,7 +240,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
     const accuracyPercentage = Math.round((correctCount / totalCount) * 100);
 
     const allResults = [...results, {
-      word: words[currentWordIndex],
+      word: practiceWords[currentWordIndex],
       userAnswer: level === 1 ? clickedLetters.join('') : userInput.trim(),
       isCorrect,
       level,
@@ -202,7 +252,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
         practice_id: practiceId || null,
         assignment_id: assignmentId || null,
         title,
-        words,
+        words: practiceWords,
         user_answers: allResults,
         correct_count: correctCount,
         total_count: totalCount,
@@ -210,6 +260,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
         practice_level: level,
         time_spent_seconds: timeSpentSeconds,
         completed_at: new Date().toISOString(),
+        is_srs: isSRSReview || false
       });
 
       if (assignmentId) {
@@ -254,6 +305,17 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
   const correctCount = results.filter(r => r.isCorrect).length;
   const totalCount = results.length;
   const accuracy = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+
+  if (isWordsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Preparing your words...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!speechSupported) {
     return (
@@ -359,15 +421,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
       <div className="max-w-3xl mx-auto">
         <Card className="p-4 md:p-8">
           <div className="mb-6">
-            <VoiceSettings
-              currentAccent={accentPreference}
-              currentVoiceURI={voicePreference?.voiceURI}
-              onVoiceChange={async (_accent, voiceName, voiceLang, voiceURI) => {
-                await updateVoicePreference(voiceName, voiceLang, voiceURI);
-                // The currentVoice state will be updated via the useEffect watching voicePreference
-              }}
-            />
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 pt-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
               <div className="flex items-center space-x-3">
                 <h1 className="text-xl md:text-3xl font-bold text-foreground text-center sm:text-left">{title}</h1>
                 {isPhraseMode && (
@@ -376,166 +430,200 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
                   </span>
                 )}
               </div>
-              <span className="text-lg text-muted-foreground font-medium">
-                Word {currentWordIndex + 1} of {words.length}
-              </span>
             </div>
 
+            {practiceWords.length > 0 ? (
+              <div className="space-y-8">
+                {currentWordIndex < practiceWords.length ? (
+                  <>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Volume2 className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <span className="text-lg text-muted-foreground font-medium">
+                          Word {currentWordIndex + 1} of {practiceWords.length}
+                        </span>
+                      </div>
+                    </div>
 
-
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                style={{ width: `${((currentWordIndex + 1) / words.length) * 100}%` }}
-              ></div>
-            </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${((currentWordIndex + 1) / practiceWords.length) * 100}%` }}
+                      ></div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          <div className="mb-8">
-            <div className="flex justify-center mb-6">
-              <Button
-                onClick={handlePlayAudio}
-                className="px-8 py-4 h-auto text-xl shadow-lg"
-                icon={Volume2}
-              >
-                Play Word
-              </Button>
-            </div>
+          {practiceWords.length > 0 ? (
+            <div className="space-y-8">
+              {currentWordIndex < practiceWords.length ? (
+                <>
+                  <div className="mb-8">
+                    <div className="flex justify-center mb-6">
+                      <Button
+                        onClick={handlePlayAudio}
+                        className="px-8 py-4 h-auto text-xl shadow-lg"
+                        icon={Volume2}
+                      >
+                        Play Word
+                      </Button>
+                    </div>
 
-            <p className="hidden sm:block text-center text-sm text-gray-500 mb-6">
-              Keyboard shortcuts: <kbd className="px-2 py-1 bg-gray-200 rounded">Ctrl + Space</kbd> to replay
-            </p>
+                    <p className="hidden sm:block text-center text-sm text-gray-500 mb-6">
+                      Keyboard shortcuts: <kbd className="px-2 py-1 bg-gray-200 rounded">Ctrl + Space</kbd> to replay
+                    </p>
 
-            {level === 1 ? (
-              <div>
-                <div className="mb-6">
-                  <label className="block text-lg font-semibold text-gray-700 mb-3 text-center">
-                    Your spelling:
-                  </label>
-                  <div className="min-h-[80px] px-4 py-4 border-2 border-gray-300 rounded-lg bg-gray-50 flex flex-wrap gap-2 items-center justify-center">
-                    {clickedLetters.length > 0 ? (
-                      clickedLetters.map((letter, index) => (
-                        <span
-                          key={index}
-                          className={`text-3xl font-mono px-4 py-2 rounded-lg shadow-sm border border-gray-200 ${letter === ' ' ? 'bg-blue-50 border-blue-200 w-12 text-center' : 'bg-white'}`}
-                        >
-                          {letter === ' ' ? '␣' : letter}
-                        </span>
-                      ))
+                    {level === 1 ? (
+                      <div>
+                        <div className="mb-6">
+                          <label className="block text-lg font-semibold text-gray-700 mb-3 text-center">
+                            Your spelling:
+                          </label>
+                          <div className="min-h-[80px] px-4 py-4 border-2 border-gray-300 rounded-lg bg-gray-50 flex flex-wrap gap-2 items-center justify-center">
+                            {clickedLetters.length > 0 ? (
+                              clickedLetters.map((letter, index) => (
+                                <span
+                                  key={index}
+                                  className={`text-3xl font-mono px-4 py-2 rounded-lg shadow-sm border border-gray-200 ${letter === ' ' ? 'bg-blue-50 border-blue-200 w-12 text-center' : 'bg-white'}`}
+                                >
+                                  {letter === ' ' ? '␣' : letter}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-400 text-lg">Click letters below...</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mb-4">
+                          <label className="block text-lg font-semibold text-gray-700 mb-3 text-center">
+                            Available letters:
+                          </label>
+                          <div className="flex flex-wrap gap-3 justify-center">
+                            {shuffledLetters.map((letter, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handleLetterClick(letter, index)}
+                                disabled={showFeedback}
+                                className={`text-xl md:text-2xl font-mono px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${letter === ' ' ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
+                              >
+                                {letter === ' ' ? 'Space' : letter}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {clickedLetters.length > 0 && !showFeedback && (
+                          <div className="flex justify-center mb-4">
+                            <Button
+                              onClick={handleUndo}
+                              variant="secondary"
+                              icon={Undo2}
+                            >
+                              Undo
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <span className="text-gray-400 text-lg">Click letters below...</span>
+                      <div>
+                        <label htmlFor="spelling-input" className="block text-lg font-semibold text-gray-700 mb-2">
+                          Type the spelling:
+                        </label>
+                        <Input
+                          id="spelling-input"
+                          type="text"
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          disabled={showFeedback}
+                          className="w-full text-2xl text-center font-mono py-6"
+                          placeholder="Type here..."
+                          autoFocus
+                        />
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <div className="mb-4">
-                  <label className="block text-lg font-semibold text-gray-700 mb-3 text-center">
-                    Available letters:
-                  </label>
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    {shuffledLetters.map((letter, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleLetterClick(letter, index)}
-                        disabled={showFeedback}
-                        className={`text-xl md:text-2xl font-mono px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${letter === ' ' ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
-                      >
-                        {letter === ' ' ? 'Space' : letter}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {clickedLetters.length > 0 && !showFeedback && (
-                  <div className="flex justify-center mb-4">
-                    <Button
-                      onClick={handleUndo}
-                      variant="secondary"
-                      icon={Undo2}
+                  {showFeedback && (
+                    <div
+                      className={`mb-6 p-6 rounded-xl ${isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'
+                        }`}
                     >
-                      Undo
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="spelling-input" className="block text-lg font-semibold text-gray-700 mb-2">
-                  Type the spelling:
-                </label>
-                <Input
-                  id="spelling-input"
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={showFeedback}
-                  className="w-full text-2xl text-center font-mono py-6"
-                  placeholder="Type here..."
-                  autoFocus
-                />
-              </div>
-            )}
-          </div>
+                      <div className="flex items-center space-x-3 mb-2">
+                        {isCorrect ? (
+                          <CheckCircle size={32} className="text-green-600" />
+                        ) : (
+                          <XCircle size={32} className="text-red-600" />
+                        )}
+                        <span className={`text-2xl font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                          {isCorrect ? 'Correct!' : 'Incorrect'}
+                        </span>
+                      </div>
+                      {!isCorrect && (
+                        <p className="text-gray-700 text-lg">
+                          The correct spelling is: <span className="font-bold">{practiceWords[currentWordIndex]}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-          {showFeedback && (
-            <div
-              className={`mb-6 p-6 rounded-xl ${isCorrect ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'
-                }`}
-            >
-              <div className="flex items-center space-x-3 mb-2">
-                {isCorrect ? (
-                  <CheckCircle size={32} className="text-green-600" />
-                ) : (
-                  <XCircle size={32} className="text-red-600" />
-                )}
-                <span className={`text-2xl font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                  {isCorrect ? 'Correct!' : 'Incorrect'}
-                </span>
-              </div>
-              {!isCorrect && (
-                <p className="text-gray-700 text-lg">
-                  The correct spelling is: <span className="font-bold">{words[currentWordIndex]}</span>
-                </p>
+                  <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
+                    <Button
+                      onClick={onBack}
+                      variant="secondary"
+                      icon={ArrowLeft}
+                      className="w-full sm:w-auto"
+                    >
+                      Back
+                    </Button>
+
+                    {!showFeedback ? (
+                      <Button
+                        onClick={handleCheck}
+                        disabled={level === 1 ? clickedLetters.length === 0 : !userInput.trim()}
+                        variant="success"
+                        className="w-full sm:w-auto"
+                      >
+                        Check Spelling
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleNext}
+                        variant="primary"
+                        className="w-full sm:w-auto"
+                      >
+                        {currentWordIndex < practiceWords.length - 1 ? 'Next Word' : 'Finish'}
+                      </Button>
+                    )}
+                  </div>
+
+                  {results.length > 0 && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <p className="text-center text-gray-600">
+                        Current Score: {correctCount} / {totalCount} ({accuracy}%)
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
+                  <p className="text-gray-500 mb-4">You have reviewed all {practiceWords.length} words in this session!</p>
+                  <Button onClick={saveResults} variant="primary">Finish Practice</Button>
+                </div>
               )}
             </div>
-          )}
-
-          <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
-            <Button
-              onClick={onBack}
-              variant="secondary"
-              icon={ArrowLeft}
-              className="w-full sm:w-auto"
-            >
-              Back
-            </Button>
-
-            {!showFeedback ? (
-              <Button
-                onClick={handleCheck}
-                disabled={level === 1 ? clickedLetters.length === 0 : !userInput.trim()}
-                variant="success"
-                className="w-full sm:w-auto"
-              >
-                Check Spelling
-              </Button>
-            ) : (
-              <Button
-                onClick={handleNext}
-                variant="primary"
-                className="w-full sm:w-auto"
-              >
-                {currentWordIndex < words.length - 1 ? 'Next Word' : 'Finish'}
-              </Button>
-            )}
-          </div>
-
-          {results.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-center text-gray-600">
-                Current Score: {correctCount} / {totalCount} ({accuracy}%)
-              </p>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-6 text-center">
+                <p className="text-red-600 font-medium">No words found for this practice session.</p>
+                <Button onClick={onBack} variant="secondary" className="mt-4">Go Back</Button>
+              </div>
             </div>
           )}
         </Card>

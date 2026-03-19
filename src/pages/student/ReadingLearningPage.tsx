@@ -21,6 +21,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
   practiceId: initialPracticeId,
   assignmentId: initialAssignmentId
 }) => {
+  console.log('@@LEARNING_MARKER_V1@@ ReadingLearningPage rendered');
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [practices, setPractices] = useState<ReadingPractice[]>([]);
@@ -42,15 +43,16 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
       }) as { data: any[], error: any };
 
       if (error) throw error;
+      console.log('ReadingLearningPage: Unified assignments data:', data);
       
       // Filter for reading modes and format
       const readingAssignments = (data || [])
-        .filter((a: any) => a.assignment_type === 'reading' || a.type === 'reading-rearrange' || a.type === 'reading-proof')
+        .filter((a: any) => a.assignment_type === 'reading' || a.type === 'reading-unscramble' || a.type === 'reading-proof')
         .map((a: any) => ({
           id: a.content_data?.practice_id || a.id,
           assignmentId: a.assignment_id,
           title: a.title,
-          type: a.content_data?.interaction_type === 'rearrange' ? 'reading-rearrange' : 
+          type: a.content_data?.interaction_type === 'rearrange' || a.content_data?.interaction_type === 'aplus-coordinates' ? 'reading-unscramble' : 
                 a.content_data?.interaction_type === 'proofreading' ? 'reading-proof' : a.type,
           level_info: a.assignment_level || a.level_info,
           // We still need the image URL, so we fetch it or use a default
@@ -76,7 +78,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
             ...a,
             passage_image_url: details?.passage_image_url || '',
             question_count: details?.reading_questions?.[0]?.count || 0,
-            displayTitle: `${a.title} (${a.type === 'reading-rearrange' ? 'Rearranging' : 'Proofreading'})`
+            displayTitle: `${a.title} (${a.type === 'reading-unscramble' ? 'Unscrambling' : 'Proofreading'})`
           };
         });
 
@@ -104,12 +106,14 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
 
   if (selectedPracticeId && user) {
     const selectedPractice = practices.find(p => p.id === selectedPracticeId);
+    const initialMode = (selectedPractice as any)?.type === 'reading-unscramble' ? 'unscramble' : 'proofreading';
+    console.log('ReadingLearningPage: Rendering ReadingChallenge for practice:', selectedPracticeId, 'initialMode:', initialMode);
     return (
       <ReadingChallenge 
         practiceId={selectedPracticeId}
         studentId={user.id}
         assignmentId={activeAssignmentId || (selectedPractice as any)?.assignmentId}
-        interactionMode={(selectedPractice as any)?.type === 'reading-rearrange' ? 'rearrange' : 'proofreading'}
+        interactionMode={initialMode as any}
         onComplete={(score, bonus) => {
           console.log(`Completed with score: ${score}, bonus: ${bonus}`);
           setSelectedPracticeId(null);
@@ -211,7 +215,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
                       {practice.question_count} Questions
                     </div>
                     <div className="px-3 py-1 bg-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
-                      {practice.type === 'reading-rearrange' ? 'Rearrange' : 'Proofread'}
+                      {practice.type === 'reading-unscramble' ? 'Unscramble' : 'Proofread'}
                     </div>
                     <div className="px-3 py-1 bg-amber-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
                       {practice.level_info}

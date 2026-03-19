@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, ArrowRight, Database, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
@@ -206,26 +206,40 @@ export const ReadingManagementPage: React.FC = () => {
           <p className="text-slate-500">Manage your interactive reading practices</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setView('create')}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-100 shadow-sm transition-all active:scale-95 font-bold"
-          >
-            <Plus className="w-5 h-5" />
-            Create Reading Question
-          </button>
-          <button 
-            onClick={() => setView('notion-browse')}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 shadow-sm transition-all active:scale-95 font-bold"
-          >
-            <Database className="w-5 h-5 text-indigo-500" />
-            Create via Notion
-          </button>
+          <div className="relative group">
+            <button 
+              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 border border-indigo-700 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 font-bold"
+            >
+              <Plus className="w-5 h-5" />
+              New Practice
+            </button>
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+              <button 
+                onClick={() => setView('create')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition-colors text-sm font-bold border-b border-slate-50"
+              >
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-white transition-colors">
+                  <Upload className="w-4 h-4" />
+                </div>
+                Local PDF
+              </button>
+              <button 
+                onClick={() => setView('notion-browse')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition-colors text-sm font-bold"
+              >
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-white transition-colors">
+                  <Database className="w-4 h-4" />
+                </div>
+                Notion Bank
+              </button>
+            </div>
+          </div>
           <button 
             onClick={() => setView('aplus-list')}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 border border-indigo-700 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 font-bold"
+            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 shadow-sm transition-all active:scale-95 font-bold"
           >
-            <BookOpen className="w-5 h-5" />
-            Saved practice
+            <BookOpen className="w-5 h-5 text-indigo-500" />
+            Inventory
           </button>
         </div>
       </div>
@@ -366,15 +380,6 @@ export const ReadingManagementPage: React.FC = () => {
                   }`}>
                     {practice.question_count || 0} Questions
                   </span>
-                  <button 
-                    onClick={() => {
-                      setActivePracticeId(practice.id);
-                      setView('sync');
-                    }}
-                    className="text-indigo-600 text-sm font-bold flex items-center gap-1 hover:underline"
-                  >
-                    Manage <ArrowRight className="w-3 h-3" />
-                  </button>
                 </div>
                 
                 {/* Action Buttons */}

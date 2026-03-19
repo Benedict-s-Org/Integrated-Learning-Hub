@@ -857,6 +857,8 @@ export type Database = {
         Row: {
           correct_answer: string
           created_at: string
+          error: string | null
+          error_sentence: string | null
           evidence_coords: Json | null
           id: string
           interaction_type: string
@@ -869,6 +871,8 @@ export type Database = {
         Insert: {
           correct_answer: string
           created_at?: string
+          error?: string | null
+          error_sentence?: string | null
           evidence_coords?: Json | null
           id?: string
           interaction_type: string
@@ -881,6 +885,8 @@ export type Database = {
         Update: {
           correct_answer?: string
           created_at?: string
+          error?: string | null
+          error_sentence?: string | null
           evidence_coords?: Json | null
           id?: string
           interaction_type?: string
@@ -1247,6 +1253,11 @@ export type Database = {
           role: string
           updated_at: string | null
           username: string
+          spelling_level: number | null
+          reading_rearranging_level: number | null
+          reading_proofreading_level: number | null
+          proofreading_level: number | null
+          memorization_level: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1255,6 +1266,11 @@ export type Database = {
           role?: string
           updated_at?: string | null
           username: string
+          spelling_level?: number | null
+          reading_rearranging_level?: number | null
+          reading_proofreading_level?: number | null
+          proofreading_level?: number | null
+          memorization_level?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1263,6 +1279,11 @@ export type Database = {
           role?: string
           updated_at?: string | null
           username?: string
+          spelling_level?: number | null
+          reading_rearranging_level?: number | null
+          reading_proofreading_level?: number | null
+          proofreading_level?: number | null
+          memorization_level?: number | null
         }
         Relationships: []
       }

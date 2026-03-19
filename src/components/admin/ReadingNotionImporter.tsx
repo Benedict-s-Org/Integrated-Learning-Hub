@@ -88,6 +88,8 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
 
         const questionText = getText('Question') || getText('text');
         const correctAnswer = getText('Answer') || getText('correct_answer');
+        const errorSentence = getText('Error Sentence') || getText('error_sentence');
+        const errorWord = getText('Error') || getText('error');
         const type = getSelect('Type') || getSelect('interaction_type') || 'rearrange';
         const level = getNumber('Level') || 1;
         const chunksRaw = getText('Chunks'); // Expected as comma-separated or JSON string
@@ -102,17 +104,25 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
         }
 
         if (correctAnswer) {
+          const insertData: any = {
+            practice_id: practiceId,
+            question_text: questionText,
+            correct_answer: correctAnswer,
+            interaction_type: type.toLowerCase().includes('proof') ? 'proofreading' : 'rearrange',
+            level: level,
+            metadata: metadata,
+            order_index: importedCount
+          };
+
+          // Add new proofreading specific columns if they exist
+          if (insertData.interaction_type === 'proofreading') {
+            insertData.error_sentence = errorSentence;
+            insertData.error = errorWord;
+          }
+
           const { error: dbError } = await supabase
             .from('reading_questions')
-            .insert({
-              practice_id: practiceId,
-              question_text: questionText,
-              correct_answer: correctAnswer,
-              interaction_type: type.toLowerCase().includes('proof') ? 'proofreading' : 'rearrange',
-              level: level,
-              metadata: metadata,
-              order_index: importedCount
-            });
+            .insert(insertData);
 
           if (!dbError) {
             importedCount++;
@@ -230,7 +240,7 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
       <div className="mt-8 pt-8 border-t border-slate-100">
         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Required Notion Columns</h4>
         <div className="grid grid-cols-2 gap-3">
-          {['Question', 'Answer', 'Type', 'Level', 'Chunks'].map(col => (
+          {['Question', 'Answer', 'Type', 'Level', 'Error Sentence', 'Error'].map(col => (
             <div key={col} className="flex items-center gap-2 text-xs text-slate-600">
               <div className="w-1 h-1 bg-indigo-400 rounded-full" />
               {col}

@@ -37,6 +37,8 @@ interface Question {
   id: string;
   question_text: string | null;
   correct_answer: string;
+  error_sentence?: string;
+  error?: string;
   interaction_type: 'rearrange' | 'proofreading' | 'aplus-coordinates';
   level: number;
   metadata: any;
@@ -47,14 +49,14 @@ interface ReadingChallengeProps {
   practiceId: string;
   studentId: string;
   assignmentId?: string;
-  interactionMode?: 'rearrange' | 'proofreading';
+  interactionMode?: 'unscramble' | 'proofreading';
   onComplete: (score: number, bonus: number) => void;
   onExit: () => void;
 }
 
 // --- Sub-Components ---
 
-// 1. Sortable Word Item for Rearrange Mode
+// 1. Sortable Word Item for Unscramble Mode
 const SortableWord: React.FC<{ 
   id: string; 
   text: string; 
@@ -120,6 +122,8 @@ const SortableWord: React.FC<{
 };
 
 // --- Main Component ---
+console.log('ReadingChallenge.tsx: File loaded');
+
 export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   practiceId,
   studentId,
@@ -128,6 +132,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   onComplete,
   onExit
 }) => {
+  window.alert('READING CHALLENGE RENDERED');
+  console.log('ReadingChallenge: Component rendered with propInteractionMode:', propInteractionMode);
   // State
   const [loading, setLoading] = useState(true);
   const [practice, setPractice] = useState<any>(null);
@@ -137,11 +143,18 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [bonusCoins, setBonusCoins] = useState(0);
   
   // Interaction State
-  const [rearrangeWords, setRearrangeWords] = useState<{id: string, text: string, options?: {text: string, prefix?: string}[]}[]>([]);
-  const [proofreadingChunks, setProofreadingChunks] = useState<any[]>([]);
+  const [interactionMode, setInteractionMode] = useState<'unscramble' | 'proofreading'>(propInteractionMode || 'unscramble');
+  const [unscrambleWords, setUnscrambleWords] = useState<{id: string, text: string, options?: {text: string, prefix?: string}[]}[]>([]);
+  const [proofreadingChunks, setProofreadingChunks] = useState<{id: number, text: string, isError: boolean}[]>([]);
   const [selectedProofreadingIndex, setSelectedProofreadingIndex] = useState<number | null>(null);
   const [userSelections, setUserSelections] = useState<Record<string, string>>({}); // For options/dropdowns
-  const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For auxiliary verb inputs
+  
+  // @@CHALLENGE_MARKER_V2@@
+  useEffect(() => {
+    console.log('@@CHALLENGE_MARKER_V2@@ ReadingChallenge mounted');
+  }, []);
+  const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For prefix inputs
+  const [proofreadingCorrection, setProofreadingCorrection] = useState('');
   
   // Progress State
   const [status, setStatus] = useState<'idle' | 'answering' | 'submitting' | 'feedback' | 'finished'>('answering');
@@ -157,10 +170,14 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   );
 
   useEffect(() => {
-    loadData();
-  }, [practiceId]);
+    console.log('ReadingChallenge: useEffect triggered with practiceId:', practiceId, 'interactionMode:', interactionMode);
+    if (practiceId) {
+      loadData();
+    }
+  }, [practiceId, interactionMode]);
 
   const loadData = async () => {
+    console.log('ReadingChallenge: loadData started for practiceId:', practiceId, 'mode:', interactionMode);
     setLoading(true);
     try {
       // 1. Fetch Practice
@@ -180,9 +197,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         .eq('practice_id', practiceId);
 
       // Filter by interaction mode if provided
-      if (propInteractionMode) {
-        // 'rearrange' from UI maps to 'rearrange' or 'aplus-coordinates' in DB
-        if (propInteractionMode === 'rearrange') {
+      if (interactionMode) { // Use component's interactionMode state
+        if (interactionMode === 'unscramble') {
           query = query.in('interaction_type', ['rearrange', 'aplus-coordinates']);
         } else {
           query = query.eq('interaction_type', 'proofreading');
@@ -198,19 +214,49 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       // This means if student is Level 2, they ONLY see Level 2. If student is Level 1, they see 1 and 2.
       const { data: userData } = await supabase.from('users').select('*').eq('id', studentId).single();
       const u = userData as any;
-      const studentLevel = propInteractionMode === 'rearrange' 
-        ? (u.reading_level || 1) 
-        : (u.reading_proof_level || 1);
+      const studentLevel = interactionMode === 'unscramble' 
+        ? (u?.reading_rearranging_level || 1) 
+        : (u?.reading_proofreading_level || 1);
+
+      console.log('ReadingChallenge: Fetched qData:', qData);
+      console.log('ReadingChallenge: interactionMode:', interactionMode);
+      console.log('ReadingChallenge: studentLevel:', studentLevel);
 
       const filteredQuestions = (qData as unknown as Question[] || []).filter(q => {
-        if (studentLevel === 1) return true; // Level 1 sees everything (1 and 2, or 1,2,3)
-        return q.level >= studentLevel; // Level 2 only sees 2+
+        const qLevel = q.level || 1;
+        const pass = studentLevel === 1 || qLevel >= studentLevel;
+        if (!pass) console.log(`ReadingChallenge: Filtering out question ${q.id} due to level ${qLevel} < ${studentLevel}`);
+        return pass;
+      }).filter(q => {
+        // Repeated words rule for proofreading
+        if (q.interaction_type === 'proofreading' && q.error_sentence && q.error) {
+          const words = q.error_sentence.toLowerCase().split(/\s+/);
+          const errorLower = q.error.toLowerCase().trim();
+          
+          // Count occurrences of the error word
+          if (errorLower !== '') {
+            const count = words.filter(w => w === errorLower).length;
+            if (count > 1) {
+              console.log(`ReadingChallenge: Filtering out proofreading question ${q.id} due to ambiguous error word "${errorLower}"`);
+              return false; // Exclude if ambiguous
+            }
+          }
+        }
+        return true;
       });
+
+      console.log('ReadingChallenge: filteredQuestions:', filteredQuestions);
 
       setQuestions(filteredQuestions);
       
       if (filteredQuestions.length > 0) {
         setupInteraction(filteredQuestions[0]);
+      } else {
+        // If no questions for the selected mode, reset state
+        setUnscrambleWords([]);
+        setProofreadingChunks([]);
+        setCurrentIndex(0);
+        setStatus('idle'); // Or some other appropriate state
       }
     } catch (err) {
       console.error('Error loading challenge:', err);
@@ -242,10 +288,16 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
           // Include the correct answer in the options if it's not already there
           // The USER wants the FIRST option (base form) to be the initial selection
           const optionsWithCorrect = [ ...options, { text: c.text } ];
-          const uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [o.text, o])).values());
+          let uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [o.text, o])).values());
           
-          // Default selection to the first alternative (usually the base form)
-          const defaultOpt = options[0];
+          let defaultOpt = options[0];
+          
+          if (c.mode === 'preposition') {
+            uniqueOptions.sort((a, b) => a.text.localeCompare(b.text));
+            defaultOpt = uniqueOptions[0];
+          }
+
+          // Default selection to the first alternative (usually the base form, or alphabetically first for prepositions)
           initialSelections[chunkId] = defaultOpt.text;
           initialPrefixes[chunkId] = ''; 
 
@@ -268,23 +320,49 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
       // Shuffle for student view
       const shuffled = [...words].sort(() => Math.random() - 0.5);
-      setRearrangeWords(shuffled);
+      setUnscrambleWords(shuffled);
     } else if (q.interaction_type === 'proofreading') {
-      // Setup proofreading chunks
-      const metadata = q.metadata || {};
-      const chunks = metadata.chunks || [];
-      setProofreadingChunks(chunks.map((c: any, idx: number) => ({
-        id: idx,
-        text: typeof c === 'string' ? c : c.text,
-        options: c.options || []
-      })));
+      // Use new database columns if available, otherwise fallback to metadata
+      if (q.error_sentence && q.error) {
+        const sentence = q.error_sentence;
+        const error = q.error;
+        
+        // Split by spaces but preserve them if needed
+        // If error is a space at the end, we need to handle it
+        let words = sentence.split(' ');
+        
+        // Find the error word index
+        // Safety: If there are multiple identical words, we might need a better way.
+        // For now, let's assume we can find the first match or use a marker if the user provided one.
+        // The user said "To prevent confusion, answers with repeated words should be excluded"
+        // so we probably won't have duplicates often.
+        
+        const chunks = words.map((w, idx) => ({
+          id: idx,
+          text: w,
+          isError: w === error || (error === ' ' && idx === words.length - 1 && w === '')
+        }));
+        
+        setProofreadingChunks(chunks);
+      } else {
+        // Fallback to legacy metadata chunks
+        const metadata = q.metadata || {};
+        const chunks = metadata.chunks || [];
+        setProofreadingChunks(chunks.map((c: any, idx: number) => ({
+          id: idx,
+          text: typeof c === 'string' ? c : c.text,
+          isError: true // In legacy mode, we don't know which one is the error easily
+        })));
+      }
+      setSelectedProofreadingIndex(null);
+      setProofreadingCorrection('');
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      setRearrangeWords((items) => {
+      setUnscrambleWords((items) => {
         const oldIndex = items.findIndex(i => i.id === active.id);
         const newIndex = items.findIndex(i => i.id === over.id);
         return arrayMove(items, oldIndex, newIndex);
@@ -297,7 +375,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     let isUserCorrect = false;
 
     if (q.interaction_type === 'rearrange' || q.interaction_type === 'aplus-coordinates') {
-      const currentOrder = rearrangeWords.map(w => {
+      const currentOrder = unscrambleWords.map(w => {
         const text = userSelections[w.id] || w.text;
         const prefix = userPrefixes[w.id];
         return prefix ? `${prefix} ${text}` : text;
@@ -308,8 +386,13 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       const actualCorrect = q.correct_answer.replace(/\s+/g, ' ').trim().toLowerCase();
       isUserCorrect = normalizedAnswer === actualCorrect;
     } else if (q.interaction_type === 'proofreading') {
-      const userCorrection = userSelections['proofread-correction'];
-      isUserCorrect = userCorrection === q.correct_answer;
+      const normalizedUser = proofreadingCorrection.trim().toLowerCase();
+      const normalizedCorrect = q.correct_answer.trim().toLowerCase();
+      
+      // Check if also the correct word was selected
+      const isWordCorrect = selectedProofreadingIndex !== null && proofreadingChunks[selectedProofreadingIndex]?.isError;
+      
+      isUserCorrect = isWordCorrect && normalizedUser === normalizedCorrect;
     }
 
     setIsCorrect(isUserCorrect);
@@ -332,14 +415,20 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         student_id: studentId,
         question_id: q.id,
         is_correct: isUserCorrect,
-        user_answer: q.interaction_type === 'rearrange' 
-          ? rearrangeWords.map(w => userSelections[w.id] || w.text).join(' ') 
-          : userSelections['proofread-correction'] || 'no-selection',
+        user_answer: interactionMode === 'unscramble' 
+          ? unscrambleWords.map(w => userSelections[w.id] || w.text).join(' ') 
+          : proofreadingCorrection,
         hint_usage_count: hintsUsed,
         bonus_evidence_completed: false
       });
     } catch (err) {
       console.error('Error saving response:', err);
+    }
+  };
+
+  const handleSkip = () => {
+    if (confirm('Skip this question? You won\'t earn coins for this one.')) {
+      nextQuestion();
     }
   };
 
@@ -384,7 +473,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
           console.error('Error updating reading assignment:', err);
         }
       }
-
       onComplete(score, bonusCoins);
     }
   };
@@ -411,6 +499,38 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
               <BookOpen className="w-5 h-5 text-indigo-500" />
               {practice?.title || 'Reading Practice'}
             </h1>
+            {/* Mode Switcher */}
+            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mt-2">
+              <button
+                onClick={() => {
+                  console.log('ReadingChallenge: Switching to unscramble mode');
+                  setInteractionMode('unscramble');
+                  setCurrentIndex(0); // Reset to first question of new mode
+                }}
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                  interactionMode === 'unscramble' 
+                  ? 'bg-white text-indigo-600 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Unscramble
+              </button>
+              <button
+                onClick={() => {
+                  console.log('ReadingChallenge: Switching to proofreading mode');
+                  setInteractionMode('proofreading');
+                  setCurrentIndex(0);
+                }}
+                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                  interactionMode === 'proofreading' 
+                  ? 'bg-white text-indigo-600 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Proofreading
+              </button>
+            </div>
+
             <div className="flex items-center gap-2 mt-1">
               <div className="w-32 bg-slate-100 h-1.5 rounded-full overflow-hidden">
                 <div 
@@ -486,18 +606,18 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
           {/* Answering Component */}
           <div className="bg-white rounded-3xl p-10 border-2 border-slate-100 shadow-lg min-h-[300px] flex flex-col items-center justify-center">
-            {questions[currentIndex]?.interaction_type === 'rearrange' || questions[currentIndex]?.interaction_type === 'aplus-coordinates' ? (
+            {interactionMode === 'unscramble' ? (
               <DndContext 
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext 
-                  items={rearrangeWords.map(w => w.id)}
+                  items={unscrambleWords.map(w => w.id)}
                   strategy={horizontalListSortingStrategy}
                 >
                   <div className="flex flex-wrap justify-center gap-3">
-                    {rearrangeWords.map((word) => (
+                    {unscrambleWords.map((word) => (
                       <SortableWord 
                         key={word.id} 
                         id={word.id} 
@@ -517,44 +637,66 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                 </SortableContext>
               </DndContext>
             ) : (
-              <div className="flex flex-col items-center gap-8 w-full">
-                <div className="flex flex-wrap justify-center gap-2">
-                  {proofreadingChunks.map((chunk, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedProofreadingIndex(idx)}
-                      className={`px-4 py-2 rounded-xl border-2 transition-all font-medium ${
-                        selectedProofreadingIndex === idx 
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' 
-                          : 'border-slate-100 text-slate-600 hover:border-slate-200'
-                      }`}
-                    >
-                      {userSelections[`proofread-${idx}`] || chunk.text}
-                    </button>
-                  ))}
+              <div className="flex flex-col items-center gap-10 w-full max-w-2xl mx-auto">
+                {/* Sentence Display */}
+                <div className="flex flex-wrap justify-center gap-x-2 gap-y-4 text-2xl font-medium leading-loose text-slate-800">
+                  {proofreadingChunks.map((chunk, idx) => {
+                    const isSelected = selectedProofreadingIndex === idx;
+                    const isError = status === 'feedback' && chunk.isError;
+                    const isIncorrectSelection = status === 'feedback' && isSelected && !chunk.isError;
+                    
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => status === 'answering' && setSelectedProofreadingIndex(idx)}
+                        disabled={status === 'feedback'}
+                        className={`
+                          relative px-2 py-1 rounded-lg transition-all duration-200
+                          ${status === 'answering' ? 'hover:bg-slate-100' : ''}
+                          ${isSelected && status === 'answering' ? 'bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500 shadow-sm' : ''}
+                          ${isError ? 'text-red-500 line-through decoration-2' : ''}
+                          ${isIncorrectSelection ? 'bg-red-50 text-red-700 ring-2 ring-red-500' : ''}
+                          ${status === 'feedback' && !isError && !isIncorrectSelection ? 'opacity-50' : ''}
+                        `}
+                      >
+                        {chunk.text || (chunk.isError ? '⎵' : '')}
+                        {isSelected && status === 'answering' && (
+                          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {selectedProofreadingIndex !== null && (
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 w-full max-w-md animate-in fade-in slide-in-from-bottom-2">
-                    <p className="text-xs font-bold text-slate-400 uppercase mb-4 text-center">Correct this part</p>
-                    <div className="grid grid-cols-1 gap-2">
-                      {proofreadingChunks[selectedProofreadingIndex].options.map((opt: string) => (
-                        <button
-                          key={opt}
-                          onClick={() => {
-                            setUserSelections(prev => ({ ...prev, [`proofread-${selectedProofreadingIndex}`]: opt }));
-                            // For Level 1/2 simplicity, we might just store the main correction
-                            setUserSelections(prev => ({ ...prev, 'proofread-correction': opt }));
-                          }}
-                          className={`w-full py-3 px-4 rounded-xl text-left font-bold transition-all ${
-                            userSelections[`proofread-${selectedProofreadingIndex}`] === opt
-                              ? 'bg-indigo-600 text-white shadow-lg'
-                              : 'bg-white text-slate-700 hover:bg-indigo-50 border border-slate-200'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
+                {/* Input Area */}
+                {selectedProofreadingIndex !== null && status === 'answering' && (
+                  <div className="w-full flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Type the correction</p>
+                    <div className="relative w-full max-w-md">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={proofreadingCorrection}
+                        onChange={(e) => setProofreadingCorrection(e.target.value)}
+                        placeholder="What should it be?"
+                        className="w-full px-6 py-4 bg-white border-2 border-indigo-100 rounded-2xl text-xl font-bold text-center text-indigo-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 shadow-xl transition-all"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Feedback Correction */}
+                {status === 'feedback' && (
+                  <div className="flex flex-col items-center gap-4 animate-in zoom-in duration-300">
+                    <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-3xl text-center">
+                      <span className="text-sm font-bold text-indigo-400 uppercase tracking-widest block mb-2">The Correction is:</span>
+                      <span className="text-3xl font-black text-indigo-600 italic">
+                        {questions[currentIndex]?.correct_answer}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -597,9 +739,12 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
               <Lightbulb className="w-5 h-5 text-yellow-500" />
               Hint
             </button>
-            <button className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all">
+            <button 
+              onClick={handleSkip}
+              className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all"
+            >
               <SkipForward className="w-5 h-5" />
-              Not Sure
+              Skip
             </button>
           </div>
 
@@ -607,10 +752,10 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
              {showEvidencePrompt && (
                <button 
                  onClick={handleEvidenceClick}
-                 className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full font-bold shadow-lg shadow-indigo-200 animate-bounce"
+                 className="flex items-center gap-3 px-8 py-4 bg-amber-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100 animate-in zoom-in duration-300 hover:scale-105 active:scale-95"
                >
                  <Target className="w-5 h-5" />
-                 Link Evidence for +5 Bonus
+                 Link Evidence (+5 Coins)
                </button>
              )}
           </div>
@@ -619,18 +764,18 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
             onClick={status === 'feedback' ? nextQuestion : handleSubmit}
             className={`px-10 py-4 ${
               status === 'feedback' 
-                ? 'bg-slate-800 text-white' 
+                ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' 
                 : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
             } rounded-2xl font-black text-lg flex items-center gap-3 transition-all active:scale-95`}
           >
             {status === 'feedback' ? (
               <>
-                Next Question
+                Next Challenge
                 <ArrowRight className="w-6 h-6" />
               </>
             ) : (
               <>
-                Check My Answer
+                Check Answer
                 <ChevronRight className="w-6 h-6" />
               </>
             )}

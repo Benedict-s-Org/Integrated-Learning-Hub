@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, Clock } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, Clock, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
@@ -12,6 +12,9 @@ interface Practice {
   assignment_count?: number;
   assignment_id?: string;
   level?: number;
+  metadata?: {
+    wordLimit?: number;
+  };
 }
 
 interface User {
@@ -42,6 +45,12 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const [isProcessing, setIsProcessing] = useState(false);
   const { getWordsDueForReview } = useSpellingSrs();
   const [dueWords, setDueWords] = useState<string[]>([]);
+  const [prepSession, setPrepSession] = useState<{
+    practice: Practice;
+    isSRS?: boolean;
+    isAdminPractice?: boolean;
+  } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<number | 'all'>(20);
 
   useEffect(() => {
     fetchPractices();
@@ -87,7 +96,6 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
       }
 
       const data = await response.json();
-
       setPractices(data.practices || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load practices');
@@ -120,8 +128,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         throw new Error('Failed to delete practice');
       }
 
-      const data = await response.json();
-
+      // Successfully deleted
       setPractices(practices.filter((p) => p.id !== practiceId));
       setDeleteConfirm(null);
     } catch (err) {
@@ -228,8 +235,6 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         throw new Error('Failed to update assignments');
       }
 
-      const data = await response.json();
-
       setAssignmentSuccess(`Successfully updated assignments for ${selectedPractice.title}`);
       await fetchPractices();
       setTimeout(() => setAssignmentSuccess(null), 3000);
@@ -301,13 +306,20 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                     </div>
                   </div>
                   <button
-                    onClick={() => onSelectPractice({
-                      id: 'srs-review',
-                      title: `Daily Review (${new Date().toLocaleDateString()})`,
-                      words: dueWords,
-                      created_at: new Date().toISOString(),
-                      level: 2 // SRS review defaults to typing
-                    })}
+                    onClick={() => {
+                      setPrepSession({
+                        practice: {
+                          id: 'srs-review',
+                          title: `Daily Review (${new Date().toLocaleDateString()})`,
+                          words: dueWords,
+                          created_at: new Date().toISOString(),
+                          level: 2,
+                          metadata: { wordLimit: undefined }
+                        },
+                        isSRS: true
+                      });
+                      setSelectedSize(20); // Default for SRS
+                    }}
                     className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
                   >
                     Start Review
@@ -377,13 +389,13 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                         {isAdmin && (
                           <>
                             <td className="px-4 py-4 text-right">
-                              <button
-                                onClick={() => onSelectPractice(practice)}
-                                className="inline-flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
-                              >
-                                <Edit size={16} />
-                                <span>Manage</span>
-                              </button>
+                                <button
+                                  onClick={() => onSelectPractice(practice)}
+                                  className="inline-flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                                >
+                                  <Edit size={16} />
+                                  <span>Manage</span>
+                                </button>
                             </td>
                             <td className="px-4 py-4 text-right">
                               <button
@@ -397,7 +409,10 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                             <td className="px-4 py-4 text-right">
                               {onPractice && (
                                 <button
-                                  onClick={() => onPractice(practice)}
+                                  onClick={() => {
+                                    setPrepSession({ practice, isAdminPractice: true });
+                                    setSelectedSize(practice.metadata?.wordLimit || 'all');
+                                  }}
                                   className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
                                 >
                                   <PlayCircle size={16} />
@@ -435,13 +450,16 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                         )}
                         {!isAdmin && (
                           <td className="px-4 py-4 text-right">
-                            <button
-                              onClick={() => onSelectPractice(practice)}
-                              className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
-                            >
-                              <PlayCircle size={16} />
-                              <span>Start</span>
-                            </button>
+                              <button
+                                onClick={() => {
+                                  setPrepSession({ practice });
+                                  setSelectedSize(practice.metadata?.wordLimit || 'all');
+                                }}
+                                className="inline-flex items-center space-x-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                              >
+                                <PlayCircle size={16} />
+                                <span>Start</span>
+                              </button>
                           </td>
                         )}
                       </tr>
@@ -554,6 +572,85 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors disabled:cursor-not-allowed"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {prepSession && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                <PlayCircle className="w-6 h-6 text-blue-600" />
+              </div>
+              <button onClick={() => setPrepSession(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">Spelling Practice</h3>
+            <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+              Choose how many words you would like to practice in this session.
+            </p>
+
+            <div className="space-y-4 mb-8">
+              <div className="grid grid-cols-3 gap-2">
+                {[10, 20, 40].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={`py-3 rounded-xl text-sm font-bold transition-all border ${selectedSize === size
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-white hover:border-blue-200'
+                      }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setSelectedSize('all')}
+                className={`w-full py-4 rounded-xl text-sm font-bold transition-all border ${selectedSize === 'all'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
+                  : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-white hover:border-blue-200'
+                  }`}
+              >
+                All Words ({prepSession.practice.words.length})
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  const limit = selectedSize === 'all' ? undefined : selectedSize;
+                  const practiceWithLimit = {
+                    ...prepSession.practice,
+                    metadata: {
+                      ...prepSession.practice.metadata,
+                      wordLimit: limit
+                    }
+                  };
+
+                  if (prepSession.isAdminPractice && onPractice) {
+                    onPractice(practiceWithLimit);
+                  } else {
+                    onSelectPractice(practiceWithLimit);
+                  }
+                  setPrepSession(null);
+                }}
+                className="w-full px-4 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <span>Start Practice</span>
+                <PlayCircle className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setPrepSession(null)}
+                className="w-full px-4 py-2 text-gray-400 hover:text-gray-600 text-sm font-medium transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

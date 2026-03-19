@@ -4,7 +4,7 @@ import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { useAuth } from '../../context/AuthContext';
 
 interface SpellingInputProps {
-  onNext: (title: string, words: string[], isPhraseMode?: boolean) => void;
+  onNext: (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => void;
   onBack?: () => void;
   onViewSaved?: () => void;
 }
@@ -14,6 +14,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
   const [title, setTitle] = useState('');
   const [wordsInput, setWordsInput] = useState('');
   const [isPhraseMode, setIsPhraseMode] = useState(false);
+  const [wordLimit, setWordLimit] = useState<number>(20);
   const [error, setError] = useState('');
 
   const parseWords = (input: string): string[] => {
@@ -59,7 +60,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
     }
 
     // Just proceed to preview, don't save yet
-    onNext(title.trim(), words, isPhraseMode);
+    onNext(title.trim(), words, isPhraseMode, wordLimit);
   };
 
   const wordCount = parseWords(wordsInput).length;
@@ -138,6 +139,29 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
                   {isPhraseMode
                     ? "Each line you enter will be treated as a single phrase/question."
                     : "Individual words separated by spaces or commas will be extracted."}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-lg font-semibold text-gray-700 mb-2">
+                  Number of Words per Practice
+                </label>
+                <div className="flex gap-4">
+                  {[10, 20, 40].map((limit) => (
+                    <button
+                      key={limit}
+                      onClick={() => setWordLimit(limit)}
+                      className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all font-medium ${wordLimit === limit
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                        }`}
+                    >
+                      {limit} Words
+                    </button>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  The practice session will include up to {wordLimit} words from your list, shuffled.
                 </p>
               </div>
 

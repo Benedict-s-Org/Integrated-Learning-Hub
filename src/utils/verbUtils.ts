@@ -121,3 +121,16 @@ export const getNounForms = (text: string): VerbForm[] => {
 
   return forms;
 };
+
+const commonPrepositions = new Set([
+  'about', 'above', 'across', 'after', 'against', 'along', 'among', 'around', 'at', 
+  'before', 'behind', 'below', 'beneath', 'beside', 'between', 'beyond', 'but', 'by', 
+  'concerning', 'considering', 'despite', 'down', 'during', 'except', 'for', 'from', 
+  'in', 'inside', 'into', 'like', 'near', 'of', 'off', 'on', 'onto', 'out', 'outside', 
+  'over', 'past', 'regarding', 'round', 'since', 'through', 'throughout', 'till', 'to', 
+  'toward', 'under', 'underneath', 'until', 'up', 'upon', 'with', 'within', 'without'
+]);
+
+export const isPreposition = (text: string): boolean => {
+  return commonPrepositions.has(text.trim().toLowerCase());
+};

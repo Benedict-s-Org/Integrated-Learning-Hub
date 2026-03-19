@@ -13,6 +13,7 @@
 | **Memory Palace** | `MemoryPalacePage.tsx` - Visual grid, furniture placement, memory attachments. | L77-L82 |
 | **Phonics Ecosystem** | `PhonicsGameHub.tsx` - Minigames, levels, leaderboards, blending board. | L84-L88 |
 | **Memorization / Saved** | `SavedContent.tsx` - Memorization text management & public link generation. | L90-L93 |
+| **Reading / Notion** | `ReadingNotionImporter.tsx` - Syncing library from Notion via Edge Functions. | L157-L165 |
 | **Coin Service** | `coinService.ts` - Central coin award/revert logic, calls RPCs. | L95-L99 |
 | **Quiz System** | `InteractiveScanQuizPage.tsx` - Paper-based AR marker scanning quiz. | L101-L105 |
 | **Spaced Repetition**| `SpacedRepetitionPage.tsx` & Algorithm - Question tracking, algorithm logic. | L107-L111 |
@@ -20,6 +21,9 @@
 | **Error Logger** | `errorLogger.ts` - Auto-logs development errors securely to DB. | L118-L121 |
 | **Timetable System** | `AdminTimetablePage.tsx`, `TimetableBoard.tsx` - Notion cycle sync & grid management. | L123-L128 |
 | **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L130-L135 |
+| **Spelling Practice**| `SpellingPractice.tsx` - Word shuffling, dynamic limits (10/20/40), SRS integration. | L143-L149 |
+| **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L167-L172 |
+
 
 ---
 
@@ -139,3 +143,30 @@
 - **`revert_student_record(record_id)`**: Backs out a previous transaction exactly. Supports bulk via `revert_student_records_batch`.
 - **`award_dictation_bonus`**: Complex server-side logic assigning scale-based coins depending on dictation accuracy percentages.
 - **Gotcha**: Auth search_path `pgcrypto` is in the `extensions` schema. Any auth-related DB function *must* have `search_path = public, extensions, pg_temp`.
+
+### Spelling Practice (L143-L149)
+- **Path**: `src/components/SpellingPractice/SpellingPractice.tsx`
+- **Concept**: A pronunciation-based spelling game with levels (Letter clicking vs Typing).
+- **Features**:
+  - **Dynamic Word Counts**: Users choose 10, 20, 40, or All words before starting (via `SavedPractices.tsx` prep-modal).
+  - **Shuffling**: Words are randomized before the limit is applied.
+  - **SRS Integration**: Connects to SM-2 algorithm via `SpellingSrsContext` for daily reviews.
+  - **Accent Management**: Admins can select accents/voices via `AccentSelector`; hidden from students to prevent distraction.
+- **Components**: `SpellingInput` (Creation), `SpellingPreview` (Admin verify), `SavedPractices` (The Hub/Review center).
+
+### Reading Practice & Notion Sync (L156-L162)
+- **Files**: `src/components/ReadingPractice/`, `src/components/admin/ReadingNotionImporter.tsx`, `src/components/admin/ReadingPracticeCreator.tsx`
+- **Concept**: Fetches reading materials from Notion and converts them into interactive "Speed Reading" and "Proofreading" tests.
+- **Mechanism**:
+  - **Notion Explorer**: `ReadingNotionBrowser.tsx` uses `notion-api` Edge Function to list database items.
+  - **Streamlined Creation**: `ReadingPracticeCreator.tsx` handles the interactive question building. It skips the "Select PDF" step if `initialPdfUrl` is provided (from Notion selection).
+  - **Importer**: `ReadingNotionImporter.tsx` processes Notion blocks into JSON structures stored in `reading_practices`.
+- **Auth Protocol**: **CRITICAL**: All `supabase.functions.invoke` calls MUST pass explicit `Authorization` and `apikey` headers using the user's `session.access_token` to ensure reliable fetching and avoid 401 errors.
+- **Gotchas**: Uses `notion-api` and `reading-api` Edge Functions. Images/Audio are mirrored to Supabase storage for student availability.
+
+### Token Optimization (L165-L175)
+- **Problem**: High context/token usage due to large file reads and verbose artifacts.
+- **Rules**:
+  1. **Targeted Edit**: Use `grep_search` and `multi_replace_file_content` for surgical changes. Avoid full file reads when possible.
+  2. **Lean Artifacts**: Skip `implementation_plan.md` for routine fixes. Only use for complex refactors.
+  3. **Context Reset**: Start a **New Chat** if the context becomes sluggish; work is saved in migrations/files.

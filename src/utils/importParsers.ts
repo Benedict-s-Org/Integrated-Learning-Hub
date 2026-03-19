@@ -262,6 +262,8 @@ export interface ReadingQuestion {
   id: string;
   question: string;
   answer: string;
+  error_sentence?: string;
+  error?: string;
   day?: string;
   page?: number;
 }
@@ -289,17 +291,21 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
     const props = page.properties || {};
 
     const questionText = extractNotionProperty(props, ['Question', 'question', '問題', '題目', 'Name', '名稱']);
-    const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer']);
+    const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer', '正確句子', 'Corrected', 'corrected']);
+    const errorSentence = extractNotionProperty(props, ['Error Sentence', 'error_sentence', '錯誤句子', 'Original', 'original']);
+    const errorWord = extractNotionProperty(props, ['Error', 'error', '錯誤', '錯字']);
     const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
     const pageText = extractNotionProperty(props, ['Page', 'page', '頁', '頁數', 'Page Number']);
     
     // We only need question and answer for the creator's list
-    if (questionText) {
+    if (questionText || errorSentence) {
       const pageNum = parseInt(pageText, 10);
       questions.push({
         id: page.id,
-        question: questionText,
+        question: questionText || '',
         answer: answerText || '',
+        error_sentence: errorSentence || undefined,
+        error: errorWord || undefined,
         day: dayText || undefined,
         page: isNaN(pageNum) ? undefined : pageNum
       });
