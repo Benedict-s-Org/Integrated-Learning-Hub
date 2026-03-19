@@ -3,8 +3,6 @@ import {
     parseReadingNotionResponse
 } from '../../utils/importParsers';
 import * as pdfjsLib from 'pdfjs-dist';
-// @ts-ignore - Vite handled worker import
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { 
   Plus, Search, FileText, ChevronLeft, ChevronRight, 
   Loader2, Check, Layers, Type, 
@@ -29,8 +27,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Set up PDF.js worker using Vite's URL import
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Set up PDF.js worker using unpkg CDN since strict hosting environments block .mjs from vite assets
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+// @ts-ignore - Vite handled worker import
+// import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 interface ReadingPdf {
   pageId: string;
