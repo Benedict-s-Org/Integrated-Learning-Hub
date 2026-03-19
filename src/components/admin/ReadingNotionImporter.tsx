@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 import { useAuth } from '@/context/AuthContext';
@@ -148,9 +148,6 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
   return (
     <div className="bg-white rounded-3xl p-8 max-w-xl w-full mx-auto shadow-2xl border border-slate-100">
       <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
-          <Database className="w-6 h-6" />
-        </div>
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Sync from Notion</h2>
           <p className="text-slate-500 text-sm">Import your question bank directly</p>

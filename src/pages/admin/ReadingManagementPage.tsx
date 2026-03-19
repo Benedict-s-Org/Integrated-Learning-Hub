@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil, Upload } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
-import { ReadingNotionBrowser } from '@/components/admin/ReadingNotionBrowser';
 import { ReadingPracticePreviewModal } from '@/components/admin/ReadingPracticePreviewModal';
 import { ReadingAssignmentModal } from '@/components/admin/ReadingAssignmentModal';
+import { PassageCropCreator } from '@/components/admin/PassageCropCreator';
 
 interface ReadingPractice {
   id: string;
@@ -16,19 +16,25 @@ interface ReadingPractice {
 }
 
 export const ReadingManagementPage: React.FC = () => {
-  const [view, setView] = useState<'list' | 'create' | 'edit' | 'sync' | 'notion-browse' | 'aplus-list'>('list');
+  const [view, setView] = useState<'list' | 'create' | 'edit' | 'sync' | 'aplus-list'>('list');
   const [practices, setPractices] = useState<ReadingPractice[]>([]);
   const [aplusQuestions, setAplusQuestions] = useState<any[]>([]);
+  const [passageCrops, setPassageCrops] = useState<any[]>([]);
+  const [inventoryTab, setInventoryTab] = useState<'questions' | 'crops'>('questions');
   const [loading, setLoading] = useState(true);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [notionParams, setNotionParams] = useState<{ url: string; title: string } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [showCropCreator, setShowCropCreator] = useState(false);
   const [selectedPracticeTitle, setSelectedPracticeTitle] = useState('');
 
   useEffect(() => {
     if (view === 'list') fetchPractices();
-    if (view === 'aplus-list') fetchAplusQuestions();
+    if (view === 'aplus-list') {
+      fetchAplusQuestions();
+      fetchPassageCrops();
+    }
   }, [view]);
 
   const fetchPractices = async () => {
@@ -76,24 +82,59 @@ export const ReadingManagementPage: React.FC = () => {
     }
   };
 
+  const fetchPassageCrops = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('reading_questions')
+        .select('*')
+        .eq('interaction_type', 'passage-crop')
+        .is('practice_id', null)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPassageCrops(data || []);
+    } catch (error) {
+      console.error('Error fetching passage crops:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePassageCrop = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this passage crop?')) return;
+    try {
+      const { data: q } = await supabase.from('reading_questions').select('question_image_url').eq('id', id).single();
+      if ((q as any)?.question_image_url) {
+        const url = (q as any).question_image_url;
+        const fileName = url.split('/').pop();
+        if (fileName) await supabase.storage.from('reading-passages').remove([fileName]);
+      }
+      await supabase.from('reading_questions').delete().eq('id', id);
+      setPassageCrops(prev => prev.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('Error deleting passage crop:', error);
+    }
+  };
+
   const handleDeleteAplus = async (id: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
     try {
-      // 1. Get the image URL before deleting the record
-      const { data: question } = await (supabase
-        .from('reading_questions' as any) as any)
+      const { data: question } = await supabase
+        .from('reading_questions')
         .select('question_image_url')
         .eq('id', id)
         .single();
       
-      if (question?.question_image_url) {
-        const fileName = (question as any).question_image_url.split('/').pop();
+      if ((question as any)?.question_image_url) {
+        const url = (question as any).question_image_url;
+        const fileName = url.split('/').pop();
         if (fileName) {
           await supabase.storage.from('reading-passages').remove([fileName]);
         }
       }
 
-      const { error } = await (supabase.from('reading_questions' as any) as any).delete().eq('id', id);
+      const { error } = await supabase.from('reading_questions').delete().eq('id', id);
       if (error) throw error;
       setAplusQuestions(prev => prev.filter(q => q.id !== id));
     } catch (error) {
@@ -106,9 +147,8 @@ export const ReadingManagementPage: React.FC = () => {
     if (!confirm('Are you sure you want to delete this practice?')) return;
     
     try {
-      // 1. Get all associated questions to clean up their images
-      const { data: questions } = await (supabase
-        .from('reading_questions' as any) as any)
+      const { data: questions } = await supabase
+        .from('reading_questions')
         .select('question_image_url')
         .eq('practice_id', id);
 
@@ -169,20 +209,6 @@ export const ReadingManagementPage: React.FC = () => {
     );
   }
 
-  if (view === 'notion-browse') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <ReadingNotionBrowser 
-          onSelect={(url, title) => {
-            setNotionParams({ url, title });
-            setView('create');
-          }}
-          onCancel={() => setView('list')}
-        />
-      </div>
-    );
-  }
-
   if (view === 'sync' && activePracticeId) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -206,34 +232,13 @@ export const ReadingManagementPage: React.FC = () => {
           <p className="text-slate-500">Manage your interactive reading practices</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative group">
-            <button 
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 border border-indigo-700 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 font-bold"
-            >
-              <Plus className="w-5 h-5" />
-              New Practice
-            </button>
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
-              <button 
-                onClick={() => setView('create')}
-                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition-colors text-sm font-bold border-b border-slate-50"
-              >
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-white transition-colors">
-                  <Upload className="w-4 h-4" />
-                </div>
-                Local PDF
-              </button>
-              <button 
-                onClick={() => setView('notion-browse')}
-                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition-colors text-sm font-bold"
-              >
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-white transition-colors">
-                  <Database className="w-4 h-4" />
-                </div>
-                Notion Bank
-              </button>
-            </div>
-          </div>
+          <button 
+            onClick={() => setView('create')}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 border border-indigo-700 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95 font-bold"
+          >
+            <Plus className="w-5 h-5" />
+            New Practice
+          </button>
           <button 
             onClick={() => setView('aplus-list')}
             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 shadow-sm transition-all active:scale-95 font-bold"
@@ -249,7 +254,7 @@ export const ReadingManagementPage: React.FC = () => {
           <Loader2 className="w-12 h-12 animate-spin text-indigo-600" />
           <p className="mt-4 text-slate-500">Loading your practices...</p>
         </div>
-      ) : practices.length === 0 ? (
+      ) : practices.length === 0 && view === 'list' ? (
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-20 flex flex-col items-center text-center">
           <div className="w-20 h-20 bg-indigo-50 text-indigo-200 rounded-full flex items-center justify-center mb-6">
             <BookOpen className="w-10 h-10" />
@@ -273,57 +278,127 @@ export const ReadingManagementPage: React.FC = () => {
                 <ChevronLeft className="w-6 h-6" />
               </button>
               <div>
-                <h2 className="text-xl font-black text-slate-800">Saved Synthesized Questions</h2>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Independent A+ Question Inventory</p>
+                <h2 className="text-xl font-black text-slate-800">Reading Mode Inventory</h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Global Resources & Synthesized Questions</p>
               </div>
             </div>
-            <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest">
-              {aplusQuestions.length} Total Questions
+            <div className="flex items-center gap-3">
+              <div className="flex bg-slate-100 p-1 rounded-2xl mr-4 shadow-inner">
+                <button 
+                  onClick={() => setInventoryTab('questions')}
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${inventoryTab === 'questions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  QUESTIONS
+                </button>
+                <button 
+                  onClick={() => setInventoryTab('crops')}
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${inventoryTab === 'crops' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  PASSAGE CROPS
+                </button>
+              </div>
+              <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest mr-4">
+                {inventoryTab === 'questions' ? aplusQuestions.length : passageCrops.length} Total
+              </div>
+              {inventoryTab === 'crops' && (
+                <button 
+                  onClick={() => setShowCropCreator(true)}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all text-xs font-black"
+                >
+                  <Plus className="w-4 h-4" />
+                  Define New Passage Crop
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {aplusQuestions.map((q) => (
-              <div key={q.id} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 group hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50 transition-all">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs">
-                      A+
+          {inventoryTab === 'crops' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {passageCrops.map((crop) => (
+                <div key={crop.id} className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden group hover:border-indigo-200 hover:shadow-xl transition-all flex flex-col">
+                  <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden border-b">
+                    <img 
+                      src={crop.question_image_url} 
+                      alt={crop.metadata?.day}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-4 left-4">
+                      <div className="px-3 py-1 bg-indigo-600/90 backdrop-blur-sm text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
+                        {crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Draft'}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Level {q.level || 1}</span>
+                    <div className="absolute top-4 right-4">
+                      <button onClick={() => handleDeletePassageCrop(crop.id)} className="p-2 bg-white/90 text-slate-400 hover:text-red-500 rounded-xl shadow-lg transition-all opacity-0 group-hover:opacity-100">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => handleDeleteAplus(q.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-sm font-black text-slate-800 leading-relaxed mb-2 line-clamp-3">
-                    {q.question_text}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <p className="text-[11px] font-bold text-slate-500 italic truncate">
-                      Ans: {q.correct_answer}
+                  <div className="p-5 flex-1 flex flex-col">
+                    <h3 className="text-sm font-black text-slate-800 mb-1">{crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Unnamed Crop'}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate mb-4">
+                      {crop.metadata?.pdf_name || 'Generic Source'}
                     </p>
+                    <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-slate-400">{new Date(crop.created_at).toLocaleDateString()}</span>
+                      <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                        P{Math.round(crop.evidence_coords?.page || 1)} <ChevronRight className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-slate-400">{new Date(q.created_at).toLocaleDateString()}</span>
-                  <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
-                    Manage <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
+              ))}
+              {passageCrops.length === 0 && (
+                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-300">
+                  <Database className="w-12 h-12 mb-4 opacity-20" />
+                  <p className="text-sm font-black uppercase tracking-widest opacity-40">No passage crops defined yet</p>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {aplusQuestions.length === 0 && !loading && (
-            <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 flex flex-col items-center text-center">
-              <BookOpen className="w-12 h-12 text-slate-200 mb-4" />
-              <p className="text-slate-400 font-bold">No saved questions found. Create some via the synthesizer flow!</p>
+              )}
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {aplusQuestions.map((q) => (
+                  <div key={q.id} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 group hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50 transition-all">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs">
+                          A+
+                        </div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Level {q.level || 1}</span>
+                      </div>
+                      <button onClick={() => handleDeleteAplus(q.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="text-sm font-black text-slate-800 leading-relaxed mb-2 line-clamp-3">
+                        {q.question_text}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <p className="text-[11px] font-bold text-slate-500 italic truncate">
+                          Ans: {q.correct_answer}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-slate-400">{new Date(q.created_at).toLocaleDateString()}</span>
+                      <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                        Manage <ChevronRight className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {aplusQuestions.length === 0 && !loading && (
+                <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-20 flex flex-col items-center text-center">
+                  <BookOpen className="w-12 h-12 text-slate-200 mb-4" />
+                  <p className="text-slate-400 font-bold">No saved questions found. Create some via the synthesizer flow!</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : (
@@ -382,7 +457,6 @@ export const ReadingManagementPage: React.FC = () => {
                   </span>
                 </div>
                 
-                {/* Action Buttons */}
                 <div className="mt-6 flex flex-col gap-2">
                   <button
                     onClick={() => {
@@ -411,7 +485,7 @@ export const ReadingManagementPage: React.FC = () => {
           ))}
         </div>
       )}
-      {/* Modals */}
+
       {showPreviewModal && activePracticeId && (
         <ReadingPracticePreviewModal 
           isOpen={showPreviewModal}
@@ -426,6 +500,16 @@ export const ReadingManagementPage: React.FC = () => {
           onClose={() => setShowAssignmentModal(false)}
           practiceId={activePracticeId}
           practiceTitle={selectedPracticeTitle}
+        />
+      )}
+
+      {showCropCreator && (
+        <PassageCropCreator 
+          onComplete={() => {
+            setShowCropCreator(false);
+            fetchPassageCrops();
+          }}
+          onCancel={() => setShowCropCreator(false)}
         />
       )}
     </div>

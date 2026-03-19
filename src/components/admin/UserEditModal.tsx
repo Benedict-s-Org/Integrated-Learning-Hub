@@ -3,7 +3,6 @@ import { X, Loader2, Upload, Trash2, User, Mail, Lock, Image, Wand2, Shield, Has
 import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
-import AccentSelector from "../AccentSelector/AccentSelector";
 import { useAuth } from "@/context/AuthContext";
 
 interface UserWithProfile {
@@ -50,17 +49,15 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
   );
   const [className, setClassName] = useState(user.class_name || "");
   const [classNumber, setClassNumber] = useState<string>(user.class_number?.toString() || "");
+  const [ecas, setEcas] = useState<string[]>(user.ecas || []);
+  const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string }[]>([]);
+  const [managedClasses, setManagedClasses] = useState<string[]>([]);
   const [spellingLevel, setSpellingLevel] = useState<number>(user.spelling_level || 1);
   const [readingRearrangingLevel, setReadingRearrangingLevel] = useState<number>(user.reading_rearranging_level || 1);
   const [readingProofreadingLevel, setReadingProofreadingLevel] = useState<number>(user.reading_proofreading_level || 1);
   const [memorizationLevel, setMemorizationLevel] = useState<number>(user.memorization_level || 1);
   const [proofreadingLevel, setProofreadingLevel] = useState<number>(user.proofreading_level || 1);
-  const [ecas, setEcas] = useState<string[]>(user.ecas || []);
-  const [availableActivities, setAvailableActivities] = useState<{ id: string, name: string }[]>([]);
-  const [availableClasses, setAvailableClasses] = useState<{ id: string, name: string }[]>([]);
-  const [managedClasses, setManagedClasses] = useState<string[]>([]);
-  const [accentPreference, setAccentPreference] = useState(user.accent_preference || "en-US");
-  const [voicePreference, setVoicePreference] = useState(user.voice_preference || null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,17 +279,17 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       (updateData as any).class = className || null;
       const parsedClassNumber = classNumber !== "" ? parseInt(classNumber) : null;
       (updateData as any).classNumber = parsedClassNumber;
+      (updateData as any).ecas = ecas;
+      if (role === 'class_staff') {
+        (updateData as any).managed_classes = managedClasses;
+      }
+
+      // Add Learning Levels
       (updateData as any).spellingLevel = spellingLevel;
       (updateData as any).readingRearrangingLevel = readingRearrangingLevel;
       (updateData as any).readingProofreadingLevel = readingProofreadingLevel;
       (updateData as any).memorizationLevel = memorizationLevel;
       (updateData as any).proofreadingLevel = proofreadingLevel;
-      (updateData as any).ecas = ecas;
-      if (role === 'class_staff') {
-        (updateData as any).managed_classes = managedClasses;
-      }
-      (updateData as any).accent_preference = accentPreference;
-      (updateData as any).voice_preference = voicePreference;
 
       console.log("Sending update request:", updateData);
 
@@ -322,14 +319,7 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (displayName !== undefined) directUpdate.display_name = displayName || null;
       if (className !== undefined) directUpdate.class = className || null;
       if (parsedClassNumber !== undefined) directUpdate.class_number = parsedClassNumber;
-      if (spellingLevel !== undefined) directUpdate.spelling_level = spellingLevel;
-      if (readingRearrangingLevel !== undefined) directUpdate.reading_rearranging_level = readingRearrangingLevel;
-      if (readingProofreadingLevel !== undefined) directUpdate.reading_proofreading_level = readingProofreadingLevel;
-      if (memorizationLevel !== undefined) directUpdate.memorization_level = memorizationLevel;
-      if (proofreadingLevel !== undefined) directUpdate.proofreading_level = proofreadingLevel;
       if (ecas !== undefined) directUpdate.ecas = ecas;
-      directUpdate.accent_preference = accentPreference;
-      directUpdate.voice_preference = voicePreference;
 
       const { error: directError } = await supabase
         .from('users')
@@ -549,6 +539,78 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             </p>
           </div>
 
+          {/* Learning Levels Section */}
+          <div className="space-y-4 p-4 border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--muted)/0.2)]">
+            <label className="flex items-center gap-2 text-sm font-bold text-[hsl(var(--foreground))]">
+              <Shield className="w-4 h-4" />
+              學習等級 (Learning Levels)
+            </label>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Spelling</label>
+                <select 
+                  value={spellingLevel} 
+                  onChange={(e) => setSpellingLevel(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
+                >
+                  <option value={1}>Level 1 (Basic)</option>
+                  <option value={2}>Level 2 (Advanced)</option>
+                </select>
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unscramble</label>
+                <select 
+                  value={readingRearrangingLevel} 
+                  onChange={(e) => setReadingRearrangingLevel(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
+                >
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Read-Proof</label>
+                <select 
+                  value={readingProofreadingLevel} 
+                  onChange={(e) => setReadingProofreadingLevel(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
+                >
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                  <option value={3}>Level 3</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Memorize</label>
+                <select 
+                  value={memorizationLevel} 
+                  onChange={(e) => setMemorizationLevel(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
+                >
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                  <option value={3}>Level 3</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proofread</label>
+                <select 
+                  value={proofreadingLevel} 
+                  onChange={(e) => setProofreadingLevel(parseInt(e.target.value))}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
+                >
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Managed Classes (Only for Class Staff) */}
           {role === 'class_staff' && (
             <div className="space-y-3 p-4 border border-indigo-200 rounded-xl bg-indigo-50/30">
@@ -621,152 +683,6 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
             </div>
           </div>
 
-          {/* Spelling Level Section */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-              <Lock className="w-4 h-4" />
-              拼寫等級 (Spelling Level)
-            </label>
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setSpellingLevel(1)}
-                className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 1
-                  ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
-                  : "bg-white text-slate-400 border-slate-200 hover:border-blue-200"
-                  }`}
-              >
-                Level 1
-              </button>
-              <button
-                type="button"
-                onClick={() => setSpellingLevel(2)}
-                className={`flex-1 py-2 px-4 rounded-xl border font-bold transition-all ${spellingLevel === 2
-                  ? "bg-purple-500 text-white border-purple-500 shadow-lg shadow-purple-500/20"
-                  : "bg-white text-slate-400 border-slate-200 hover:border-purple-200"
-                  }`}
-              >
-                Level 2
-              </button>
-            </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              Level 1 學生可以嘗試 Level 2 練習；Level 2 學生只能看到 Level 2 練習。
-            </p>
-          </div>
-
-          {/* Voice Preference Section */}
-          <div className="space-y-4 p-4 border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--muted)/0.3)]">
-            <h3 className="text-sm font-bold text-[hsl(var(--foreground))]">預設發音設定 (Default Voice)</h3>
-            <AccentSelector
-              currentAccent={accentPreference}
-              currentVoiceURI={voicePreference?.voiceURI}
-              showVoiceSelection={true}
-              onChange={(accent, voiceName, voiceLang, voiceURI) => {
-                setAccentPreference(accent);
-                setVoicePreference({ voiceName, voiceLang, voiceURI });
-              }}
-            />
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              為學生設定預設的口音和人聲。學生可以在練習時自行更改，但此處設定將作為起始預設。
-            </p>
-          </div>
-
-          {/* Reading Levels Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Rearranging (Reading) */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-                <Lock className="w-4 h-4" />
-                句子重組 (Rearranging)
-              </label>
-              <div className="flex gap-2">
-                {[1, 2].map(lv => (
-                  <button
-                    key={lv}
-                    type="button"
-                    onClick={() => setReadingRearrangingLevel(lv)}
-                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${readingRearrangingLevel === lv
-                      ? "bg-purple-500 text-white border-purple-500"
-                      : "bg-white text-slate-400 border-slate-200"
-                    }`}
-                  >
-                    Lv {lv}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Proofreading (Reading) */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-                <Lock className="w-4 h-4" />
-                閱讀校對 (Reading Proofread)
-              </label>
-              <div className="flex gap-2">
-                {[1, 2, 3].map(lv => (
-                  <button
-                    key={lv}
-                    type="button"
-                    onClick={() => setReadingProofreadingLevel(lv)}
-                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${readingProofreadingLevel === lv
-                      ? "bg-pink-500 text-white border-pink-500"
-                      : "bg-white text-slate-400 border-slate-200"
-                    }`}
-                  >
-                    Lv {lv}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Paragraph Memorization */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-                <Lock className="w-4 h-4" />
-                段落默寫 (Memorization)
-              </label>
-              <div className="flex gap-2">
-                {[1, 2, 3].map(lv => (
-                  <button
-                    key={lv}
-                    type="button"
-                    onClick={() => setMemorizationLevel(lv)}
-                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${memorizationLevel === lv
-                      ? "bg-emerald-500 text-white border-emerald-500"
-                      : "bg-white text-slate-400 border-slate-200"
-                    }`}
-                  >
-                    Lv {lv}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Standalone Proofreading */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
-                <Lock className="w-4 h-4" />
-                課外校對 (Proofreading)
-              </label>
-              <div className="flex gap-2">
-                {[1, 2].map(lv => (
-                  <button
-                    key={lv}
-                    type="button"
-                    onClick={() => setProofreadingLevel(lv)}
-                    className={`flex-1 py-1.5 rounded-lg border font-bold transition-all text-sm ${proofreadingLevel === lv
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-white text-slate-400 border-slate-200"
-                    }`}
-                  >
-                    Lv {lv}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

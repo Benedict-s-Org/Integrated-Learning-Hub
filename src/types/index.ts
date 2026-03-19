@@ -107,6 +107,7 @@ export interface UserProfile {
   proofreading_level?: number;
   reading_level?: number;
   spelling_level?: number;
+  memorization_level?: number;
   voice_preference?: {
     voiceName: string;
     voiceLang: string;

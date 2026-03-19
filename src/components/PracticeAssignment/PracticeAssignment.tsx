@@ -8,7 +8,9 @@ import SpellingPractice from '../SpellingPractice/SpellingPractice';
 interface User {
   id: string;
   username: string;
-  role: string;
+  display_name: string | null;
+  role: string | null;
+  spelling_level?: number;
 }
 
 interface Practice {
@@ -130,11 +132,20 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
       setError(null);
       setSuccess(null);
 
-      const insertData = usersToAssign.map(userId => ({
-        practice_id: practice.id,
-        user_id: userId,
-        assigned_by: currentUser?.id,
-      }));
+      if (!currentUser?.id) {
+        setError('You must be logged in to assign practices');
+        return;
+      }
+
+      const insertData = usersToAssign.map(userId => {
+        const targetUser = users.find(u => u.id === userId);
+        return {
+          practice_id: practice.id,
+          user_id: userId,
+          assigned_by: currentUser.id,
+          level: targetUser?.spelling_level || 1
+        };
+      });
 
       const { error: insertError } = await supabase
         .from('practice_assignments')
@@ -290,7 +301,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
                         <div className="flex items-center flex-1 ml-3 space-x-3">
                           {isAssigned && <CheckCircle size={20} className="text-green-600" />}
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-800">{user.username}</p>
+                            <p className="font-semibold text-gray-800">{user.display_name || user.username}</p>
                             <p className="text-sm text-gray-500 capitalize">{user.role}</p>
                           </div>
                           {isAssigned && (

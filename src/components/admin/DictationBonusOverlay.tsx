@@ -19,6 +19,7 @@ interface DictationBonusOverlayProps {
 
 export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }: DictationBonusOverlayProps) {
     const [amounts, setAmounts] = useState<Record<string, number>>({});
+    const [dictationTitle, setDictationTitle] = useState('');
 
     // Initialize amounts to 0 for all students when opened
     useEffect(() => {
@@ -28,6 +29,7 @@ export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }
                 initial[s.id] = 0;
             });
             setAmounts(initial);
+            setDictationTitle('');
         }
     }, [isOpen, students]);
 
@@ -43,7 +45,11 @@ export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }
     const handleSubmit = () => {
         const awards = Object.entries(amounts)
             .filter(([_, amount]) => amount > 0)
-            .map(([userId, amount]) => ({ userId, amount: Number(amount) }));
+            .map(([userId, amount]) => ({ 
+                userId, 
+                amount: Number(amount),
+                reason: dictationTitle ? `${dictationTitle.trim()} bonus` : undefined
+            }));
 
         if (awards.length === 0) {
             alert("Please enter bonus amounts for at least one student.");
@@ -69,6 +75,18 @@ export function DictationBonusOverlay({ isOpen, onClose, students, onAwardBulk }
                             Input coins for {students.length} students
                         </p>
                     </div>
+
+                    <div className="flex-1 max-w-sm mx-8">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Dictation Title</label>
+                        <input
+                            type="text"
+                            value={dictationTitle}
+                            onChange={(e) => setDictationTitle(e.target.value)}
+                            placeholder="e.g. RD10"
+                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-yellow-100 focus:border-yellow-400 outline-none transition-all font-bold text-slate-700"
+                        />
+                    </div>
+
                     <button
                         onClick={onClose}
                         className="p-3 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100 active:scale-95"

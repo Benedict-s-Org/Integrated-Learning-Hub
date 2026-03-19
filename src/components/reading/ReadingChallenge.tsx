@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   XCircle,
   SkipForward,
-  Loader2
+  Loader2,
+  Type
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -39,7 +40,7 @@ interface Question {
   correct_answer: string;
   error_sentence?: string;
   error?: string;
-  interaction_type: 'rearrange' | 'proofreading' | 'aplus-coordinates';
+  interaction_type: 'rearrange' | 'proofreading' | 'aplus-coordinates' | 'full-typing';
   level: number;
   metadata: any;
   evidence_coords: any;
@@ -49,7 +50,7 @@ interface ReadingChallengeProps {
   practiceId: string;
   studentId: string;
   assignmentId?: string;
-  interactionMode?: 'unscramble' | 'proofreading';
+  interactionMode?: 'unscramble' | 'proofreading' | 'advanced';
   onComplete: (score: number, bonus: number) => void;
   onExit: () => void;
 }
@@ -143,7 +144,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [bonusCoins, setBonusCoins] = useState(0);
   
   // Interaction State
-  const [interactionMode, setInteractionMode] = useState<'unscramble' | 'proofreading'>(propInteractionMode || 'unscramble');
+  const [interactionMode /*, setInteractionMode*/] = useState<'unscramble' | 'proofreading' | 'advanced'>(propInteractionMode || 'unscramble');
   const [unscrambleWords, setUnscrambleWords] = useState<{id: string, text: string, options?: {text: string, prefix?: string}[]}[]>([]);
   const [proofreadingChunks, setProofreadingChunks] = useState<{id: number, text: string, isError: boolean}[]>([]);
   const [selectedProofreadingIndex, setSelectedProofreadingIndex] = useState<number | null>(null);
@@ -155,6 +156,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   }, []);
   const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For prefix inputs
   const [proofreadingCorrection, setProofreadingCorrection] = useState('');
+  const [typingAnswer, setTypingAnswer] = useState('');
   
   // Progress State
   const [status, setStatus] = useState<'idle' | 'answering' | 'submitting' | 'feedback' | 'finished'>('answering');
@@ -209,25 +211,12 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       
       if (qError) throw qError;
 
-      // 3. Filter by Student Level
-      // Level rule: "Students in level 1 can choose the advanced level but students in advanced level cannot choose the easier levels"
-      // This means if student is Level 2, they ONLY see Level 2. If student is Level 1, they see 1 and 2.
-      const { data: userData } = await supabase.from('users').select('*').eq('id', studentId).single();
-      const u = userData as any;
-      const studentLevel = interactionMode === 'unscramble' 
-        ? (u?.reading_rearranging_level || 1) 
-        : (u?.reading_proofreading_level || 1);
-
+      await supabase.from('users').select('*').eq('id', studentId).single();
+      
       console.log('ReadingChallenge: Fetched qData:', qData);
       console.log('ReadingChallenge: interactionMode:', interactionMode);
-      console.log('ReadingChallenge: studentLevel:', studentLevel);
 
       const filteredQuestions = (qData as unknown as Question[] || []).filter(q => {
-        const qLevel = q.level || 1;
-        const pass = studentLevel === 1 || qLevel >= studentLevel;
-        if (!pass) console.log(`ReadingChallenge: Filtering out question ${q.id} due to level ${qLevel} < ${studentLevel}`);
-        return pass;
-      }).filter(q => {
         // Repeated words rule for proofreading
         if (q.interaction_type === 'proofreading' && q.error_sentence && q.error) {
           const words = q.error_sentence.toLowerCase().split(/\s+/);
@@ -356,6 +345,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       }
       setSelectedProofreadingIndex(null);
       setProofreadingCorrection('');
+    } else if (q.interaction_type === 'full-typing') {
+      setTypingAnswer('');
     }
   };
 
@@ -393,13 +384,18 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       const isWordCorrect = selectedProofreadingIndex !== null && proofreadingChunks[selectedProofreadingIndex]?.isError;
       
       isUserCorrect = isWordCorrect && normalizedUser === normalizedCorrect;
+    } else if (q.interaction_type === 'full-typing') {
+      const normalizedUser = typingAnswer.trim().toLowerCase();
+      const normalizedCorrect = q.correct_answer.trim().toLowerCase();
+      isUserCorrect = normalizedUser === normalizedCorrect;
     }
 
     setIsCorrect(isUserCorrect);
     setStatus('feedback');
 
     if (isUserCorrect) {
-      setScore(prev => prev + 10);
+      const awardAmount = practice?.reward_coins || 10;
+      setScore(prev => prev + awardAmount);
       confetti({
         particleCount: 150,
         spread: 70,
@@ -500,6 +496,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
               {practice?.title || 'Reading Practice'}
             </h1>
             {/* Mode Switcher */}
+            {/* Hiding mode switcher as it should be dictated by the assignment/practice type
             <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mt-2">
               <button
                 onClick={() => {
@@ -530,6 +527,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                 Proofreading
               </button>
             </div>
+            */}
 
             <div className="flex items-center gap-2 mt-1">
               <div className="w-32 bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -606,7 +604,45 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
           {/* Answering Component */}
           <div className="bg-white rounded-3xl p-10 border-2 border-slate-100 shadow-lg min-h-[300px] flex flex-col items-center justify-center">
-            {interactionMode === 'unscramble' ? (
+            {interactionMode === 'advanced' || questions[currentIndex]?.interaction_type === 'full-typing' ? (
+              <div className="w-full max-w-2xl space-y-6 animate-in fade-in zoom-in duration-500">
+                <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[2rem] p-8 shadow-inner">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg">
+                      <Type className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-black text-slate-800 uppercase tracking-widest text-left">Type the entire sentence exactly:</span>
+                  </div>
+                  <textarea
+                    autoFocus
+                    value={typingAnswer}
+                    onChange={(e) => setTypingAnswer(e.target.value)}
+                    placeholder="Type your answer here..."
+                    className="w-full h-40 p-6 bg-white border-2 border-slate-200 rounded-[1.5rem] focus:border-indigo-500 focus:ring-8 focus:ring-indigo-500/10 transition-all outline-none font-bold text-xl resize-none shadow-sm"
+                    disabled={status !== 'answering'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit();
+                      }
+                    }}
+                  />
+                  <div className="flex items-center gap-2 mt-4 text-slate-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">Exact wordings required. Pay attention to punctuation!</p>
+                  </div>
+                </div>
+
+                {status === 'feedback' && (
+                  <div className="bg-white border-2 border-indigo-100 rounded-[2rem] p-6 shadow-xl animate-in slide-in-from-top-4 duration-500">
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-2">Target Sentence:</span>
+                    <p className="text-xl font-bold text-slate-800 leading-relaxed italic">
+                      "{questions[currentIndex]?.correct_answer}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : interactionMode === 'unscramble' ? (
               <DndContext 
                 sensors={sensors}
                 collisionDetection={closestCenter}

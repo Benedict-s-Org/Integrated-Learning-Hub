@@ -26,11 +26,17 @@ type DifficultyLevel = 1 | 2 | 3;
 const MemorizationView: React.FC<MemorizationViewProps> = ({
   words, selectedIndices, originalText, onBack, onSave, onViewSaved, isPublicView = false, assignmentId
 }) => {
+  const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
+  const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
+
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>(3);
+  const [difficultyLevel] = useState<DifficultyLevel>(
+    (user?.memorization_level as DifficultyLevel) || 3
+  );
+  
   const startTimeRef = useRef<number>(Date.now());
   const sessionSavedRef = useRef<boolean>(false);
 
@@ -41,9 +47,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const [speechSupported, setSpeechSupported] = useState(true);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isStoppingRef = useRef(false);
-
-  const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
-  const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
 
   useEffect(() => {
     return () => {
@@ -382,6 +385,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
             </h1>
 
             <div className="mb-6 space-y-4">
+{/* Hiding difficulty selection as it is now managed at student level
               <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:space-x-3">
                 <div className="flex flex-wrap justify-center items-center gap-2 sm:space-x-2">
                   <span className="text-sm font-medium text-muted-foreground">Difficulty:</span>
@@ -408,6 +412,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   </Button>
                 </div>
               </div>
+              */}
 
               {speechSupported && (
                 <div className="bg-blue-50/50 border-2 border-blue-100 rounded-2xl p-4">

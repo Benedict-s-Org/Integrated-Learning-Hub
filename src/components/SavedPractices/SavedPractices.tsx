@@ -20,6 +20,7 @@ interface Practice {
 interface User {
   id: string;
   username: string;
+  display_name: string | null;
   role: string;
 }
 
@@ -480,7 +481,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
               Practice: <span className="font-semibold">{selectedPractice.title}</span>
             </p>
 
-            {/* Level Selection */}
+            {/* Level Selection - Hidden as per requirements. Difficulty is now set in student level under admin panel */}
+            {/* 
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Difficulty Level
@@ -511,6 +513,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                 Level 1 students can see Level 1 and 2 practices. Level 2 students can only see Level 2 practices.
               </p>
             </div>
+            */}
 
             {assignmentSuccess && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
@@ -547,7 +550,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                             onClick={(e) => e.stopPropagation()}
                           />
                           <div>
-                            <p className="font-semibold text-gray-800">{user.username}</p>
+                            <p className="font-semibold text-gray-800">{user.display_name || user.username}</p>
                             <p className="text-sm text-gray-500 capitalize">{user.role}</p>
                           </div>
                         </div>

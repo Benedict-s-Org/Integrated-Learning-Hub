@@ -52,8 +52,9 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
           id: a.content_data?.practice_id || a.id,
           assignmentId: a.assignment_id,
           title: a.title,
-          type: a.content_data?.interaction_type === 'rearrange' || a.content_data?.interaction_type === 'aplus-coordinates' ? 'reading-unscramble' : 
-                a.content_data?.interaction_type === 'proofreading' ? 'reading-proof' : a.type,
+          type: (a.content_data?.interaction_type === 'rearrange' || a.content_data?.interaction_type === 'aplus-coordinates') ? 'reading-unscramble' : 
+                (a.content_data?.interaction_type === 'proofreading') ? 'reading-proof' : 
+                (a.content_data?.interaction_type === 'full-typing') ? 'reading-advanced' : a.type,
           level_info: a.assignment_level || a.level_info,
           // We still need the image URL, so we fetch it or use a default
           passage_image_url: '', // Will fetch below
@@ -78,7 +79,11 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
             ...a,
             passage_image_url: details?.passage_image_url || '',
             question_count: details?.reading_questions?.[0]?.count || 0,
-            displayTitle: `${a.title} (${a.type === 'reading-unscramble' ? 'Unscrambling' : 'Proofreading'})`
+            displayTitle: `${a.title} (${
+              a.type === 'reading-advanced' ? 'Advanced' : 
+              a.type === 'reading-unscramble' ? 'Unscrambling' : 
+              'Proofreading'
+            })`
           };
         });
 
@@ -106,7 +111,10 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
 
   if (selectedPracticeId && user) {
     const selectedPractice = practices.find(p => p.id === selectedPracticeId);
-    const initialMode = (selectedPractice as any)?.type === 'reading-unscramble' ? 'unscramble' : 'proofreading';
+    const initialMode = 
+      (selectedPractice as any)?.type === 'reading-unscramble' ? 'unscramble' : 
+      (selectedPractice as any)?.type === 'reading-advanced' ? 'advanced' : 
+      'proofreading';
     console.log('ReadingLearningPage: Rendering ReadingChallenge for practice:', selectedPracticeId, 'initialMode:', initialMode);
     return (
       <ReadingChallenge 
@@ -234,7 +242,10 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
                       </span>
                     </div>
                     <button 
-                      onClick={() => setSelectedPracticeId(practice.id)}
+                      onClick={() => {
+                        setSelectedPracticeId(practice.id);
+                        setActiveAssignmentId(practice.assignmentId);
+                      }}
                       className="px-6 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-600 hover:text-white transition-all active:scale-95"
                     >
                       <Play className="w-4 h-4" />

@@ -4,9 +4,9 @@ import {
 } from '../../utils/importParsers';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
-  Plus, Search, FileText, ChevronLeft, ChevronRight, 
+  Plus, Search, FileText, ChevronLeft, ChevronRight, ArrowRight,
   Loader2, Check, Layers, Type, 
-  RotateCcw, Database, Upload, Trash2
+  RotateCcw, Database, Upload, Trash2, Zap
 } from 'lucide-react';
 import { getVerbForms, isVerb, getNounForms, isPreposition, type VerbForm, type VerbFormType } from '@/utils/verbUtils';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,6 +54,7 @@ interface NotionQuestion {
   answer: string;
   error_sentence?: string;
   error?: string;
+  mode?: string;
   day?: string;
   page?: number;
 }
@@ -157,7 +158,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   editId
 }) => {
   const { user, session } = useAuth();
-  const [step, setStep] = useState<CreatorStep>(initialPdfUrl || editId ? 'workspace' : 'select-pdf');
+  const [step, setStep] = useState<CreatorStep>(editId ? 'workspace' : 'select-pdf');
   
   // PDF State
   const [pdfs, setPdfs] = useState<ReadingPdf[]>([]);
@@ -172,7 +173,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState(initialTitle || '');
-  const [searchQuery, setSearchQuery] = useState('');
   
   // Question Selection State
   const [questionsOnPage, setQuestionsOnPage] = useState<NotionQuestion[]>([]);
@@ -180,28 +180,40 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [selectedQuestion, setSelectedQuestion] = useState<NotionQuestion | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   
-  const [bankMode, setBankMode] = useState<'unscramble' | 'proofreading'>('unscramble');
-  const [questionsDbId, setQuestionsDbId] = useState('');
-  const [showConfig, setShowConfig] = useState(false);
-
-  useEffect(() => {
-    const savedId = localStorage.getItem('aplus_questions_db_id');
-    if (savedId) {
-      setQuestionsDbId(savedId);
-    } else {
-      // Fallback for transition from mode-specific IDs
-      const savedUnscramble = localStorage.getItem('aplus_questions_db_id_unscramble');
-      if (savedUnscramble) {
-        setQuestionsDbId(savedUnscramble);
-        localStorage.setItem('aplus_questions_db_id', savedUnscramble);
-      } else {
-        setQuestionsDbId('3249baca6fa381f18526ca44ce27447c'); // Default fallback
-      }
+  const [bankMode, setBankMode] = useState<'Unscramble' | 'Proofreading' | 'Advance'>('Unscramble');
+  const [rewardCoins, setRewardCoins] = useState(10);
+  const [tempSelectedPdf, setTempSelectedPdf] = useState<ReadingPdf | null>(null);
+  // Fix: Initialize questionsDbId synchronously so it's never empty on first render
+  const [questionsDbId, setQuestionsDbId] = useState(() => {
+    const saved = localStorage.getItem('aplus_questions_db_id');
+    if (saved) return saved;
+    const savedUnscramble = localStorage.getItem('aplus_questions_db_id_unscramble');
+    if (savedUnscramble) {
+      localStorage.setItem('aplus_questions_db_id', savedUnscramble);
+      return savedUnscramble;
     }
-    
+    return '3249baca6fa381f18526ca44ce27447c'; // Default fallback
+  });
+
+  // Keep a ref in sync so fetchQuestionsForPage always reads the latest value
+  const questionsDbIdRef = useRef(questionsDbId);
+  useEffect(() => { questionsDbIdRef.current = questionsDbId; }, [questionsDbId]);
+
+  // When bankMode changes: clear stale questions and re-fetch for the new mode
+  const bankModeRef = useRef(bankMode);
+  useEffect(() => {
+    const isInitialRender = bankModeRef.current === bankMode;
+    bankModeRef.current = bankMode;
+
     // Clear the question list when switching modes to avoid mixing up bank items
     setQuestionsOnPage([]);
     setSelectedQuestion(null);
+    setSelectedDay(null);
+
+    // Re-fetch only if we're already in the workspace with a Notion PDF
+    if (!isInitialRender && step === 'workspace' && selectedPdf && selectedPdf.pageId !== 'local') {
+      fetchQuestionsForPage();
+    }
   }, [bankMode]);
   
   // Chunking State
@@ -241,11 +253,12 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   }[]>([]);
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [autoFetchedCrop, setAutoFetchedCrop] = useState<{ image_url: string; coords: any } | null>(null);
 
-  // 1. Initial Load & Fetching
+
   useEffect(() => {
     fetchPdfs();
-    if (initialPdfUrl) {
+    if (initialPdfUrl && !editId) {
       handleRemotePdf(initialPdfUrl, initialTitle || 'Untitled');
     }
   }, []);
@@ -403,8 +416,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   };
 
   const handleRemotePdf = async (url: string, name: string, fullContext?: ReadingPdf) => {
-    setSelectedPdf(fullContext || { pageId: 'remote', name, fileUrl: url });
-    // This will trigger the PDF loader useEffect
+    setTempSelectedPdf(fullContext || { pageId: 'notion', name, fileUrl: url });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -510,13 +522,16 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     try {
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       // Use notion-api directly — the same proven pattern as Spaced Repetition's NotionImporter
+      // Fix: Use ref to always read the latest questionsDbId (avoids stale closure)
+      const currentDbId = questionsDbIdRef.current;
+      console.log('[ReadingPractice] Fetching Notion DB with ID:', currentDbId);
       const { data, error } = await supabase.functions.invoke('notion-api', {
         headers: {
           'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: { 
-          databaseId: questionsDbId,
+          databaseId: currentDbId,
           action: 'query-mcq-database'
         }
       });
@@ -640,13 +655,63 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     if (!title || title.startsWith('Question from')) {
       setTitle(q.question);
     }
-    initializeChunks(q.answer);
+    initializeChunks(q.answer || '');
     
     // Auto-jump to page if available in properties
     if (q.page && q.page >= 1 && q.page <= numPages && q.page !== pageNum) {
       setPageNum(q.page);
       setPageNumInput(q.page.toString());
       fetchQuestionsForPage();
+    }
+
+    // NEW: Auto-fetch passage crop for this day if it exists
+    if (q.day) {
+      const checkPassageCrop = async () => {
+        try {
+          console.log('[ReadingCreator] Checking for pre-defined crop for day:', q.day);
+          const { data: crops, error } = await supabase
+            .from('reading_questions')
+            .select('*')
+            .eq('interaction_type', 'passage-crop')
+            .is('practice_id', null)
+            .eq('metadata->>day', q.day)
+            .limit(1);
+
+          if (error) throw error;
+
+          if (crops && crops.length > 0) {
+            const crop = crops[0];
+            console.log('[ReadingCreator] Found matching passage crop:', crop.id);
+            
+            // Apply coordinates
+            if (crop.evidence_coords) {
+              const coords = crop.evidence_coords as any;
+              setCropStart({ x: coords.x, y: coords.y });
+              setCropEnd({ x: coords.x + coords.w, y: coords.y + coords.h });
+              
+              // If it's on a different page than currently showing, jump there
+              if (coords.page && coords.page !== (q.page || pageNum)) {
+                setPageNum(coords.page);
+                setPageNumInput(coords.page.toString());
+              }
+            }
+            
+            // Apply image preview
+            if ((crop as any).question_image_url) {
+              const cropImgUrl = (crop as any).question_image_url as string;
+              setAutoFetchedCrop({ image_url: cropImgUrl, coords: crop.evidence_coords });
+            }
+          } else {
+            setAutoFetchedCrop(null);
+          }
+        } catch (err) {
+          console.error('[ReadingCreator] Error fetching passage crop:', err);
+          setAutoFetchedCrop(null);
+        }
+      };
+      checkPassageCrop();
+    } else {
+      setAutoFetchedCrop(null);
     }
 
     // Auto-scroll to PDF canvas area
@@ -867,6 +932,29 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       return;
     }
 
+    // Check if we can use an auto-fetched crop
+    if (autoFetchedCrop && autoFetchedCrop.image_url) {
+      const coords = autoFetchedCrop.coords as any;
+      // Tolerant check: if cropStart matches the autoFetchedCoords (within small delta)
+      const matched = Math.abs(cropStart.x - coords.x) < 0.01 && Math.abs(cropStart.y - coords.y) < 0.01;
+      
+      if (matched) {
+        console.log('[ReadingCreator] Using auto-fetched crop instead of canvas capture');
+        const newLocalQuestion = {
+          id: crypto.randomUUID(),
+          question: selectedQuestion,
+          chunks: [...chunks],
+          coords: { ...coords },
+          imageBlob: new Blob(),
+          previewUrl: autoFetchedCrop.image_url,
+          randomizedIds
+        };
+        setLocalQuestions(prev => [...prev, newLocalQuestion]);
+        setEditingLocalId(null);
+        return;
+      }
+    }
+
     const pxW = Math.abs(cropStart.x - cropEnd.x);
     const pxH = Math.abs(cropStart.y - cropEnd.y);
     
@@ -1029,6 +1117,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         passage_image_url: coverUrl,
         created_by: user?.id,
         source_pdf_url: selectedPdf?.fileUrl || null,
+        reward_coins: rewardCoins,
         is_deleted: false // Ensure it's not deleted if we're editing
       };
 
@@ -1071,13 +1160,15 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           imageUrl = publicUrl;
         }
 
+        const interactionType = bankMode === 'Advance' ? 'full-typing' : (bankMode === 'Proofreading' ? 'proofreading' : 'aplus-coordinates');
+
         const insertData = {
           practice_id: practiceId,
           question_text: lq.question.question,
           correct_answer: lq.question.answer,
           error_sentence: lq.question.error_sentence,
           error: lq.question.error,
-          interaction_type: lq.question.error_sentence ? 'proofreading' : 'aplus-coordinates',
+          interaction_type: interactionType,
           level: lq.question.page || 1,
           evidence_coords: lq.coords,
           question_image_url: imageUrl,
@@ -1091,6 +1182,28 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             day: lq.question.day,
           }
         };
+
+        // 3. Sync to Notion: update the 'Mode' property
+        try {
+          console.log('[ReadingCreator] Syncing to Notion for page:', lq.question.id);
+          const { error: notionError } = await supabase.functions.invoke('notion-api', {
+            body: {
+              action: 'update-page-properties',
+              pageId: lq.question.id,
+              properties: {
+                'Mode': {
+                  select: { name: bankMode }
+                }
+              }
+            }
+          });
+          if (notionError) {
+            console.error('[ReadingCreator] Notion sync failed for page:', lq.question.id, notionError);
+          }
+        } catch (nErr) {
+          console.error('[ReadingCreator] Notion sync exception:', nErr);
+          // Don't throw here, we still want to save the practice even if Notion sync fails for one item
+        }
 
         console.log('ReadingPracticeCreator: Saving question:', insertData);
         return supabase.from('reading_questions').insert(insertData).select();
@@ -1207,101 +1320,141 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   </div>
                 </div>
 
-                {/* Notion Source */}
+                {/* Notion Bank PDF Selection */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-black text-slate-800">Notion Bank</h3>
-                    <div className="relative w-48">
-                      <Search className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input type="text" placeholder="Search..." className="w-full pl-8 pr-3 py-1.5 text-xs border text-slate-600 rounded-lg outline-none font-bold" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <h3 className="text-lg font-black text-slate-800">Notion Bank</h3>
+                  <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-xl max-h-[400px] flex flex-col">
+                    <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{pdfs.length} PDFs Available</span>
+                      <button onClick={fetchPdfs} className="p-2 hover:bg-white rounded-lg transition-all text-slate-400 hover:text-indigo-600">
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                      {loading && pdfs.length === 0 ? (
+                        <div className="p-12 flex flex-col items-center justify-center gap-3">
+                          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                          <p className="text-xs font-bold text-slate-400">Fetching library...</p>
+                        </div>
+                      ) : pdfs.length === 0 ? (
+                        <div className="p-12 text-center">
+                          <Database className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-slate-400">No PDFs found in Notion.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-100">
+                          {pdfs.map((p) => (
+                            <button
+                              key={p.fileUrl || p.name}
+                              onClick={() => setTempSelectedPdf(p)}
+                              className={`w-full p-4 text-left hover:bg-indigo-50 transition-all flex items-center justify-between group ${
+                                (tempSelectedPdf?.fileUrl === p.fileUrl || selectedPdf?.fileUrl === p.fileUrl) ? 'bg-indigo-50' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${(tempSelectedPdf?.fileUrl === p.fileUrl || selectedPdf?.fileUrl === p.fileUrl) ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-indigo-600'}`}>
+                                  <FileText className="w-4 h-4" />
+                                </div>
+                                <span className={`text-sm font-bold truncate max-w-[200px] ${(tempSelectedPdf?.fileUrl === p.fileUrl || selectedPdf?.fileUrl === p.fileUrl) ? 'text-indigo-900' : 'text-slate-700'}`}>{p.name}</span>
+                              </div>
+                              <ArrowRight className={`w-4 h-4 transition-all ${(tempSelectedPdf?.fileUrl === p.fileUrl || selectedPdf?.fileUrl === p.fileUrl) ? 'text-indigo-600 translate-x-1' : 'text-slate-200 opacity-0 group-hover:opacity-100'}`} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {loading ? (
-                    <div className="grid grid-cols-1 gap-3">{[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-white rounded-2xl animate-pulse" />)}</div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
-                      {pdfs.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(pdf => (
-                        <button key={pdf.pageId} onClick={() => handleRemotePdf(pdf.fileUrl!, pdf.name)} className="text-left p-4 bg-white rounded-2xl border-2 border-slate-100 hover:border-blue-400 hover:shadow-lg transition-all flex items-center gap-3 group">
-                          <div className="p-2 bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white rounded-xl transition-all"><FileText className="w-5 h-5" /></div>
-                          <span className="text-sm font-black text-slate-700 truncate">{pdf.name}</span>
+                </div>
+
+                {/* MODES SELECTION (Appears after PDF is selected) */}
+                {(selectedPdf || tempSelectedPdf) && (
+                  <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-500">
+                    <h3 className="text-xl font-black text-slate-800 mb-6 uppercase tracking-widest">Select Practice Mode</h3>
+                    <div className="flex gap-4">
+                      {[
+                        { id: 'Unscramble', icon: Database, color: 'bg-indigo-600', label: 'Unscramble' },
+                        { id: 'Proofreading', icon: Check, color: 'bg-amber-500', label: 'Proofreading' },
+                        { id: 'Advance', icon: Zap, color: 'bg-emerald-500', label: 'Advance' }
+                      ].map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            setBankMode(m.id as any);
+                            if (tempSelectedPdf) {
+                              setSelectedPdf(tempSelectedPdf);
+                              setTempSelectedPdf(null);
+                            }
+                            setStep('workspace');
+                          }}
+                          className={`${m.color} text-white px-8 py-4 rounded-3xl font-black shadow-xl hover:scale-105 transition-all flex items-center gap-3`}
+                        >
+                          <m.icon className="w-5 h-5" />
+                          {m.label}
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}          {/* STEP 2: UNIFIED WORKSPACE (VERTICAL REDESIGN) */}
+          )}
+
+          {/* STEP 2: UNIFIED WORKSPACE (VERTICAL REDESIGN) */}
           {step === 'workspace' && (
             <div className="w-full h-full flex flex-col gap-8 overflow-y-auto max-w-7xl mx-auto px-4 pb-12">
               
               {/* TOP: QUESTION BANK (FULL WIDTH) */}
               <div className="h-[220px] shrink-0 flex flex-col bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
                 <div className="px-6 py-3 border-b flex items-center justify-between bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg shadow-indigo-100">
-                      <Database className="w-4 h-4" />
-                    </div>
+                  <div className="flex items-center">
                     <div>
                       <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-4">
                         Notion Bank
                         
                         {/* THE SWITCH TOGGLE */}
                         <div 
-                          onClick={() => setBankMode(prev => prev === 'unscramble' ? 'proofreading' : 'unscramble')}
-                          className="relative flex items-center bg-slate-200/50 p-1 rounded-full w-[180px] h-8 cursor-pointer group hover:bg-slate-200 transition-all border border-slate-100 shadow-inner"
+                          className="relative flex items-center bg-slate-200/50 p-1 rounded-full w-[240px] h-8 cursor-pointer group hover:bg-slate-200 transition-all border border-slate-100 shadow-inner"
                         >
                           {/* Sliding Background */}
                           <div 
-                            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full transition-all duration-300 shadow-sm ${
-                              bankMode === 'unscramble' ? 'left-1 bg-indigo-600' : 'left-[calc(50%+1px)] bg-amber-500'
+                            className={`absolute top-1 bottom-1 w-[calc(33.33%-4px)] rounded-full transition-all duration-300 shadow-sm ${
+                              bankMode === 'Unscramble' ? 'left-1 bg-indigo-600' : 
+                              bankMode === 'Proofreading' ? 'left-[calc(33.33%+1px)] bg-amber-500' :
+                              'left-[calc(66.66%+1px)] bg-emerald-500'
                             }`}
                           />
                           
                           {/* Left Label */}
-                          <div className={`relative flex-1 text-center text-[8px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'unscramble' ? 'text-white' : 'text-slate-400'}`}>
+                          <div 
+                            onClick={() => setBankMode('Unscramble')}
+                            className={`relative flex-1 text-center text-[7px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'Unscramble' ? 'text-white' : 'text-slate-400'}`}
+                          >
                             UNSCRAMBLE
                           </div>
                           
-                          {/* Right Label */}
-                          <div className={`relative flex-1 text-center text-[8px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'proofreading' ? 'text-white' : 'text-slate-400'}`}>
+                          {/* Middle Label */}
+                          <div 
+                            onClick={() => setBankMode('Proofreading')}
+                            className={`relative flex-1 text-center text-[7px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'Proofreading' ? 'text-white' : 'text-slate-400'}`}
+                          >
                             PROOFREADING
+                          </div>
+
+                          {/* Right Label */}
+                          <div 
+                            onClick={() => setBankMode('Advance')}
+                            className={`relative flex-1 text-center text-[7px] font-black tracking-wider transition-colors duration-300 ${bankMode === 'Advance' ? 'text-white' : 'text-slate-400'}`}
+                          >
+                            ADVANCE
                           </div>
                         </div>
                       </h3>
                       <p className="text-[9px] font-bold text-slate-400 -mt-0.5">
-                        {bankMode === 'unscramble' ? 'Select a task for unscrambling' : 'Select a task for proofreading'}
+                        {bankMode === 'Unscramble' ? 'Select a task for unscrambling' : 'Select a task for proofreading'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-xl transition-all ${showConfig ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100 hover:border-indigo-200'}`}><Database className="w-4 h-4" /></button>
-                      {showConfig && (
-                        <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border p-5 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <p className="text-[10px] font-black text-slate-800 mb-3 uppercase tracking-wider">Database Configuration</p>
-                          <input type="text" value={questionsDbId} onChange={(e) => setQuestionsDbId(e.target.value)} className="w-full h-10 px-4 bg-slate-50 border rounded-xl outline-none text-[11px] mb-3 font-mono focus:ring-2 focus:ring-indigo-500/20" placeholder="32-char Database ID..." />
-                          <div className="bg-indigo-50/50 p-3 rounded-2xl mb-4 border border-indigo-100/50">
-                            <span className="text-[10px] font-bold text-indigo-500 uppercase">
-                              {bankMode === 'unscramble' ? 'Unscramble Mode' : 'Proofreading Mode'}
-                            </span>
-                            <p className="text-[10px] font-bold text-indigo-700 leading-snug">
-                              💡 {bankMode === 'unscramble' ? "The ID is for the Unscramble database." : "The ID is for the Proofreading database."}
-                            </p>
-                          </div>
-                          <button 
-                            onClick={() => { 
-                              localStorage.setItem('aplus_questions_db_id', questionsDbId); 
-                              setShowConfig(false); 
-                              fetchQuestionsForPage(); 
-                            }} 
-                            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all"
-                          >
-                            Save & Sync
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
                 
@@ -1353,14 +1506,18 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                             {questionsOnPage
                               .filter(q => q.day === selectedDay)
                               .filter(q => {
-                                // Filter based on mode: Proofreading requires an error_sentence
-                                if (bankMode === 'proofreading') {
-                                  return !!q.error_sentence;
+                                const qMode = q.mode?.toLowerCase() || '';
+                                if (bankMode === 'Advance') {
+                                  return qMode.startsWith('advanc');
+                                } else if (bankMode === 'Proofreading') {
+                                  return qMode.startsWith('proof');
                                 } else {
-                                  // Unscramble mode shows everything else
-                                  return !q.error_sentence;
+                                  // Default to unscramble if qMode matches or is empty/unknown
+                                  return qMode.startsWith('unscrambl') || qMode.startsWith('rearrang') || (!qMode.startsWith('proof') && !qMode.startsWith('advanc'));
                                 }
                               })
+                              // Exclude questions already added to the current practice (across all modes)
+                              .filter(q => !localQuestions.some(lq => lq.question.id === q.id))
                               .map(q => (
                                 <button 
                                   key={q.id} 
@@ -1381,13 +1538,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                                   {/* Content Area */}
                                   <div className="flex-1 p-3 pl-4 relative">
                                     <p className={`text-[11px] font-black leading-tight mb-1 line-clamp-2 ${selectedQuestion?.id === q.id ? 'text-indigo-900' : 'text-slate-800'}`}>
-                                      {bankMode === 'proofreading' ? (q.error_sentence || q.question) : q.question}
+                                      {bankMode === 'Proofreading' ? (q.error_sentence || q.question) : q.question}
                                     </p>
                                     <div className="flex items-center gap-2">
                                       <div className={`w-1 h-1 rounded-full shrink-0 ${selectedQuestion?.id === q.id ? 'bg-indigo-400' : 'bg-slate-300'}`} />
                                       <p className="text-[9px] font-bold text-slate-400 group-hover:text-slate-500 italic truncate max-w-[200px]">
                                         Ans: {q.answer}
-                                        {bankMode === 'proofreading' && q.error && <span className="text-red-400 ml-1">(Err: {q.error})</span>}
+                                        {bankMode === 'Proofreading' && q.error && <span className="text-red-400 ml-1">(Err: {q.error})</span>}
                                       </p>
                                     </div>
 
@@ -1416,6 +1573,22 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
               <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-[450px]">
                 <div className="flex items-center justify-between bg-white px-6 py-4 rounded-[2rem] shadow-xl border border-slate-100 shrink-0">
                   <div className="flex items-center gap-4">
+                    {/* Manual Coin Award Input */}
+                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-2xl border border-amber-100 shadow-inner">
+                      <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-sm">
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-amber-600 uppercase tracking-tighter">Reward Coins</span>
+                        <input 
+                          type="number" 
+                          step="10"
+                          value={rewardCoins} 
+                          onChange={(e) => setRewardCoins(parseInt(e.target.value) || 0)}
+                          className="w-16 h-6 bg-transparent font-black text-amber-900 outline-none text-sm"
+                        />
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
                       <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
                       <div className="flex items-center gap-2 px-3">

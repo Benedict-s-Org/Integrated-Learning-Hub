@@ -13,7 +13,7 @@
 | **Memory Palace** | `MemoryPalacePage.tsx` - Visual grid, furniture placement, memory attachments. | L77-L82 |
 | **Phonics Ecosystem** | `PhonicsGameHub.tsx` - Minigames, levels, leaderboards, blending board. | L84-L88 |
 | **Memorization / Saved** | `SavedContent.tsx` - Memorization text management & public link generation. | L90-L93 |
-| **Reading / Notion** | `ReadingNotionImporter.tsx` - Syncing library from Notion via Edge Functions. | L157-L165 |
+| **Reading / Notion** | `ReadingPracticeCreator.tsx`, `PassageCropCreator.tsx` - Unified workspace for Local/Notion imports & bulk passage cropping with dynamic scaling. | L160-L178 |
 | **Coin Service** | `coinService.ts` - Central coin award/revert logic, calls RPCs. | L95-L99 |
 | **Quiz System** | `InteractiveScanQuizPage.tsx` - Paper-based AR marker scanning quiz. | L101-L105 |
 | **Spaced Repetition**| `SpacedRepetitionPage.tsx` & Algorithm - Question tracking, algorithm logic. | L107-L111 |
@@ -32,7 +32,7 @@
 ### Contexts & Auth (L24-L30)
 - **Files**: `src/context/AuthContext.tsx`, `src/context/AppContext.tsx`
 - **Auth Features**:
-  - `user`: Holds current `UserProfile` (role, name, permissions).
+  - `user`: Holds current `UserProfile` (role, name, permissions, including `spelling_level`, `memorization_level`, `reading_rearranging_level`, `reading_proofreading_level`, `proofreading_level`).
   - **Impersonation**: `isImpersonating` state. When true, `impersonatedAdminId` holds the original admin's ID, and `user` holds the impersonated student profile.
   - **View Mode**: `toggleViewMode` flips an admin between 'admin' and 'student' view without logging out.
 - **App Data**: `AppContext` globally fetches and caches lists of `savedContents`, `spellingLists`, and `proofreadingPractices`.
@@ -53,11 +53,12 @@
   - `showMorningDuties`: Toggled to show morning checklist (default on between 7-9 AM HK time).
 - **Core Dependencies**: `coinService` for rewards, `UniversalMessageToolbar` for broadcasts.
 - **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter. **Default class is set to '3A'**.
+- **Special Rewards**: `DictationBonusOverlay.tsx` supports manual coin entry with a customizable `dictationTitle` (e.g. "RD10 bonus").
 
 ### Admin Users (L49-L53)
 - **Path**: `src/pages/AdminUsersPage.tsx`
 - **Purpose**: Manage all student and admin accounts.
-- **Key Logic**: Generates QR tokens upon user creation. Homework records log directly via modal logic. Supports bulk awarding and batch reverting.
+- **Key Logic**: Generates QR tokens upon user creation. Homework records log directly via modal logic. Supports bulk awarding and batch reverting. **UserEditModal.tsx** now handles centralized learning level management.
 - **Gotchas**: Only Super Admins can manage other Admins. Relies heavily on Supabase `auth.users` combined with public `users` table logic implemented via Edge Functions. **Default class filter is '3A'**.
 
 ### Admin Progress (L55-L59)
@@ -98,7 +99,9 @@
 ### Memorization / Saved (L90-L93)
 - **Path**: `src/components/SavedContent/SavedContent.tsx`
 - **Concept**: Allows Admins to create and manage text blocks for students to memorize.
-- **Logic**: Can generate "Public Links" (`public_id`) which allow accessing the text without logging in. Uses `appState = { page: 'publicPractice' }` inside `App.tsx` to handle these.
+- **Logic**: 
+  - **Centralized Difficulty**: `MemorizationView.tsx` and `DictationView.tsx` enforce the student's `memorization_level` and hide selection buttons.
+  - **Public Links**: Can generate `public_id` which allow accessing the text without logging in. Uses `appState = { page: 'publicPractice' }` inside `App.tsx` to handle these.
 
 ### Coin Service (L95-L99)
 - **Path**: `src/services/coinService.ts`
@@ -148,21 +151,32 @@
 - **Path**: `src/components/SpellingPractice/SpellingPractice.tsx`
 - **Concept**: A pronunciation-based spelling game with levels (Letter clicking vs Typing).
 - **Features**:
+  - **Centralized Difficulty**: Difficulty is enforced from the student's profile (`spelling_level`); selection buttons are hidden in `SavedPractices.tsx` and the practice session.
   - **Dynamic Word Counts**: Users choose 10, 20, 40, or All words before starting (via `SavedPractices.tsx` prep-modal).
   - **Shuffling**: Words are randomized before the limit is applied.
   - **SRS Integration**: Connects to SM-2 algorithm via `SpellingSrsContext` for daily reviews.
   - **Accent Management**: Admins can select accents/voices via `AccentSelector`; hidden from students to prevent distraction.
 - **Components**: `SpellingInput` (Creation), `SpellingPreview` (Admin verify), `SavedPractices` (The Hub/Review center).
 
-### Reading Practice & Notion Sync (L156-L162)
-- **Files**: `src/components/ReadingPractice/`, `src/components/admin/ReadingNotionImporter.tsx`, `src/components/admin/ReadingPracticeCreator.tsx`
-- **Concept**: Fetches reading materials from Notion and converts them into interactive "Speed Reading" and "Proofreading" tests.
+### Reading Practice & Notion Sync (L160-L178)
+- **Files**: `src/components/ReadingPractice/`, `src/components/admin/ReadingNotionImporter.tsx`, `src/components/admin/ReadingPracticeCreator.tsx`, `src/components/admin/PassageCropCreator.tsx`
+- **Concept**: Fetches reading materials from Notion and converts them into interactive "Speed Reading", "Proofreading", or "Advanced (Full Typing)" tests.
 - **Mechanism**:
-  - **Notion Explorer**: `ReadingNotionBrowser.tsx` uses `notion-api` Edge Function to list database items.
-  - **Streamlined Creation**: `ReadingPracticeCreator.tsx` handles the interactive question building. It skips the "Select PDF" step if `initialPdfUrl` is provided (from Notion selection).
+  - **Unified Creator**: `ReadingPracticeCreator.tsx` acts as the single entry point. It lists Notion database items (via `reading-api`) AND allows local PDF uploads.
+  - **3-Way Mode Selection**: Supports **Unscramble**, **Proofreading**, and **Advanced** modes. It filters questions based on a `Mode` column in Notion.
   - **Importer**: `ReadingNotionImporter.tsx` processes Notion blocks into JSON structures stored in `reading_practices`.
-- **Auth Protocol**: **CRITICAL**: All `supabase.functions.invoke` calls MUST pass explicit `Authorization` and `apikey` headers using the user's `session.access_token` to ensure reliable fetching and avoid 401 errors.
-- **Gotchas**: Uses `notion-api` and `reading-api` Edge Functions. Images/Audio are mirrored to Supabase storage for student availability.
+  - **Passage Bulk Cropper**: `PassageCropCreator.tsx` enables staging crops for multiple days from PDFs.
+    - **Dynamic Scaling**: "Fit-to-Width" logic ensures the PDF is fully viewable.
+    - **Notion Integration**: Fetches Day-Page mappings to automate navigation.
+    - **Staging Queue**: Allows saving all crops at once to `reading_questions`.
+- **Interaction Logic**:
+  - **ReadingChallenge.tsx**: Supports three UI modes:
+    - **Unscramble**: Draggable word tiles.
+    - **Proofreading**: Identifying and correcting errors.
+    - **Advanced**: Full text input area requiring verbatim typing of the target sentence.
+  - **Level Enforcement**: Enforces `reading_rearranging_level` and `reading_proofreading_level` from student profile; mode is determined by the assignment's `interaction_type`.
+- **Auth Protocol**: **CRITICAL**: All `supabase.functions.invoke` calls MUST pass explicit `Authorization` and `apikey` headers using the user's `session.access_token`.
+- **Gotchas**: Uses `notion-api` and `reading-api` Edge Functions. `full-typing` requires exact string match (case-insensitive, normalized spaces).
 
 ### Token Optimization (L165-L175)
 - **Problem**: High context/token usage due to large file reads and verbose artifacts.

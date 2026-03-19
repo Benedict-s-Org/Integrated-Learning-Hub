@@ -37,7 +37,16 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   const wordStartTimeRef = useRef<number>(Date.now());
   
   const [practiceWords, setPracticeWords] = useState<string[]>([]);
-  const [level] = useState<1 | 2>((initialLevel as 1 | 2) || 1);
+  const [level, setLevel] = useState<1 | 2>(1);
+
+  // Sync level from user profile or props
+  useEffect(() => {
+    if (user?.spelling_level) {
+      setLevel(user.spelling_level as 1 | 2);
+    } else if (initialLevel) {
+      setLevel(initialLevel as 1 | 2);
+    }
+  }, [user?.spelling_level, initialLevel]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [clickedLetters, setClickedLetters] = useState<string[]>([]);

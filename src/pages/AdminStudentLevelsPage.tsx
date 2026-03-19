@@ -90,8 +90,8 @@ export const AdminStudentLevelsPage: React.FC = () => {
   const filteredStudents = useMemo(() => {
     const filtered = students.filter(s => {
       const matchesClass = filterClass === 'all' || s.class === filterClass;
-      const matchesSearch = s.display_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           s.username.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (s.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                           (s.username?.toLowerCase() || '').includes(searchQuery.toLowerCase());
       return matchesClass && matchesSearch;
     });
 

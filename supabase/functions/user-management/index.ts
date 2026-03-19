@@ -41,6 +41,7 @@ interface UpdateUserRequest {
   adminUserId: string;
   userId: string;
   username?: string;
+  email?: string;
   display_name?: string;
   role?: 'admin' | 'class_staff' | 'user';
   class?: string | null;
@@ -245,7 +246,7 @@ Deno.serve(async (req: Request) => {
 
       console.log(`[user-management] Bulk syncing all users from Auth...`);
       
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
       if (listError) return new Response(JSON.stringify({ error: listError.message }), { status: 500, headers: corsHeaders });
 
       const results = [];
@@ -338,15 +339,20 @@ Deno.serve(async (req: Request) => {
 
     if (action === "update-user") {
       const body: UpdateUserRequest = await req.json();
-      const { adminUserId, userId, username, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password } = body;
+      const { adminUserId, userId, username, email, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password } = body;
       
-      const authHeader = req.headers.get("Authorization");
+      console.log(`[user-management] Updating user ${userId} by admin ${adminUserId}`);
+      
       const callerRole = await getAuthenticatedRole(adminUserId);
       if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
 
       const finalClass = classInput || classNameInput;
       const updatePayload: any = {};
-      if (username !== undefined) updatePayload.username = username;
+      
+      // Update username in public.users if either username or email is provided
+      const finalUsername = username || email;
+      if (finalUsername !== undefined) updatePayload.username = finalUsername;
+      
       if (display_name !== undefined) updatePayload.display_name = display_name;
       if (role !== undefined) updatePayload.role = role;
       if (finalClass !== undefined) updatePayload.class = finalClass || null;
@@ -358,16 +364,49 @@ Deno.serve(async (req: Request) => {
       if (classNumber !== undefined) updatePayload.class_number = classNumber === 0 ? 0 : (classNumber || null);
       if (ecas !== undefined) updatePayload.ecas = ecas || [];
 
-      const { data: updatedUser, error } = await supabase.from("users").update(updatePayload).eq("id", userId).select().single();
-      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+      // 1. Update public.users
+      const { data: updatedUser, error: dbError } = await supabase.from("users").update(updatePayload).eq("id", userId).select().single();
+      if (dbError) {
+        console.error(`[user-management] DB update error for ${userId}:`, dbError);
+        return new Response(JSON.stringify({ error: dbError.message }), { status: 500, headers: corsHeaders });
+      }
+
+      // 2. Update auth.users
+      const { data: userData, error: getUserError } = await supabase.auth.admin.getUserById(userId);
+      if (getUserError || !userData.user) {
+        console.error(`[user-management] Auth getUser error for ${userId}:`, getUserError);
+        // We still proceed if it's just user_metadata sync, but password/email update REQUIRES auth user
+      }
 
       const authPayload: any = {};
+      
+      // Sync all public fields to metadata for portability
       if (Object.keys(updatePayload).length > 0) {
-        const { data: userData } = await supabase.auth.admin.getUserById(userId);
-        authPayload.user_metadata = { ...userData.user?.user_metadata, ...updatePayload };
+        authPayload.user_metadata = { ...(userData.user?.user_metadata || {}), ...updatePayload };
       }
-      if (password) authPayload.password = password;
-      if (Object.keys(authPayload).length > 0) await supabase.auth.admin.updateUserById(userId, authPayload);
+      
+      // Strictly handle sensitive fields
+      if (email && email !== userData.user?.email) {
+        console.log(`[user-management] Updating email for ${userId} to ${email}`);
+        authPayload.email = email;
+        authPayload.email_confirm = true; // Auto-confirm when admin changes email
+      }
+      
+      if (password) {
+        console.log(`[user-management] Updating password for ${userId}`);
+        authPayload.password = password;
+      }
+
+      if (Object.keys(authPayload).length > 0) {
+        const { error: authUpdateError } = await supabase.auth.admin.updateUserById(userId, authPayload);
+        if (authUpdateError) {
+          console.error(`[user-management] Auth update error for ${userId}:`, authUpdateError);
+          return new Response(JSON.stringify({ 
+            error: "Failed to update authentication record", 
+            details: authUpdateError.message 
+          }), { status: 400, headers: corsHeaders });
+        }
+      }
 
       return new Response(JSON.stringify({ success: true, user: updatedUser }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }

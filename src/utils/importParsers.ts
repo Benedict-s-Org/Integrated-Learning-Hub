@@ -294,6 +294,7 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
     const answerText = extractNotionProperty(props, ['Answer', 'answer', '答案', '正確答案', 'Correct Answer', '正確句子', 'Corrected', 'corrected']);
     const errorSentence = extractNotionProperty(props, ['Error Sentence', 'error_sentence', '錯誤句子', 'Original', 'original']);
     const errorWord = extractNotionProperty(props, ['Error', 'error', '錯誤', '錯字']);
+    const modeText = extractNotionProperty(props, ['Mode', 'mode', '模式']);
     const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
     const pageText = extractNotionProperty(props, ['Page', 'page', '頁', '頁數', 'Page Number']);
     
@@ -306,6 +307,7 @@ export function parseReadingNotionResponse(results: any[]): ReadingQuestion[] {
         answer: answerText || '',
         error_sentence: errorSentence || undefined,
         error: errorWord || undefined,
+        mode: modeText || undefined,
         day: dayText || undefined,
         page: isNaN(pageNum) ? undefined : pageNum
       });

@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Square,
   Trash2,
+  Search,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -46,6 +47,10 @@ interface UserWithProfile {
   qr_token?: string;
   managed_by_id?: string | null;
   spelling_level?: number;
+  reading_rearranging_level?: number;
+  reading_proofreading_level?: number;
+  memorization_level?: number;
+  proofreading_level?: number;
   ecas?: string[];
 }
 
@@ -55,7 +60,7 @@ interface AdminUsersPageProps {
 }
 
 export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsersPageProps) {
-  const { user: currentUser, session } = useAuth();
+  const { user: currentUser, session, isAdmin } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'classroom'>('list');
@@ -81,13 +86,14 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [showAllStudents, setShowAllStudents] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // Sync showAllStudents if super admin
-    if (isSuperAdmin && !forcedAdminId) {
+    // Sync showAllStudents if admin or super admin
+    if ((isSuperAdmin || isAdmin) && !forcedAdminId) {
       setShowAllStudents(true);
     }
-  }, [isSuperAdmin, forcedAdminId]);
+  }, [isSuperAdmin, isAdmin, forcedAdminId]);
 
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
@@ -170,6 +176,10 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           qr_token: u.qr_token,
           managed_by_id: u.managed_by_id,
           spelling_level: u.spelling_level,
+          reading_rearranging_level: u.reading_rearranging_level,
+          reading_proofreading_level: u.reading_proofreading_level,
+          memorization_level: u.memorization_level,
+          proofreading_level: u.proofreading_level,
           ecas: u.ecas || []
         };
       });
@@ -245,7 +255,17 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     });
 
     const finalFiltered = Array.isArray(filtered) ? filtered : [];
-    return finalFiltered.sort((a, b) => {
+    
+    // Apply search query filter
+    const searchedUsers = searchQuery.trim() === '' 
+      ? finalFiltered 
+      : finalFiltered.filter(u => 
+          (u.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+          (u.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+          (u.auth_email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+        );
+
+    return searchedUsers.sort((a, b) => {
       // Sort by class first
       const classA = a.class_name || 'Unassigned';
       const classB = b.class_name || 'Unassigned';
@@ -388,6 +408,31 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     }
   };
 
+  const handleSyncAll = async () => {
+    if (!confirm('Are you sure you want to sync all users from Auth? This will ensure all Authentication accounts have a corresponding profile in the database.')) return;
+    
+    setIsLoadingUsers(true);
+    try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const { data, error } = await supabase.functions.invoke('user-management/sync-all-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
+        body: { adminUserId: forcedAdminId || currentUser?.id }
+      });
+
+      if (error) throw error;
+      
+      alert(`Sync completed! ${data.synced || 0} users processed. ${data.errors?.length || 0} errors.`);
+      await fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Sync failed');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   const handleResetAllCoins = async () => {
     if (!confirm('Are you sure you want to RESET ALL COINS for all students?')) return;
     try {
@@ -417,6 +462,17 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                   <option key={className} value={className!}>{className}</option>
                 ))}
               </select>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="搜尋用戶 (名稱/電郵)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64"
+                />
+              </div>
 
               <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
                 <button
@@ -463,6 +519,15 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                   </button>
                 </div>
               )}
+              
+              <button
+                onClick={handleSyncAll}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 transition-colors"
+                title="Sync users from Authentication"
+              >
+                <RotateCcw size={18} className="text-blue-500" />
+                同步用戶
+              </button>
             </div>
 
             <button

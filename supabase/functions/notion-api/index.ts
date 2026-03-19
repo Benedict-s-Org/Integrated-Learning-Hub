@@ -160,6 +160,22 @@ Deno.serve(async (req: Request) => {
       return createCORSResponse(data, resp.status, req);
     }
 
+    // ── 4. update-page-properties ─────────────────────────────────────
+    if (action === "update-page-properties") {
+      const pageId = body.pageId;
+      if (!pageId) return createCORSResponse({ error: "Missing pageId" }, 400, req);
+      
+      const resp = await fetch(`${NOTION_API}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({
+          properties: body.properties
+        })
+      });
+      const data = await resp.json();
+      return createCORSResponse(data, resp.status, req);
+    }
+
     return createCORSResponse({ error: `Unknown action: ${action}`, version: VERSION }, 404, req);
   } catch (error) {
     return createCORSResponse({ error: error.message }, 500, req);

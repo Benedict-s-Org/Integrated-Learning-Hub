@@ -23,7 +23,9 @@ const DictationView: React.FC<DictationViewProps> = ({
     isPractice = false,
 }) => {
     const { user } = useAuth();
-    const [level, setLevel] = useState<1 | 2 | 3>(1);
+    const [level] = useState<1 | 2 | 3>(
+        (user?.memorization_level as 1 | 2 | 3) || 1
+    );
     const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [accuracy, setAccuracy] = useState(0);
@@ -223,6 +225,7 @@ const DictationView: React.FC<DictationViewProps> = ({
                             </div>
                         </div>
                         <div className="flex items-center space-x-4">
+{/* Hiding difficulty selection as it is now managed at student level
                             {!isSubmitted && (
                                 <div className="flex bg-indigo-700/50 rounded-lg p-1 border border-indigo-500/30">
                                     <button
@@ -245,6 +248,7 @@ const DictationView: React.FC<DictationViewProps> = ({
                                     </button>
                                 </div>
                             )}
+                            */}
                             {isSubmitted && (
                                 <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-4 py-2">
                                     <Award size={20} className="text-yellow-300" />

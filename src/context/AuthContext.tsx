@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       proofreading_level: supabaseUser.user_metadata?.proofreading_level || 1,
       reading_level: supabaseUser.user_metadata?.reading_level || 1,
       spelling_level: supabaseUser.user_metadata?.spelling_level || 1,
+      memorization_level: supabaseUser.user_metadata?.memorization_level || 1,
       voice_preference: supabaseUser.user_metadata?.voice_preference || null,
     };
   };

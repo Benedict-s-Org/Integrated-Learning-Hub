@@ -7,7 +7,6 @@ import {
   Clock,
   Search,
   TrendingUp,
-  TrendingDown,
   Activity,
   AlertCircle,
   Zap,
@@ -115,7 +114,6 @@ const UserAnalytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
 
   const [classSummary, setClassSummary] = useState<ClassAnalyticsSummary | null>(null);
   const [students, setStudents] = useState<StudentPerformance[]>([]);
@@ -181,16 +179,10 @@ const UserAnalytics: React.FC = () => {
     return 'text-red-600';
   };
 
-  const getScoreBgColor = (score: number) => {
-    if (score >= 90) return 'bg-green-100';
-    if (score >= 70) return 'bg-yellow-100';
-    return 'bg-red-100';
-  };
-
   const filteredStudents = students.filter(
     (student) =>
-      student.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.username.toLowerCase().includes(searchQuery.toLowerCase())
+      (student.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (student.username?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -736,7 +728,6 @@ const UserAnalytics: React.FC = () => {
               <div className="h-64 flex items-end space-x-1">
                 {activityTimeline.map((day, index) => {
                   const maxCount = Math.max(...activityTimeline.map((d) => d.total_count), 1);
-                  const height = (day.total_count / maxCount) * 100;
                   return (
                     <div key={index} className="flex-1 flex flex-col items-center">
                       <div className="relative w-full flex flex-col-reverse items-center">
