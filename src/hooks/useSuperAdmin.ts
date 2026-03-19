@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
  * Uses the `is_first_admin` RPC from Supabase.
  */
 export function useSuperAdmin() {
-    const { user, isAdmin } = useAuth();
+    const { user, isAdmin, session } = useAuth();
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -20,7 +20,12 @@ export function useSuperAdmin() {
 
         const check = async () => {
             try {
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                 const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
+                    headers: {
+                        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                        'apikey': anonKey
+                    },
                     body: { adminUserId: user.id }
                 });
                 if (!error && data) {

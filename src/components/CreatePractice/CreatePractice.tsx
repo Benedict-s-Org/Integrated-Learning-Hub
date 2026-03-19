@@ -8,7 +8,7 @@ interface CreatePracticeProps {
 }
 
 export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved }) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [title, setTitle] = useState('');
   const [words, setWords] = useState<string[]>(['']);
   const [isPhraseMode, setIsPhraseMode] = useState(false);
@@ -60,7 +60,7 @@ export const CreatePractice: React.FC<CreatePracticeProps> = ({ onBack, onSaved 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({

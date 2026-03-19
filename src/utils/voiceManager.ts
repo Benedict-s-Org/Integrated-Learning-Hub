@@ -307,7 +307,12 @@ export const fetchCloudAudio = async (text: string, accent: string, voiceName?: 
       return null;
     }
 
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     const { data, error } = await supabase.functions.invoke('google-tts', {
+      headers: {
+        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+        'apikey': anonKey
+      },
       body: { text, accent, voiceName }
     });
 

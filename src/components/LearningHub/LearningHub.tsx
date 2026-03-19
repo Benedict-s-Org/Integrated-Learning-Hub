@@ -6,7 +6,7 @@ import { LearningActivity } from '../../types';
 import InteractiveExperience from './InteractiveExperience';
 
 const LearningHub: React.FC = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [activities, setActivities] = useState<LearningActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ const LearningHub: React.FC = () => {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
       });

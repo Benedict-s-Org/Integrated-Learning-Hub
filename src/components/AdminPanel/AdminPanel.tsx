@@ -34,7 +34,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor, onNavigateToAvatarUploader, onNavigateToAvatarBuilder, onNavigateToMarkerGenerator }) => {
-  const { user: currentUser, isAdmin } = useAuth();
+  const { user: currentUser, isAdmin, session } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +92,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
 
   const checkSuperAdminStatus = async () => {
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id }
       });
 
@@ -108,7 +113,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setLoading(true);
     setError(null);
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/list-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id }
       });
 
@@ -174,7 +184,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     try {
       const userIds = Array.from(selectedUserIds);
       for (const userId of userIds) {
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         const { error } = await supabase.functions.invoke('user-management/update-user', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey
+          },
           body: {
             adminUserId: currentUser?.id,
             userId,
@@ -248,7 +263,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setSuccess(null);
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/bulk-create-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           adminUserId: currentUser?.id,
           users: validUsers.map(u => ({
@@ -302,7 +322,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/update-user', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           adminUserId: currentUser?.id,
           userId: selectedUserId,
@@ -320,7 +345,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
       if (data.success) {
         // If password was also provided, reset it separately or as part of update
         if (editPassword) {
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
           const { error: resetError } = await supabase.functions.invoke('auth/admin-reset-password', {
+            headers: {
+              'Authorization': `Bearer ${session?.access_token || anonKey}`,
+              'apikey': anonKey
+            },
             body: {
               adminUserId: currentUser?.id,
               userId: selectedUserId,
@@ -352,7 +382,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/delete-user', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           adminUserId: currentUser?.id,
           userIdToDelete: userId
@@ -382,7 +417,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     setError(null);
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('auth/admin-reset-password', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           adminUserId: currentUser?.id,
           userId: selectedUserId,
@@ -445,7 +485,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     try {
       for (const userId of userIds) {
         const permissions = pendingPermissions[userId];
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         const { error } = await supabase.functions.invoke('user-management/update-permissions', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey
+          },
           body: {
             adminUserId: currentUser?.id,
             userId,

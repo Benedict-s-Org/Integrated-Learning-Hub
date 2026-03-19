@@ -68,7 +68,7 @@ type AppState =
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
   | { page: 'spelling'; step: 'input' }
   | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string }
-  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string }
+  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number }
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
@@ -890,6 +890,7 @@ function AppContent() {
                       isPhraseMode={appState.isPhraseMode}
                       practiceId={appState.practiceId}
                       assignmentId={appState.assignmentId}
+                      initialLevel={appState.level}
                       onBack={handleBackToSpellingPreview}
                     />
                   );
@@ -915,6 +916,7 @@ function AppContent() {
                             words: practice.words,
                             practiceId: practice.id,
                             assignmentId: practice.assignment_id,
+                            level: practice.level,
                           });
                         }
                       }}
@@ -946,6 +948,7 @@ function AppContent() {
                       words: practice.words,
                       practiceId: practice.practiceId,
                       assignmentId: practice.assignmentId,
+                      level: practice.level,
                     });
                   }}
                   onLoadProofreading={handleLoadAssignedProofreadingPractice}

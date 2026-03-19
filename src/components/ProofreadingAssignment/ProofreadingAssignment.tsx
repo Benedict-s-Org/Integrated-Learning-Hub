@@ -20,7 +20,7 @@ interface ProofreadingAssignmentProps {
 }
 
 export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ practice, onBack }) => {
-  const { user: currentUser, isAdmin } = useAuth();
+  const { user: currentUser, isAdmin, session } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -43,7 +43,12 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
     try {
       setError(null);
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/list-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id }
       });
 
@@ -55,6 +60,10 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
       setUsers(nonAdminUsers);
 
       const { data: assignmentsResult, error: assignmentsError } = await supabase.functions.invoke('proofreading-assignments/list', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           practiceId: practice.id,
           adminUserId: currentUser?.id,
@@ -123,7 +132,12 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
         return;
       }
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data: result, error: assignError } = await supabase.functions.invoke('proofreading-assignments/assign', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           practiceId: practice.id,
           userIds: usersToAssign,

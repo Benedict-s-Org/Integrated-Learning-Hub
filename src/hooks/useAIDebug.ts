@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useAuth } from "../context/AuthContext";
 
 export interface Message {
   role: "user" | "assistant";
@@ -8,6 +9,7 @@ export interface Message {
 const AI_DEBUG_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-debug`;
 
 export function useAIDebug() {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +41,7 @@ export function useAIDebug() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           messages: [...messages, userMessage],

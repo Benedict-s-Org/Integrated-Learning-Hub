@@ -57,8 +57,15 @@ Deno.serve(async (req: Request) => {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !authUser) {
-      console.error("[notion-api] Auth error:", authError);
-      return createCORSResponse({ error: "Unauthorized: Invalid token", details: authError?.message }, 401, req);
+      console.error("[notion-api] Auth error:", {
+        message: authError?.message,
+        status: authError?.status,
+        tokenPrefix: token ? `${token.substring(0, 5)}...` : 'none'
+      });
+      return createCORSResponse({ 
+        error: "Unauthorized: Invalid token", 
+        details: authError?.message 
+      }, 401, req);
     }
 
     let body: any = {};

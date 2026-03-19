@@ -133,7 +133,7 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 });
 
 export function ClassDashboardPage() {
-    const { isAdmin, isStaff, user: currentUser } = useAuth();
+    const { isAdmin, isStaff, user: currentUser, session } = useAuth();
     const { theme } = useDashboardTheme();
 
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
@@ -160,9 +160,14 @@ export function ClassDashboardPage() {
     const fetchCycleData = async () => {
         setIsCycleLoading(true);
         try {
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { data, error } = await supabase.functions.invoke('notion-api', {
-                body: { 
-                    action: 'get-cycle-day' 
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
+                body: {
+                    action: 'get-cycle-day'
                 }
             });
 
@@ -199,7 +204,12 @@ export function ClassDashboardPage() {
         setIsSyncing(true);
         try {
             console.log('[Dashboard] Starting manual user sync...');
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { data, error } = await supabase.functions.invoke('user-management/sync-all-users', {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: { adminUserId: currentUser?.id }
             });
 
@@ -259,10 +269,15 @@ export function ClassDashboardPage() {
             // Auth/List Users (with cache)
             const now = Date.now();
             const useAuthCache = globalAuthUserCache && (now - globalAuthUserCache.lastFetch < 2000) && !options?.forceRefresh;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             if (useAuthCache) {
                 phase1Promises.push(Promise.resolve({ type: 'users', data: globalAuthUserCache!.users }));
             } else {
                 phase1Promises.push(supabase.functions.invoke('user-management/list-users', { 
+                    headers: {
+                        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                        'apikey': anonKey
+                    },
                     body: { adminUserId: currentUser?.id }
                 })
                     .then(res => {
@@ -720,7 +735,12 @@ export function ClassDashboardPage() {
                 class: student.class
             }));
 
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { error } = await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates,

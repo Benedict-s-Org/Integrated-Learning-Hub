@@ -55,7 +55,7 @@ interface AdminUsersPageProps {
 }
 
 export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsersPageProps) {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, session } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'list' | 'classroom'>('list');
@@ -272,7 +272,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     setIsCreating(true);
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { error } = await supabase.functions.invoke('user-management/create-user', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           email,
           username: email.split('@')[0],
@@ -310,7 +315,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
     setIsLoadingUsers(true);
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/bulk-delete-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           adminUserId: forcedAdminId || currentUser?.id,
           userIdsToDelete: selectedUserIds,
@@ -563,7 +573,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                           classNumber: index + 1,
                           class: user.class_name
                         }));
+                        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                         await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
+                          headers: {
+                            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                            'apikey': anonKey
+                          },
                           body: { adminUserId: forcedAdminId || currentUser?.id, updates }
                         });
                         await fetchUsers();

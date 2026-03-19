@@ -37,7 +37,7 @@ const LEVEL_CONFIG = [
 ] as const;
 
 export const AdminStudentLevelsPage: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, session } = useAuth();
   const [students, setStudents] = useState<StudentLevelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClass, setFilterClass] = useState<string>('all');
@@ -54,7 +54,12 @@ export const AdminStudentLevelsPage: React.FC = () => {
   const fetchStudents = async () => {
     setLoading(true);
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('user-management/list-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id }
       });
 
@@ -124,7 +129,12 @@ export const AdminStudentLevelsPage: React.FC = () => {
         return { id, ...camelChanges };
       });
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { error } = await supabase.functions.invoke('user-management/bulk-update-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id, updates }
       });
 

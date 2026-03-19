@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
 import AccentSelector from "../AccentSelector/AccentSelector";
+import { useAuth } from "@/context/AuthContext";
 
 interface UserWithProfile {
   id: string;
@@ -38,6 +39,7 @@ interface UserEditModalProps {
 }
 
 export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }: UserEditModalProps) {
+  const { session } = useAuth();
   const [displayName, setDisplayName] = useState(user.display_name || "");
   const [email, setEmail] = useState(user.email || "");
   const [password, setPassword] = useState("");
@@ -81,7 +83,12 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         if (role === 'class_staff') {
           setIsLoadingAssignments(true);
           try {
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { data } = await supabase.functions.invoke('user-management/get-staff-assignments', {
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                'apikey': anonKey
+              },
               body: { userId: user.id }
             });
             if (data?.assignments) {
@@ -289,7 +296,12 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
       console.log("Sending update request:", updateData);
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error: fnError } = await supabase.functions.invoke("user-management/update-user", {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: updateData
       });
 

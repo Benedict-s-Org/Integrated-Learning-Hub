@@ -17,7 +17,7 @@ interface SpellingPreviewProps {
 }
 
 const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, isPhraseMode, onSave, onViewSaved }) => {
-  const { accentPreference, voicePreference, updateVoicePreference, user } = useAuth();
+  const { accentPreference, voicePreference, updateVoicePreference, user, session } = useAuth();
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [currentAccent, setCurrentAccent] = useState(accentPreference);
   const [currentVoiceURI, setCurrentVoiceURI] = useState(voicePreference?.voiceURI);
@@ -206,7 +206,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({

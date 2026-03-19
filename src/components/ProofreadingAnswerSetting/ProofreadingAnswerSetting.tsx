@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
+import { useAuth } from '../../context/AuthContext';
 
 interface ProofreadingAnswerSettingProps {
   sentences: string[];
@@ -18,6 +19,7 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
   onBack,
   onViewSaved,
 }) => {
+  const { session } = useAuth();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
@@ -154,7 +156,7 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({ sentences })

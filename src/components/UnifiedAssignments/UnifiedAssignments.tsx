@@ -174,6 +174,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         assignmentId: assignment.assignment_id,
         title: assignment.title,
         words: assignment.content_data.words,
+        level: assignment.assignment_level,
       };
       onLoadSpelling(spellingPractice);
     } else if (assignment.assignment_type === 'proofreading') {

@@ -11,6 +11,7 @@ interface Practice {
   created_at: string;
   assignment_count?: number;
   assignment_id?: string;
+  level?: number;
 }
 
 interface User {
@@ -26,7 +27,7 @@ interface SavedPracticesProps {
 }
 
 export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice, onPractice }) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, session } = useAuth();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({ userId: user.id })
@@ -106,7 +107,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({
@@ -143,7 +144,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({ adminUserId: user?.id })
@@ -162,7 +163,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({
@@ -212,7 +213,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({
@@ -304,7 +305,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                       id: 'srs-review',
                       title: `Daily Review (${new Date().toLocaleDateString()})`,
                       words: dueWords,
-                      created_at: new Date().toISOString()
+                      created_at: new Date().toISOString(),
+                      level: 2 // SRS review defaults to typing
                     })}
                     className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
                   >

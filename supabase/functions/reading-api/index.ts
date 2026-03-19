@@ -57,8 +57,15 @@ Deno.serve(async (req: Request) => {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !authUser) {
-      console.error("[reading-api] Auth error:", authError);
-      return createCORSResponse({ error: "Unauthorized: Invalid token", details: authError?.message }, 401, req);
+      console.error("[reading-api] Auth error:", {
+        message: authError?.message,
+        status: authError?.status,
+        tokenPrefix: token ? `${token.substring(0, 5)}...` : 'none'
+      });
+      return createCORSResponse({ 
+        error: "Unauthorized: Invalid token", 
+        details: authError?.message 
+      }, 401, req);
     }
 
     let body: any = {};
@@ -169,6 +176,16 @@ Deno.serve(async (req: Request) => {
           sample: results[0] ? { name: results[0].name, hasUrl: !!results[0].fileUrl } : null
         }
       }, 200, req);
+    }
+    // ── 1.2 Query MCQ Database (Generic Passthrough) ──────────────────
+    else if (action === "query-mcq-database") {
+      const resp = await fetch(`${NOTION_API}/databases/${dbId}/query`, {
+        method: "POST",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      const data = await resp.json();
+      return createCORSResponse(data, resp.status, req);
     }
     // ── 2. Proxy Reading PDF ───────────────────────────────────────────
     else if (action === "proxy-reading-pdf") {

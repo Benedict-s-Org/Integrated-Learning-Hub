@@ -153,7 +153,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   initialTitle,
   editId
 }) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [step, setStep] = useState<CreatorStep>('select-pdf');
   
   // PDF State
@@ -397,7 +397,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
           const response = await fetch(proxyUrl, {
             headers: {
-              'Authorization': `Bearer ${anonKey}`,
+              'Authorization': `Bearer ${session?.access_token || anonKey}`,
               'apikey': anonKey
             }
           });

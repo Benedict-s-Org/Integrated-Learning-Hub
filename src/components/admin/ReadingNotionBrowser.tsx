@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Search, Loader2, Book, ArrowRight, AlertCircle, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '../../context/AuthContext';
 
 interface ReadingNotionBrowserProps {
   onSelect: (pdfUrl: string, title: string) => void;
@@ -14,6 +15,7 @@ interface Activity {
 }
 
 export const ReadingNotionBrowser: React.FC<ReadingNotionBrowserProps> = ({ onSelect, onCancel }) => {
+  const { session } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,28 +36,20 @@ export const ReadingNotionBrowser: React.FC<ReadingNotionBrowserProps> = ({ onSe
         functionName: 'reading-api'
       });
       
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/reading-api`, {
-        method: 'POST',
+      const { data, error: invokeError } = await supabase.functions.invoke('reading-api', {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
-        body: JSON.stringify({ 
+        body: { 
           action: 'list-activities',
           databaseId: DATABASE_ID 
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      if (invokeError) throw invokeError;
+      if (data.error) throw new Error(data.error);
 
       console.log('[ReadingNotionBrowser] Notion API Response:', data);
 

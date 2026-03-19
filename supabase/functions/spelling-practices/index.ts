@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
       } else {
         const { data, error } = await supabase
           .from("practice_assignments")
-          .select("id, practice_id, spelling_practices(*)")
+          .select("id, practice_id, level, spelling_practices(*)")
           .eq("user_id", userId);
 
         if (error) {
@@ -182,7 +182,8 @@ Deno.serve(async (req: Request) => {
         }
         practices = data?.map((item: any) => ({
           ...item.spelling_practices,
-          assignment_id: item.id
+          assignment_id: item.id,
+          level: item.level
         })) || [];
       }
 

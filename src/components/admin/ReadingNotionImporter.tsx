@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Database, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+import { useAuth } from '@/context/AuthContext';
+
 interface ReadingNotionImporterProps {
   practiceId: string;
   onComplete?: () => void;
@@ -13,6 +15,7 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
   onComplete, 
   onCancel 
 }) => {
+  const { session } = useAuth();
   const [databaseId, setDatabaseId] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'fetching' | 'saving' | 'success' | 'error'>('idle');
@@ -32,11 +35,16 @@ export const ReadingNotionImporter: React.FC<ReadingNotionImporterProps> = ({
     try {
       console.log('[ReadingNotionImporter] Debug Info:', {
         url: (supabase as any).functions.url,
-        functionName: 'reading-api'
+        functionName: 'notion-api'
       });
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       // 1. Fetch from Notion via Edge Function
-      const { data: notionData, error: notionError } = await supabase.functions.invoke('reading-api', {
+      const { data: notionData, error: notionError } = await supabase.functions.invoke('notion-api', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { 
           databaseId: databaseId.trim(),
           action: 'query-mcq-database'

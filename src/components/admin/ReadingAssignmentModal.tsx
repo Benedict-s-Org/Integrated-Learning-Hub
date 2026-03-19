@@ -24,7 +24,7 @@ export const ReadingAssignmentModal: React.FC<ReadingAssignmentModalProps> = ({
   practiceId,
   practiceTitle
 }) => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, session } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [existingAssignmentIds, setExistingAssignmentIds] = useState<Set<string>>(new Set());
@@ -44,7 +44,12 @@ export const ReadingAssignmentModal: React.FC<ReadingAssignmentModalProps> = ({
     setLoading(true);
     try {
       // 1. Fetch Students
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data: userData, error: userError } = await supabase.functions.invoke('user-management/list-users', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: currentUser?.id }
       });
 

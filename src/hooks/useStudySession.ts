@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 export interface DueCard {
   id: string;
@@ -17,6 +18,7 @@ export interface DueCard {
 }
 
 export function useStudySession() {
+  const { session } = useAuth();
   const [dueQueue, setDueQueue] = useState<DueCard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,12 @@ export function useStudySession() {
   // Review a card with FSRS rating
   const reviewCard = useCallback(async (cardId: string, rating: 1 | 2 | 3 | 4) => {
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error: invokeError } = await supabase.functions.invoke('review-card', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { cardId, rating }
       });
 

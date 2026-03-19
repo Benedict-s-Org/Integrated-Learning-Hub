@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList, ProofreadingPractice, ProofreadingAnswer } from '../types';
 import { supabase } from '../lib/supabase';
 import { processText } from '../utils/textProcessor';
+import { useAuth } from './AuthContext';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -11,6 +12,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) => {
+  const { session } = useAuth();
   const [savedContents, setSavedContents] = useState<SavedContent[]>([]);
   const [spellingLists, setSpellingLists] = useState<SpellingPracticeList[]>([]);
   const [proofreadingPractices, setProofreadingPractices] = useState<ProofreadingPractice[]>([]);
@@ -29,7 +31,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data: responseData, error } = await supabase.functions.invoke('memorization-content/list', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { userId }
       });
 
@@ -107,7 +114,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
 
       try {
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         const { data, error } = await supabase.functions.invoke('proofreading-practices/list', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey
+          },
           body: { userId }
         });
 
@@ -142,7 +154,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('memorization-content/create', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           title: content.title,
           originalText: content.originalText,
@@ -349,7 +366,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('proofreading-practices/create', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           title,
           sentences,
@@ -391,7 +413,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { error } = await supabase.functions.invoke('proofreading-practices/delete', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           practiceId: id,
           userId,
@@ -416,7 +443,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
 
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('proofreading-practices/update', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           practiceId: id,
           title,

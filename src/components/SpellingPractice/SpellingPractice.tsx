@@ -16,14 +16,15 @@ interface SpellingPracticeProps {
   practiceId?: string;
   assignmentId?: string;
   isPhraseMode?: boolean;
+  initialLevel?: number;
 }
 
-const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode }) => {
+const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId, isPhraseMode, initialLevel }) => {
   const { accentPreference, voicePreference, updateVoicePreference, user } = useAuth();
   const { recordWordAttempt } = useSpellingSrs();
   const startTimeRef = useRef<number>(Date.now());
   const wordStartTimeRef = useRef<number>(Date.now());
-  const [level, setLevel] = useState<1 | 2>(1);
+  const [level, setLevel] = useState<1 | 2>((initialLevel as 1 | 2) || 1);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [clickedLetters, setClickedLetters] = useState<string[]>([]);
@@ -380,24 +381,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 mb-4">
-              <Button
-                onClick={() => setLevel(1)}
-                disabled={showFeedback}
-                variant={level === 1 ? "primary" : "secondary"}
-                className="w-full sm:w-auto"
-              >
-                Level 1: Letter Click
-              </Button>
-              <Button
-                onClick={() => setLevel(2)}
-                disabled={showFeedback}
-                variant={level === 2 ? "primary" : "secondary"}
-                className="w-full sm:w-auto"
-              >
-                Level 2: Typing
-              </Button>
-            </div>
+
 
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Loader2, Users, Save, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 
 interface UserWithProfile {
     id: string;
@@ -18,13 +19,9 @@ interface BulkUserEditModalProps {
     adminUserId: string;
 }
 
-export function BulkUserEditModal({
-    isOpen,
-    onClose,
-    onSuccess,
-    selectedUsers,
     adminUserId,
 }: BulkUserEditModalProps) {
+    const { session } = useAuth();
     const [userUpdates, setUserUpdates] = useState<Record<string, { display_name: string; class: string; classNumber: string }>>({});
     const [globalClass, setGlobalClass] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -82,7 +79,12 @@ export function BulkUserEditModal({
                 classNumber: userUpdates[user.id].classNumber,
             }));
 
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { data, error: fnError } = await supabase.functions.invoke("user-management/bulk-update-users", {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: {
                     adminUserId,
                     updates,

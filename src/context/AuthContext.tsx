@@ -68,7 +68,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (session?.user?.id) {
       console.log('[AuthContext] Session active, performing self-sync check...');
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       supabase.functions.invoke('user-management/sync-current-user', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': anonKey
+        },
         body: { userId: session.user.id }
       }).catch(err => {
         console.warn('[AuthContext] Proactive sync failed (non-critical):', err);
@@ -177,7 +182,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (sessionUser?.id) {
       setRealIsSuperAdminLoading(true);
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       supabase.functions.invoke('auth/check-super-admin', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { adminUserId: sessionUser.id }
       }).then(({ data }) => {
         if (data && data.isSuperAdmin) {

@@ -61,7 +61,8 @@ export function SuperAdminPanel() {
         setImpersonatedAdminId,
         realUser,
         realIsSuperAdmin,
-        realIsSuperAdminLoading
+        realIsSuperAdminLoading,
+        session
     } = useAuth();
 
     useEffect(() => {
@@ -162,7 +163,12 @@ export function SuperAdminPanel() {
         setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, role: newRole } : u));
 
         // Use edge function to ensure sync with Auth metadata
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         const { data, error } = await supabase.functions.invoke("user-management/bulk-update-users", {
+            headers: {
+                'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                'apikey': anonKey
+            },
             body: {
                 adminUserId: realUser?.id,
                 updates: ids.map(id => ({ id, role: newRole }))

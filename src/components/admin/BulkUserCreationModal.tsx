@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 interface BulkUserCreationModalProps {
     isOpen: boolean;
@@ -18,6 +19,7 @@ interface UserInput {
 }
 
 export function BulkUserCreationModal({ isOpen, onClose, onSuccess, adminUserId }: BulkUserCreationModalProps) {
+    const { session } = useAuth();
     const [inputText, setInputText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [results, setResults] = useState<{
@@ -64,7 +66,12 @@ export function BulkUserCreationModal({ isOpen, onClose, onSuccess, adminUserId 
         setResults(null);
 
         try {
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const response = await supabase.functions.invoke('user-management/bulk-create-users', {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: {
                     users,
                     adminUserId

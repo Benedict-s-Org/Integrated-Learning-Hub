@@ -25,7 +25,7 @@ interface PracticeAssignmentProps {
 }
 
 export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice, onBack }) => {
-  const { user: currentUser, isAdmin } = useAuth();
+  const { user: currentUser, isAdmin, session } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -55,7 +55,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
           'apikey': anonKey
         },
         body: JSON.stringify({ adminUserId: currentUser?.id })

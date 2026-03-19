@@ -4,6 +4,7 @@ import { orange_sofa, wooden_bookshelf, round_rug, floor_lamp, wooden_table, coz
 import { supabase } from '@/integrations/supabase/client';
 import { generateAssetPrompt, getDesignJSON } from '@/utils/promptGenerator';
 import { useMemoryPalaceContext } from '@/contexts/MemoryPalaceContext';
+import { useAuth } from '@/context/AuthContext';
 
 import { FurnitureItem, FurnitureBoxPrimitive, CustomFurniture } from '@/types/furniture';
 
@@ -14,6 +15,7 @@ interface AssetGeneratorProps {
 
 export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
     const { fullCatalog } = useMemoryPalaceContext();
+    const { session } = useAuth();
     const [category, setCategory] = useState('furniture');
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -46,7 +48,12 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                 // Ensure we have the latest session
                 await supabase.auth.getSession();
 
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                 const { error } = await supabase.functions.invoke('generate-asset', {
+                    headers: {
+                        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                        'apikey': anonKey
+                    },
                     body: { ping: true }
                 });
 
@@ -142,7 +149,12 @@ export function AssetGenerator({ onClose, onSave }: AssetGeneratorProps) {
                 const functionUrl = `${(supabase as any).functions.url}/generate-asset`;
                 console.log('Invoke generate-asset at:', functionUrl, 'with payload:', payload);
 
+                const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                 const { data, error } = await supabase.functions.invoke('generate-asset', {
+                    headers: {
+                        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                        'apikey': anonKey
+                    },
                     body: { ...payload, model: selectedModel }
                 });
 

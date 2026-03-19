@@ -19,7 +19,7 @@ interface GroupMemberModalProps {
 }
 
 export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: GroupMemberModalProps) {
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, session } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -103,7 +103,12 @@ export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: Gr
 
             console.log('[GroupMemberModal] Sending updates:', JSON.stringify(updates, null, 2));
 
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
             const { data, error } = await supabase.functions.invoke('user-management/bulk-update-users', {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: {
                     adminUserId: currentUser?.id,
                     updates: updates
