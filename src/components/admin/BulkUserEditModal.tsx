@@ -18,7 +18,11 @@ interface BulkUserEditModalProps {
     selectedUsers: UserWithProfile[];
     adminUserId: string;
 }
-
+export function BulkUserEditModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    selectedUsers,
     adminUserId,
 }: BulkUserEditModalProps) {
     const { session } = useAuth();
