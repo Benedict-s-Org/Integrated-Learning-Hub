@@ -40,7 +40,15 @@ export function NotionImporter({ title, description, onImport, onCancel }: Notio
                 functionName: 'notion-api'
             });
 
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Need to get session. Since we don't have useAuth here, we can get it from supabase.auth
+            const { data: { session } } = await supabase.auth.getSession();
+            
             const { data, error } = await supabase.functions.invoke('notion-api', {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                    'apikey': anonKey
+                },
                 body: { 
                     databaseId: databaseId.trim(),
                     action: 'query-mcq-database'

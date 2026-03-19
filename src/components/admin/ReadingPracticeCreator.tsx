@@ -350,7 +350,12 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const fetchPdfs = async () => {
     setLoading(true);
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const { data, error } = await supabase.functions.invoke('reading-api', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { action: 'list-activities' }
       });
       
@@ -473,8 +478,13 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setLoading(true);
     setFetchError(null);
     try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       // Use notion-api directly — the same proven pattern as Spaced Repetition's NotionImporter
       const { data, error } = await supabase.functions.invoke('notion-api', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: { 
           databaseId: questionsDbId,
           action: 'query-mcq-database'
