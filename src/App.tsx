@@ -1170,7 +1170,16 @@ function AppContent() {
 
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '30px', backgroundColor: '#ff0055', color: 'white', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>
+        DEV DEBUG | ID: {user?.id?.substring(0, 8)}... | Role: {user?.role} | 
+        <button 
+          onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }}
+          style={{ marginLeft: '10px', backgroundColor: 'white', color: 'black', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer' }}
+        >
+          CLEAR & RELOAD
+        </button>
+      </div>
+      <div className="flex h-screen overflow-hidden bg-background pt-[30px]">
         {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
