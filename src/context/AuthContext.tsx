@@ -218,7 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch test user ID for impersonation when admin switches to user view
   useEffect(() => {
-    if (sessionUser?.role === 'admin' && isUserView && !testUserId) {
+    if (sessionUser?.role === 'admin' && isUserView) {
+      // Hardcoded test user ID for now as per app logic
       supabase
         .from('users' as any)
         .select('id, navigation_permissions')
@@ -229,11 +230,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setTestUserId(data.id);
             if (data.navigation_permissions) {
               setTestUserPermissions(data.navigation_permissions as Record<string, boolean>);
+            } else {
+              setTestUserPermissions({});
             }
           }
         });
+    } else if (!isUserView) {
+      // Clear test user data when leaving user view
+      setTestUserId(null);
+      setTestUserPermissions({});
     }
-  }, [sessionUser, isUserView, testUserId]);
+  }, [sessionUser, isUserView]);
 
   // Check for super admin status for the real session user
   useEffect(() => {

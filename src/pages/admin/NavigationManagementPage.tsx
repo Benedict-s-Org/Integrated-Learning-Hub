@@ -9,7 +9,9 @@ import {
   Users,
   AlertCircle,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  RotateCcw,
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigationSettings } from '@/context/NavigationSettingsContext';
@@ -24,7 +26,7 @@ export const NavigationManagementPage: React.FC = () => {
     const [filterClass, setFilterClass] = useState<string>('all');
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-    const [hideInactiveColumns, setHideInactiveColumns] = useState(true);
+    const [hideInactiveColumns, setHideInactiveColumns] = useState(false);
 
 
     useEffect(() => {
@@ -158,8 +160,7 @@ export const NavigationManagementPage: React.FC = () => {
         setIsSaving(true);
         setMessage(null);
         try {
-            // Bulk update via Promise.all
-            // In a real production app, you might want to only update changed users
+            console.log('[NavigationManagement] Saving permissions for users:', users.map(u => ({ id: u.id, perms: u.navigation_permissions })));
             await Promise.all(users.map(u => updateUserPermissions(u.id, u.navigation_permissions || {})));
             setMessage({ text: 'Permissions saved successfully for all users!', type: 'success' });
             setTimeout(() => setMessage(null), 3000);
@@ -168,6 +169,27 @@ export const NavigationManagementPage: React.FC = () => {
             setMessage({ text: 'Failed to save some permissions. Please try again.', type: 'error' });
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const { resetSettings } = useNavigationSettings();
+    const [isResetting, setIsResetting] = useState(false);
+
+    const handleResetToDefaults = async () => {
+        if (!window.confirm('Are you sure you want to reset GLOBAL navigation settings to defaults? This will affect all users who don\'t have specific overrides.')) {
+            return;
+        }
+
+        setIsResetting(true);
+        try {
+            await resetSettings();
+            setMessage({ text: 'Global navigation settings reset to defaults successfully!', type: 'success' });
+            setTimeout(() => setMessage(null), 3000);
+        } catch (err) {
+            console.error('Error resetting settings:', err);
+            setMessage({ text: 'Failed to reset settings.', type: 'error' });
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -235,6 +257,16 @@ export const NavigationManagementPage: React.FC = () => {
                         </label>
 
                         <div className="h-8 w-px bg-gray-200 mx-1 hidden md:block" />
+
+                        <button
+                            onClick={handleResetToDefaults}
+                            disabled={isResetting}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium shadow-sm hover:bg-gray-50 transition-all disabled:opacity-50"
+                            title="Reset Global Settings to Code Defaults"
+                        >
+                            {isResetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                            <span className="hidden sm:inline">Reset Defaults</span>
+                        </button>
 
                         <button
                             onClick={handleSave}
@@ -334,25 +366,42 @@ export const NavigationManagementPage: React.FC = () => {
                                                 </td>
 
                                                 {/* Permission Checkboxes */}
-                                                {navColumns.map((column) => (
-                                                    <td key={column.id} className="px-4 py-3 text-center border-r border-gray-50">
-                                                        <button
-                                                            onClick={() => handlePermissionChange(user.id, column.id, !user.navigation_permissions?.[column.id])}
-                                                            className={`transition-all duration-200 transform 
-                                                                ${user.navigation_permissions?.[column.id] ? 'scale-110' : 'scale-100 opacity-0 group-hover:opacity-100 hover:scale-105'}
-                                                                ${!user.navigation_permissions?.[column.id] && !hideInactiveColumns ? 'opacity-100' : ''}
-                                                            `}
-                                                        >
-                                                            {user.navigation_permissions?.[column.id] ? (
-                                                                <div className="w-5 h-5 bg-orange-500 rounded flex items-center justify-center shadow-sm">
-                                                                    <div className="w-2.5 h-1 border-b-2 border-l-2 border-white -rotate-45 mb-0.5" />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-5 h-5 border-2 border-gray-200 rounded group-hover:border-gray-300 transition-colors" />
-                                                            )}
-                                                        </button>
-                                                    </td>
-                                                ))}
+                                                {navColumns.map((column) => {
+                                                    const explicitValue = user.navigation_permissions?.[column.id];
+                                                    const globalVisible = column.visible; // The column object already has the global visibility from settings
+                                                    const isAdmin = user.role === 'admin';
+                                                    const isEffectiveVisible = isAdmin ? true : (explicitValue !== undefined ? explicitValue : globalVisible);
+                                                    const isInherited = explicitValue === undefined;
+
+                                                    return (
+                                                        <td key={column.id} className="px-4 py-3 text-center border-r border-gray-50">
+                                                            <button
+                                                                onClick={() => handlePermissionChange(user.id, column.id, !user.navigation_permissions?.[column.id])}
+                                                                title={`${isInherited ? 'Default: ' : 'Explicit: '}${isEffectiveVisible ? 'Visible' : 'Hidden'}`}
+                                                                className={`transition-all duration-200 transform 
+                                                                    ${isEffectiveVisible ? 'scale-110' : 'scale-100 opacity-0 group-hover:opacity-100 hover:scale-105'}
+                                                                    ${!isEffectiveVisible && !hideInactiveColumns ? 'opacity-100' : ''}
+                                                                `}
+                                                            >
+                                                                {explicitValue === true ? (
+                                                                    <div className="w-5 h-5 bg-orange-500 rounded flex items-center justify-center shadow-sm">
+                                                                        <div className="w-2.5 h-1 border-b-2 border-l-2 border-white -rotate-45 mb-0.5" />
+                                                                    </div>
+                                                                ) : explicitValue === false ? (
+                                                                    <div className="w-5 h-5 border-2 border-gray-300 rounded group-hover:border-gray-400 transition-colors bg-gray-50" />
+                                                                ) : globalVisible ? (
+                                                                    /* Inherited ON - Show a subtle indicator */
+                                                                    <div className="w-5 h-5 border-2 border-orange-200 rounded flex items-center justify-center bg-orange-50/50">
+                                                                        <div className="w-1.5 h-1.5 bg-orange-300 rounded-full" />
+                                                                    </div>
+                                                                ) : (
+                                                                    /* Inherited OFF */
+                                                                    <div className="w-5 h-5 border-2 border-gray-100 rounded group-hover:border-gray-200 transition-colors" />
+                                                                )}
+                                                            </button>
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
                                         ))
                                     )}

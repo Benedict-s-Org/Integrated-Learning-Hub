@@ -35,6 +35,7 @@ interface UpdatePermissionsRequest {
   userId: string;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
+  navigation_permissions?: Record<string, boolean>;
 }
 
 interface UpdateUserRequest {
@@ -55,6 +56,7 @@ interface UpdateUserRequest {
   ecas?: string[];
   managed_classes?: string[];
   password?: string;
+  navigation_permissions?: Record<string, boolean>;
 }
 
 interface BulkUpdateClassNumbersRequest {
@@ -81,6 +83,7 @@ interface BulkUpdateUsersRequest {
     readingProofreadingLevel?: number;
     proofreadingLevel?: number;
     memorizationLevel?: number;
+    navigation_permissions?: Record<string, boolean>;
   }>;
 }
 
@@ -346,7 +349,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "update-user") {
       const body: UpdateUserRequest = await req.json();
-      const { adminUserId, userId, username, email, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password } = body;
+      const { adminUserId, userId, username, email, display_name, role, class: classInput, className: classNameInput, classNumber, spellingLevel, readingRearrangingLevel, readingProofreadingLevel, proofreadingLevel, memorizationLevel, ecas, managed_classes, password, navigation_permissions } = body;
       
       console.log(`[user-management] Updating user ${userId} by admin ${adminUserId}`);
       
@@ -370,6 +373,7 @@ Deno.serve(async (req: Request) => {
       if (memorizationLevel !== undefined) updatePayload.memorization_level = memorizationLevel || null;
       if (classNumber !== undefined) updatePayload.class_number = classNumber === 0 ? 0 : (classNumber || null);
       if (ecas !== undefined) updatePayload.ecas = ecas || [];
+      if (navigation_permissions !== undefined) updatePayload.navigation_permissions = navigation_permissions;
 
       // 1. Update public.users
       const { data: updatedUser, error: dbError } = await supabase.from("users").update(updatePayload).eq("id", userId).select().single();
@@ -443,6 +447,7 @@ Deno.serve(async (req: Request) => {
           if (update.readingProofreadingLevel !== undefined) payload.reading_proofreading_level = update.readingProofreadingLevel;
           if (update.proofreadingLevel !== undefined) payload.proofreading_level = update.proofreadingLevel;
           if (update.memorizationLevel !== undefined) payload.memorization_level = update.memorizationLevel;
+          if (update.navigation_permissions !== undefined) payload.navigation_permissions = update.navigation_permissions;
 
           const { error: dbError } = await supabase.from("users").update(payload).eq("id", update.id);
           

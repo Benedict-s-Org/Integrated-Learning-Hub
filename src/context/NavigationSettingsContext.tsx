@@ -5,51 +5,51 @@ import { NavigationSettings, UserProfile } from '@/types';
 
 const DEFAULT_SETTINGS: NavigationSettings = {
   learning: [
-    {id: "classDashboard", label: "Class Dashboard", visible: true},
-    {id: "new", label: "Paragraph Memorization", visible: true},
-    {id: "proofreading", label: "Proofreading Exercise", visible: true},
-    {id: "spelling", label: "Spelling Practice", visible: true},
-    {id: "spacedRepetition", label: "Spaced Repetition", visible: true},
-    {id: "readingComprehension", label: "Reading Practice", visible: true},
-    {id: "wordSnake", label: "iPad Interactive Zone", visible: true},
-    {id: "learningHub", label: "My Learning Community", visible: true},
-    {id: "notionHub", label: "Notion Hub", visible: true},
-    {id: "phonics", label: "Phonics Sound Wall", visible: true},
-    {id: "interactiveScanner", label: "QR Up!", visible: true}
+    {id: "classDashboard", label: "Class Dashboard", visible: false},
+    {id: "new", label: "Paragraph Memorization", visible: false},
+    {id: "proofreading", label: "Proofreading Exercise", visible: false},
+    {id: "spelling", label: "Spelling Practice", visible: false},
+    {id: "spacedRepetition", label: "Spaced Repetition", visible: false},
+    {id: "readingComprehension", label: "Reading Practice", visible: false},
+    {id: "wordSnake", label: "iPad Interactive Zone", visible: false},
+    {id: "learningHub", label: "Learning Hub", visible: false},
+    {id: "notionHub", label: "Notion Hub", visible: false},
+    {id: "phonics", label: "Sound Wall", visible: false},
+    {id: "interactiveScanner", label: "QR Up!", visible: false}
   ],
   progress: [
-    {id: "progress", label: "Progress", visible: true},
-    {id: "assignments", label: "Assignments", visible: true},
-    {id: "saved", label: "Saved Content", visible: true}
+    {id: "progress", label: "Progress", visible: false},
+    {id: "assignments", label: "Assignments", visible: false},
+    {id: "saved", label: "Saved Content", visible: false}
   ],
   admin: [
-    {id: "adminUsers", label: "Admin Panel", visible: true},
-    {id: "adminAnalytics", label: "Analytics Dashboard (Beta)", visible: true},
-    {id: "superAdmin", label: "Super Admin Panel", visible: true},
-    {id: "homeworkRecord", label: "Homework Record", visible: true},
-    {id: "timetable", label: "Timetable Management", visible: true},
-    {id: "broadcast", label: "Broadcast Management", visible: true},
-    {id: "assignmentManagement", label: "Assignment Management", visible: true},
-    {id: "readingManagement", label: "Reading Practice Management", visible: true},
-    {id: "interactiveScannerAdmin", label: "Interactive Scanner", visible: true},
-    {id: "markerGenerator", label: "Marker Generator", visible: true},
-    {id: "legacyScanner", label: "Legacy QR Scanner", visible: true},
-    {id: "furnitureStudio", label: "Furniture Studio", visible: true},
-    {id: "assetUploader", label: "Asset Uploader", visible: true},
-    {id: "furnitureEditor", label: "Furniture Editor", visible: true},
-    {id: "spaceDesign", label: "Space Design Center", visible: true},
-    {id: "mapEditor", label: "Map Editor", visible: true},
-    {id: "aiIllustrator", label: "AI Illustrator (Flowith)", visible: true},
-    {id: "multiFormatUpload", label: "Multi-format Upload", visible: true},
-    {id: "uiBuilder", label: "UI Builder", visible: true},
-    {id: "themeDesigner", label: "Theme Designer", visible: true},
-    {id: "avatarBuilderStudio", label: "Avatar Builder Studio", visible: true},
-    {id: "avatarAssetManager", label: "Avatar Asset Manager", visible: true},
-    {id: "legacyDashboard", label: "Legacy Dashboard", visible: true},
-    {id: "groupCompetition", label: "Group Competition (6-Lane)", visible: true},
-    {id: "database", label: "Database", visible: true},
-    {id: "userProgress", label: "User Progress", visible: true},
-    {id: "mobileTest", label: "Mobile Test", visible: true}
+    {id: "adminUsers", label: "Admin Panel", visible: false},
+    {id: "adminAnalytics", label: "Analytics Dashboard (Beta)", visible: false},
+    {id: "superAdmin", label: "Super Admin Panel", visible: false},
+    {id: "homeworkRecord", label: "Homework Record", visible: false},
+    {id: "timetable", label: "Timetable Management", visible: false},
+    {id: "broadcast", label: "Broadcast Management", visible: false},
+    {id: "assignmentManagement", label: "Assignment Management", visible: false},
+    {id: "readingManagement", label: "Reading Practice Management", visible: false},
+    {id: "interactiveScannerAdmin", label: "Interactive Scanner", visible: false},
+    {id: "markerGenerator", label: "Marker Generator", visible: false},
+    {id: "legacyScanner", label: "Legacy QR Scanner", visible: false},
+    {id: "furnitureStudio", label: "Furniture Studio", visible: false},
+    {id: "assetUploader", label: "Asset Uploader", visible: false},
+    {id: "furnitureEditor", label: "Furniture Editor", visible: false},
+    {id: "spaceDesign", label: "Space Design Center", visible: false},
+    {id: "mapEditor", label: "Map Editor", visible: false},
+    {id: "aiIllustrator", label: "AI Illustrator (Flowith)", visible: false},
+    {id: "multiFormatUpload", label: "Multi-format Upload", visible: false},
+    {id: "uiBuilder", label: "UI Builder", visible: false},
+    {id: "themeDesigner", label: "Theme Designer", visible: false},
+    {id: "avatarBuilderStudio", label: "Avatar Builder Studio", visible: false},
+    {id: "avatarAssetManager", label: "Avatar Asset Manager", visible: false},
+    {id: "legacyDashboard", label: "Legacy Dashboard", visible: false},
+    {id: "groupCompetition", label: "Group Competition (6-Lane)", visible: false},
+    {id: "database", label: "Database", visible: false},
+    {id: "userProgress", label: "User Progress", visible: false},
+    {id: "mobileTest", label: "Mobile Test", visible: false}
   ]
 };
 
@@ -182,33 +182,64 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
   }, [isAdmin]);
 
   const updateUserPermissions = useCallback(async (userId: string, permissions: Record<string, boolean>) => {
-    if (!isAdmin) return;
+    if (!user || user.role !== 'admin') return;
     try {
-      const { error } = await (supabase
-        .from('users' as any)
-        .update({ navigation_permissions: permissions } as any) as any)
-        .eq('id', userId);
+      const { data, error } = await supabase.functions.invoke('user-management', {
+        body: {
+          action: 'update-user',
+          adminUserId: user.id,
+          userId,
+          navigation_permissions: permissions
+        }
+      });
 
       if (error) throw error;
+      console.log(`[NavigationSettings] Successfully updated permissions for ${userId} via Edge Function`);
     } catch (err) {
-      console.error('Error updating user permissions:', err);
+      console.error('[NavigationSettings] Error updating user permissions via Edge Function:', err);
       throw err;
     }
-  }, [isAdmin]);
+  }, [user]);
 
   const isItemVisible = useCallback((itemId: string, userOverride?: UserProfile | null): boolean => {
-    // 1. Check user-specific permissions first
+    // 1. Get the target user context
     const targetUser = userOverride || user;
-    if (targetUser?.navigation_permissions && targetUser.navigation_permissions[itemId] !== undefined) {
-      return targetUser.navigation_permissions[itemId];
+
+    // 2. Admins ALWAYS see everything (unless we are specifically overriding with a non-admin user)
+    if (targetUser?.role === 'admin') {
+      return true;
     }
 
-    // 2. Fallback to global settings
-    for (const section of Object.values(settings)) {
-      const item = section.find((i: any) => i.id === itemId);
-      if (item) return item.visible;
+    // 3. Check user-specific permissions for students/staff
+    let result: boolean | undefined = undefined;
+    const perms = targetUser?.navigation_permissions || (targetUser as any)?.navigation_permissions;
+
+    if (perms) {
+      if (Array.isArray(perms)) {
+        // Handle array of strings format
+        result = perms.includes(itemId);
+      } else if (typeof perms === 'object') {
+        // Handle boolean map format
+        result = perms[itemId];
+      }
     }
-    return true; // Default to visible if not found
+
+    // 4. Fallback to global settings if no explicit user permission found
+    if (result === undefined) {
+      for (const section of Object.values(settings)) {
+        const item = section.find((i: any) => i.id === itemId);
+        if (item) {
+          result = item.visible;
+          break;
+        }
+      }
+    }
+
+    // Final fallback
+    if (result === undefined) result = true;
+
+    console.log(`[isItemVisible] ID: ${itemId}, User: ${targetUser?.username}, Role: ${targetUser?.role}, Visible: ${result}`);
+    return result;
   }, [settings, user]);
 
   return (

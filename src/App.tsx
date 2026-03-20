@@ -3,7 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DashboardThemeProvider } from './context/DashboardThemeContext';
-import { NavigationSettingsProvider } from './context/NavigationSettingsContext';
+import { NavigationSettingsProvider, useNavigationSettings } from './context/NavigationSettingsContext';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
 import { SpellingSrsProvider } from './context/SpellingSrsContext';
@@ -98,6 +98,7 @@ type AppState =
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isItemVisible } = useNavigationSettings();
   const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
 
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -242,17 +243,17 @@ function AppContent() {
       setAppState({ page: 'new', step: 'input' });
       return;
     }
-    if (appState.page === 'proofreading' && !user.can_access_proofreading) {
+    if (appState.page === 'proofreading' && !isItemVisible('proofreading')) {
       setAppState({ page: 'new', step: 'input' });
     }
 
     // Check permissions for spelling
-    if (appState.page === 'spelling' && !user.can_access_spelling) {
+    if (appState.page === 'spelling' && !isItemVisible('spelling')) {
       setAppState({ page: 'new', step: 'input' });
     }
 
     // Check permissions for learning hub
-    if (appState.page === 'learningHub' && !user.can_access_learning_hub) {
+    if (appState.page === 'learningHub' && !isItemVisible('learningHub')) {
       setAppState({ page: 'new', step: 'input' });
     }
 
@@ -304,19 +305,19 @@ function AppContent() {
     }
 
     // Check permissions for proofreading (admins have automatic access)
-    if ((page === 'proofreading' || page === 'proofreadingAssignments') && !user?.can_access_proofreading && user?.role !== 'admin') {
+    if ((page === 'proofreading' || page === 'proofreadingAssignments') && !isItemVisible('proofreading') && user?.role !== 'admin') {
       alert('You do not have permission to access Proofreading Exercise.');
       return;
     }
 
     // Check permissions for spelling (admins have automatic access)
-    if (page === 'spelling' && !user?.can_access_spelling && user?.role !== 'admin') {
+    if (page === 'spelling' && !isItemVisible('spelling') && user?.role !== 'admin') {
       alert('You do not have permission to access Spelling Practice.');
       return;
     }
 
     // Check permissions for learning hub (admins have automatic access)
-    if (page === 'learningHub' && !user?.can_access_learning_hub && user?.role !== 'admin') {
+    if (page === 'learningHub' && !isItemVisible('learningHub') && user?.role !== 'admin') {
       alert('You do not have permission to access Learning Hub.');
       return;
     }

@@ -178,7 +178,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('new')}
                             />
                         )}
-                        {isItemVisible('proofreading') && (user?.can_access_proofreading || user?.role === 'admin') && (
+                        {isItemVisible('proofreading') && (
                             <NavItem
                                 icon={FileEdit}
                                 label="Proofreading Exercise"
@@ -186,7 +186,8 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('proofreading')}
                             />
                         )}
-                        {user && (user.can_access_spelling || user.role === 'admin') && isItemVisible('spelling') && (
+
+                        {isItemVisible('spelling') && (
                             <NavItem
                                 icon={Mic}
                                 label="Spelling Practice"
@@ -194,7 +195,8 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('spelling')}
                             />
                         )}
-                        {user && (user.can_access_spaced_repetition || user.role === 'admin') && isItemVisible('spacedRepetition') && (
+
+                        {isItemVisible('spacedRepetition') && (
                             <NavItem
                                 icon={Zap}
                                 label="Spaced Repetition"
@@ -202,6 +204,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('spacedRepetition')}
                             />
                         )}
+
                         {isItemVisible('readingComprehension') && (
                             <NavItem
                                 icon={BookOpen}
