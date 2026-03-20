@@ -12,7 +12,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) => {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [savedContents, setSavedContents] = useState<SavedContent[]>([]);
   const [spellingLists, setSpellingLists] = useState<SpellingPracticeList[]>([]);
   const [proofreadingPractices, setProofreadingPractices] = useState<ProofreadingPractice[]>([]);
@@ -108,7 +108,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
 
   useEffect(() => {
     const fetchProofreadingPractices = async () => {
-      if (!userId) {
+      // ONLY admins and staff should list all practices. Students use assignments.
+      if (!userId || !session?.user || (user?.role !== 'admin' && user?.role !== 'class_staff')) {
         setProofreadingPractices([]);
         return;
       }
@@ -145,7 +146,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     };
 
     fetchProofreadingPractices();
-  }, [userId]);
+  }, [userId, session, user?.role]);
 
   const addSavedContent = useCallback(async (content: Omit<SavedContent, 'id' | 'createdAt'>): Promise<boolean> => {
     if (!userId) {
