@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
   Plus, ChevronLeft, ChevronRight,
-  Loader2, X, Check, Trash2, Image as ImageIcon, RefreshCw
+  Loader2, X, Check, Trash2, Image as ImageIcon, RefreshCw,
+  Search, FileText
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +71,23 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   const [notionDbId, setNotionDbId] = useState(() => localStorage.getItem('passage_crop_notion_db_id') || '');
   const [dayPageMapping, setDayPageMapping] = useState<Record<number, number>>({});
   const [isFetchingNotion, setIsFetchingNotion] = useState(false);
+  const [pdfSearch, setPdfSearch] = useState('');
+  const [showPdfSelector, setShowPdfSelector] = useState(false);
+
+  // Derived unique PDFs list
+  const uniquePdfs = React.useMemo(() => {
+    const map = new Map();
+    pdfs.forEach(pdf => {
+      if (pdf.fileUrl && !map.has(pdf.name)) {
+        map.set(pdf.name, pdf);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pdfs]);
+
+  const filteredPdfs = uniquePdfs.filter(pdf => 
+    pdf.name.toLowerCase().includes(pdfSearch.toLowerCase())
+  );
 
   useEffect(() => {
     fetchPdfs();
@@ -464,6 +482,58 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                 placeholder="e.g. History..."
                 className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 w-24 placeholder:text-slate-300"
               />
+            </div>
+
+            {/* PDF Selector */}
+            <div className="ml-4 relative group">
+              <button 
+                onClick={() => setShowPdfSelector(!showPdfSelector)}
+                className="px-4 py-2 bg-white border-2 border-indigo-100 rounded-2xl flex items-center gap-3 hover:border-indigo-600 transition-all shadow-sm"
+              >
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <div className="text-left max-w-[200px]">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Selected PDF</p>
+                  <p className="text-[10px] font-bold text-slate-800 truncate">{selectedPdf?.name || 'Select PDF...'}</p>
+                </div>
+                <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showPdfSelector ? 'rotate-90' : ''}`} />
+              </button>
+
+              {showPdfSelector && (
+                <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-3xl shadow-2xl border border-indigo-50 p-4 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input 
+                      type="text"
+                      value={pdfSearch}
+                      onChange={(e) => setPdfSearch(e.target.value)}
+                      placeholder="Search PDFs..."
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                    {filteredPdfs.map((pdf) => (
+                      <button
+                        key={pdf.pageId}
+                        onClick={() => {
+                          loadPdfDoc(pdf);
+                          setShowPdfSelector(false);
+                        }}
+                        className={`w-full p-3 rounded-xl text-left transition-all flex items-center gap-3 ${
+                          selectedPdf?.pageId === pdf.pageId 
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                            : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <FileText className={`w-4 h-4 ${selectedPdf?.pageId === pdf.pageId ? 'text-white' : 'text-slate-400'}`} />
+                        <span className="text-[11px] font-bold truncate">{pdf.name}</span>
+                      </button>
+                    ))}
+                    {filteredPdfs.length === 0 && (
+                      <p className="text-[10px] font-bold text-slate-400 text-center py-4">No PDFs found</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">

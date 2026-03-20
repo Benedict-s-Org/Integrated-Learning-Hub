@@ -41,7 +41,8 @@
 - **Navigation Logic**: 
   - Hash URL parsing is used for public access content (`#/public/...`).
   - Access control is enforced inside `handlePageChange` and `useEffect` hooks in `App.tsx`.
-- **Navigation Permissions**: `NavigationSettingsContext.tsx` manages per-user permission overrides stored in `users.navigation_permissions`. `NavigationManagementPage` allows admins to toggle visibility of items for specific students.
+- **Navigation Permissions**: `NavigationSettingsContext.tsx` manages per-user permission overrides stored in `users.navigation_permissions`. `NavigationManagementPage.tsx` allows admins to toggle visibility of items for specific students.
+  - **Simplified Matrix View**: The `NavigationManagementPage` now features a **"Hide Unchecked"** toggle. When enabled, it dynamically hides columns (navigation items) that are completely inactive for the current set of filtered users. Cell-level checkboxes for unchecked items are also hidden until hover to provide a cleaner "labels-only" look for active permissions.
 - **Global UI Wrappers**: `appState` conditionally renders pages inside the main `<main>` container, usually alongside `UnifiedNavigation` unless hidden.
 
 ### Class Dashboard (L40-L47)
@@ -171,6 +172,7 @@
   - **Passage Bulk Cropper**: `PassageCropCreator.tsx` enables staging crops for multiple days from PDFs.
     - **Dynamic Scaling**: "Fit-to-Width" logic ensures the PDF is fully viewable.
     - **Notion Integration**: Fetches Day-Page mappings to automate navigation.
+    - **PDF Selector**: Searchable dropdown in the header allows manual selection of any PDF fetched from Notion, overriding the default day-mapping.
     - **Staging Queue**: Allows saving all crops at once to `reading_questions`.
     - **Bulk Select & Action Bar**: Added in `ReadingManagementPage.tsx` for passage crops. Allows batch assigning categories and bulk deletion with a sticky selection bar and "Select All" functionality.
 - **Interaction Logic**:

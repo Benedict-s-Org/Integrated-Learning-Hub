@@ -2,10 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Save, 
-  RotateCcw, 
   ChevronLeft, 
   Search,
-  Filter,
   CheckSquare,
   Square,
   Users,
@@ -26,16 +24,8 @@ export const NavigationManagementPage: React.FC = () => {
     const [filterClass, setFilterClass] = useState<string>('all');
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+    const [hideInactiveColumns, setHideInactiveColumns] = useState(true);
 
-    // Flatten all nav items for columns
-    const navColumns = useMemo(() => {
-        const allItems = [
-            ...settings.learning,
-            ...settings.progress,
-            ...settings.admin
-        ];
-        return allItems;
-    }, [settings]);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -74,6 +64,32 @@ export const NavigationManagementPage: React.FC = () => {
             return matchesSearch && matchesClass;
         });
     }, [users, searchQuery, filterClass]);
+
+    // Flatten all nav items for columns
+    const allNavColumns = useMemo(() => {
+        return [
+            ...settings.learning,
+            ...settings.progress,
+            ...settings.admin
+        ];
+    }, [settings]);
+
+    const activeColumnIds = useMemo(() => {
+        const activeIds = new Set<string>();
+        filteredUsers.forEach(u => {
+            if (u.navigation_permissions) {
+                Object.entries(u.navigation_permissions).forEach(([id, checked]) => {
+                    if (checked) activeIds.add(id);
+                });
+            }
+        });
+        return activeIds;
+    }, [filteredUsers]);
+
+    const navColumns = useMemo(() => {
+        if (!hideInactiveColumns) return allNavColumns;
+        return allNavColumns.filter(col => activeColumnIds.has(col.id));
+    }, [allNavColumns, hideInactiveColumns, activeColumnIds]);
 
     const handlePermissionChange = (userId: string, itemId: string, checked: boolean) => {
         setUsers(prev => prev.map(u => {
@@ -208,6 +224,16 @@ export const NavigationManagementPage: React.FC = () => {
                             ))}
                         </select>
 
+                        <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-xl cursor-pointer hover:bg-gray-200 transition-colors">
+                            <input
+                                type="checkbox"
+                                checked={hideInactiveColumns}
+                                onChange={(e) => setHideInactiveColumns(e.target.checked)}
+                                className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500/20"
+                            />
+                            <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Hide Unchecked</span>
+                        </label>
+
                         <div className="h-8 w-px bg-gray-200 mx-1 hidden md:block" />
 
                         <button
@@ -312,7 +338,10 @@ export const NavigationManagementPage: React.FC = () => {
                                                     <td key={column.id} className="px-4 py-3 text-center border-r border-gray-50">
                                                         <button
                                                             onClick={() => handlePermissionChange(user.id, column.id, !user.navigation_permissions?.[column.id])}
-                                                            className={`transition-all duration-200 transform ${user.navigation_permissions?.[column.id] ? 'scale-110' : 'scale-100 hover:scale-105'}`}
+                                                            className={`transition-all duration-200 transform 
+                                                                ${user.navigation_permissions?.[column.id] ? 'scale-110' : 'scale-100 opacity-0 group-hover:opacity-100 hover:scale-105'}
+                                                                ${!user.navigation_permissions?.[column.id] && !hideInactiveColumns ? 'opacity-100' : ''}
+                                                            `}
                                                         >
                                                             {user.navigation_permissions?.[column.id] ? (
                                                                 <div className="w-5 h-5 bg-orange-500 rounded flex items-center justify-center shadow-sm">

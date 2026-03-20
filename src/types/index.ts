@@ -100,6 +100,7 @@ export interface UserProfile {
   updated_at: string;
   accent_preference?: string;
   class?: string;
+  class_number?: number;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;
