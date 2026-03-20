@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DashboardThemeProvider } from './context/DashboardThemeContext';
+import { NavigationSettingsProvider } from './context/NavigationSettingsContext';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
 import { SpellingSrsProvider } from './context/SpellingSrsContext';
@@ -1408,6 +1409,7 @@ const QRScannerPage = lazy(() => import('./pages/QRScannerPage.tsx'));
 const AdminUIBuilderPage = lazy(() => import('./pages/AdminUIBuilderPage.tsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.tsx').then(m => ({ default: m.AdminUsersPage })));
 const AdminStudentLevelsPage = lazy(() => import('./pages/AdminStudentLevelsPage.tsx').then(m => ({ default: m.AdminStudentLevelsPage })));
+const NavigationManagementPage = lazy(() => import('./pages/admin/NavigationManagementPage'));
 const AdminGroupsPage = lazy(() => import('./pages/AdminGroupsPage.tsx').then(m => ({ default: m.AdminGroupsPage })));
 const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m => ({ default: m.SuperAdminPanel })));
@@ -1473,7 +1475,9 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <DashboardThemeProvider>
-          <AppRoutes />
+          <NavigationSettingsProvider>
+            <AppRoutes />
+          </NavigationSettingsProvider>
         </DashboardThemeProvider>
       </ThemeProvider>
     </AuthProvider>
@@ -1538,6 +1542,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <SuperAdminPanel />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/navigation"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <NavigationManagementPage />
               </Suspense>
             }
           />

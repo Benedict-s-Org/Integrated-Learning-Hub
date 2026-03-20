@@ -731,7 +731,8 @@ export const SpacedRepetitionPage: React.FC = () => {
         explanation: q.explanation || '',
         difficulty: q.difficulty || 'medium',
         tags: q.tags || [],
-        image_url: null
+        image_url: null,
+        notion_page_id: q.notion_page_id || null,
       }));
 
       setState({

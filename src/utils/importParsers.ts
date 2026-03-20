@@ -8,6 +8,7 @@ export interface ImportedQuestion {
   explanation?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   tags?: string[];
+  notion_page_id?: string;
 }
 
 // ─── CSV Parsing (via papaparse) ───────────────────────────────────────
@@ -203,7 +204,7 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
     const choiceC = extractNotionProperty(props, ['Choice C', 'choice_c', 'Option C', 'option_c', 'C']);
     const choiceD = extractNotionProperty(props, ['Choice D', 'choice_d', 'Option D', 'option_d', 'D']);
     const correctAnswer = extractNotionProperty(props, ['Correct Answer', 'correct_answer', 'Answer', 'answer', 'Correct']);
-    const explanation = extractNotionProperty(props, ['Explanation', 'explanation', 'Note', 'note']);
+    const explanation = extractNotionProperty(props, ['Explanation', 'explanation', 'Elaboration', 'elaboration', 'Note', 'note']);
     const difficulty = extractNotionProperty(props, ['Difficulty', 'difficulty', 'Level', 'level']);
 
     if (!questionText) continue;
@@ -252,6 +253,7 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
       explanation: explanation || undefined,
       difficulty: parseDifficulty(difficulty || undefined),
       tags: [],
+      notion_page_id: page.id || undefined,
     });
   }
 

@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigationSettings } from '@/context/NavigationSettingsContext';
 import { NavSection, NavItem } from './NavSection';
 
 interface UnifiedNavigationProps {
@@ -94,6 +95,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     onOpenNotifications,
 }) => {
     const { user, signOut, toggleViewMode, isUserView, isAdmin, isStaff, isMobileEmulator, setIsMobileEmulator, realIsSuperAdmin } = useAuth();
+    const { isItemVisible } = useNavigationSettings();
     const navigate = useNavigate();
     const isInCommunity = currentPage === 'learningHub';
 
@@ -161,7 +163,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                         bgColor="bg-emerald-50"
                         isCollapsed={!isNavOpen}
                     >
-                        {isStaff && (
+                        {isStaff && isItemVisible('classDashboard') && (
                             <NavItem
                                 icon={LayoutGrid}
                                 label="Class Dashboard"
@@ -169,13 +171,15 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('classDashboard')}
                             />
                         )}
-                        <NavItem
-                            icon={Home}
-                            label="Paragraph Memorization"
-                            isActive={currentPage === 'new'}
-                            onClick={() => onPageChange('new')}
-                        />
-                        {(user?.can_access_proofreading || user?.role === 'admin') && (
+                        {isItemVisible('new') && (
+                            <NavItem
+                                icon={Home}
+                                label="Paragraph Memorization"
+                                isActive={currentPage === 'new'}
+                                onClick={() => onPageChange('new')}
+                            />
+                        )}
+                        {isItemVisible('proofreading') && (user?.can_access_proofreading || user?.role === 'admin') && (
                             <NavItem
                                 icon={FileEdit}
                                 label="Proofreading Exercise"
@@ -183,7 +187,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('proofreading')}
                             />
                         )}
-                        {user && (user.can_access_spelling || user.role === 'admin') && (
+                        {user && (user.can_access_spelling || user.role === 'admin') && isItemVisible('spelling') && (
                             <NavItem
                                 icon={Mic}
                                 label="Spelling Practice"
@@ -191,7 +195,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('spelling')}
                             />
                         )}
-                        {user && (user.can_access_spaced_repetition || user.role === 'admin') && (
+                        {user && (user.can_access_spaced_repetition || user.role === 'admin') && isItemVisible('spacedRepetition') && (
                             <NavItem
                                 icon={Zap}
                                 label="Spaced Repetition"
@@ -199,13 +203,15 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('spacedRepetition')}
                             />
                         )}
-                        <NavItem
-                            icon={BookOpen}
-                            label="Reading Practice"
-                            isActive={currentPage === 'readingComprehension'}
-                            onClick={() => onPageChange('readingComprehension')}
-                        />
-                        {user && (
+                        {isItemVisible('readingComprehension') && (
+                            <NavItem
+                                icon={BookOpen}
+                                label="Reading Practice"
+                                isActive={currentPage === 'readingComprehension'}
+                                onClick={() => onPageChange('readingComprehension')}
+                            />
+                        )}
+                        {user && isItemVisible('wordSnake') && (
                             <NavItem
                                 icon={Tablet}
                                 label="iPad Interactive Zone"
@@ -213,7 +219,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('wordSnake')}
                             />
                         )}
-                        {user && (user.can_access_learning_hub || user.role === 'admin') && (
+                        {user && (user.can_access_learning_hub || user.role === 'admin') && isItemVisible('learningHub') && (
                             <NavItem
                                 icon={Building2}
                                 label="My Learning Community"
@@ -221,27 +227,33 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('learningHub')}
                             />
                         )}
-                        <NavItem
-                            icon={BookOpen}
-                            label="Notion Hub"
-                            isActive={currentPage === 'notionHub'}
-                            onClick={() => onPageChange('notionHub')}
-                        />
-                        <NavItem
-                            icon={Users}
-                            label="Phonics Sound Wall"
-                            isActive={currentPage === 'phonics'}
-                            onClick={() => onPageChange('phonics')}
-                        />
-                        <NavItem
-                            icon={Camera}
-                            label="QR Up!"
-                            isActive={currentPage === 'interactiveScanner'}
-                            onClick={() => {
-                                onPageChange('interactiveScanner');
-                                navigate('/qr-up/dashboard');
-                            }}
-                        />
+                        {isItemVisible('notionHub') && (
+                            <NavItem
+                                icon={BookOpen}
+                                label="Notion Hub"
+                                isActive={currentPage === 'notionHub'}
+                                onClick={() => onPageChange('notionHub')}
+                            />
+                        )}
+                        {isItemVisible('phonics') && (
+                            <NavItem
+                                icon={Users}
+                                label="Phonics Sound Wall"
+                                isActive={currentPage === 'phonics'}
+                                onClick={() => onPageChange('phonics')}
+                            />
+                        )}
+                        {isItemVisible('interactiveScanner') && (
+                            <NavItem
+                                icon={Camera}
+                                label="QR Up!"
+                                isActive={currentPage === 'interactiveScanner'}
+                                onClick={() => {
+                                    onPageChange('interactiveScanner');
+                                    navigate('/qr-up/dashboard');
+                                }}
+                            />
+                        )}
                     </NavSection>
 
                     {/* My Learning Community Section - Only visible when in community */}
@@ -295,14 +307,16 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             bgColor="bg-blue-50"
                             isCollapsed={!isNavOpen}
                         >
-                            <NavItem
-                                icon={TrendingUp}
-                                label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
-                                isActive={currentPage === 'progress'}
-                                onClick={() => onPageChange('progress')}
-                            />
+                            {isItemVisible('progress') && (
+                                <NavItem
+                                    icon={TrendingUp}
+                                    label={user.role === 'admin' ? 'User Analytics' : 'Progress'}
+                                    isActive={currentPage === 'progress'}
+                                    onClick={() => onPageChange('progress')}
+                                />
+                            )}
 
-                            {user.role !== 'admin' && (
+                            {user.role !== 'admin' && isItemVisible('assignments') && (
                                 <NavItem
                                     icon={ClipboardList}
                                     label="Assignments"
@@ -310,12 +324,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     onClick={() => onPageChange('assignments')}
                                 />
                             )}
-                            <NavItem
-                                icon={BookMarked}
-                                label="Saved Content"
-                                isActive={currentPage === 'saved'}
-                                onClick={() => onPageChange('saved')}
-                            />
+                            {isItemVisible('saved') && (
+                                <NavItem
+                                    icon={BookMarked}
+                                    label="Saved Content"
+                                    isActive={currentPage === 'saved'}
+                                    onClick={() => onPageChange('saved')}
+                                />
+                            )}
                         </NavSection>
                     )}
 
@@ -329,19 +345,23 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             defaultOpen={true}
                             isCollapsed={!isNavOpen}
                         >
-                            <NavItem
-                                icon={Shield}
-                                label="Admin Panel"
-                                isActive={window.location.pathname === '/admin/users'}
-                                onClick={() => navigate('/admin/users')}
-                            />
-                            <NavItem
-                                icon={TrendingUp}
-                                label="Analytics Dashboard (Beta)"
-                                isActive={currentPage === 'adminAnalytics'}
-                                onClick={() => onPageChange('adminAnalytics')}
-                            />
-                            {realIsSuperAdmin && (
+                            {isItemVisible('adminUsers') && (
+                                <NavItem
+                                    icon={Shield}
+                                    label="Admin Panel"
+                                    isActive={window.location.pathname === '/admin/users'}
+                                    onClick={() => navigate('/admin/users')}
+                                />
+                            )}
+                            {isItemVisible('adminAnalytics') && (
+                                <NavItem
+                                    icon={TrendingUp}
+                                    label="Analytics Dashboard (Beta)"
+                                    isActive={currentPage === 'adminAnalytics'}
+                                    onClick={() => onPageChange('adminAnalytics')}
+                                />
+                            )}
+                            {realIsSuperAdmin && isItemVisible('superAdmin') && (
                                 <NavItem
                                     icon={Crown}
                                     label="Super Admin Panel"
@@ -350,154 +370,212 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 />
                             )}
 
-                            <NavItem
-                                icon={ClipboardList}
-                                label="Homework Record"
-                                isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
-                                onClick={() => navigate('/admin/homework-record')}
-                            />
+                            {isItemVisible('homeworkRecord') && (
+                                <NavItem
+                                    icon={ClipboardList}
+                                    label="Homework Record"
+                                    isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
+                                    onClick={() => navigate('/admin/homework-record')}
+                                />
+                            )}
+                            {isItemVisible('timetable') && (
+                                <NavItem
+                                    icon={Layout}
+                                    label="Timetable Management"
+                                    isActive={window.location.pathname === '/admin/timetable' || currentPage === 'adminTimetable' as any}
+                                    onClick={() => navigate('/admin/timetable')}
+                                />
+                            )}
+                            {isItemVisible('broadcast') && (
+                                <NavItem
+                                    icon={Layout}
+                                    label="Broadcast Management"
+                                    isActive={window.location.pathname === '/admin/broadcast' || currentPage === 'broadcastManagement'}
+                                    onClick={() => navigate('/admin/broadcast')}
+                                />
+                            )}
+                            {isItemVisible('assignmentManagement') && (
+                                <NavItem
+                                    icon={FolderKanban}
+                                    label="Assignment Management"
+                                    isActive={currentPage === 'assignmentManagement'}
+                                    onClick={() => onPageChange('assignmentManagement')}
+                                />
+                            )}
+                            {isItemVisible('readingManagement') && (
+                                <NavItem
+                                    icon={BookOpen}
+                                    label="Reading Practice Management"
+                                    isActive={currentPage === 'readingComprehension'}
+                                    onClick={() => onPageChange('readingComprehension')}
+                                />
+                            )}
+                            {isItemVisible('interactiveScannerAdmin') && (
+                                <NavItem
+                                    icon={Camera}
+                                    label="Interactive Scanner"
+                                    isActive={window.location.pathname === '/admin/interactive-scanner'}
+                                    onClick={() => navigate('/admin/interactive-scanner')}
+                                />
+                            )}
+                            {isItemVisible('markerGenerator') && (
+                                <NavItem
+                                    icon={QrCode}
+                                    label="Marker Generator"
+                                    isActive={window.location.pathname === '/admin/marker-generator'}
+                                    onClick={() => navigate('/admin/marker-generator')}
+                                />
+                            )}
+                            {isItemVisible('legacyScanner') && (
+                                <NavItem
+                                    icon={QrCode}
+                                    label="Legacy QR Scanner"
+                                    isActive={window.location.pathname === '/admin/scanner'}
+                                    onClick={() => navigate('/admin/scanner')}
+                                />
+                            )}
+
+                            <div className="my-2 border-t border-purple-100 mx-2" />
+                            
+                            {/* Navigation Management - Always visible for admins */}
                             <NavItem
                                 icon={Layout}
-                                label="Timetable Management"
-                                isActive={window.location.pathname === '/admin/timetable' || currentPage === 'adminTimetable' as any}
-                                onClick={() => navigate('/admin/timetable')}
-                            />
-                            <NavItem
-                                icon={Layout}
-                                label="Broadcast Management"
-                                isActive={window.location.pathname === '/admin/broadcast' || currentPage === 'broadcastManagement'}
-                                onClick={() => navigate('/admin/broadcast')}
-                            />
-                            <NavItem
-                                icon={FolderKanban}
-                                label="Assignment Management"
-                                isActive={currentPage === 'assignmentManagement'}
-                                onClick={() => onPageChange('assignmentManagement')}
-                            />
-                            <NavItem
-                                icon={BookOpen}
-                                label="Reading Practice Management"
-                                isActive={currentPage === 'readingComprehension'}
-                                onClick={() => onPageChange('readingComprehension')}
-                            />
-                            <NavItem
-                                icon={Camera}
-                                label="Interactive Scanner"
-                                isActive={window.location.pathname === '/admin/interactive-scanner'}
-                                onClick={() => navigate('/admin/interactive-scanner')}
-                            />
-                            <NavItem
-                                icon={QrCode}
-                                label="Marker Generator"
-                                isActive={window.location.pathname === '/admin/marker-generator'}
-                                onClick={() => navigate('/admin/marker-generator')}
-                            />
-                            <NavItem
-                                icon={QrCode}
-                                label="Legacy QR Scanner"
-                                isActive={window.location.pathname === '/admin/scanner'}
-                                onClick={() => navigate('/admin/scanner')}
+                                label="Navigation Management"
+                                isActive={window.location.pathname === '/admin/navigation'}
+                                onClick={() => navigate('/admin/navigation')}
                             />
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
-                            <NavItem
-                                icon={PenTool}
-                                label="Furniture Studio"
-                                onClick={onOpenStudio}
-                            />
-                            <NavItem
-                                icon={Upload}
-                                label="Asset Uploader"
-                                onClick={onOpenUploader}
-                            />
-                            <NavItem
-                                icon={Settings}
-                                label="Furniture Editor"
-                                onClick={onOpenEditor}
-                            />
-                            <NavItem
-                                icon={Building2}
-                                label="Space Design Center"
-                                onClick={onOpenSpaceDesign}
-                            />
-                            <NavItem
-                                icon={Map}
-                                label="Map Editor"
-                                onClick={onOpenMapEditor}
-                            />
-                            <NavItem
-                                icon={Sparkles}
-                                label="AI Illustrator (Flowith)"
-                                isActive={currentPage === 'flowithTest'}
-                                onClick={() => onPageChange('flowithTest')}
-                            />
-                            <NavItem
-                                icon={FolderUp}
-                                label="Multi-format Upload"
-                                onClick={onOpenAssetUpload}
-                            />
-                            <NavItem
-                                icon={Layout}
-                                label="UI Builder"
-                                onClick={() => navigate('/admin/ui-builder')}
-                            />
-                            <NavItem
-                                icon={Palette}
-                                label="Theme Designer"
-                                onClick={onOpenThemeDesigner}
-                            />
+                            {isItemVisible('furnitureStudio') && (
+                                <NavItem
+                                    icon={PenTool}
+                                    label="Furniture Studio"
+                                    onClick={onOpenStudio}
+                                />
+                            )}
+                            {isItemVisible('assetUploader') && (
+                                <NavItem
+                                    icon={Upload}
+                                    label="Asset Uploader"
+                                    onClick={onOpenUploader}
+                                />
+                            )}
+                            {isItemVisible('furnitureEditor') && (
+                                <NavItem
+                                    icon={Settings}
+                                    label="Furniture Editor"
+                                    onClick={onOpenEditor}
+                                />
+                            )}
+                            {isItemVisible('spaceDesign') && (
+                                <NavItem
+                                    icon={Building2}
+                                    label="Space Design Center"
+                                    onClick={onOpenSpaceDesign}
+                                />
+                            )}
+                            {isItemVisible('mapEditor') && (
+                                <NavItem
+                                    icon={Map}
+                                    label="Map Editor"
+                                    onClick={onOpenMapEditor}
+                                />
+                            )}
+                            {isItemVisible('aiIllustrator') && (
+                                <NavItem
+                                    icon={Sparkles}
+                                    label="AI Illustrator (Flowith)"
+                                    isActive={currentPage === 'flowithTest'}
+                                    onClick={() => onPageChange('flowithTest')}
+                                />
+                            )}
+                            {isItemVisible('multiFormatUpload') && (
+                                <NavItem
+                                    icon={FolderUp}
+                                    label="Multi-format Upload"
+                                    onClick={onOpenAssetUpload}
+                                />
+                            )}
+                            {isItemVisible('uiBuilder') && (
+                                <NavItem
+                                    icon={Layout}
+                                    label="UI Builder"
+                                    onClick={() => navigate('/admin/ui-builder')}
+                                />
+                            )}
+                            {isItemVisible('themeDesigner') && (
+                                <NavItem
+                                    icon={Palette}
+                                    label="Theme Designer"
+                                    onClick={onOpenThemeDesigner}
+                                />
+                            )}
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
-                            <NavItem
-                                icon={User}
-                                label="Avatar Builder Studio"
-                                isActive={currentPage === 'avatarBuilder'}
-                                onClick={() => onPageChange('avatarBuilder')}
-                            />
-                            <NavItem
-                                icon={Sparkles}
-                                label="Avatar Asset Manager"
-                                isActive={currentPage === 'adminAvatarUploader'}
-                                onClick={() => onPageChange('adminAvatarUploader')}
-                            />
+                            {isItemVisible('avatarBuilderStudio') && (
+                                <NavItem
+                                    icon={User}
+                                    label="Avatar Builder Studio"
+                                    isActive={currentPage === 'avatarBuilder'}
+                                    onClick={() => onPageChange('avatarBuilder')}
+                                />
+                            )}
+                            {isItemVisible('avatarAssetManager') && (
+                                <NavItem
+                                    icon={Sparkles}
+                                    label="Avatar Asset Manager"
+                                    isActive={currentPage === 'adminAvatarUploader'}
+                                    onClick={() => onPageChange('adminAvatarUploader')}
+                                />
+                            )}
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
-                            <NavItem
-                                icon={Activity}
-                                label="Legacy Dashboard"
-                                isActive={currentPage === 'admin'}
-                                onClick={() => onPageChange('admin')}
-                            />
-                            <NavItem
-                                icon={Zap}
-                                label="Group Competition (6-Lane)"
-                                isActive={currentPage === 'groupCompetition'}
-                                onClick={() => onPageChange('groupCompetition')}
-                            />
-                            <NavItem
-                                icon={Database}
-                                label="Database"
-                                isActive={currentPage === 'database'}
-                                onClick={() => onPageChange('database')}
-                            />
-                            <NavItem
-                                icon={BarChart3}
-                                label="User Progress"
-                                isActive={currentPage === 'progress'}
-                                onClick={() => onPageChange('progress')}
-                            />
+                            {isItemVisible('legacyDashboard') && (
+                                <NavItem
+                                    icon={Activity}
+                                    label="Legacy Dashboard"
+                                    isActive={currentPage === 'admin'}
+                                    onClick={() => onPageChange('admin')}
+                                />
+                            )}
+                            {isItemVisible('groupCompetition') && (
+                                <NavItem
+                                    icon={Zap}
+                                    label="Group Competition (6-Lane)"
+                                    isActive={currentPage === 'groupCompetition'}
+                                    onClick={() => onPageChange('groupCompetition')}
+                                />
+                            )}
+                            {isItemVisible('database') && (
+                                <NavItem
+                                    icon={Database}
+                                    label="Database"
+                                    isActive={currentPage === 'database'}
+                                    onClick={() => onPageChange('database')}
+                                />
+                            )}
+                            {isItemVisible('userProgress') && (
+                                <NavItem
+                                    icon={BarChart3}
+                                    label="User Progress"
+                                    isActive={currentPage === 'progress'}
+                                    onClick={() => onPageChange('progress')}
+                                />
+                            )}
 
                             <div className="my-2 border-t border-purple-100 mx-2" />
 
-                            <NavItem
-                                icon={Smartphone}
-                                label={isMobileEmulator ? "Disable Mobile Layout" : "Mobile Test"}
-                                onClick={() => setIsMobileEmulator(!isMobileEmulator)}
-                                isActive={isMobileEmulator}
-                            />
+                            {isItemVisible('mobileTest') && (
+                                <NavItem
+                                    icon={Smartphone}
+                                    label={isMobileEmulator ? "Disable Mobile Layout" : "Mobile Test"}
+                                    onClick={() => setIsMobileEmulator(!isMobileEmulator)}
+                                    isActive={isMobileEmulator}
+                                />
+                            )}
                         </NavSection>
                     )}
                 </div>

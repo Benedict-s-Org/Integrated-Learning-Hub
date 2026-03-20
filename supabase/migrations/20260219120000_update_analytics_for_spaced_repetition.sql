@@ -72,6 +72,7 @@ DO $$ BEGIN
 END $$;
 
 -- Update get_class_analytics_summary to include spaced repetition
+DROP FUNCTION IF EXISTS get_class_analytics_summary(timestamptz, timestamptz);
 CREATE OR REPLACE FUNCTION get_class_analytics_summary(date_from timestamptz DEFAULT NULL, date_to timestamptz DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -191,6 +192,8 @@ END;
 $$;
 
 -- Update get_all_students_performance to include spaced repetition
+DROP FUNCTION IF EXISTS get_all_students_performance();
+DROP FUNCTION IF EXISTS get_all_students_performance(text);
 CREATE OR REPLACE FUNCTION get_all_students_performance()
 RETURNS TABLE (
   user_id uuid,
@@ -288,6 +291,7 @@ AS $$
 $$;
 
 -- Update get_recent_activity to include spaced repetition
+DROP FUNCTION IF EXISTS get_recent_activity(integer);
 CREATE OR REPLACE FUNCTION get_recent_activity(limit_count int DEFAULT 20)
 RETURNS TABLE (
   activity_type text,
@@ -361,6 +365,7 @@ AS $$
 $$;
 
 -- Update get_practice_activity_timeline to include spaced repetition
+DROP FUNCTION IF EXISTS get_practice_activity_timeline(integer);
 CREATE OR REPLACE FUNCTION get_practice_activity_timeline(days_back int DEFAULT 30)
 RETURNS TABLE (
   activity_date date,
@@ -439,6 +444,7 @@ AS $$
 $$;
 
 -- Add spaced repetition section to get_student_detailed_analytics
+DROP FUNCTION IF EXISTS get_student_detailed_analytics(uuid);
 CREATE OR REPLACE FUNCTION get_student_detailed_analytics(target_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql

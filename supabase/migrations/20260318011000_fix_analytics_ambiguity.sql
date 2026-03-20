@@ -1,4 +1,4 @@
--- Fix ambiguous column reference in get_class_analytics_summary
+DROP FUNCTION IF EXISTS get_class_analytics_summary(timestamptz, timestamptz);
 
 CREATE OR REPLACE FUNCTION get_class_analytics_summary(date_from timestamptz DEFAULT NULL, date_to timestamptz DEFAULT NULL)
 RETURNS SETOF jsonb 

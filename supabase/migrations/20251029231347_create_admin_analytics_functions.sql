@@ -27,6 +27,7 @@
 */
 
 -- Function to get comprehensive class-wide analytics summary
+DROP FUNCTION IF EXISTS get_class_analytics_summary(timestamptz, timestamptz);
 CREATE OR REPLACE FUNCTION get_class_analytics_summary(date_from timestamptz DEFAULT NULL, date_to timestamptz DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -130,6 +131,8 @@ END;
 $$;
 
 -- Function to get all students' performance overview
+DROP FUNCTION IF EXISTS get_all_students_performance();
+DROP FUNCTION IF EXISTS get_all_students_performance(text);
 CREATE OR REPLACE FUNCTION get_all_students_performance()
 RETURNS TABLE (
   user_id uuid,
@@ -209,6 +212,7 @@ AS $$
 $$;
 
 -- Function to get detailed analytics for a specific student
+DROP FUNCTION IF EXISTS get_student_detailed_analytics(uuid);
 CREATE OR REPLACE FUNCTION get_student_detailed_analytics(target_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -343,6 +347,7 @@ END;
 $$;
 
 -- Function to get practice activity timeline for visualization
+DROP FUNCTION IF EXISTS get_practice_activity_timeline(integer);
 CREATE OR REPLACE FUNCTION get_practice_activity_timeline(days_back int DEFAULT 30)
 RETURNS TABLE (
   activity_date date,
@@ -409,6 +414,7 @@ AS $$
 $$;
 
 -- Function to get performance distribution for charts
+DROP FUNCTION IF EXISTS get_performance_distribution(text);
 CREATE OR REPLACE FUNCTION get_performance_distribution(practice_type text DEFAULT 'spelling')
 RETURNS TABLE (
   score_range text,
@@ -495,6 +501,7 @@ END;
 $$;
 
 -- Function to get recent activity across all students
+DROP FUNCTION IF EXISTS get_recent_activity(integer);
 CREATE OR REPLACE FUNCTION get_recent_activity(limit_count int DEFAULT 20)
 RETURNS TABLE (
   activity_type text,

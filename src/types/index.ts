@@ -99,7 +99,7 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
   accent_preference?: string;
-  class?: string | null;
+  class?: string;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;
@@ -113,6 +113,7 @@ export interface UserProfile {
     voiceLang: string;
     voiceURI: string;
   } | null;
+  navigation_permissions?: Record<string, boolean>;
 }
 
 export interface AuthContextType {
@@ -355,6 +356,7 @@ export interface SpacedRepetitionQuestion {
   tags: string[];
   order_index?: number;
   notion_database_id?: string | null;
+  notion_page_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -473,3 +475,16 @@ export * from "./game";
 export * from "./city";
 export * from "./region";
 export * from "./ui-builder";
+
+// Navigation Settings Types
+export interface NavItemConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+}
+
+export interface NavigationSettings {
+  learning: NavItemConfig[];
+  progress: NavItemConfig[];
+  admin: NavItemConfig[];
+}

@@ -113,8 +113,8 @@ END;
 $$;
 
 -- 2. Update get_all_students_performance to include Reading
+DROP FUNCTION IF EXISTS get_all_students_performance();
 DROP FUNCTION IF EXISTS get_all_students_performance(text);
-
 CREATE OR REPLACE FUNCTION get_all_students_performance(p_class_name text DEFAULT NULL)
 RETURNS TABLE (
   user_id uuid,
@@ -241,6 +241,7 @@ AS $$
 $$;
 
 -- 3. Update get_recent_activity to include Reading
+DROP FUNCTION IF EXISTS get_recent_activity(integer);
 CREATE OR REPLACE FUNCTION get_recent_activity(limit_count int DEFAULT 50)
 RETURNS TABLE (
   activity_type text,

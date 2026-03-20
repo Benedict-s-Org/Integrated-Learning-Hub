@@ -1,3 +1,5 @@
+-- Ensure target_class column exists before seeding
+ALTER TABLE public.shared_links ADD COLUMN IF NOT EXISTS target_class TEXT;
 
 -- Seed a shared link for the 3A Class Dashboard on production
 -- This uses a subquery to find any existing admin for the 'created_by' field

@@ -1,7 +1,4 @@
--- Fix broken subquery alias in get_student_detailed_analytics
--- The 'recent_attempts' subquery references `sq.question_text` and `sra.is_correct`
--- in the outer jsonb_agg, but those aliases only exist INSIDE the subquery.
--- The outer query must reference the subquery alias `recent.*` instead.
+DROP FUNCTION IF EXISTS get_student_detailed_analytics(uuid);
 
 CREATE OR REPLACE FUNCTION get_student_detailed_analytics(target_user_id uuid)
 RETURNS jsonb

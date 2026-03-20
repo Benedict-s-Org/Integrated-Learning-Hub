@@ -225,6 +225,7 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         difficulty: q.difficulty || 'medium',
         tags: q.tags || [],
         order_index: typeof q.order_index === 'number' ? q.order_index : (startOrderIndex + idx),
+        notion_page_id: q.notion_page_id || null,
       })) as any[];
 
       const { data: insertedQuestions, error: insertError } = await ((supabase as any)

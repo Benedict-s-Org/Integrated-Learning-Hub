@@ -79,6 +79,7 @@ $$;
 
 -- 2. Update get_all_students_performance to include class and class_number
 -- We drop and recreate because return signature changes
+DROP FUNCTION IF EXISTS get_all_students_performance();
 DROP FUNCTION IF EXISTS get_all_students_performance(text);
 
 CREATE OR REPLACE FUNCTION get_all_students_performance(p_class_name text DEFAULT NULL)

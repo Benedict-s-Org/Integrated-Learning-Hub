@@ -35,7 +35,7 @@ DROP POLICY IF EXISTS "Admins can manage phonics_mappings" ON phonics_mappings;
 CREATE POLICY "Admins can manage phonics_mappings"
   ON phonics_mappings FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM user_profiles WHERE user_profiles.id = auth.uid() AND user_profiles.role = 'admin'
+      SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = 'admin'
     )
   );
 

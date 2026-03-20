@@ -96,8 +96,8 @@ END;
 $$;
 
 -- 2. Update get_all_students_performance to include SR and class info
+DROP FUNCTION IF EXISTS get_all_students_performance();
 DROP FUNCTION IF EXISTS get_all_students_performance(text);
-
 CREATE OR REPLACE FUNCTION get_all_students_performance(p_class_name text DEFAULT NULL)
 RETURNS TABLE (
   user_id uuid,

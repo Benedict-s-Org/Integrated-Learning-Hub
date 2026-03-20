@@ -94,6 +94,33 @@ export function QuestionCard({
     setSaveSuccess(false);
 
     try {
+      // For elaborate mode with a known Notion page, update the source page directly
+      if (mode === 'elaborate' && question.notion_page_id) {
+        const choicesText = question.choices.map((c, i) => `${String.fromCharCode(65 + i)}: ${c}`).join(' | ');
+        const correctLetter = String.fromCharCode(65 + question.correct_answer_index);
+        const promptText = `題目: ${question.question_text}\n選項: ${choicesText}\n正確答案: ${correctLetter}\n\n請用簡單易明、方便記憶嘅文字解釋點解${correctLetter}係正確答案，最好包埋記憶技巧。`;
+
+        const { data, error } = await supabase.functions.invoke('notion-api', {
+          body: {
+            action: 'update-page-properties',
+            pageId: question.notion_page_id,
+            properties: {
+              "Explanation": {
+                rich_text: [{ text: { content: promptText } }]
+              }
+            }
+          }
+        });
+
+        if (error) throw error;
+        if (data.error) throw new Error(data.error);
+
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+        return;
+      }
+
+      // Default: save to help database (for selection, whole, notsure, or elaborate without page_id)
       const choicesText = question.choices.map((c, i) => `${String.fromCharCode(65 + i)}: ${c}`).join('\n');
       const contextStr = mode === 'elaborate'
         ? `QUESTION: ${question.question_text}\n\nCHOICES:\n${choicesText}\n\nCORRECT ANSWER: ${String.fromCharCode(65 + question.correct_answer_index)}\nUSER ANSWER: ${selectedIndex !== null && selectedIndex >= 0 ? String.fromCharCode(65 + selectedIndex) : 'None'}`
@@ -381,7 +408,7 @@ export function QuestionCard({
                   ) : (
                     <Info size={14} />
                   )}
-                  {saveSuccess ? 'Request Sent' : 'Elaborate'}
+                  {saveSuccess ? 'Sent ✓' : 'Elaborate'}
                 </button>
               </div>
             </div>
