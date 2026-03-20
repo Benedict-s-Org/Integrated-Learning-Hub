@@ -28,6 +28,9 @@ export const ReadingManagementPage: React.FC = () => {
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showCropCreator, setShowCropCreator] = useState(false);
   const [selectedPracticeTitle, setSelectedPracticeTitle] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [editingCropId, setEditingCropId] = useState<string | null>(null);
+  const [editCategoryValue, setEditCategoryValue] = useState('');
 
   useEffect(() => {
     if (view === 'list') fetchPractices();
@@ -98,6 +101,26 @@ export const ReadingManagementPage: React.FC = () => {
       console.error('Error fetching passage crops:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateCategory = async (id: string, newCategory: string) => {
+    try {
+      const { error } = await supabase
+        .from('reading_questions')
+        .update({ 
+          // @ts-ignore - category column was added via migration but types are not updated
+          category: newCategory || null 
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setPassageCrops(prev => prev.map(c => c.id === id ? { ...c, category: newCategory } : c));
+      setEditingCropId(null);
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Failed to update category.');
     }
   };
 
@@ -298,63 +321,122 @@ export const ReadingManagementPage: React.FC = () => {
                 </button>
               </div>
               <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest mr-4">
-                {inventoryTab === 'questions' ? aplusQuestions.length : passageCrops.length} Total
+                {inventoryTab === 'questions' ? aplusQuestions.length : (passageCrops.filter(crop => {
+                  if (selectedCategory === 'all') return true;
+                  if (selectedCategory === 'none') return !crop.category;
+                  return crop.category === selectedCategory;
+                })).length} Total
               </div>
               {inventoryTab === 'crops' && (
-                <button 
-                  onClick={() => setShowCropCreator(true)}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all text-xs font-black"
-                >
-                  <Plus className="w-4 h-4" />
-                  Define New Passage Crop
-                </button>
+                <div className="flex items-center gap-3">
+                  <select 
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-indigo-500 transition-all"
+                  >
+                    <option value="all">All Categories</option>
+                    {Array.from(new Set(passageCrops.map(c => c.category).filter(Boolean))).sort().map(cat => (
+                      <option key={cat!} value={cat!}>{cat}</option>
+                    ))}
+                    <option value="none">Uncategorized</option>
+                  </select>
+                  <button 
+                    onClick={() => setShowCropCreator(true)}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all text-xs font-black"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Define New Passage Crop
+                  </button>
+                </div>
               )}
             </div>
-          </div>
+          </div>          {inventoryTab === 'crops' ? (() => {
+            const filteredCrops = passageCrops.filter(crop => {
+              if (selectedCategory === 'all') return true;
+              if (selectedCategory === 'none') return !crop.category;
+              return crop.category === selectedCategory;
+            });
 
-          {inventoryTab === 'crops' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {passageCrops.map((crop) => (
-                <div key={crop.id} className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden group hover:border-indigo-200 hover:shadow-xl transition-all flex flex-col">
-                  <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden border-b">
-                    <img 
-                      src={crop.question_image_url} 
-                      alt={crop.metadata?.day}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute top-4 left-4">
-                      <div className="px-3 py-1 bg-indigo-600/90 backdrop-blur-sm text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
-                        {crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Draft'}
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredCrops.map((crop) => (
+                  <div key={crop.id} className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden group hover:border-indigo-200 hover:shadow-xl transition-all flex flex-col">
+                    <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden border-b">
+                      <img 
+                        src={crop.question_image_url} 
+                        alt={crop.metadata?.day}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-4 left-4 flex flex-col gap-2">
+                        <div className="px-3 py-1 bg-indigo-600/90 backdrop-blur-sm text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg self-start">
+                          {crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Draft'}
+                        </div>
+                        {crop.category && (
+                          <div className="px-3 py-1 bg-emerald-500/90 backdrop-blur-sm text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg self-start">
+                            {crop.category}
+                          </div>
+                        )}
+                      </div>
+                      <div className="absolute top-4 right-4 flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setEditingCropId(crop.id);
+                            setEditCategoryValue(crop.category || '');
+                          }} 
+                          className="p-2 bg-white/90 text-slate-400 hover:text-indigo-600 rounded-xl shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDeletePassageCrop(crop.id)} className="p-2 bg-white/90 text-slate-400 hover:text-red-500 rounded-xl shadow-lg transition-all opacity-0 group-hover:opacity-100">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="absolute top-4 right-4">
-                      <button onClick={() => handleDeletePassageCrop(crop.id)} className="p-2 bg-white/90 text-slate-400 hover:text-red-500 rounded-xl shadow-lg transition-all opacity-0 group-hover:opacity-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col">
-                    <h3 className="text-sm font-black text-slate-800 mb-1">{crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Unnamed Crop'}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate mb-4">
-                      {crop.metadata?.pdf_name || 'Generic Source'}
-                    </p>
-                    <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-slate-400">{new Date(crop.created_at).toLocaleDateString()}</span>
-                      <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
-                        P{Math.round(crop.evidence_coords?.page || 1)} <ChevronRight className="w-3.5 h-3.5" />
+                    <div className="p-5 flex-1 flex flex-col">
+                      <h3 className="text-sm font-black text-slate-800 mb-1">{crop.metadata?.day ? `Day ${crop.metadata.day}` : 'Unnamed Crop'}</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate mb-4">
+                        {crop.metadata?.pdf_name || 'Generic Source'}
+                      </p>
+                      
+                      {editingCropId === crop.id ? (
+                        <div className="mb-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <input 
+                            autoFocus
+                            type="text"
+                            value={editCategoryValue}
+                            onChange={(e) => setEditCategoryValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleUpdateCategory(crop.id, editCategoryValue);
+                              if (e.key === 'Escape') setEditingCropId(null);
+                            }}
+                            placeholder="Category..."
+                            className="w-full px-3 py-2 bg-slate-50 border-2 border-indigo-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button onClick={() => setEditingCropId(null)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase">Cancel</button>
+                            <button onClick={() => handleUpdateCategory(crop.id, editCategoryValue)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase">Save</button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                        <span className="text-[9px] font-bold text-slate-400">{new Date(crop.created_at).toLocaleDateString()}</span>
+                        <div className="flex items-center gap-1.5 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                          P{Math.round(crop.evidence_coords?.page || 1)} <ChevronRight className="w-3.5 h-3.5" />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              {passageCrops.length === 0 && (
-                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-300">
-                  <Database className="w-12 h-12 mb-4 opacity-20" />
-                  <p className="text-sm font-black uppercase tracking-widest opacity-40">No passage crops defined yet</p>
-                </div>
-              )}
-            </div>
-          ) : (
+                ))}
+                {filteredCrops.length === 0 && (
+                  <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-300">
+                    <Database className="w-12 h-12 mb-4 opacity-20" />
+                    <p className="text-sm font-black uppercase tracking-widest opacity-40">No crops found</p>
+                  </div>
+                )}
+              </div>
+            );
+          })() : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {aplusQuestions.map((q) => (

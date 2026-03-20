@@ -867,6 +867,7 @@ export type Database = {
           order_index: number | null
           practice_id: string | null
           question_text: string | null
+          category: string | null
         }
         Insert: {
           correct_answer: string

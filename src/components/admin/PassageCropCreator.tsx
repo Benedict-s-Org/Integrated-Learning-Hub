@@ -23,6 +23,7 @@ interface StagedCrop {
   coords: { x: number; y: number; w: number; h: number; page: number };
   pdfUrl: string;
   pdfName: string;
+  category: string;
 }
 
 interface PassageCropCreatorProps {
@@ -48,6 +49,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   const [activeDay, setActiveDay] = useState<number>(1);
   const [dayInput, setDayInput] = useState('1');
   const [stagedCrops, setStagedCrops] = useState<Record<number, StagedCrop>>({});
+  const [globalCategory, setGlobalCategory] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -360,12 +362,23 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                 page: pageNum
               },
               pdfUrl: selectedPdf.fileUrl || '',
-              pdfName: selectedPdf.name
+              pdfName: selectedPdf.name,
+              category: globalCategory
             }
           }));
         }
       }
     }
+  };
+
+  const handleUpdateStagedCategory = (day: number, category: string) => {
+    setStagedCrops(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        category
+      }
+    }));
   };
 
   const handleSaveAll = async () => {
@@ -399,7 +412,9 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
             day: String(day),
             pdf_url: crop.pdfUrl,
             pdf_name: crop.pdfName
-          }
+          },
+          // @ts-ignore - category column was added via migration but types are not updated
+          category: crop.category || null
         });
         if (dbError) throw dbError;
       }
@@ -438,6 +453,17 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
             <div>
               <h2 className="text-xl font-black text-slate-800">Passage Bulk Cropper</h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stage multiple days & save once</p>
+            </div>
+            {/* Global Category Input */}
+            <div className="ml-8 px-4 py-2 bg-slate-50 border-2 border-slate-100 rounded-2xl flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-500">Global Category:</span>
+              <input 
+                type="text" 
+                value={globalCategory}
+                onChange={(e) => setGlobalCategory(e.target.value)}
+                placeholder="e.g. History..."
+                className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 w-24 placeholder:text-slate-300"
+              />
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -627,7 +653,19 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                     </div>
                     <div>
                       <p className="text-[10px] font-black text-emerald-900 uppercase">Day {activeDay} Staged</p>
-                      <p className="text-[9px] font-bold text-emerald-600 uppercase">Page {stagedCrops[activeDay].coords.page}</p>
+                      <p className="text-[9px] font-bold text-emerald-600 uppercase mb-2">Page {stagedCrops[activeDay].coords.page}</p>
+                      
+                      {/* Label/Category Input */}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Label / Category</span>
+                        <input 
+                          type="text"
+                          value={stagedCrops[activeDay].category}
+                          onChange={(e) => handleUpdateStagedCategory(activeDay, e.target.value)}
+                          placeholder="Category..."
+                          className="w-full px-3 py-1.5 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
