@@ -70,7 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Fetch full profile in background or carefully awaited
         fetchFullProfile(session.user.id).then(fullData => {
-          setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+          setSessionUser((prev: UserProfile | null) => prev ? { ...prev, ...fullData } : null);
+          console.log(`[AuthContext] Session initialized. User ID: ${session.user.id}, Role: ${fullData.role || 'user'}`);
         }).finally(() => {
           setLoading(false);
         });
