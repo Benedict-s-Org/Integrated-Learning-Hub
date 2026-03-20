@@ -38,15 +38,24 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   
   const [practiceWords, setPracticeWords] = useState<string[]>([]);
   const [level, setLevel] = useState<1 | 2>(1);
+  const [assignedLevel, setAssignedLevel] = useState<1 | 2>(1);
+  const [isManualLevel, setIsManualLevel] = useState(false);
 
   // Sync level from user profile or props
   useEffect(() => {
-    if (user?.spelling_level) {
-      setLevel(user.spelling_level as 1 | 2);
-    } else if (initialLevel) {
-      setLevel(initialLevel as 1 | 2);
+    // Only auto-sync if user hasn't manually toggled
+    if (!isManualLevel) {
+      if (user?.spelling_level) {
+        const userLevel = user.spelling_level as 1 | 2;
+        setLevel(userLevel);
+        setAssignedLevel(userLevel);
+      } else if (initialLevel) {
+        const initLevel = initialLevel as 1 | 2;
+        setLevel(initLevel);
+        setAssignedLevel(initLevel);
+      }
     }
-  }, [user?.spelling_level, initialLevel]);
+  }, [user?.spelling_level, initialLevel, isManualLevel]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [clickedLetters, setClickedLetters] = useState<string[]>([]);
@@ -188,6 +197,20 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     };
 
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleToggleLevel = () => {
+    const nextLevel = level === 1 ? 2 : 1;
+    setLevel(nextLevel);
+    setIsManualLevel(true);
+    
+    // Reset current word state to avoid confusion
+    setUserInput('');
+    setClickedLetters([]);
+    const currentWord = practiceWords[currentWordIndex];
+    if (currentWord) {
+      initializeShuffledLetters(currentWord);
+    }
   };
 
   const handlePlayAudio = () => {
@@ -439,6 +462,28 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
                   </span>
                 )}
               </div>
+
+              {/* Only allow Level 1 students to switch as per request */}
+              {assignedLevel === 1 && !showFeedback && (
+                <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                  <button 
+                    onClick={() => level === 2 && handleToggleLevel()}
+                    className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                      level === 1 ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    LETTER CLICK
+                  </button>
+                  <button 
+                    onClick={() => level === 1 && handleToggleLevel()}
+                    className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                      level === 2 ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    TYPING
+                  </button>
+                </div>
+              )}
             </div>
 
             {practiceWords.length > 0 ? (

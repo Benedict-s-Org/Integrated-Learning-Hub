@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, Volume2, CheckCircle, AlertCircle, Smartphone, Info, Crown, ChevronDown, ChevronRight } from 'lucide-react';
-import { groupVoicesByLanguage, createUtterance, ACCENT_OPTIONS, PREMIUM_VOICES, type VoiceInfo, type PremiumVoice } from '../../utils/voiceManager';
+import { groupVoicesByLanguage, createUtterance, fetchCloudAudio, ACCENT_OPTIONS, PREMIUM_VOICES, type VoiceInfo, type PremiumVoice } from '../../utils/voiceManager';
 import { supabase } from '../../lib/supabase';
 import VoiceHelpModal from './VoiceHelpModal';
 
@@ -172,9 +172,50 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
     window.speechSynthesis.speak(utterance);
   };
 
-  const isRecommendedVoice = (voiceInfo: VoiceInfo): boolean => {
-    const recommended = recommendedVoices[selectedAccent];
-    return recommended ? voiceInfo.name.includes(recommended.voice_name) : false;
+  const handleTestPremiumVoice = async (pv: PremiumVoice) => {
+    if (testingVoice) {
+      window.speechSynthesis.cancel();
+    }
+
+    setTestingVoice(pv.id);
+    console.log(`[AccentSelector] Starting test for premium voice: ${pv.name} (${pv.id})`);
+    try {
+      const sampleText = "Hello, this is a test of the premium voice.";
+      const audioUrl = await fetchCloudAudio(
+        sampleText,
+        selectedAccent,
+        pv.id
+      );
+
+      console.log(`[AccentSelector] fetchCloudAudio returned URL: ${audioUrl ? (audioUrl.startsWith('data:') ? 'DATA_URI' : audioUrl) : 'NULL'}`);
+
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onplay = () => console.log(`[AccentSelector] Audio playback started for ${pv.name}`);
+        audio.onended = () => {
+          console.log(`[AccentSelector] Audio playback ended for ${pv.name}`);
+          setTestingVoice(null);
+        };
+        audio.onerror = (e) => {
+          console.error(`[AccentSelector] Audio playback error for ${pv.name}:`, e);
+          alert(`Failed to play premium voice: ${pv.name}. Please check console for details.`);
+          setTestingVoice(null);
+        };
+        await audio.play().catch(e => {
+          console.error(`[AccentSelector] audio.play() failed for ${pv.name}:`, e);
+          alert(`Playback failed: ${e.message}`);
+          setTestingVoice(null);
+        });
+      } else {
+        console.warn(`[AccentSelector] No audio URL returned for ${pv.name}`);
+        alert(`Could not get audio for ${pv.name}. It might be a connection or configuration issue.`);
+        setTestingVoice(null);
+      }
+    } catch (error) {
+      console.error('[AccentSelector] Error testing premium voice:', error);
+      alert(`Error testing voice: ${error instanceof Error ? error.message : String(error)}`);
+      setTestingVoice(null);
+    }
   };
 
   if (!showVoiceSelection) {
@@ -256,10 +297,10 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
               {(PREMIUM_VOICES[selectedAccent] || []).map((pv) => {
                 const isSelected = currentVoiceURI === pv.id;
                 return (
-                  <button
+                  <div
                     key={pv.id}
                     onClick={() => handlePremiumVoiceSelect(pv)}
-                    className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                    className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-indigo-50 border-indigo-400 shadow-sm'
                         : 'bg-white border-gray-100 hover:border-indigo-200'
@@ -274,8 +315,28 @@ const AccentSelector: React.FC<AccentSelectorProps> = ({
                         <div className="text-[10px] text-indigo-500 font-medium uppercase tracking-wider">{pv.type}</div>
                       </div>
                     </div>
-                    {isSelected && <CheckCircle size={18} className="text-indigo-600" />}
-                  </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTestPremiumVoice(pv);
+                        }}
+                        disabled={testingVoice === pv.id}
+                        className={`p-2 rounded-lg transition-colors ${
+                          testingVoice === pv.id
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                        title="Test Voice"
+                      >
+                        <Volume2 size={16} className={testingVoice === pv.id ? 'animate-pulse mr-1' : 'mr-1'} />
+                        <span className="text-xs font-medium">
+                          {testingVoice === pv.id ? 'Playing...' : 'Test'}
+                        </span>
+                      </button>
+                      {isSelected && <CheckCircle size={18} className="text-indigo-600" />}
+                    </div>
+                  </div>
                 );
               })}
             </div>

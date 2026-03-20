@@ -148,18 +148,18 @@
 - **`award_dictation_bonus`**: Complex server-side logic assigning scale-based coins depending on dictation accuracy percentages.
 - **Gotcha**: Auth search_path `pgcrypto` is in the `extensions` schema. Any auth-related DB function *must* have `search_path = public, extensions, pg_temp`.
 
-### Spelling Practice (L143-L149)
+### Spelling Practice (L151-L161)
 - **Path**: `src/components/SpellingPractice/SpellingPractice.tsx`
 - **Concept**: A pronunciation-based spelling game with levels (Letter clicking vs Typing).
 - **Features**:
   - **Centralized Difficulty**: Difficulty is enforced from the student's profile (`spelling_level`); selection buttons are hidden in `SavedPractices.tsx` and the practice session.
+  - **Level Switching**: Updated to allow Level 1 students to toggle between "Letter Click" (Level 1) and "Typing" (Level 2) modes.
   - **Dynamic Word Counts**: Users choose 10, 20, 40, or All words before starting (via `SavedPractices.tsx` prep-modal).
   - **Shuffling**: Words are randomized before the limit is applied.
   - **SRS Integration**: Connects to SM-2 algorithm via `SpellingSrsContext` for daily reviews.
   - **Accent Management**: Admins can select accents/voices via `AccentSelector`; hidden from students to prevent distraction.
 - **Components**: `SpellingInput` (Creation), `SpellingPreview` (Admin verify), `SavedPractices` (The Hub/Review center).
   - **Preview Functionality**: `SpellingPreview.tsx` implements robust "Play All" logic using `useRef` to avoid async state closure issues and supports immediate stopping.
-.
 
 ### Reading Practice & Notion Sync (L160-L178)
 - **Files**: `src/components/ReadingPractice/`, `src/components/admin/ReadingNotionImporter.tsx`, `src/components/admin/ReadingPracticeCreator.tsx`, `src/components/admin/PassageCropCreator.tsx`
@@ -172,6 +172,7 @@
     - **Dynamic Scaling**: "Fit-to-Width" logic ensures the PDF is fully viewable.
     - **Notion Integration**: Fetches Day-Page mappings to automate navigation.
     - **Staging Queue**: Allows saving all crops at once to `reading_questions`.
+    - **Bulk Select & Action Bar**: Added in `ReadingManagementPage.tsx` for passage crops. Allows batch assigning categories and bulk deletion with a sticky selection bar and "Select All" functionality.
 - **Interaction Logic**:
   - **ReadingChallenge.tsx**: Supports three UI modes:
     - **Unscramble**: Draggable word tiles.
@@ -186,11 +187,12 @@
 - **Concept**: "Generate-once, cache forever" architecture using Google Drive as persistent storage.
 - **Mechanism**:
   - **Cache Key**: 4-column uniqueness on `(text, accent, voice_name, speaking_rate)` in `tts_cache`.
-  - **Drive Storage**: MP3s are stored in Google Drive with deterministic SHA-256 filenames (`<hash>.mp3`).
-  - **Public Access**: Function sets `anyone-with-link=reader` permission on Drive files.
-  - **URL-First**: Returns `audioUrl` (Google Drive direct link) to the frontend, skipping base64 overhead and re-downloads on cache hits.
-- **Frontend**: `voiceManager.ts` prefers `audioUrl` when available in the Edge Function response.
-- **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DRIVE_FOLDER_ID` secrets in Supabase.
+  - **Drive Storage**: MP3s are stored in **Google Shared Drive** (standard Folders have 0 quota for Service Accounts).
+  - **Shared Drive Setup**: The `GOOGLE_DRIVE_FOLDER_ID` must be inside a Shared Drive, and the Service Account email must be added as a **Contributor**.
+  - **Proxy Strategy (Fixed Playback)**: To bypass organizational restrictions that block public Drive links (`NotSupportedError`), the Edge Function **proxies** the audio. On cache hits, it downloads from Drive internally and returns the content as **Base64** (`audioContent`).
+  - **API Key Support**: Supports `GOOGLE_TTS_API_KEY` for synthesis, falling back to Service Account if missing.
+- **Frontend**: `voiceManager.ts` always prioritizes `audioContent` (Base64) for reliable playback, using `audioUrl` only as a secondary reference.
+- **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_TTS_API_KEY` secrets. Ensures `supportsAllDrives=true` and `supportsTeamDrives=true` are set on all Drive API calls.
 
 ### Token Optimization (L165-L175)
 - **Problem**: High context/token usage due to large file reads and verbose artifacts.

@@ -315,7 +315,7 @@ export const fetchCloudAudio = async (
     }
 
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const { data, error } = await supabase.functions.invoke('google-tts', {
+    const response = await supabase.functions.invoke('google-tts', {
       headers: {
         'Authorization': `Bearer ${session?.access_token || anonKey}`,
         'apikey': anonKey
@@ -323,22 +323,60 @@ export const fetchCloudAudio = async (
       body: { text, accent, voiceName, speakingRate }
     });
 
+    const { data, error } = response;
+
     if (error) {
-      console.error('[VoiceManager] Error invoking google-tts:', error);
-      return null;
+      // Try to extract JSON error message from the response if it exists
+      let errorMessage = error.message;
+      
+      // FunctionsHttpError contains the Response object in context
+      const context = (error as any).context;
+      if (context instanceof Response) {
+        try {
+          // Clone the response because we can only read it once
+          const clonedRes = context.clone();
+          const detail = await clonedRes.json();
+          // Use .details if it exists, as it's more specific (e.g. "Failed to parse JSON")
+          errorMessage = detail.details || detail.error || errorMessage;
+        } catch (e) {
+          // If not JSON, try text
+          try {
+            errorMessage = await context.clone().text();
+          } catch (e2) {
+            // Fallback to original message
+          }
+        }
+      }
+      
+      console.error('[VoiceManager] google-tts error details:', errorMessage);
+      throw new Error(`Google TTS Error: ${errorMessage}`);
     }
 
-    // Prefer audioUrl (Google Drive public link) — no base64 overhead
-    if (data?.audioUrl) {
-      console.log(`[VoiceManager] Using Drive audioUrl (cached=${data.cached})`);
-      return data.audioUrl;
+    console.log('[VoiceManager] google-tts response:', { 
+      hasAudioUrl: !!data?.audioUrl, 
+      hasAudioContent: !!data?.audioContent,
+      cached: data?.cached 
+    });
+
+    // Surface any Drive upload errors for debugging
+    if (data?.driveError) {
+      console.error('[VoiceManager] ⚠️ Google Drive upload failed:', data.driveError);
     }
 
-    // Fallback: base64 data URI (backward compat)
+    // ALWAYS PREFER Base64 (audioContent) if available.
+    // This is the most robust way to play audio in Workspace environments where public Drive links are often blocked.
     if (data?.audioContent) {
+      console.log(`[VoiceManager] Using Base64 audioContent (cached=${data.cached})`);
       return `data:audio/mp3;base64,${data.audioContent}`;
     }
 
+    // FALLBACK: Use Drive URL (only if for some reason base64 is missing)
+    if (data?.audioUrl) {
+      console.log(`[VoiceManager] Using Drive audioUrl fallback (cached=${data.cached})`);
+      return data.audioUrl;
+    }
+
+    console.warn('[VoiceManager] No audio output in google-tts response');
     return null;
   } catch (error) {
     console.error('[VoiceManager] fetchCloudAudio failed:', error);

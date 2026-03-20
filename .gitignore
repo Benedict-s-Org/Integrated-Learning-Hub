@@ -23,3 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 .env
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.app.json
+!tsconfig.node.json
+!composer.json
+!cloudbuild.yaml
+# Ignore specifically the Google key just to be safe
+Google text-to-speech API key.json
