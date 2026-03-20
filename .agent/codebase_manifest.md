@@ -3,7 +3,7 @@
 | Module | Summary | Lines |
 |---|---|---|
 | **Contexts & Auth** | `AuthContext`, `AppContext`, logic for roles, impersonation. | L24-L30 |
-| **Routing & App Structure** | `App.tsx`, `UnifiedNavigation`, `AppState` navigation system. | L32-L38 |
+| **Routing & App Structure** | `App.tsx`, `UnifiedNavigation`, `NavigationManagementPage.tsx` - Per-student navigation permission system. | L40-L47 |
 | **Class Dashboard** | `ClassDashboardPage.tsx` - Main admin dashboard, student lists, rewards, morning duties. | L40-L47 |
 | **Admin Users** | `AdminUsersPage.tsx` - User CRUD, bulk edits, QR codes, homework records. | L49-L53 |
 | **Admin Progress** | `AdminProgressPage.tsx` - Detailed student stats, coin tracking, and accuracies. | L55-L59 |
@@ -37,13 +37,14 @@
   - **View Mode**: `toggleViewMode` flips an admin between 'admin' and 'student' view without logging out.
 - **App Data**: `AppContext` globally fetches and caches lists of `savedContents`, `spellingLists`, and `proofreadingPractices`.
 
-### Routing & App Structure (L32-L38)
-- **Files**: `src/App.tsx`, `src/components/UnifiedNavigation/UnifiedNavigation.tsx`
+### Routing & App Structure (L40-L47)
+- **Files**: `src/App.tsx`, `src/components/UnifiedNavigation/UnifiedNavigation.tsx`, `src/pages/admin/NavigationManagementPage.tsx`
 - **Routing Mechanism**: Does NOT use standard React Router `BrowserRouter` for inner navigation. Instead, it uses a custom state machine: `appState` (`AppState` interface).
 - **Navigation Logic**: 
   - Hash URL parsing is used for public access content (`#/public/...`).
-  - Access control is enforced inside `handlePageChange` and `useEffect` hooks in `App.tsx` (e.g., kicking non-admins out of restricted `page` states).
-- **Global UI Wrappers**: `appState` conditionally renders pages inside the main `<main>` container, usually alongside `UnifiedNavigation` unless hidden (like full-screen scanners).
+  - Access control is enforced inside `handlePageChange` and `useEffect` hooks in `App.tsx`.
+- **Navigation Permissions**: `NavigationSettingsContext.tsx` manages per-user permission overrides stored in `users.navigation_permissions`. `NavigationManagementPage` allows admins to toggle visibility of items for specific students.
+- **Global UI Wrappers**: `appState` conditionally renders pages inside the main `<main>` container, usually alongside `UnifiedNavigation` unless hidden.
 
 ### Class Dashboard (L40-L47)
 - **Path**: `src/pages/ClassDashboardPage.tsx`
@@ -115,10 +116,11 @@
 - **Tech**: Custom injected dictionary `DICT_4X4_1000`. Analyzes marker rotation to determine the answer (A, B, C, D).
 - **Gotchas**: Modifies `AR` global object. Performance sensitive in `processFrame`.
 
-### Spaced Repetition (L107-L111)
+### Spaced Repetition (L118-L123)
 - **Path**: `src/pages/SpacedRepetitionPage.tsx` & `src/utils/spacedRepetitionAlgorithm.ts`
 - **Concept**: Uses an adaptation of SuperMemo-2 (SM-2) algorithm. 
-- **DB Mapping**: Saves tracking data and computes `next_review_date`, `interval`, and `ease_factor`.
+- **DB Mapping**: Saves tracking data and computes `next_review_date`, `interval`, and `ease_factor`. Includes `notion_page_id` to link back to source content.
+- **Notion AI Elaboration**: "Elaborate" button in `QuestionCard.tsx` writes a help prompt directly to the source Notion page's `Explanation` property, triggering Notion AI for the teacher.
 - **State Flow**: `SessionSummary` shows accuracy and metrics after completing a review round.
 
 ### Core Utilities (L113-L116)
