@@ -123,6 +123,7 @@ export interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isLoading: boolean; // Alias for loading for compatibility
+  profileLoaded: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string | undefined, newPassword: string, verificationCode?: string) => Promise<{ error: Error | null }>;

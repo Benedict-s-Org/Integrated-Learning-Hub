@@ -47,8 +47,8 @@ const safeArray = <T>(data: unknown): T[] => {
 
 export const useRoomData = (palaceId: string | null = null) => {
   console.log("useRoomData: Hook called");
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
-  console.log("useRoomData: Auth state", { hasUser: !!user, authLoading });
+  const { user, isAdmin, isLoading: authLoading, profileLoaded } = useAuth();
+  console.log("useRoomData: Auth state", { hasUser: !!user, authLoading, profileLoaded });
   const [data, setData] = useState<RoomData>(DEFAULT_ROOM_DATA);
   const [isLoading, setIsLoading] = useState(true);
   const [roomError, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export const useRoomData = (palaceId: string | null = null) => {
 
   // Load data from Supabase
   const loadData = useCallback(async () => {
-    if (!user) {
+    if (!user || !profileLoaded || user.id === '00000000-0000-0000-0000-000000000000') {
       setIsLoading(false);
       return;
     }
@@ -156,7 +156,7 @@ export const useRoomData = (palaceId: string | null = null) => {
 
   // Save data to Supabase with debounce
   const saveData = useCallback(async (newData: RoomData) => {
-    if (!user || !hasInitializedRef.current) return;
+    if (!user || !profileLoaded || !hasInitializedRef.current || user.id === '00000000-0000-0000-0000-000000000000') return;
 
     // Clear existing timeout
     if (saveTimeoutRef.current) {

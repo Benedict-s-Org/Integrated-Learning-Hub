@@ -75,7 +75,7 @@ export const useNavigationSettings = () => useContext(NavigationSettingsContext)
 
 export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<NavigationSettings>(DEFAULT_SETTINGS);
-  const { user } = useAuth();
+  const { user, profileLoaded } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   // Fetch initial settings
@@ -235,12 +235,16 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
       }
     }
 
-    // Final fallback
-    if (result === undefined) result = true;
+    // Final fallback: If not found in user perms OR global settings, default to false for safety
+    if (result === undefined) result = false;
 
-    console.log(`[isItemVisible] ID: ${itemId}, User: ${targetUser?.username}, Role: ${targetUser?.role}, Visible: ${result}`);
+    if (itemId !== 'adminUsers') { // Skip noise from admin panel checks
+      const color = result ? 'color: #10b981' : 'color: #ef4444';
+      console.log(`%c[Navigation] ID: ${itemId}, User: ${targetUser?.username || 'Guest'}, Role: ${targetUser?.role || 'none'}, Visible: ${result}`, `font-weight: bold; ${color}`);
+    }
+    
     return result;
-  }, [settings, user]);
+  }, [settings, user, profileLoaded]);
 
   return (
     <NavigationSettingsContext.Provider value={{ 

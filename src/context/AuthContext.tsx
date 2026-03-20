@@ -9,6 +9,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionUser, setSessionUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [realIsSuperAdmin, setRealIsSuperAdmin] = useState(false);
   const [realIsSuperAdminLoading, setRealIsSuperAdminLoading] = useState(true);
 
@@ -65,18 +66,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       if (session?.user) {
         const profile = mapUserToProfile(session.user);
-        // Load base profile first so loading can end faster
         setSessionUser(profile);
         
-        // Fetch full profile in background or carefully awaited
+        // Fetch full profile
         fetchFullProfile(session.user.id).then(fullData => {
           setSessionUser((prev: UserProfile | null) => prev ? { ...prev, ...fullData } : null);
+          setProfileLoaded(true);
           console.log(`[AuthContext] Session initialized. User ID: ${session.user.id}, Role: ${fullData.role || 'user'}`);
+        }).catch(err => {
+          console.error('[AuthContext] Initial profile fetch failed:', err);
+          setProfileLoaded(true); // Still mark as loaded to unblock app
         }).finally(() => {
           setLoading(false);
         });
       } else {
         setSessionUser(null);
+        setProfileLoaded(true);
         setLoading(false);
       }
     });
@@ -87,13 +92,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         const profile = mapUserToProfile(session.user);
         setSessionUser(profile);
+        setProfileLoaded(false); // Reset on auth change
+        setLoading(true);
+
         fetchFullProfile(session.user.id).then(fullData => {
           setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+          setProfileLoaded(true);
         }).finally(() => {
           setLoading(false);
         });
       } else {
         setSessionUser(null);
+        setProfileLoaded(true);
         setLoading(false);
       }
     });
@@ -103,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Proactive self-healing synchronization (Optimized)
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && profileLoaded) {
       // Avoid redundant syncs in the same session
       const syncKey = `synced_${session.user.id}`;
       if (sessionStorage.getItem(syncKey)) {
@@ -357,7 +367,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     profile: effectiveUser,
     session,
     loading,
-    isLoading: loading,
+    isLoading: loading || !profileLoaded,
+    profileLoaded,
     signIn,
     signOut,
     changePassword,

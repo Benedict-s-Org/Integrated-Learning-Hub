@@ -12,7 +12,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) => {
-  const { session, user } = useAuth();
+  const { session, user, profileLoaded } = useAuth();
   const [savedContents, setSavedContents] = useState<SavedContent[]>([]);
   const [spellingLists, setSpellingLists] = useState<SpellingPracticeList[]>([]);
   const [proofreadingPractices, setProofreadingPractices] = useState<ProofreadingPractice[]>([]);
@@ -65,8 +65,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
   };
 
   useEffect(() => {
-    fetchSavedContents();
-  }, [userId]);
+    if (profileLoaded) {
+      fetchSavedContents();
+    }
+  }, [userId, profileLoaded]);
 
   const refreshSavedContents = async () => {
     await fetchSavedContents();
@@ -145,8 +147,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
     };
 
-    fetchProofreadingPractices();
-  }, [userId, session, user?.role]);
+    if (profileLoaded) {
+      fetchProofreadingPractices();
+    }
+  }, [userId, session, user?.role, profileLoaded]);
 
   const addSavedContent = useCallback(async (content: Omit<SavedContent, 'id' | 'createdAt'>): Promise<boolean> => {
     if (!userId) {

@@ -307,7 +307,17 @@ Deno.serve(async (req: Request) => {
 
       const role = (metadata && metadata.role) || 'user';
       
-      // 1. Sync public.users
+      // 1. Fetch existing user data to preserve sensitive fields (like navigation_permissions)
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("navigation_permissions")
+        .eq("id", userId)
+        .maybeSingle();
+
+      const existingPermissions = existingUser?.navigation_permissions || {};
+      const mergedPermissions = { ...existingPermissions, ...(metadata.navigation_permissions || {}) };
+
+      // 2. Sync public.users
       const { error: upsertError } = await supabase.from("users").upsert({
         id: userId,
         username: userEmail,
@@ -315,6 +325,7 @@ Deno.serve(async (req: Request) => {
         display_name: metadata.display_name || userEmail?.split('@')[0],
         class: metadata.class || null,
         managed_by_id: metadata.managed_by_id || null,
+        navigation_permissions: mergedPermissions,
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
 

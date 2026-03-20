@@ -1508,10 +1508,12 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                           <m.icon className="w-5 h-5" />
                           {m.label}
                         </button>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
+            </div>
             )}
 
             {/* STEP 2: UNIFIED WORKSPACE (VERTICAL REDESIGN) */}
