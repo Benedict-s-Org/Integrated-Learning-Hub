@@ -34,7 +34,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor, onNavigateToAvatarUploader, onNavigateToAvatarBuilder, onNavigateToMarkerGenerator }) => {
-  const { user: currentUser, isAdmin, session } = useAuth();
+  const { user: currentUser, isAdmin, session, realIsSuperAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +73,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
   const [isBatchMode, setIsBatchMode] = useState(false);
 
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
   const [showShopStyles, setShowShopStyles] = useState(false);
 
@@ -86,28 +85,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
     console.log('AdminPanel: Current User:', currentUser);
     if (isAdmin) {
       fetchUsers();
-      checkSuperAdminStatus();
     }
   }, [isAdmin, currentUser]);
 
-  const checkSuperAdminStatus = async () => {
-    try {
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const { data, error } = await supabase.functions.invoke('auth/check-super-admin', {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token || anonKey}`,
-          'apikey': anonKey
-        },
-        body: { adminUserId: currentUser?.id }
-      });
-
-      if (!error && data) {
-        setIsSuperAdmin(data.isSuperAdmin);
-      }
-    } catch (err) {
-      console.error('Error checking super admin status:', err);
-    }
-  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -542,10 +522,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
           <div>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Admin Panel</h1>
             <p className="text-slate-600">Manage users and system settings</p>
-            {isSuperAdmin && (
+            {realIsSuperAdmin && (
               <p className="text-sm text-blue-600 font-medium mt-1">Super Admin - Full Access</p>
             )}
-            {!isSuperAdmin && (
+            {!realIsSuperAdmin && (
               <p className="text-sm text-slate-500 font-medium mt-1">Regular Admin Access</p>
             )}
           </div>
@@ -841,7 +821,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end space-x-2">
-                        {isSuperAdmin && (
+                        {realIsSuperAdmin && (
                           <button
                             onClick={() => openEditModal(user)}
                             className="text-slate-600 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition"
@@ -872,7 +852,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
                         >
                           <QrCode size={18} />
                         </button>
-                        {isSuperAdmin && user.id !== currentUser?.id && (
+                        {realIsSuperAdmin && user.id !== currentUser?.id && (
                           <button
                             onClick={() => handleDeleteUser(user.id, user.username)}
                             className="text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition"

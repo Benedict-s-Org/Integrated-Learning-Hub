@@ -95,7 +95,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       }) as any);
 
       if (sessionError) {
-        console.warn('Could not save memorization session (table may be missing):', sessionError);
+        console.error('Error saving memorization session:', sessionError);
       }
 
       if (assignmentId) {
@@ -105,7 +105,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         }) as any);
 
         if (markError) {
-          console.error('Error marking assignment complete:', markError);
+          console.error('Error marking memorization assignment complete:', markError);
         }
       }
     } catch (error) {

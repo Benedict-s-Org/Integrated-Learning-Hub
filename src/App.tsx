@@ -317,7 +317,7 @@ function AppContent() {
 
     // Check permissions for learning hub (admins have automatic access)
     if (page === 'learningHub' && !user?.can_access_learning_hub && user?.role !== 'admin') {
-      alert('You do not have permission to access Integrated Learning Hub.');
+      alert('You do not have permission to access Learning Hub.');
       return;
     }
 

@@ -36,7 +36,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       spelling_level: supabaseUser.user_metadata?.spelling_level || 1,
       memorization_level: supabaseUser.user_metadata?.memorization_level || 1,
       voice_preference: supabaseUser.user_metadata?.voice_preference || null,
+      navigation_permissions: {}, // Default empty
     };
+  };
+
+  const fetchFullProfile = async (userId: string): Promise<Partial<UserProfile>> => {
+    try {
+      const { data, error } = await (supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle() as any);
+
+      if (error) {
+        console.warn('[AuthContext] Error fetching full profile:', error);
+        return {};
+      }
+      return data || {};
+    } catch (err) {
+      console.warn('[AuthContext] Exception fetching full profile:', err);
+      return {};
+    }
   };
 
   useEffect(() => {
@@ -44,43 +64,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        setSessionUser(mapUserToProfile(session.user));
+        const profile = mapUserToProfile(session.user);
+        // Load base profile first so loading can end faster
+        setSessionUser(profile);
+        
+        // Fetch full profile in background or carefully awaited
+        fetchFullProfile(session.user.id).then(fullData => {
+          setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+        }).finally(() => {
+          setLoading(false);
+        });
       } else {
         setSessionUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // 2. Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        setSessionUser(mapUserToProfile(session.user));
+        const profile = mapUserToProfile(session.user);
+        setSessionUser(profile);
+        fetchFullProfile(session.user.id).then(fullData => {
+          setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+        }).finally(() => {
+          setLoading(false);
+        });
       } else {
         setSessionUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Proactive self-healing synchronization
+  // Proactive self-healing synchronization (Optimized)
   useEffect(() => {
     if (session?.user?.id) {
-      console.log('[AuthContext] Session active, performing self-sync check...');
+      // Avoid redundant syncs in the same session
+      const syncKey = `synced_${session.user.id}`;
+      if (sessionStorage.getItem(syncKey)) {
+        console.log('[AuthContext] User already synced in this session, skipping proactive check.');
+        return;
+      }
+
+      console.log('[AuthContext] Session active, performing optimized self-sync check...');
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      // Pass metadata directly to avoid expensive getUserById call in Edge Function
       supabase.functions.invoke('user-management/sync-current-user', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': anonKey
         },
-        body: { userId: session.user.id }
+        body: { 
+          userId: session.user.id,
+          email: session.user.email,
+          metadata: session.user.user_metadata
+        }
+      }).then(() => {
+        sessionStorage.setItem(syncKey, 'true');
       }).catch(err => {
         console.warn('[AuthContext] Proactive sync failed (non-critical):', err);
       });
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, session?.access_token]);
 
 
   const signIn = async (email: string, password: string) => {
@@ -163,18 +213,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isUserView, setIsUserView] = useState(false);
   const [isMobileEmulator, setIsMobileEmulator] = useState(false);
   const [testUserId, setTestUserId] = useState<string | null>(null);
+  const [testUserPermissions, setTestUserPermissions] = useState<Record<string, boolean>>({});
   const [impersonatedAdminId, setImpersonatedAdminId] = useState<string | null>(null);
 
   // Fetch test user ID for impersonation when admin switches to user view
   useEffect(() => {
     if (sessionUser?.role === 'admin' && isUserView && !testUserId) {
       supabase
-        .from('users')
-        .select('id')
+        .from('users' as any)
+        .select('id, navigation_permissions')
         .eq('username', 'benedictcftsang@outlook.com')
         .maybeSingle()
-        .then(({ data }) => {
-          if (data) setTestUserId(data.id);
+        .then(({ data }: any) => {
+          if (data) {
+            setTestUserId(data.id);
+            if (data.navigation_permissions) {
+              setTestUserPermissions(data.navigation_permissions as Record<string, boolean>);
+            }
+          }
         });
     }
   }, [sessionUser, isUserView, testUserId]);
@@ -207,10 +263,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRealIsSuperAdminLoading(false);
       });
     } else {
-      setRealIsSuperAdmin(false);
       setRealIsSuperAdminLoading(false);
     }
-  }, [sessionUser?.id]);
+  }, [sessionUser?.id, session?.access_token]);
 
   // Prevent impersonating yourself
   useEffect(() => {
@@ -236,8 +291,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (impersonatedAdminId) {
       (supabase
-        .from('users')
-        .select('id,username,display_name,role,created_at')
+        .from('users' as any)
+        .select('id,username,display_name,role,created_at,navigation_permissions')
         .eq('id', impersonatedAdminId)
         .maybeSingle() as any)
         .then(({ data }: any) => {
@@ -259,6 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               reading_level: profileData.reading_level || 1,
               spelling_level: profileData.spelling_level || 1,
               voice_preference: profileData.voice_preference || null,
+              navigation_permissions: profileData.navigation_permissions || {},
             } as UserProfile);
           }
         });
@@ -277,7 +333,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: 'benedictcftsang@outlook.com',
           username: 'test-user',
           display_name: 'Test Account',
-          role: 'user' as const // Spoof as regular student
+          role: 'user' as const, // Spoof as regular student
+          navigation_permissions: testUserPermissions
         };
       }
       if (impersonatedAdminProfile) {

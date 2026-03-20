@@ -287,23 +287,29 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "sync-current-user") {
-      const { userId } = await req.json();
+      const { userId, email, metadata: providedMetadata } = await req.json();
       if (!userId) return new Response(JSON.stringify({ error: "User ID required" }), { status: 400, headers: corsHeaders });
       
       console.log(`[user-management] Deep syncing current user: ${userId}`);
       
-      const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(userId);
-      if (authError || !user) return new Response(JSON.stringify({ error: authError?.message || "User not found in Auth" }), { status: 404, headers: corsHeaders });
+      let userEmail = email;
+      let metadata = providedMetadata;
 
-      const metadata = user.user_metadata || {};
-      const role = metadata.role || user.app_metadata?.role || 'user';
+      if (!userEmail || !metadata) {
+        const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(userId);
+        if (authError || !user) return new Response(JSON.stringify({ error: authError?.message || "User not found in Auth" }), { status: 404, headers: corsHeaders });
+        userEmail = user.email;
+        metadata = user.user_metadata || {};
+      }
+
+      const role = (metadata && metadata.role) || 'user';
       
       // 1. Sync public.users
       const { error: upsertError } = await supabase.from("users").upsert({
-        id: user.id,
-        username: user.email,
+        id: userId,
+        username: userEmail,
         role: role,
-        display_name: metadata.display_name || user.email?.split('@')[0],
+        display_name: metadata.display_name || userEmail?.split('@')[0],
         class: metadata.class || null,
         managed_by_id: metadata.managed_by_id || null,
         updated_at: new Date().toISOString()
@@ -312,10 +318,11 @@ Deno.serve(async (req: Request) => {
       if (upsertError) return new Response(JSON.stringify({ error: upsertError.message }), { status: 500, headers: corsHeaders });
 
       // 2. Ensure peripheral data is initialized (Safe-Healing)
+      // Optimization: Only upsert if missing or periodically, but upsert is fine for single rows
       await Promise.all([
         // user_room_data
         supabase.from("user_room_data").upsert({
-          user_id: user.id,
+          user_id: userId,
           placements: [],
           wall_placements: [],
           inventory: ["hk_stool", "hk_table", "hk_bed", "basement_stairs"],
@@ -328,7 +335,7 @@ Deno.serve(async (req: Request) => {
         
         // user_avatar_config
         supabase.from("user_avatar_config").upsert({
-          user_id: user.id,
+          user_id: userId,
           equipped_items: { outfit: "default", skin: "default" },
           custom_offsets: {}
         }, { onConflict: 'user_id' })

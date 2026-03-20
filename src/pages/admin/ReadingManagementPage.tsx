@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
@@ -42,6 +42,8 @@ export const ReadingManagementPage: React.FC = () => {
       fetchPassageCrops();
     }
   }, [view]);
+
+  const existingCategories = Array.from(new Set(passageCrops.map(c => c.category).filter(Boolean))).sort() as string[];
 
   const fetchPractices = async () => {
     setLoading(true);
@@ -476,13 +478,38 @@ export const ReadingManagementPage: React.FC = () => {
                         {selectedCropIds.length} SELECTED
                       </div>
                       <div className="flex items-center gap-2 bg-white/10 p-1 rounded-xl">
-                        <input 
-                          type="text"
-                          value={bulkCategoryValue}
-                          onChange={(e) => setBulkCategoryValue(e.target.value)}
-                          placeholder="Batch Category..."
-                          className="bg-transparent border-none text-white placeholder:text-white/50 text-xs font-bold px-3 py-1 outline-none min-w-[200px]"
-                        />
+                        <div className="relative">
+                          <select 
+                            value={existingCategories.includes(bulkCategoryValue) ? bulkCategoryValue : (bulkCategoryValue ? 'custom' : '')}
+                            onChange={(e) => {
+                              if (e.target.value === 'custom') {
+                                setBulkCategoryValue('');
+                              } else {
+                                setBulkCategoryValue(e.target.value);
+                              }
+                            }}
+                            className="bg-indigo-600 border-none text-white text-xs font-bold px-3 py-1 outline-none min-w-[150px] appearance-none pr-8 cursor-pointer rounded-lg"
+                          >
+                            <option value="">No Category</option>
+                            {existingCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="custom">+ Add New...</option>
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white pointer-events-none" />
+                        </div>
+                        
+                        {!existingCategories.includes(bulkCategoryValue) && bulkCategoryValue !== '' && (
+                          <input 
+                            autoFocus
+                            type="text"
+                            value={bulkCategoryValue}
+                            onChange={(e) => setBulkCategoryValue(e.target.value)}
+                            onBlur={(e) => setBulkCategoryValue(e.target.value.trim())}
+                            placeholder="New name..."
+                            className="bg-transparent border-none text-white placeholder:text-white/50 text-xs font-bold px-3 py-1 outline-none min-w-[100px] animate-in fade-in slide-in-from-left-2 duration-200"
+                          />
+                        )}
                         <button 
                           onClick={handleBulkUpdateCategory}
                           disabled={!bulkCategoryValue.trim() || isBulkUpdating}
@@ -570,21 +597,45 @@ export const ReadingManagementPage: React.FC = () => {
                         
                         {editingCropId === crop.id ? (
                           <div className="mb-4 animate-in fade-in slide-in-from-top-1 duration-200" onClick={e => e.stopPropagation()}>
-                            <input 
-                              autoFocus
-                              type="text"
-                              value={editCategoryValue}
-                              onChange={(e) => setEditCategoryValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleUpdateCategory(crop.id, editCategoryValue);
-                                if (e.key === 'Escape') setEditingCropId(null);
-                              }}
-                              placeholder="Category..."
-                              className="w-full px-3 py-2 bg-slate-50 border-2 border-indigo-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all"
-                            />
+                            <div className="relative mb-2">
+                              <select 
+                                value={existingCategories.includes(editCategoryValue) ? editCategoryValue : (editCategoryValue ? 'custom' : '')}
+                                onChange={(e) => {
+                                  if (e.target.value === 'custom') {
+                                    setEditCategoryValue('');
+                                  } else {
+                                    setEditCategoryValue(e.target.value);
+                                  }
+                                }}
+                                className="w-full px-3 py-2 bg-slate-50 border-2 border-indigo-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all appearance-none pr-8 cursor-pointer"
+                              >
+                                <option value="">No Category</option>
+                                {existingCategories.map(cat => (
+                                  <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                                <option value="custom">+ Add New...</option>
+                              </select>
+                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+
+                            {!existingCategories.includes(editCategoryValue) && editCategoryValue !== '' && (
+                              <input 
+                                autoFocus
+                                type="text"
+                                value={editCategoryValue}
+                                onChange={(e) => setEditCategoryValue(e.target.value)}
+                                onBlur={(e) => setEditCategoryValue(e.target.value.trim())}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleUpdateCategory(crop.id, editCategoryValue.trim());
+                                  if (e.key === 'Escape') setEditingCropId(null);
+                                }}
+                                placeholder="New name..."
+                                className="w-full px-3 py-2 bg-slate-50 border-2 border-indigo-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all mb-2 animate-in fade-in slide-in-from-top-1 duration-200"
+                              />
+                            )}
                             <div className="flex justify-end gap-2 mt-2">
                               <button onClick={() => setEditingCropId(null)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase">Cancel</button>
-                              <button onClick={() => handleUpdateCategory(crop.id, editCategoryValue)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase">Save</button>
+                              <button onClick={() => handleUpdateCategory(crop.id, editCategoryValue.trim())} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase">Save</button>
                             </div>
                           </div>
                         ) : null}

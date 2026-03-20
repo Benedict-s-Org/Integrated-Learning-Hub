@@ -220,19 +220,27 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
         insertData.assignment_id = assignmentId;
       }
 
-      await (supabase.from('proofreading_practice_results' as any) as any).insert(insertData);
+      const { error: insertError } = await (supabase.from('proofreading_practice_results' as any) as any).insert(insertData);
+
+      if (insertError) {
+        console.error('Error saving proofreading practice results:', insertError);
+      }
 
       if (assignmentId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('proofreading_practice_assignments')
           .update({
             completed: true,
             completed_at: new Date().toISOString(),
           })
           .eq('id', assignmentId);
+
+        if (updateError) {
+          console.error('Error updating proofreading assignment:', updateError);
+        }
       }
     } catch (error) {
-      console.error('Error saving proofreading practice results:', error);
+      console.error('Unexpected error saving proofreading practice results:', error);
     }
   };
 

@@ -279,7 +279,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     }];
 
     try {
-      await (supabase as any).from('spelling_practice_results').insert({
+      const { error: insertError } = await (supabase as any).from('spelling_practice_results').insert({
         user_id: user.id,
         practice_id: practiceId || null,
         assignment_id: assignmentId || null,
@@ -295,6 +295,10 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
         is_srs: isSRSReview || false
       });
 
+      if (insertError) {
+        console.error('Error saving spelling practice results:', insertError);
+      }
+
       if (assignmentId) {
         const { error: markError } = await (supabase as any).rpc('mark_assignment_complete', {
           p_assignment_id: assignmentId,
@@ -306,7 +310,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error saving spelling practice results:', error);
+      console.error('Unexpected error saving spelling practice results:', error);
     }
   };
 

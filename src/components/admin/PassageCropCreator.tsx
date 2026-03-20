@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
-  Plus, ChevronLeft, ChevronRight,
+  Plus, ChevronLeft, ChevronRight, ChevronDown,
   Loader2, X, Check, Trash2, Image as ImageIcon, RefreshCw,
   Search, FileText
 } from 'lucide-react';
@@ -51,6 +51,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   const [dayInput, setDayInput] = useState('1');
   const [stagedCrops, setStagedCrops] = useState<Record<number, StagedCrop>>({});
   const [globalCategory, setGlobalCategory] = useState('');
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -91,7 +92,27 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
 
   useEffect(() => {
     fetchPdfs();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('reading_questions')
+        .select('category')
+        .eq('interaction_type', 'passage-crop')
+        .not('category', 'is', null);
+      
+      if (!error && data) {
+        const uniqueCategories = Array.from(new Set(data.map(d => d.category as string)))
+          .filter(Boolean)
+          .sort();
+        setExistingCategories(uniqueCategories);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
 
   const fetchPdfs = async () => {
     setLoading(true);
@@ -432,7 +453,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
             pdf_name: crop.pdfName
           },
           // @ts-ignore - category column was added via migration but types are not updated
-          category: crop.category || null
+          category: crop.category?.trim() || null
         });
         if (dbError) throw dbError;
       }
@@ -472,16 +493,41 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
               <h2 className="text-xl font-black text-slate-800">Passage Bulk Cropper</h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stage multiple days & save once</p>
             </div>
-            {/* Global Category Input */}
-            <div className="ml-8 px-4 py-2 bg-slate-50 border-2 border-slate-100 rounded-2xl flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-500">Global Category:</span>
-              <input 
-                type="text" 
-                value={globalCategory}
-                onChange={(e) => setGlobalCategory(e.target.value)}
-                placeholder="e.g. History..."
-                className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 w-24 placeholder:text-slate-300"
-              />
+            {/* Global Category Selector */}
+            <div className="ml-8 px-4 py-2 bg-slate-50 border-2 border-slate-100 rounded-2xl flex items-center gap-2 relative group">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-500">Category:</span>
+              <div className="relative">
+                <select 
+                  value={existingCategories.includes(globalCategory) ? globalCategory : (globalCategory ? 'custom' : '')}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      setGlobalCategory('');
+                    } else {
+                      setGlobalCategory(e.target.value);
+                    }
+                  }}
+                  className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 w-32 appearance-none pr-6 cursor-pointer"
+                >
+                  <option value="">No Category</option>
+                  {existingCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="custom">+ Add New...</option>
+                </select>
+                <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+              </div>
+              
+              {!existingCategories.includes(globalCategory) && globalCategory !== '' && (
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={globalCategory}
+                  onChange={(e) => setGlobalCategory(e.target.value)}
+                  onBlur={(e) => setGlobalCategory(e.target.value.trim())}
+                  placeholder="New name..."
+                  className="bg-white border-2 border-indigo-100 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-700 focus:ring-1 focus:ring-indigo-500 w-24 placeholder:text-slate-300 animate-in fade-in slide-in-from-left-2 duration-200"
+                />
+              )}
             </div>
 
             {/* PDF Selector */}
@@ -725,16 +771,41 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                       <p className="text-[10px] font-black text-emerald-900 uppercase">Day {activeDay} Staged</p>
                       <p className="text-[9px] font-bold text-emerald-600 uppercase mb-2">Page {stagedCrops[activeDay].coords.page}</p>
                       
-                      {/* Label/Category Input */}
+                      {/* Label/Category Selector */}
                       <div className="flex flex-col gap-1">
                         <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Label / Category</span>
-                        <input 
-                          type="text"
-                          value={stagedCrops[activeDay].category}
-                          onChange={(e) => handleUpdateStagedCategory(activeDay, e.target.value)}
-                          placeholder="Category..."
-                          className="w-full px-3 py-1.5 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm"
-                        />
+                        <div className="relative">
+                          <select 
+                            value={existingCategories.includes(stagedCrops[activeDay].category) ? stagedCrops[activeDay].category : (stagedCrops[activeDay].category ? 'custom' : '')}
+                            onChange={(e) => {
+                              if (e.target.value === 'custom') {
+                                handleUpdateStagedCategory(activeDay, '');
+                              } else {
+                                handleUpdateStagedCategory(activeDay, e.target.value);
+                              }
+                            }}
+                            className="w-full px-3 py-1.5 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm appearance-none pr-8 cursor-pointer"
+                          >
+                            <option value="">No Category</option>
+                            {existingCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="custom">+ Add New...</option>
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-emerald-400 pointer-events-none" />
+                        </div>
+
+                        {!existingCategories.includes(stagedCrops[activeDay].category) && stagedCrops[activeDay].category !== '' && (
+                          <input 
+                            autoFocus
+                            type="text"
+                            value={stagedCrops[activeDay].category}
+                            onChange={(e) => handleUpdateStagedCategory(activeDay, e.target.value)}
+                            onBlur={(e) => handleUpdateStagedCategory(activeDay, e.target.value.trim())}
+                            placeholder="New name..."
+                            className="w-full mt-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm animate-in fade-in slide-in-from-top-1 duration-200"
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
