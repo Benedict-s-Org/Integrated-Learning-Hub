@@ -20,10 +20,8 @@
 | **Core Utilities** | `roomGeometry.ts`, `importParsers.ts` - Isometric math and data ingestion. | L113-L116 |
 | **Error Logger** | `errorLogger.ts` - Auto-logs development errors securely to DB. | L118-L121 |
 | **Timetable System** | `AdminTimetablePage.tsx`, `TimetableBoard.tsx` - Notion cycle sync & grid management. | L123-L128 |
-| **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L130-L135 |
-| **Spelling Practice**| `SpellingPractice.tsx` - Word shuffling, dynamic limits (10/20/40), SRS integration. | L143-L149 |
-| **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L167-L172 |
-
+| **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L130-L135 |- **Spelling Practice**| `SpellingPractice.tsx` - Word shuffling, dynamic limits (10/20/40), SRS integration. | L143-L149 |
+- **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L167-L172 |
 
 ---
 
@@ -160,6 +158,8 @@
   - **SRS Integration**: Connects to SM-2 algorithm via `SpellingSrsContext` for daily reviews.
   - **Accent Management**: Admins can select accents/voices via `AccentSelector`; hidden from students to prevent distraction.
 - **Components**: `SpellingInput` (Creation), `SpellingPreview` (Admin verify), `SavedPractices` (The Hub/Review center).
+  - **Preview Functionality**: `SpellingPreview.tsx` implements robust "Play All" logic using `useRef` to avoid async state closure issues and supports immediate stopping.
+.
 
 ### Reading Practice & Notion Sync (L160-L178)
 - **Files**: `src/components/ReadingPractice/`, `src/components/admin/ReadingNotionImporter.tsx`, `src/components/admin/ReadingPracticeCreator.tsx`, `src/components/admin/PassageCropCreator.tsx`
