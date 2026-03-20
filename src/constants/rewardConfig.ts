@@ -73,7 +73,8 @@ export const REWARD_REASONS = {
     HANDBOOK_ENTRY: "完成班務（寫手冊）",
     MISSING_HOMEWORK: "完成班務（欠功課）",
     DICTATION_BONUS: "Dictation Bonus",
-    CLASS_REWARD: "Class Reward"
+    CLASS_REWARD: "Class Reward",
+    TOILET_BREAK: "Toilet/Break"
 };
 
 /**

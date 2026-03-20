@@ -472,12 +472,19 @@ export function ClassDashboardPage() {
                                 const user = newGrouped[cls][userIdx];
                                 const isReward = kind !== 'consequence' && (reason?.includes('回答問題') || reason === REWARD_REASONS.ANSWER_QUESTION);
 
-                                newGrouped[cls][userIdx] = {
-                                    ...user,
-                                    coins: (user.coins || 0) + (amount > 0 ? amount : 0),
-                                    daily_reward_count: isReward ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
-                                    daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0) // Fixed: Only add positive amounts
-                                };
+                                if (reason === REWARD_REASONS.TOILET_BREAK) {
+                                    newGrouped[cls][userIdx] = {
+                                        ...user,
+                                        toilet_coins: (user.toilet_coins ?? 100) - 20
+                                    };
+                                } else {
+                                    newGrouped[cls][userIdx] = {
+                                        ...user,
+                                        coins: (user.coins || 0) + (amount > 0 ? amount : 0),
+                                        daily_reward_count: isReward ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
+                                        daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0) // Fixed: Only add positive amounts
+                                    };
+                                }
                             }
                         });
                     });
@@ -486,6 +493,16 @@ export function ClassDashboardPage() {
 
                 const batchId = crypto.randomUUID();
                 for (const userId of userIds) {
+                    if (reason === REWARD_REASONS.TOILET_BREAK) {
+                        const result = await coinService.deductToiletCoins(userId);
+                        if (!result.success) {
+                            console.error(`Failed to deduct toilet coins from ${userId}:`, result.error);
+                            alert(`Database error when deducting toilet coins from ${userId}: ${result.error.message}`);
+                            throw result.error;
+                        }
+                        continue;
+                    }
+
                     // Check for existing homework/handbook record before awarding
                     const canProceed = await ensureOneHomeworkRecordPerDay(userId, reason || REWARD_REASONS.CLASS_REWARD);
                     if (!canProceed) continue;

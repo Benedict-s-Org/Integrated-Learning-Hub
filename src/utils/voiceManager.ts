@@ -290,15 +290,22 @@ export const createUtterance = (
 };
 
 /**
- * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function
+ * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function.
+ * Returns a playable URL (Google Drive public link preferred, base64 data URI fallback).
  */
-export const fetchCloudAudio = async (text: string, accent: string, voiceName?: string): Promise<string | null> => {
+export const fetchCloudAudio = async (
+  text: string,
+  accent: string,
+  voiceName?: string,
+  speakingRate?: number
+): Promise<string | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
 
     console.log(`[VoiceManager] Requesting cloud audio for: "${text.substring(0, 20)}..."`, { 
       accent, 
       voiceName,
+      speakingRate,
       userId: session?.user?.id 
     });
 
@@ -313,7 +320,7 @@ export const fetchCloudAudio = async (text: string, accent: string, voiceName?: 
         'Authorization': `Bearer ${session?.access_token || anonKey}`,
         'apikey': anonKey
       },
-      body: { text, accent, voiceName }
+      body: { text, accent, voiceName, speakingRate }
     });
 
     if (error) {
@@ -321,8 +328,14 @@ export const fetchCloudAudio = async (text: string, accent: string, voiceName?: 
       return null;
     }
 
+    // Prefer audioUrl (Google Drive public link) — no base64 overhead
+    if (data?.audioUrl) {
+      console.log(`[VoiceManager] Using Drive audioUrl (cached=${data.cached})`);
+      return data.audioUrl;
+    }
+
+    // Fallback: base64 data URI (backward compat)
     if (data?.audioContent) {
-      // Return as a data URI that can be played by an Audio object
       return `data:audio/mp3;base64,${data.audioContent}`;
     }
 

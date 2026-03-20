@@ -54,7 +54,7 @@
   - `showMorningDuties`: Toggled to show morning checklist (default on between 7-9 AM HK time).
 - **Core Dependencies**: `coinService` for rewards, `UniversalMessageToolbar` for broadcasts.
 - **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter. **Default class is set to '3A'**.
-- **Special Rewards**: `DictationBonusOverlay.tsx` supports manual coin entry with a customizable `dictationTitle` (e.g. "RD10 bonus").
+- **Special Rewards**: `DictationBonusOverlay.tsx` supports manual coin entry. **Toilet/Break** consequence is a special case that deducts 20 `toilet_coins` (the yellow balance) instead of regular coins.
 
 ### Admin Users (L49-L53)
 - **Path**: `src/pages/AdminUsersPage.tsx`
@@ -108,6 +108,7 @@
 - **Path**: `src/services/coinService.ts`
 - **Mechanism**: The single source of truth for awarding points.
 - **Virtual Coins**: Hard limit of 3 "Answering Questions" real rewards per day. Calls `increment_room_coins` RPC which handles the actual increment and auto-logs a transaction in `student_records`.
+- **Toilet Coins**: `deductToiletCoins(userId)` specialized logic to deduct 20 `toilet_coins` via `deduct_toilet_coins` RPC.
 - **Revert System**: Tracks `_lastBatchId`. When reverting, updates `is_reverted = true` in `student_records` and deducts points. Keeps reverted records for 30 days.
 
 ### Quiz System (L101-L105)
@@ -179,6 +180,17 @@
   - **Level Enforcement**: Enforces `reading_rearranging_level` and `reading_proofreading_level` from student profile; mode is determined by the assignment's `interaction_type`.
 - **Auth Protocol**: **CRITICAL**: All `supabase.functions.invoke` calls MUST pass explicit `Authorization` and `apikey` headers using the user's `session.access_token`.
 - **Gotchas**: Uses `notion-api` and `reading-api` Edge Functions. `full-typing` requires exact string match (case-insensitive, normalized spaces).
+
+### Google TTS & Drive Caching
+- **Path**: `supabase/functions/google-tts/index.ts`
+- **Concept**: "Generate-once, cache forever" architecture using Google Drive as persistent storage.
+- **Mechanism**:
+  - **Cache Key**: 4-column uniqueness on `(text, accent, voice_name, speaking_rate)` in `tts_cache`.
+  - **Drive Storage**: MP3s are stored in Google Drive with deterministic SHA-256 filenames (`<hash>.mp3`).
+  - **Public Access**: Function sets `anyone-with-link=reader` permission on Drive files.
+  - **URL-First**: Returns `audioUrl` (Google Drive direct link) to the frontend, skipping base64 overhead and re-downloads on cache hits.
+- **Frontend**: `voiceManager.ts` prefers `audioUrl` when available in the Edge Function response.
+- **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DRIVE_FOLDER_ID` secrets in Supabase.
 
 ### Token Optimization (L165-L175)
 - **Problem**: High context/token usage due to large file reads and verbose artifacts.

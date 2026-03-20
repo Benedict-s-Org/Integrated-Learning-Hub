@@ -11,7 +11,21 @@ interface TTSRequest {
   text: string;
   accent?: string;
   voiceName?: string;
+  speakingRate?: number;
 }
+
+interface TTSResponse {
+  audioUrl: string;
+  driveFileId: string;
+  cached: boolean;
+  voiceName: string;
+  speakingRate: number;
+  /** @deprecated Use audioUrl instead. Kept for backward compatibility. */
+  audioContent?: string;
+}
+
+const DEFAULT_VOICE = "en-GB-Neural2-B";
+const DEFAULT_SPEAKING_RATE = 0.9;
 
 const VOICE_FALLBACKS: Record<string, string[]> = {
   "en-GB": ["en-GB-Neural2-B", "en-GB-Neural2-A", "en-GB-Wavenet-B"],
@@ -32,6 +46,24 @@ function toSSML(text: string): string {
     .replace(/([.?!])\s*/g, '$1<break time="450ms"/> ')
     .replace(/([,])\s*/g, '$1<break time="200ms"/> ')
     .replace(/([:;])\s*/g, '$1<break time="250ms"/> ')}</speak>`;
+}
+
+/**
+ * Compute a SHA-256 hex digest of an input string.
+ */
+async function sha256(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Build a deterministic Drive download URL from a file ID.
+ */
+function driveDownloadUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
 
 /**
@@ -66,6 +98,29 @@ async function getAccessToken(serviceAccount: any) {
   return data.access_token;
 }
 
+/**
+ * Set "anyone with the link can read" permission on a Drive file.
+ */
+async function setDrivePublicPermission(fileId: string, accessToken: string): Promise<void> {
+  const permRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ type: "anyone", role: "reader" }),
+    }
+  );
+
+  if (!permRes.ok) {
+    const errBody = await permRes.text();
+    console.error(`[google-tts] Failed to set Drive permission for ${fileId}:`, errBody);
+    throw new Error(`Drive permission error: ${permRes.status} – ${errBody}`);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
@@ -88,7 +143,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // 1. Authenticate User (Require JWT)
+    // ── 1. Authenticate User ─────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       console.error("[google-tts] Missing Authorization header");
@@ -114,7 +169,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 2. Setup Admin Client for DB writes
+    // ── 2. Setup Admin Client for DB writes ──────────────────────────
     const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     
     let saJson: any = {};
@@ -128,54 +183,67 @@ Deno.serve(async (req: Request) => {
     
     const folderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
 
-    const { text, accent = "en-GB", voiceName } = requestBody as TTSRequest;
-    console.log(`TTS Request: voice=${voiceName}, accent=${accent}, text="${text?.substring(0, 30)}..."`);
-    
+    // ── 3. Parse & normalize request ─────────────────────────────────
+    const { text, accent = "en-GB", voiceName, speakingRate } = requestBody as TTSRequest;
+
     if (!text) throw new Error("Text is required");
 
-    // 3. Normalize Text for Cache
     const normalizedText = text.trim().replace(/\s+/g, " ");
-    const cacheKey = normalizedText.toLowerCase();
-    
-    // Cache per voice name if specified, otherwise per accent
-    const storageKey = voiceName ? `${accent}_${voiceName}` : accent;
+    const cacheText = normalizedText.toLowerCase();
 
-    // 4. Check Cache
-    const { data: cache } = await supabaseAdmin
+    // Resolve effective voice: use provided voiceName, or first fallback for accent
+    const effectiveVoice = voiceName || (VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"])[0] || DEFAULT_VOICE;
+    const effectiveRate = speakingRate ?? DEFAULT_SPEAKING_RATE;
+
+    console.log(`[google-tts] Request: voice=${effectiveVoice}, rate=${effectiveRate}, accent=${accent}, text="${normalizedText.substring(0, 40)}..."`);
+
+    // ── 4. Cache lookup (all 4 columns) ──────────────────────────────
+    const { data: cacheHit, error: cacheErr } = await supabaseAdmin
       .from("tts_cache")
       .select("drive_file_id")
-      .eq("text", cacheKey)
-      .eq("accent", storageKey)
+      .eq("text", cacheText)
+      .eq("accent", accent)
+      .eq("voice_name", effectiveVoice)
+      .eq("speaking_rate", effectiveRate)
       .maybeSingle();
 
-    const accessToken = await getAccessToken(saJson);
-
-    if (cache?.drive_file_id) {
-      const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${cache.drive_file_id}?alt=media`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (driveRes.ok) {
-        const audioBlob = await driveRes.blob();
-        const buffer = await audioBlob.arrayBuffer();
-        const audioContent = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        return new Response(JSON.stringify({ audioContent, cached: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+    if (cacheErr) {
+      console.error("[google-tts] Cache lookup error:", cacheErr.message);
+      // Non-fatal: continue to generate
     }
 
-    // 5. Generate TTS using SSML and Voice Preferences
+    if (cacheHit?.drive_file_id) {
+      console.log(`[google-tts] Cache HIT – drive_file_id=${cacheHit.drive_file_id}`);
+      const response: TTSResponse = {
+        audioUrl: driveDownloadUrl(cacheHit.drive_file_id),
+        driveFileId: cacheHit.drive_file_id,
+        cached: true,
+        voiceName: effectiveVoice,
+        speakingRate: effectiveRate,
+      };
+      return new Response(JSON.stringify(response), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("[google-tts] Cache MISS – generating TTS audio");
+
+    // ── 5. Get Google access token ───────────────────────────────────
+    const accessToken = await getAccessToken(saJson);
+
+    // ── 6. Generate TTS with voice fallbacks ─────────────────────────
     const ssml = toSSML(normalizedText);
-    
-    // Build list of voices to try: 1) preferred voice (if provided), 2) fallbacks
-    const voicesToTry = [];
-    if (voiceName) voicesToTry.push(voiceName);
-    
+
+    // Build ordered list: preferred voice first, then fallbacks
+    const voicesToTry: string[] = [effectiveVoice];
     const fallbacks = VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"];
-    fallbacks.forEach(v => {
-      if (v !== voiceName) voicesToTry.push(v);
+    fallbacks.forEach((v) => {
+      if (v !== effectiveVoice) voicesToTry.push(v);
     });
 
-    let ttsContent = null;
-    let lastError = null;
+    let ttsContent: string | null = null;
+    let usedVoice = effectiveVoice;
+    let lastError: string | null = null;
 
     for (const currentVoice of voicesToTry) {
       try {
@@ -185,25 +253,31 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             input: { ssml },
             voice: { languageCode: accent, name: currentVoice },
-            audioConfig: { audioEncoding: "MP3", speakingRate: 0.9 },
+            audioConfig: { audioEncoding: "MP3", speakingRate: effectiveRate },
           }),
         });
         const ttsData = await ttsResponse.json();
         if (ttsResponse.ok) {
           ttsContent = ttsData.audioContent;
+          usedVoice = currentVoice;
           break;
         }
         lastError = ttsData.error?.message;
+        console.warn(`[google-tts] Voice ${currentVoice} failed: ${lastError}`);
       } catch (e) {
         lastError = e.message;
+        console.warn(`[google-tts] Voice ${currentVoice} threw: ${lastError}`);
       }
     }
 
-    if (!ttsContent) throw new Error(`TTS failed after fallback: ${lastError}`);
+    if (!ttsContent) throw new Error(`TTS generation failed after trying all voices: ${lastError}`);
 
-    // 6. Upload to Drive and Save to Cache
-    const safeText = cacheKey.replace(/[^a-z0-9]/g, "_").substring(0, 50);
-    const fileName = `${storageKey}_${safeText}.mp3`;
+    // ── 7. Deterministic file name via SHA-256 ───────────────────────
+    const hashInput = `${cacheText}|${accent}|${effectiveVoice}|${effectiveRate}`;
+    const fileHash = await sha256(hashInput);
+    const fileName = `${fileHash}.mp3`;
+
+    // ── 8. Upload to Google Drive ────────────────────────────────────
     const metadata = { name: fileName, parents: [folderId], mimeType: "audio/mpeg" };
     const boundary = "-------314159265358979323846";
     const multipartBody = 
@@ -218,20 +292,61 @@ Deno.serve(async (req: Request) => {
     });
 
     const driveData = await driveUpload.json();
-    if (driveData.id) {
-      await supabaseAdmin.from("tts_cache").upsert({ 
-        text: cacheKey, 
-        accent: storageKey, 
-        drive_file_id: driveData.id 
-      });
+
+    if (!driveData.id) {
+      console.error("[google-tts] Drive upload failed:", JSON.stringify(driveData));
+      throw new Error(`Drive upload failed: ${driveData.error?.message || "No file ID returned"}`);
     }
 
-    return new Response(JSON.stringify({ audioContent: ttsContent, cached: false }), { 
+    console.log(`[google-tts] Uploaded to Drive: ${driveData.id} (${fileName})`);
+
+    // ── 9. Set public read permission ────────────────────────────────
+    try {
+      await setDrivePublicPermission(driveData.id, accessToken);
+      console.log(`[google-tts] Set public permission on ${driveData.id}`);
+    } catch (permError) {
+      // Log but don't fail — the file was uploaded successfully
+      console.error("[google-tts] Permission setting failed (non-fatal):", permError.message);
+    }
+
+    // ── 10. Upsert cache row ─────────────────────────────────────────
+    const { error: upsertError } = await supabaseAdmin
+      .from("tts_cache")
+      .upsert(
+        {
+          text: cacheText,
+          accent,
+          voice_name: effectiveVoice,
+          speaking_rate: effectiveRate,
+          drive_file_id: driveData.id,
+        },
+        { onConflict: "text,accent,voice_name,speaking_rate" }
+      );
+
+    if (upsertError) {
+      // Log but don't fail — audio was generated and uploaded successfully
+      console.error("[google-tts] Cache upsert failed (non-fatal):", upsertError.message);
+    } else {
+      console.log("[google-tts] Cache upserted successfully");
+    }
+
+    // ── 11. Return response ──────────────────────────────────────────
+    const response: TTSResponse = {
+      audioUrl: driveDownloadUrl(driveData.id),
+      driveFileId: driveData.id,
+      cached: false,
+      voiceName: usedVoice,
+      speakingRate: effectiveRate,
+      // Backward compat: include base64 so existing frontends still work
+      audioContent: ttsContent,
+    };
+
+    return new Response(JSON.stringify(response), { 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("[google-tts] Error:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

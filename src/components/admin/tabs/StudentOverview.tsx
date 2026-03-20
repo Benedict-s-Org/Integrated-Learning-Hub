@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Activity, Star, AlertTriangle, Trash2, Plus, Check, ClipboardList } from 'lucide-react';
-import { REWARD_ICON_MAP, getEffectiveSubOptions } from '@/constants/rewardConfig';
+import { REWARD_ICON_MAP, getEffectiveSubOptions, REWARD_REASONS } from '@/constants/rewardConfig';
 import { ClassReward } from '../CoinAwardModal';
 import { RewardSubOptionOverlay } from '../RewardSubOptionOverlay';
 import { useAuth } from '@/context/AuthContext';
@@ -166,14 +166,19 @@ export function StudentOverview({ student, onUpdateCoins, onSuccess }: StudentOv
             const { data: { user } } = await supabase.auth.getUser();
 
             // Update Room Data via Admin RPC
-            const result = await coinService.awardCoins({
-                userId: student.id,
-                amount: amount,
-                reason: reason,
-                type: amount >= 0 ? 'reward' : 'consequence',
-                adminId: user?.id
-            });
-            if (!result.success) throw result.error;
+            if (reason === REWARD_REASONS.TOILET_BREAK) {
+                const result = await coinService.deductToiletCoins(student.id);
+                if (!result.success) throw result.error;
+            } else {
+                const result = await coinService.awardCoins({
+                    userId: student.id,
+                    amount: amount,
+                    reason: reason,
+                    type: amount >= 0 ? 'reward' : 'consequence',
+                    adminId: user?.id
+                });
+                if (!result.success) throw result.error;
+            }
 
             playSuccessSound();
             if (onSuccess) onSuccess();

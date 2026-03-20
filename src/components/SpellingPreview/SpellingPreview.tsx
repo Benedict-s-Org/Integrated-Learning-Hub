@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, ArrowLeft, ArrowRight, CheckCircle, XCircle, Save } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AccentSelector from '../AccentSelector/AccentSelector';
@@ -28,6 +28,10 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Use refs to track playing state for the async loops to avoid closure issues
+  const isPlayingRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) {
@@ -104,13 +108,38 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     // 1. Try Google Cloud TTS for premium consistency
     try {
       setIsPlaying(true);
+      isPlayingRef.current = true;
       const audioDataUri = await fetchCloudAudio(word, currentAccent, currentVoiceURI);
+      
+      // If stopped during fetch, exit
+      if (!isPlayingRef.current) return;
+
       if (audioDataUri) {
         console.log('[SpellingPreview] Using Google Cloud TTS audio');
         const audio = new Audio(audioDataUri);
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => setIsPlaying(false);
-        await audio.play();
+        currentAudioRef.current = audio;
+        
+        await new Promise((resolve) => {
+          audio.onended = () => {
+            currentAudioRef.current = null;
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+            resolve(null);
+          };
+          audio.onerror = () => {
+            currentAudioRef.current = null;
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+            resolve(null);
+          };
+          audio.play().catch(err => {
+            console.error('[SpellingPreview] Play failed:', err);
+            currentAudioRef.current = null;
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+            resolve(null);
+          });
+        });
         return; // Success!
       }
     } catch (err) {
@@ -120,20 +149,24 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     // 2. Fallback to Browser native speechSynthesis
     if (!('speechSynthesis' in window) || !currentVoice) {
       setIsPlaying(false);
+      isPlayingRef.current = false;
       return;
     }
 
     window.speechSynthesis.cancel();
     setIsPlaying(true);
+    isPlayingRef.current = true;
 
     const utterance = createUtterance(word, currentVoice);
 
     utterance.onend = () => {
       setIsPlaying(false);
+      isPlayingRef.current = false;
     };
 
     utterance.onerror = () => {
       setIsPlaying(false);
+      isPlayingRef.current = false;
     };
 
     window.speechSynthesis.speak(utterance);
@@ -148,21 +181,44 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     if (words.length === 0) return;
 
     window.speechSynthesis.cancel();
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+
     setIsPlaying(true);
+    isPlayingRef.current = true;
     setCurrentWordIndex(0);
 
     for (let i = 0; i < words.length; i++) {
-      if (!isPlaying && i > 0) break; // Allow stopping
+      // Vital: Check the ref, not the state, inside the loop
+      if (!isPlayingRef.current) break; 
+      
       setCurrentWordIndex(i);
       
       try {
         const audioDataUri = await fetchCloudAudio(words[i], currentAccent, currentVoiceURI);
+        
+        // Final check if user stopped during the network request
+        if (!isPlayingRef.current) break;
+
         if (audioDataUri) {
-          await new Promise((resolve, reject) => {
+          await new Promise((resolve) => {
             const audio = new Audio(audioDataUri);
-            audio.onended = resolve;
-            audio.onerror = reject;
-            audio.play().catch(reject);
+            currentAudioRef.current = audio;
+            audio.onended = () => {
+              currentAudioRef.current = null;
+              resolve(null);
+            };
+            audio.onerror = () => {
+              currentAudioRef.current = null;
+              resolve(null);
+            };
+            audio.play().catch(err => {
+              console.error('[SpellingPreview] Audio play error:', err);
+              currentAudioRef.current = null;
+              resolve(null);
+            });
           });
         } else if (currentVoice) {
           await new Promise((resolve) => {
@@ -173,8 +229,8 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
           });
         }
         
-        if (i < words.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (i < words.length - 1 && isPlayingRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 600)); // Slightly longer pause for better learning
         }
       } catch (err) {
         console.error('Error in play all:', err);
@@ -182,10 +238,16 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     }
     
     setIsPlaying(false);
+    isPlayingRef.current = false;
   };
 
   const handleStopAll = () => {
+    isPlayingRef.current = false;
     window.speechSynthesis.cancel();
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
     setIsPlaying(false);
   };
 
