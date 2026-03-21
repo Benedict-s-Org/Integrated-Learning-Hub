@@ -102,3 +102,17 @@ export const NavItem: React.FC<NavItemProps> = ({
         </button>
     );
 };
+
+interface NavSubHeaderProps {
+    label: string;
+}
+
+export const NavSubHeader: React.FC<NavSubHeaderProps> = ({ label }) => {
+    return (
+        <div className="px-3 pt-4 pb-2">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 border-b border-gray-100/50 pb-1">
+                {label}
+            </h3>
+        </div>
+    );
+};

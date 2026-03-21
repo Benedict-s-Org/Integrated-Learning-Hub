@@ -50,6 +50,9 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "database", label: "Database", visible: false},
     {id: "userProgress", label: "User Progress", visible: false},
     {id: "mobileTest", label: "Mobile Test", visible: false}
+  ],
+  teacher: [
+    {id: "teacherPlaceholder", label: "(Add new tools here)", visible: true}
   ]
 };
 
@@ -75,7 +78,7 @@ export const useNavigationSettings = () => useContext(NavigationSettingsContext)
 
 export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<NavigationSettings>(DEFAULT_SETTINGS);
-  const { user, profileLoaded } = useAuth();
+  const { user, session, profileLoaded } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   // Fetch initial settings
@@ -98,7 +101,8 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
         if (data && (data as any).value) {
           try {
             const parsed = JSON.parse((data as any).value);
-            setSettings(parsed);
+            // Merge with defaults to ensure new sections/items are included
+            setSettings({ ...DEFAULT_SETTINGS, ...parsed });
           } catch (e) {
             console.error('Error parsing navigation settings JSON:', e);
           }
@@ -128,7 +132,8 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
           if (newValue) {
             try {
               const parsed = JSON.parse(newValue);
-              setSettings(parsed);
+              // Merge with defaults to ensure new sections/items are included
+              setSettings({ ...DEFAULT_SETTINGS, ...parsed });
             } catch (e) {
               console.error('Error parsing navigation settings update:', e);
             }
@@ -184,7 +189,12 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
   const updateUserPermissions = useCallback(async (userId: string, permissions: Record<string, boolean>) => {
     if (!user || user.role !== 'admin') return;
     try {
-      const { data, error } = await supabase.functions.invoke('user-management', {
+      const anonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+      const { data, error } = await supabase.functions.invoke('user-management/update-user', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
         body: {
           action: 'update-user',
           adminUserId: user.id,
@@ -199,7 +209,7 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
       console.error('[NavigationSettings] Error updating user permissions via Edge Function:', err);
       throw err;
     }
-  }, [user]);
+  }, [user, session]);
 
   const isItemVisible = useCallback((itemId: string, userOverride?: UserProfile | null): boolean => {
     // 1. Get the target user context

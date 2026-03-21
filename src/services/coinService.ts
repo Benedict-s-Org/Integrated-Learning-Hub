@@ -168,7 +168,7 @@ export const coinService = {
                 .from('user_room_data' as any)
                 .select('daily_counts')
                 .eq('user_id', userId)
-                .single();
+                .maybeSingle();
 
             const dailyCounts = (roomData as any)?.daily_counts;
             const currentRealCount = (dailyCounts?.date === today) ? (dailyCounts?.real_earned_count || 0) : 0;

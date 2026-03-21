@@ -52,7 +52,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter';
 
 export type AppPage = PageType;
 
@@ -489,4 +489,5 @@ export interface NavigationSettings {
   learning: NavItemConfig[];
   progress: NavItemConfig[];
   admin: NavItemConfig[];
+  teacher: NavItemConfig[];
 }

@@ -167,10 +167,12 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
         };
     }, [className]);
 
+    if (messages.length === 0 && selectedCount === 0) return null;
+
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 flex justify-center px-4 py-2 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="sticky top-0 z-30 flex justify-center px-4 py-2 transition-all duration-500">
             <div 
-                className="relative w-full max-w-7xl overflow-hidden backdrop-blur-2xl border border-white/60 p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-blue-500/10 transition-all group"
+                className={`relative w-full max-w-7xl overflow-hidden backdrop-blur-2xl border border-white/60 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-blue-500/10 transition-all group ${messages.length > 0 ? 'p-4 md:p-6' : 'p-2 md:p-3 opacity-60 hover:opacity-100'}`}
                 style={{ 
                     backgroundColor: theme.broadcastBg,
                     color: theme.broadcastText

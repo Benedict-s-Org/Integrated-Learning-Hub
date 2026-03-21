@@ -2,26 +2,32 @@
 <!-- Agent: Read this index first. Use line ranges to jump to relevant sections for details. -->
 | Module | Summary | Lines |
 |---|---|---|
-| **Contexts & Auth** | `AuthContext`, `AppContext`, logic for roles, impersonation. | L24-L30 |
-| **Routing & App Structure** | `App.tsx`, `UnifiedNavigation`, `NavigationManagementPage.tsx` - Per-student navigation permission system. | L40-L47 |
-| **Class Dashboard** | `ClassDashboardPage.tsx` - Main admin dashboard, student lists, rewards, morning duties. | L40-L47 |
-| **Admin Users** | `AdminUsersPage.tsx` - User CRUD, bulk edits, QR codes, homework records. | L49-L53 |
-| **Admin Progress** | `AdminProgressPage.tsx` - Detailed student stats, coin tracking, and accuracies. | L55-L59 |
-| **Homework Records** | `AdminHomeworkRecordPage.tsx` - Bulk assignment statuses & rewards. | L61-L64 |
-| **Super Admin** | `SuperAdminPanel.tsx` - Granular permission/role toggling, admin reassignment. | L66-L70 |
-| **Unified Assignments** | `UnifiedAssignments.tsx` - Fetches/displays active student tasks. | L72-L75 |
-| **Memory Palace** | `MemoryPalacePage.tsx` - Visual grid, furniture placement, memory attachments. | L77-L82 |
-| **Phonics Ecosystem** | `PhonicsGameHub.tsx` - Minigames, levels, leaderboards, blending board. | L84-L88 |
-| **Memorization / Saved** | `SavedContent.tsx` - Memorization text management & public link generation. | L90-L93 |
-| **Reading / Notion** | `ReadingPracticeCreator.tsx`, `PassageCropCreator.tsx` - Unified workspace for Local/Notion imports & bulk passage cropping with dynamic scaling. | L160-L178 |
-| **Coin Service** | `coinService.ts` - Central coin award/revert logic, calls RPCs. | L95-L99 |
-| **Quiz System** | `InteractiveScanQuizPage.tsx` - Paper-based AR marker scanning quiz. | L101-L105 |
-| **Spaced Repetition**| `SpacedRepetitionPage.tsx` & Algorithm - Question tracking, algorithm logic. | L107-L111 |
-| **Core Utilities** | `roomGeometry.ts`, `importParsers.ts` - Isometric math and data ingestion. | L113-L116 |
-| **Error Logger** | `errorLogger.ts` - Auto-logs development errors securely to DB. | L118-L121 |
-| **Timetable System** | `AdminTimetablePage.tsx`, `TimetableBoard.tsx` - Notion cycle sync & grid management. | L123-L128 |
-| **DB & RPCs** | Core tables (`student_records`, `user_room_data`) and Postgres RPCs. | L130-L135 |- **Spelling Practice**| `SpellingPractice.tsx` - Word shuffling, dynamic limits (10/20/40), SRS integration. | L143-L149 |
-- **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L167-L172 |
+| **Contexts & Auth** | `AuthContext`, `AppContext`, logic for roles, impersonation. | L33-L40 |
+| **Routing & App Structure** | `App.tsx`, `UnifiedNavigation` - Navigation permissions & custom routing. | L41-L52 |
+| **Teacher Admin** | `UnifiedNavigation` - New dedicated category for teaching-related tools. | L53-L57 |
+| **Class Dashboard** | `ClassDashboardPage.tsx` - Main admin dashboard & dynamic announcement bar. | L58-L68 |
+| **Broadcast System** | `BroadcastQuickBar.tsx` - Dynamic, sticky messaging & notification management. | L62-L72 |
+| **Admin Users** | `AdminUsersPage.tsx` - User CRUD, QR codes, & homework records. | L73-L78 |
+| **Admin Progress** | `AdminProgressPage.tsx` - Student analytics & tracking. | L67-L72 |
+| **Homework Records** | `AdminHomeworkRecordPage.tsx` - Bulk assignment marking & coin awards. | L73-L77 |
+| **Super Admin** | `SuperAdminPanel.tsx` - Granular roles & student re-assignment. | L78-L83 |
+| **Unified Assignments** | `UnifiedAssignments.tsx` - Automated student To-Do lists. | L84-L88 |
+| **Memory Palace** | `MemoryPalacePage.tsx` - Isometric customization & memory attachments. | L89-L95 |
+| **Phonics Ecosystem** | `PhonicsGameHub.tsx` - Phonetics levels & interaction board. | L96-L101 |
+| **Memorization / Saved** | `SavedContent.tsx` - Difficulty-gated memorization texts. | L102-L108 |
+| **Coin Service** | `coinService.ts` - Central coin reward & revert logic. | L109-L115 |
+| **Quiz System** | `InteractiveScanQuizPage.tsx` - AR marker scanning group quizzes. | L116-L121 |
+| **Spaced Repetition**| `SpacedRepetitionPage.tsx` - SM-2 adaptation & Notion AI elaboration. | L122-L128 |
+| **Core Utilities** | `roomGeometry.ts`, `importParsers.ts` - Isometric math & data ingestion. | L129-L133 |
+| **Error Logger** | `errorLogger.ts` - Development error logging system. | L134-L138 |
+| **Timetable System** | `AdminTimetablePage.tsx` - Notion cycle sync & grid management. | L139-L147 |
+| **DB & RPCs** | Core tables and atomic Postgres RPCs. | L148-L154 |
+| **Spelling Practice**| `SpellingPractice.tsx` - Level-based word practice & SRS. | L155-L167 |
+| **Reading / Notion** | `ReadingPracticeCreator.tsx` - Passage bulk cropping & Notion sync. | L168-L189 |
+| **Google TTS** | `google-tts/index.ts` - Drive proxy architecture for reliable audio. | L190-L201 |
+| **iPad Interactive** | `IPadInteractiveZone.tsx` - Pressure-sensitive handwriting training. | L218-L229 |
+| **Exam Formatter** | `ExamFormatterPage.tsx` - WYSIWYG editor with Notion sync & AI assistants. | L230-L245 |
+| **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L246-L257 |
 
 ---
 
@@ -43,17 +49,31 @@
   - Access control is enforced inside `handlePageChange` and `useEffect` hooks in `App.tsx`.
 - **Navigation Permissions**: `NavigationSettingsContext.tsx` manages per-user permission overrides stored in `users.navigation_permissions`. `NavigationManagementPage.tsx` allows admins to toggle visibility of items for specific students.
   - **Simplified Matrix View**: The `NavigationManagementPage` now features a **"Hide Unchecked"** toggle. When enabled, it dynamically hides columns (navigation items) that are completely inactive for the current set of filtered users. Cell-level checkboxes for unchecked items are also hidden until hover to provide a cleaner "labels-only" look for active permissions.
+  - **New Category**: Added **"Teacher Administration Tool"** as a dedicated top-level section in `UnifiedNavigation` (visible to Staff/Admin), separating teaching resources from system-level admin tasks.
+- **Admin Navigation Organization**: The "Admin" section in `UnifiedNavigation` is grouped into four logical sub-categories: **User & System**, **Teaching & Records**, **Creative Studio**, and **Tools & Utilities**. It uses the `NavSubHeader` component for visual separation.
 - **Global UI Wrappers**: `appState` conditionally renders pages inside the main `<main>` container, usually alongside `UnifiedNavigation` unless hidden.
 
-### Class Dashboard (L40-L47)
+### Teacher Administration (L53-L57)
+- **Concept**: A dedicated navigation space for teachers.
+- **Components**: `NavSection` in `UnifiedNavigation.tsx`.
+- **Items**: Currently contains an **"(Add new tools here)"** placeholder. Designed to host future teacher-specific tools without cluttering the main Admin menu.
+
+### Class Dashboard (L51-L61)
 - **Path**: `src/pages/ClassDashboardPage.tsx`
 - **Key State**:
   - `groupedUsers`: Users grouped by class name.
   - `selectedStudentIds`: Current selection for bulk actions.
   - `showMorningDuties`: Toggled to show morning checklist (default on between 7-9 AM HK time).
-- **Core Dependencies**: `coinService` for rewards, `UniversalMessageToolbar` for broadcasts.
+- **Core Components**: `BroadcastQuickBar` (sticky top-of-content), `UserGrid`, `AdminActionToolbar`.
+- **Integrated Logic**: `BroadcastQuickBar` is positioned at the top of the `max-w-7xl` container and is `sticky top-0`. It only renders when there are active messages or students selected.
 - **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter. **Default class is set to '3A'**.
-- **Special Rewards**: `DictationBonusOverlay.tsx` supports manual coin entry. **Toilet/Break** consequence is a special case that deducts 20 `toilet_coins` (the yellow balance) instead of regular coins.
+
+### Broadcast & Notifications (L62-L72)
+- **Files**: `src/components/admin/notifications/BroadcastQuickBar.tsx`, `src/pages/admin/BroadcastManagementPage.tsx`
+- **Concept**: Centralized messaging system for classes and individual students.
+- **Dynamic Behavior**: `BroadcastQuickBar` uses `sticky` positioning to avoid blocking fixed navigation elements. It returns `null` when no messages are active and no context (selected students) is present.
+- **Management**: `BroadcastManagementPage.tsx` handles template creation (`custom_broadcasts`) and publishing instances (`active_announcements`) to specific classes or students.
+- **Data Flow**: Settings are stored in `system_config` under `broadcast_v2_settings`. Real-time updates are handled via Supabase channel subscriptions in `BroadcastBoard.tsx`.
 
 ### Admin Users (L49-L53)
 - **Path**: `src/pages/AdminUsersPage.tsx`
@@ -196,7 +216,30 @@
 - **Frontend**: `voiceManager.ts` always prioritizes `audioContent` (Base64) for reliable playback, using `audioUrl` only as a secondary reference.
 - **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_TTS_API_KEY` secrets. Ensures `supportsAllDrives=true` and `supportsTeamDrives=true` are set on all Drive API calls.
 
-### Token Optimization (L165-L175)
+### iPad Interactive Zone (L218-L229)
+- **Files**: `src/pages/IPadInteractiveZone.tsx`, `src/components/ipad/`
+- **Concept**: Specialized handwriting and rhythm training for iPad/Apple Pencil users.
+- **Features**:
+  - **Pressure Sensitivity**: Uses `PointerEvent.pressure` for real-time feedback.
+  - **Finger Training**: `FingerTraining.tsx` provides direct pressure control exercises with visual color-coded feedback (Blue/Green/Red).
+  - **Cursive Rhythm Practice**: `CursivePlayer.tsx` and `RhythmEngine.ts` implement a gamified tracing system.
+    - **Pressure Gate**: Guide mascot (Cat) pauses if the student's pressure is too light.
+    - **Scoring**: Rhythm-based judgements (Perfect/Miss) and "Gentle Writer" bonuses.
+  - **Admin Recorder**: `ExerciseRecorder.tsx` allows admins to demonstrate paths with "Magnetic Snapping" to template ink.
+- **Data**: Exercises stored in `cursive_exercises`; student attempts and "Gentle" stats in `cursive_attempts`.
+
+### Exam Paper Formatter (L230-L245)
+- **Path**: `src/modules/exam-formatter/`
+- **Concept**: A WYSIWYG tool for teachers to build examination papers from scratch or via Notion.
+- **State Management**: Uses `ExamContext` for real-time document (`exam.json`) and template synchronization. persists to `localStorage`.
+- **Key Features**:
+  - **Block UI**: Canvas-based editor with `COVER`, `QUESTION`, `MCQ_OPTIONS`, and `INSTRUCTIONS` blocks.
+  - **Notion Integration**: `NotionImportModal.tsx` fetches questions from Notion databases. Supports bi-directional sync (pushing local edits back to Notion).
+  - **AI Content Assistants**: Integrated with Flowith API for **Simplify Language** and **Auto-Distractor** generation.
+  - **DOCX Export**: `DocxService.ts` maps the block-based document to a professional Word file with hierarchical numbering and alignment.
+- **Components**: `Canvas`, `Sidebar`, `Inspector`, `BlockRenderer`, `NotionImportModal`.
+
+### Token Optimization (L246-L257)
 - **Problem**: High context/token usage due to large file reads and verbose artifacts.
 - **Rules**:
   1. **Targeted Edit**: Use `grep_search` and `multi_replace_file_content` for surgical changes. Avoid full file reads when possible.

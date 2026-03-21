@@ -47,7 +47,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
         .from("user_room_data")
         .select("*")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (fetchError && fetchError.code !== "PGRST116") {
         throw fetchError;
@@ -72,7 +72,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
           .from("user_room_data")
           .select("*")
           .eq("user_id", SYSTEM_DEFAULT_USER_ID)
-          .single();
+          .maybeSingle();
 
         if (defaultData && (defaultData.custom_catalog as any)?.cityLayout) {
           const customData = defaultData.custom_catalog as any;
@@ -152,7 +152,7 @@ export function useAdminCityLayout(): AdminCityLayoutReturn {
         .from("user_room_data")
         .select("id, custom_catalog")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       const cityLayoutData = {
         buildings,

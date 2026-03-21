@@ -874,13 +874,22 @@ export function ClassDashboardPage() {
 
     return (
         <div 
-            className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-16 md:pt-32 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}
+            className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-4 md:pt-8 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}
             style={{ 
                 fontFamily: theme.fontFamily + ', sans-serif',
                 fontSize: `${theme.fontSize}px`
             }}
         >
             <div className="max-w-7xl mx-auto space-y-6">
+                <BroadcastQuickBar
+                    selectedCount={selectedStudentIds.length}
+                    className={activeClass}
+                    onClearSelection={() => setSelectedStudentIds([])}
+                    onOpenManage={() => setShowNotificationTemplateModal(true)}
+                    onOpenLiveBoard={() => setShowBroadcastBoard(true)}
+                    onOpenBroadcast={() => setShowSendNotificationModal(true)}
+                    onRefresh={fetchUsers}
+                />
 
                 {/* Modern Cycle & Date Header */}
                 <div className="relative overflow-hidden bg-white/40 backdrop-blur-xl border border-white/60 p-6 md:p-8 rounded-[2.5rem] shadow-2xl shadow-blue-500/5 animate-in fade-in slide-in-from-top-4 duration-1000">
@@ -1321,15 +1330,6 @@ export function ClassDashboardPage() {
                 onCustomizeAvatar={() => setIsAvatarModalOpen(true)}
             />
 
-            <BroadcastQuickBar
-                selectedCount={selectedStudentIds.length}
-                className={activeClass}
-                onClearSelection={() => setSelectedStudentIds([])}
-                onOpenManage={() => setShowNotificationTemplateModal(true)}
-                onOpenLiveBoard={() => setShowBroadcastBoard(true)}
-                onOpenBroadcast={() => setShowSendNotificationModal(true)}
-                onRefresh={fetchUsers}
-            />
 
             <SendNotificationModal
                 isOpen={showSendNotificationModal}

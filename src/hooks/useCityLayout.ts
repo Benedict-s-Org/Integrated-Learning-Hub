@@ -27,7 +27,7 @@ export interface UseCityLayoutReturn {
 }
 
 export function useCityLayout(): UseCityLayoutReturn {
-  const { user } = useAuth();
+  const { user, profileLoaded } = useAuth();
   const [buildings, setBuildings] = useState<Building[]>(INITIAL_CITY_LAYOUT.buildings);
   const [decorations, setDecorations] = useState<CityDecoration[]>(INITIAL_CITY_LAYOUT.decorations);
   const [cityLevel, setCityLevel] = useState(0);
@@ -37,8 +37,8 @@ export function useCityLayout(): UseCityLayoutReturn {
 
   // Load city layout from database
   useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
+    if (!user || !profileLoaded) {
+      if (profileLoaded && !user) setIsLoading(false);
       return;
     }
 
@@ -52,7 +52,7 @@ export function useCityLayout(): UseCityLayoutReturn {
           .from("user_room_data")
           .select("*")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
 
         if (fetchError && fetchError.code !== "PGRST116") {
           throw fetchError;
@@ -64,7 +64,7 @@ export function useCityLayout(): UseCityLayoutReturn {
             .from("user_room_data")
             .select("*")
             .eq("user_id", SYSTEM_DEFAULT_USER_ID)
-            .single();
+            .maybeSingle();
 
           if (!defaultError && defaultData) {
             data = defaultData;
@@ -135,11 +135,11 @@ export function useCityLayout(): UseCityLayoutReturn {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, profileLoaded]);
 
   // Fetch memory metadata (review counts, total points) for buildings
   const fetchMetadata = useCallback(async () => {
-    if (!user || buildings.length === 0) return;
+    if (!user || !profileLoaded || buildings.length === 0) return;
 
     try {
       // Fetch all cards for the user from the 'cards' table
@@ -232,7 +232,7 @@ export function useCityLayout(): UseCityLayoutReturn {
         .from("user_room_data")
         .select("id, custom_catalog")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       const existingCityLayout = (existingData?.custom_catalog as any)?.cityLayout;
 

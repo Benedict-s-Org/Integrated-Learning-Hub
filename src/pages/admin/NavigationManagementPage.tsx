@@ -72,6 +72,7 @@ export const NavigationManagementPage: React.FC = () => {
         return [
             ...settings.learning,
             ...settings.progress,
+            ...settings.teacher,
             ...settings.admin
         ];
     }, [settings]);
@@ -161,12 +162,26 @@ export const NavigationManagementPage: React.FC = () => {
         setMessage(null);
         try {
             console.log('[NavigationManagement] Saving permissions for users:', users.map(u => ({ id: u.id, perms: u.navigation_permissions })));
-            await Promise.all(users.map(u => updateUserPermissions(u.id, u.navigation_permissions || {})));
-            setMessage({ text: 'Permissions saved successfully for all users!', type: 'success' });
-            setTimeout(() => setMessage(null), 3000);
+            
+            // Use allSettled so one failure doesn't block others
+            const results = await Promise.allSettled(
+                users.map(u => updateUserPermissions(u.id, u.navigation_permissions || {}))
+            );
+            
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
+            
+            if (failed === 0) {
+                setMessage({ text: `Successfully saved permissions for all ${succeeded} users!`, type: 'success' });
+                setTimeout(() => setMessage(null), 3000);
+            } else if (succeeded > 0) {
+                setMessage({ text: `Partially successful: ${succeeded} saved, ${failed} failed. Check console for details.`, type: 'error' });
+            } else {
+                setMessage({ text: 'Failed to save any permissions. Please try again.', type: 'error' });
+            }
         } catch (err) {
-            console.error('Error saving permissions:', err);
-            setMessage({ text: 'Failed to save some permissions. Please try again.', type: 'error' });
+            console.error('Unexpected error during save:', err);
+            setMessage({ text: 'An unexpected error occurred. Please try again.', type: 'error' });
         } finally {
             setIsSaving(false);
         }

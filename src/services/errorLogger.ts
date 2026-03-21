@@ -171,7 +171,7 @@ export async function logError(entry: ErrorLogEntry): Promise<{ success: boolean
             .from('dev_error_log')
             .insert(sanitizedEntry)
             .select('id')
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
         return { success: true, id: data?.id };

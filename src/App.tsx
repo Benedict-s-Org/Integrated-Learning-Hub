@@ -35,6 +35,8 @@ import {
   PageType
 } from './types';
 
+const ExamFormatterPage = lazy(() => import('./modules/exam-formatter/ExamFormatterPage'));
+
 // Regular Component Imports (not lazy)
 import TextInput from './components/TextInput/TextInput';
 import WordSelection from './components/WordSelection/WordSelection';
@@ -93,7 +95,8 @@ type AppState =
   | { page: 'adminTimetable' }
   | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
   | { page: 'adminAnalytics' }
-  | { page: 'groupCompetition' };
+  | { page: 'groupCompetition' }
+  | { page: 'examFormatter' };
 
 function AppContent() {
   const navigate = useNavigate();
@@ -299,7 +302,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter')) {
       setShowLoginModal(true);
       return;
     }
@@ -396,6 +399,8 @@ function AppContent() {
       setAppState({ page: 'adminAnalytics' });
     } else if (page === 'groupCompetition') {
       setAppState({ page: 'groupCompetition' });
+    } else if (page === 'examFormatter') {
+      setAppState({ page: 'examFormatter' });
     }
   };
 
@@ -771,6 +776,8 @@ function AppContent() {
               return <AssetGenerator />;
             case 'database':
               return <ContentDatabase />;
+            case 'examFormatter':
+              return <ExamFormatterPage />;
             case 'practice':
               if (appState.memorizationState.practiceMode === 'shuffledGame') {
                 return (
@@ -1170,16 +1177,7 @@ function AppContent() {
 
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '30px', backgroundColor: '#ff0055', color: 'white', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>
-        DEV DEBUG | ID: {user?.id?.substring(0, 8)}... | Role: {user?.role} | 
-        <button 
-          onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }}
-          style={{ marginLeft: '10px', backgroundColor: 'white', color: 'black', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer' }}
-        >
-          CLEAR & RELOAD
-        </button>
-      </div>
-      <div className="flex h-screen overflow-hidden bg-background pt-[30px]">
+      <div className="flex h-screen overflow-hidden bg-background">
         {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
