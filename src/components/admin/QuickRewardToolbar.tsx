@@ -24,8 +24,15 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
 
     const STORAGE_KEY = `quick_reward_shortcuts_${className || 'global'}`;
 
-    useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
+    const loadShortcuts = () => {
+        let saved = localStorage.getItem(STORAGE_KEY);
+        
+        // Fallback: If class-specific is empty, try global
+        if ((!saved || JSON.parse(saved).every((s: any) => !s.rewardId)) && className && className !== 'global') {
+            const globalSaved = localStorage.getItem('quick_reward_shortcuts_global');
+            if (globalSaved) saved = globalSaved;
+        }
+
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -42,7 +49,34 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
         } else {
             setShortcuts(EMPTY_SHORTCUTS);
         }
-    }, [STORAGE_KEY]);
+    };
+
+    useEffect(() => {
+        loadShortcuts();
+
+        // Listen for updates from other tabs
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === STORAGE_KEY || e.key === 'quick_reward_shortcuts_global') {
+                loadShortcuts();
+            }
+        };
+
+        // Listen for updates from the same tab (CoinAwardModal)
+        const handleCustomUpdate = (e: any) => {
+            const updatedClassId = e.detail?.classId;
+            if (updatedClassId === className || updatedClassId === 'global') {
+                loadShortcuts();
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('quick-shortcuts-updated', handleCustomUpdate);
+        
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('quick-shortcuts-updated', handleCustomUpdate);
+        };
+    }, [STORAGE_KEY, className]);
 
     const handleAction = async (shortcut: QuickRewardShortcut) => {
         if (isAwarding || !shortcut.rewardId) return;

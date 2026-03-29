@@ -69,8 +69,20 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
             
             // Load shortcuts if activeClass is provided
             if (activeClass) {
-                const storageKey = `quick_reward_shortcuts_${activeClass}`;
+                const standardizedKey = activeClass === 'all' ? 'global' : activeClass;
+                const storageKey = `quick_reward_shortcuts_${standardizedKey}`;
                 const saved = localStorage.getItem(storageKey);
+                
+                // Migration: If 'all' exists but 'global' doesn't, migrate it
+                if (activeClass === 'all' && !saved) {
+                    const legacy = localStorage.getItem('quick_reward_shortcuts_all');
+                    if (legacy) {
+                        localStorage.setItem('quick_reward_shortcuts_global', legacy);
+                        setLocalShortcuts(JSON.parse(legacy));
+                        return;
+                    }
+                }
+
                 if (saved) {
                     try {
                         setLocalShortcuts(JSON.parse(saved));
@@ -95,10 +107,15 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
 
     const saveShortcuts = (newShortcuts: { id: string, rewardId: string | null }[]) => {
         if (!activeClass) return;
+        const standardizedKey = activeClass === 'all' ? 'global' : activeClass;
         setLocalShortcuts(newShortcuts);
-        localStorage.setItem(`quick_reward_shortcuts_${activeClass}`, JSON.stringify(newShortcuts));
-        // Force update of toolbars (they listen to storage events or we can use custom event)
+        localStorage.setItem(`quick_reward_shortcuts_${standardizedKey}`, JSON.stringify(newShortcuts));
+        
+        // Force update of toolbars (standard storage event for other tabs, custom for current tab)
         window.dispatchEvent(new Event('storage')); 
+        window.dispatchEvent(new CustomEvent('quick-shortcuts-updated', { 
+            detail: { classId: standardizedKey } 
+        }));
     };
 
     const fetchRewards = async () => {
@@ -393,7 +410,12 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                     <div className="flex flex-col md:flex-row gap-6">
                                         {/* Left: Preview */}
                                         <div className="md:w-1/3 space-y-3">
-                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Toolbar Preview</h3>
+                                            <div className="flex items-center justify-between px-2 mb-2">
+                                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Toolbar Preview</h3>
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                                    {activeClass === 'all' ? 'GLOBAL' : `CLASS: ${activeClass}`}
+                                                </span>
+                                            </div>
                                             {localShortcuts.map((s, idx) => {
                                                 const linked = rewards.find(r => r.id === s.rewardId);
                                                 const IconComp = linked ? (REWARD_ICON_MAP[linked.icon] || Star) : null;
