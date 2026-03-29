@@ -11,30 +11,11 @@ import {
     FileText,
     ListTodo,
     SplitSquareVertical,
-    FileSearch,
-    Database
 } from 'lucide-react';
 import { BlockType } from '../types';
 
-import { DocxService } from '../services/DocxService';
-
-interface SidebarProps {
-    showReference: boolean;
-    setShowReference: (show: boolean) => void;
-    onOpenNotion: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ showReference, setShowReference, onOpenNotion }) => {
-    const { document, template, addBlock, selectedBlockId, deleteBlock, moveBlock, mode, setMode } = useExam();
-
-    const handleExport = async () => {
-        try {
-            await DocxService.generate(document, template);
-        } catch (error) {
-            console.error('Export failed:', error);
-            alert('Export failed. Please check the console for details.');
-        }
-    };
+export const Sidebar: React.FC = () => {
+    const { addBlock, selectedBlockId, deleteBlock, moveBlock, mode, setMode } = useExam();
 
     const blockButtons: { type: BlockType; label: string; icon: any }[] = [
         { type: 'COVER', label: 'Cover Header', icon: Heading1 },
@@ -88,33 +69,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ showReference, setShowReferenc
                     </div>
                 </section>
 
-                <section>
-                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Tools</h3>
-                    <button
-                        onClick={() => setShowReference(!showReference)}
-                        className={`flex items-center gap-3 w-full p-2.5 text-sm rounded-lg border transition-all ${
-                            showReference 
-                            ? 'bg-orange-50 text-orange-600 border-orange-200' 
-                            : 'text-gray-600 hover:bg-orange-50 hover:text-orange-600 border-gray-100'
-                        }`}
-                    >
-                        <div className={`p-1.5 rounded ${showReference ? 'bg-orange-100' : 'bg-gray-50'}`}>
-                            <FileSearch size={16} />
-                        </div>
-                        Reference Panel
-                    </button>
-
-                    <button
-                        onClick={onOpenNotion}
-                        className="flex items-center gap-3 w-full p-2.5 text-sm rounded-lg border border-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all mt-2"
-                    >
-                        <div className="p-1.5 rounded bg-gray-50 group-hover:bg-blue-100">
-                            <Database size={16} />
-                        </div>
-                        Sync with Notion
-                    </button>
-                </section>
-
                 {selectedBlockId && (
                     <section className="animate-in slide-in-from-bottom-2 duration-300">
                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Selected Block</h3>
@@ -143,15 +97,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ showReference, setShowReferenc
                         </div>
                     </section>
                 )}
-            </div>
-
-            <div className="p-4 border-t bg-gray-50/50">
-                <button 
-                    onClick={handleExport}
-                    className="w-full py-3 bg-gradient-to-r from-orange-400 to-pink-400 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-                >
-                    Export DOCX
-                </button>
             </div>
         </div>
     );

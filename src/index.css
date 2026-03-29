@@ -199,3 +199,10 @@
 .bg-region-ground {
   background-color: #FDF6E3 !important;
 }
+
+/* Exam Formatter Inline Editing */
+.editable-text:empty:before {
+  content: attr(data-placeholder);
+  color: #cbd5e1; /* slate-300 */
+  cursor: text;
+}

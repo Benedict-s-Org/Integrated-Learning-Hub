@@ -78,12 +78,33 @@ export const ShopView: React.FC<ShopViewProps> = ({
   const systemFloors = systemStyles.filter(s => s.type === 'floor');
   const colorCategories = Array.from(new Set(systemStyles.map(s => s.category))).sort();
 
+  const MAINTENANCE_MODE = true; // Set to false to re-open the shop
+
+  // Header
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-background rounded-[2rem] shadow-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden flex border-4 border-white"
+        className="bg-background rounded-[2rem] shadow-2xl max-w-5xl w-full max-h-[85vh] overflow-hidden flex border-4 border-white relative"
         onClick={(e) => e.stopPropagation()}
       >
+        {MAINTENANCE_MODE && !isAdmin && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-6 shadow-lg border-4 border-white">
+              <span className="text-5xl">🚧</span>
+            </div>
+            <h2 className="text-4xl font-black text-primary mb-4">商店維修中</h2>
+            <p className="text-xl text-primary/60 font-bold max-w-md">
+              商店正在進行維護與升級，暫時停止購買功能。請稍後再回來查看！
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-10 px-10 py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              返回房間
+            </button>
+          </div>
+        )}
+
         {/* Left Sidebar - Category Selection */}
         <div className="w-56 bg-secondary/50 border-r border-primary/10 flex flex-col">
           <div className="p-6 border-b border-primary/10">

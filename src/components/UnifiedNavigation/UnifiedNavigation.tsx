@@ -43,6 +43,7 @@ import {
     QrCode,
     FileText,
     Crown,
+    Image as ImageIcon,
 } from 'lucide-react';
 import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -355,6 +356,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     onClick={() => onPageChange('examFormatter')}
                                 />
                             )}
+                            <NavItem
+                                icon={ImageIcon}
+                                label="Vocab Image Picker"
+                                isActive={currentPage === 'vocabImagePicker'}
+                                onClick={() => onPageChange('vocabImagePicker')}
+                            />
                         </NavSection>
                     )}
 
@@ -589,6 +596,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     isActive={isMobileEmulator}
                                 />
                             )}
+                            <NavItem
+                                icon={FileText}
+                                label="Codebase Manifest"
+                                isActive={window.location.pathname === '/admin/manifest'}
+                                onClick={() => navigate('/admin/manifest')}
+                            />
                         </NavSection>
                     )}
                 </div>

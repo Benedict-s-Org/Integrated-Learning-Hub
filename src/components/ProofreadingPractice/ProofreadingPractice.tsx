@@ -227,16 +227,13 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       }
 
       if (assignmentId) {
-        const { error: updateError } = await supabase
-          .from('proofreading_practice_assignments')
-          .update({
-            completed: true,
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', assignmentId);
+        const { error: markError } = await (supabase as any).rpc('mark_assignment_complete', {
+          p_assignment_id: assignmentId,
+          p_assignment_type: 'proofreading'
+        });
 
-        if (updateError) {
-          console.error('Error updating proofreading assignment:', updateError);
+        if (markError) {
+          console.error('Error marking proofreading assignment complete:', markError);
         }
       }
     } catch (error) {

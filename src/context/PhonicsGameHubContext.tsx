@@ -6,7 +6,6 @@ import {
     PhonicsUserBadge,
     PhonicsBadge,
     GameLevel,
-    GameMode,
     LEVEL_THRESHOLDS,
     XP_REWARDS
 } from '../types/phonicsGame';
@@ -138,6 +137,7 @@ export const PhonicsGameHubProvider = ({ children, userId }: { children: React.R
             });
 
         if (sessionError) throw sessionError;
+
 
         // 4. Check for New Badges
         const newBadges: PhonicsBadge[] = [];

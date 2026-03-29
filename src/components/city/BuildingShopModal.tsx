@@ -30,6 +30,8 @@ const TYPE_LABELS: Record<BuildingType, string> = {
   landmark: "地標",
 };
 
+import { useAuth } from "@/context/AuthContext";
+
 export function BuildingShopModal({
   isOpen,
   onClose,
@@ -40,6 +42,8 @@ export function BuildingShopModal({
   onUpgradeCity,
 }: BuildingShopModalProps) {
   const [selectedType, setSelectedType] = useState<BuildingType | "all">("all");
+  const { isAdmin } = useAuth();
+  const MAINTENANCE_MODE = true; // Set to false to re-open
 
   if (!isOpen) return null;
 
@@ -54,12 +58,36 @@ export function BuildingShopModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div 
-        className="border-4 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
+        className="border-4 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden relative"
         style={{
           background: `linear-gradient(180deg, ${CARTOON_PALETTE.sky.middle} 0%, white 100%)`,
           borderColor: CARTOON_PALETTE.roofs[3],
         }}
       >
+        {MAINTENANCE_MODE && !isAdmin && (
+          <div className="absolute inset-0 z-[60] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center" style={{ background: `linear-gradient(180deg, ${CARTOON_PALETTE.sky.middle}ee 0%, white 100%)` }}>
+            <div 
+              className="w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-lg border-4"
+              style={{ backgroundColor: 'white', borderColor: CARTOON_PALETTE.roofs[3] }}
+            >
+              <span className="text-5xl">🚧</span>
+            </div>
+            <h2 className="text-4xl font-black mb-4" style={{ color: CARTOON_PALETTE.decorations.trunk }}>商店維修中</h2>
+            <p className="text-xl font-bold max-w-md" style={{ color: CARTOON_PALETTE.decorations.trunk + 'cc' }}>
+              建築商店正在進行維護與升級，暫時停止購買功能。請稍後再回來查看！
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-10 px-10 py-4 text-white font-black rounded-2xl shadow-xl transition-all hover:scale-105 active:scale-95"
+              style={{ 
+                background: `linear-gradient(135deg, ${CARTOON_PALETTE.accents[0]} 0%, ${CARTOON_PALETTE.accents[3]} 100%)`,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+              }}
+            >
+              返回大門
+            </button>
+          </div>
+        )}
         {/* Header - Cute cartoon style */}
         <div 
           className="p-6 border-b-4 flex items-center justify-between"

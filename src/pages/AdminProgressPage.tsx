@@ -16,6 +16,7 @@ import {
   ChevronDown,
   BarChart3,
   Eye,
+  RefreshCcw,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -199,9 +200,8 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
       if (isSuperAdmin && !forcedAdminId) return true;
 
       // Otherwise, only see students managed by the activeAdminId
-      // We need to ensure UserProgress has managed_by_id. 
-      // Looking at fetchUserProgress, I should make sure managed_by_id is included.
-      return (u as any).managed_by_id === activeAdminId;
+      // OR students who are currently unassigned (managed_by_id IS NULL).
+      return (u as any).managed_by_id === activeAdminId || (u as any).managed_by_id === null;
     });
 
     result.sort((a, b) => {
@@ -249,6 +249,25 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const handleSyncAll = async () => {
+    if (!window.confirm('Are you sure you want to re-synchronize all student coin balances with their learning history? This will include missing Phonics and Memorization rewards.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await (supabase as any).rpc('rebuild_user_balances');
+      if (error) throw error;
+      alert('Sync completed successfully!');
+      fetchUserProgress(); // Refresh the list
+    } catch (err) {
+      console.error('Error syncing balances:', err);
+      alert('Failed to sync balances.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const content = (
@@ -337,6 +356,18 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
               {users.reduce((sum, u) => sum + u.total_practices, 0)}
             </div>
           </div>
+        </div>
+
+        {/* Sync Action */}
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={handleSyncAll}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium text-sm shadow-sm"
+          >
+            <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Sync All Balances
+          </button>
         </div>
 
         {/* Users List */}

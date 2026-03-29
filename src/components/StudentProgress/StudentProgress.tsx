@@ -254,21 +254,21 @@ const StudentProgress: React.FC = () => {
                 <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Practices:</span>
-                    <span className="font-semibold">{progressSummary.spelling.total_practices}</span>
+                    <span className="font-semibold">{progressSummary?.spelling?.total_practices || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Avg Accuracy:</span>
-                    <span className={`font-semibold ${getScoreColor(progressSummary.spelling.average_accuracy)}`}>
-                      {progressSummary.spelling.average_accuracy}%
+                    <span className={`font-semibold ${getScoreColor(progressSummary?.spelling?.average_accuracy || 0)}`}>
+                      {progressSummary?.spelling?.average_accuracy || 0}%
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Best Score:</span>
-                    <span className="font-semibold text-green-600">{progressSummary.spelling.best_score}%</span>
+                    <span className="font-semibold text-green-600">{progressSummary?.spelling?.best_score || 0}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Time Spent:</span>
-                    <span className="font-semibold">{progressSummary.spelling.total_time_minutes} min</span>
+                    <span className="font-semibold">{progressSummary?.spelling?.total_time_minutes || 0} min</span>
                   </div>
                 </div>
               </div>
@@ -281,21 +281,21 @@ const StudentProgress: React.FC = () => {
                 <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Practices:</span>
-                    <span className="font-semibold">{progressSummary.proofreading.total_practices}</span>
+                    <span className="font-semibold">{progressSummary?.proofreading?.total_practices || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Avg Accuracy:</span>
-                    <span className={`font-semibold ${getScoreColor(progressSummary.proofreading.average_accuracy)}`}>
-                      {progressSummary.proofreading.average_accuracy}%
+                    <span className={`font-semibold ${getScoreColor(progressSummary?.proofreading?.average_accuracy || 0)}`}>
+                      {progressSummary?.proofreading?.average_accuracy || 0}%
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Best Score:</span>
-                    <span className="font-semibold text-green-600">{progressSummary.proofreading.best_score}%</span>
+                    <span className="font-semibold text-green-600">{progressSummary?.proofreading?.best_score || 0}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Time Spent:</span>
-                    <span className="font-semibold">{progressSummary.proofreading.total_time_minutes} min</span>
+                    <span className="font-semibold">{progressSummary?.proofreading?.total_time_minutes || 0} min</span>
                   </div>
                 </div>
               </div>
@@ -308,15 +308,15 @@ const StudentProgress: React.FC = () => {
                 <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Sessions:</span>
-                    <span className="font-semibold">{progressSummary.memorization.total_sessions}</span>
+                    <span className="font-semibold">{progressSummary?.memorization?.total_sessions || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Words Practiced:</span>
-                    <span className="font-semibold">{progressSummary.memorization.total_words_practiced}</span>
+                    <span className="font-semibold">{progressSummary?.memorization?.total_words_practiced || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Time Spent:</span>
-                    <span className="font-semibold">{progressSummary.memorization.total_time_minutes} min</span>
+                    <span className="font-semibold">{progressSummary?.memorization?.total_time_minutes || 0} min</span>
                   </div>
                 </div>
               </div>
@@ -329,21 +329,21 @@ const StudentProgress: React.FC = () => {
                 <div className="space-y-2 text-sm md:text-base">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Reviews:</span>
-                    <span className="font-semibold">{progressSummary.spaced_repetition?.total_practices || 0}</span>
+                    <span className="font-semibold">{progressSummary?.spaced_repetition?.total_practices || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Avg Accuracy:</span>
-                    <span className={`font-semibold ${getScoreColor(progressSummary.spaced_repetition?.average_accuracy || 0)}`}>
-                      {progressSummary.spaced_repetition?.average_accuracy || 0}%
+                    <span className={`font-semibold ${getScoreColor(progressSummary?.spaced_repetition?.average_accuracy || 0)}`}>
+                      {progressSummary?.spaced_repetition?.average_accuracy || 0}%
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Cards Mastered:</span>
-                    <span className="font-semibold text-green-600">{progressSummary.spaced_repetition?.mastery_count || 0}</span>
+                    <span className="font-semibold text-green-600">{progressSummary?.spaced_repetition?.mastery_count || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Time Spent:</span>
-                    <span className="font-semibold">{progressSummary.spaced_repetition?.total_time_minutes || 0} min</span>
+                    <span className="font-semibold">{progressSummary?.spaced_repetition?.total_time_minutes || 0} min</span>
                   </div>
                 </div>
               </div>

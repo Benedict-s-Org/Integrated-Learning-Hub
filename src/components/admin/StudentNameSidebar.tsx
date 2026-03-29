@@ -59,12 +59,12 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
             ? "flex flex-col w-full h-screen bg-white"
             : "fixed right-0 top-0 bottom-0 w-full md:w-48 flex flex-col z-[100] bg-white border-l border-slate-200 shadow-xl animate-in slide-in-from-right duration-300"
         }>
-            <div className="pt-6 md:pt-24 pb-4 px-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <div className={`border-b border-slate-100 bg-slate-50/50 flex justify-between items-center ${isPoppedOut ? 'py-1 px-2' : 'pt-6 md:pt-24 pb-4 px-4'}`}>
                 <div>
-                    <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>
+                    {!isPoppedOut && <p className="text-[10px] text-slate-500 font-medium">Click name to award +1</p>}
                 </div>
                 {/* Legend */}
-                <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-slate-100/50 rounded-lg border border-slate-200/50">
+                <div className={`flex items-center gap-2 bg-slate-100/50 rounded-lg border border-slate-200/50 ${isPoppedOut ? 'px-1 py-0' : 'mt-2 px-1 py-0.5'}`}>
                     <div className="flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-orange-700" />
                         <span className="text-[8px] font-bold text-slate-500">+1</span>
@@ -98,7 +98,7 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1.5 scrollbar-hide hover:scrollbar-default">
+            <div className={`flex-1 overflow-y-auto scrollbar-hide hover:scrollbar-default ${isPoppedOut ? 'px-1 py-1 space-y-0.5' : 'px-2 py-4 space-y-1.5'}`}>
                 {sortedUsers.map((user) => {
                     const rewardCount = user.daily_reward_count || 0;
                     const isCompleted = rewardCount >= 3;
@@ -128,7 +128,8 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                             key={user.id}
                             onClick={() => handleAward(user.id)}
                             disabled={isInCooldown}
-                            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border transition-all group text-left relative overflow-hidden
+                            className={`w-full flex items-center border transition-all group text-left relative overflow-hidden
+                                ${isPoppedOut ? 'gap-1 p-0.5 rounded-lg' : 'gap-2 p-1.5 rounded-xl'}
                                 ${isInCooldown
                                     ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed scale-95'
                                     : isCompleted
@@ -137,24 +138,25 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                                 } `}
                             title={isInCooldown ? "Wait 2 seconds..." : `Reward ${user.display_name} (${rewardCount} times)`}
                         >
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors shrink-0
+                            <div className={`rounded-full flex items-center justify-center font-bold transition-colors shrink-0
+                                ${isPoppedOut ? 'w-6 h-6 text-[9px]' : 'w-8 h-8 text-[11px]'}
                                 ${rewardCount > 0
                                     ? iconColorClass
                                     : 'bg-slate-100 text-slate-600 group-hover:bg-blue-500 group-hover:text-white'
                                 } `}>
-                                <User size={14} />
+                                <User size={isPoppedOut ? 12 : 14} />
                             </div>
 
                             <div className="flex-1 min-w-0">
                                 <p 
                                     className="font-bold truncate leading-tight"
-                                    style={{ fontSize: `${theme.sidebarFontSize || 11}px` }}
+                                    style={{ fontSize: `${(isPoppedOut ? Math.min(theme.sidebarFontSize || 11, 10) : (theme.sidebarFontSize || 11))}px` }}
                                     data-theme-key="sidebarFontSize"
                                 >
                                     {user.display_name}({user.class_number || '-'})
                                 </p>
-                                <div className="flex items-center gap-1 mt-0.5">
-                                    <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`flex items-center gap-1 ${isPoppedOut ? 'mt-0' : 'mt-0.5'}`}>
+                                    <div className={`flex-1 bg-slate-100 rounded-full overflow-hidden ${isPoppedOut ? 'h-0.5' : 'h-1'}`}>
                                         <div
                                             className={`h-full transition-all duration-500 ${barColorClass} `}
                                             style={{ width: progressWidth }}
@@ -176,9 +178,12 @@ export const StudentNameSidebar: React.FC<StudentNameSidebarProps> = ({ users, o
                 })}
             </div>
 
-            <div className="mt-2 py-2 border-t border-slate-200/50 text-[10px] text-slate-400 text-center font-medium bg-slate-50/30">
-                Sorted by Reward Progress
-            </div>
+            {!isPoppedOut && (
+                <div className="mt-2 py-2 border-t border-slate-200/50 text-[10px] text-slate-400 text-center font-medium bg-slate-50/30">
+                    Sorted by Reward Progress
+                </div>
+            )}
+
         </div>
     );
 };

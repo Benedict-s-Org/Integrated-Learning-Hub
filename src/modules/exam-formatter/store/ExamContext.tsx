@@ -44,14 +44,28 @@ const DEFAULT_TEMPLATE: Template = {
         pageSize: 'A4',
         fontFamily: 'serif',
         fontSize: 14,
+        headerEnabled: true,
+        footerEnabled: true,
         margins: { top: 2.5, bottom: 2.5, left: 2.5, right: 2.5 },
-        colors: {
-            primary: '#000000',
-            text: '#1a1a1a',
-            border: '#000000'
+        typography: {
+            paragraphSpacing: 10,
+            lineHeight: 1.5
         }
     },
-    presets: {}
+    presets: {
+        primaryEnglish: {
+            name: "Primary English (Standard)",
+            theme: {
+                pageSize: 'A4',
+                fontFamily: 'pmingliu',
+                fontSize: 16,
+                headerEnabled: true,
+                footerEnabled: true,
+                margins: { top: 2.5, bottom: 2.5, left: 2.5, right: 2.5 },
+                typography: { paragraphSpacing: 12, lineHeight: 1.5 }
+            }
+        }
+    }
 };
 
 const ExamContext = createContext<ExamContextType | null>(null);
@@ -59,11 +73,39 @@ const ExamContext = createContext<ExamContextType | null>(null);
 export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [document, setDocument] = useState<ExamDocument>(() => {
         const saved = localStorage.getItem('exam-formatter-doc');
-        return saved ? JSON.parse(saved) : INITIAL_DOC;
+        if (!saved) return INITIAL_DOC;
+        try {
+            const parsed = JSON.parse(saved);
+            return { ...INITIAL_DOC, ...parsed };
+        } catch (e) {
+            return INITIAL_DOC;
+        }
     });
     const [template, setTemplate] = useState<Template>(() => {
         const saved = localStorage.getItem('exam-formatter-template');
-        return saved ? JSON.parse(saved) : DEFAULT_TEMPLATE;
+        if (!saved) return DEFAULT_TEMPLATE;
+        try {
+            const parsed = JSON.parse(saved);
+            // Ensure typography and other nested objects are merged correctly
+            return {
+                ...DEFAULT_TEMPLATE,
+                ...parsed,
+                theme: {
+                    ...DEFAULT_TEMPLATE.theme,
+                    ...parsed.theme,
+                    typography: {
+                        ...DEFAULT_TEMPLATE.theme.typography,
+                        ...(parsed.theme?.typography || {})
+                    },
+                    margins: {
+                        ...DEFAULT_TEMPLATE.theme.margins,
+                        ...(parsed.theme?.margins || {})
+                    }
+                }
+            };
+        } catch (e) {
+            return DEFAULT_TEMPLATE;
+        }
     });
     const [mode, setMode] = useState<'BUILD' | 'TEMPLATE'>('BUILD');
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);

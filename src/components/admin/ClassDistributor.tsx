@@ -21,6 +21,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { AvatarRenderer } from '../avatar/AvatarRenderer';
 import { AvatarImageItem, UserAvatarConfig } from '../avatar/avatarParts';
+import { QuickRewardToolbar } from './QuickRewardToolbar';
 
 interface UserWithCoins {
     id: string;
@@ -36,6 +37,7 @@ interface UserWithCoins {
     created_at: string;
     is_admin: boolean;
     class_name?: string | null;
+    class?: string | null;
     equipped_item_ids?: string[];
     custom_offsets?: UserAvatarConfig;
 }
@@ -51,6 +53,8 @@ interface ClassDistributorProps {
     onSelectionChange: (ids: string[] | ((prev: string[]) => string[])) => void;
     onHomeworkClick?: (student: UserWithCoins) => void;
     onToiletBreakClick?: (student: UserWithCoins) => void;
+    onQuickAward?: (userId: string, amount: number, reason: string) => Promise<void>;
+    availableRewards?: any[];
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
     className?: string;
@@ -67,16 +71,19 @@ interface SortableUserItemProps {
     onClick: () => void;
     onHomeworkClick?: () => void;
     onToiletBreakClick?: () => void;
+    onQuickAward?: (userId: string, amount: number, reason: string) => Promise<void>;
+    availableRewards?: any[];
     onMove: (index: number, direction: 'forward' | 'backward') => void;
     consequenceCount?: number;
     showEmail?: boolean;
+    className?: string;
 }
 
 // --- Shared User Item Core ---
 function UserItemComponent({
     user, avatarCatalog, isSelected, index, total, isRearranging,
-    onToggle, onClick, onHomeworkClick, onToiletBreakClick, onMove,
-    showEmail, theme
+    onToggle, onClick, onHomeworkClick, onToiletBreakClick, onQuickAward, availableRewards, onMove,
+    showEmail, theme, className
 }: any) {
     return (
         <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
@@ -193,19 +200,31 @@ function UserItemComponent({
                 </div>
             </div>
 
-            {/* Toilet/Break Button */}
-            {onToiletBreakClick && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToiletBreakClick();
-                    }}
-                    className="mt-1 w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95"
-                    title="Toilet / Break (20 Coins)"
-                >
-                    <DoorOpen size={12} />
-                    <span className="font-black">{user.toilet_coins ?? 100}</span>
-                </button>
+            {/* Toilet/Break & Quick Reward Toolbar for 3A */}
+            <div className="flex flex-row items-center gap-2 mt-1 w-full flex-wrap">
+                {onToiletBreakClick && user.class === '3A' && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToiletBreakClick();
+                        }}
+                        className="w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95 transition-all"
+                        title="Toilet / Break (20 Coins)"
+                    >
+                        <DoorOpen size={12} />
+                        <span className="font-black">{user.toilet_coins ?? 100}</span>
+                    </button>
+                )}
+                {onQuickAward && user.class === '3A' && (
+                    <QuickRewardToolbar studentId={user.id} onQuickAward={onQuickAward} availableRewards={availableRewards || []} className={className || user.class} />
+                )}
+            </div>
+
+            {/* Quick Reward Toolbar for non-3A classes (placed above Homework) */}
+            {onQuickAward && user.class !== '3A' && (
+                <div className="mt-1 w-full">
+                    <QuickRewardToolbar studentId={user.id} onQuickAward={onQuickAward} availableRewards={availableRewards || []} className={className || user.class} />
+                </div>
             )}
 
             {/* Homework Button */}
@@ -340,7 +359,7 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
 
 const SortableUserItem = React.memo(SortableUserItemComponent, arePropsEqual);
 
-export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onReorder, selectedIds, onSelectionChange, consequenceCounts = {}, showEmail }: ClassDistributorProps) {
+export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading, onAwardCoins, onStudentClick, onHomeworkClick, onToiletBreakClick, onQuickAward, availableRewards, onReorder, selectedIds, onSelectionChange, consequenceCounts = {}, showEmail, className }: ClassDistributorProps) {
     const { theme } = useDashboardTheme();
     const [localUsers, setLocalUsers] = useState<UserWithCoins[]>(initialUsers);
     const [isSaving, setIsSaving] = useState(false);
@@ -542,9 +561,12 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     onClick={() => onStudentClick(user)}
                                     onHomeworkClick={onHomeworkClick ? () => onHomeworkClick(user) : undefined}
                                     onToiletBreakClick={onToiletBreakClick ? () => onToiletBreakClick(user) : undefined}
+                                    onQuickAward={onQuickAward}
+                                    availableRewards={availableRewards}
                                     onMove={handleMove}
                                     consequenceCount={consequenceCounts[user.id] || 0}
                                     showEmail={showEmail}
+                                    className={className}
                                 />
                             ))}
                         </div>

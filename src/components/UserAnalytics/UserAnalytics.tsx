@@ -71,12 +71,17 @@ interface StudentPerformance {
   user_id: string;
   username: string;
   display_name: string;
+  class: string;
+  class_number: number;
   spelling_practices: number;
   spelling_avg_accuracy: number;
   proofreading_practices: number;
   proofreading_avg_accuracy: number;
   memorization_sessions: number;
-  spaced_repetition_sessions: number;
+  sr_attempts: number;
+  sr_avg_accuracy: number;
+  reading_attempts: number;
+  reading_perfect_count: number;
   total_practices: number;
   overall_avg_accuracy: number;
   last_activity: string;
@@ -132,7 +137,7 @@ const UserAnalytics: React.FC = () => {
     setLoading(true);
     try {
       const [summaryData, studentsData, timelineData, recentData, spellingDist, proofreadingDist] = await Promise.all([
-        (supabase as any).rpc('get_class_analytics_summary'),
+        (supabase as any).rpc('get_overall_analytics_summary'),
         (supabase as any).rpc('get_all_students_performance'),
         (supabase as any).rpc('get_practice_activity_timeline', { days_back: 30 }),
         (supabase as any).rpc('get_recent_activity', { limit_count: 20 }),
@@ -266,12 +271,34 @@ const UserAnalytics: React.FC = () => {
                   <BarChart3 className="text-green-600" size={32} />
                 </div>
                 <div className="text-4xl font-bold text-gray-900 mb-2">
-                  {classSummary.spelling.total_practices +
-                    classSummary.proofreading.total_practices +
-                    classSummary.memorization.total_sessions}
+                  {((classSummary?.spelling?.total_practices || 0) +
+                    (classSummary?.proofreading?.total_practices || 0) +
+                    (classSummary?.memorization?.total_sessions || 0) +
+                    ((classSummary as any)?.spaced_repetition?.total_practices || 0))} 練習
                 </div>
-                <div className="text-sm text-gray-600">
-                  Across {classSummary.spelling.total_practices + classSummary.proofreading.total_practices + classSummary.memorization.total_sessions > 0 ? 'all' : 'no'} practice types
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="text-3xl font-black text-[hsl(var(--foreground))]">
+                  {classSummary?.total_students || 0}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider">
+                  位學生
+                </div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="text-3xl font-black text-[hsl(var(--foreground))]">
+                  {classSummary?.active_students || 0}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider">
+                  位活躍
+                </div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="text-3xl font-black text-[hsl(var(--foreground))]">
+                  {(classSummary?.inactive_students || 0)}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))] font-bold uppercase tracking-wider">
+                  位不活躍
                 </div>
               </div>
 
@@ -484,8 +511,9 @@ const UserAnalytics: React.FC = () => {
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Student</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Spelling</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Proofreading</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Reading</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Memorization</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Spaced Repetition</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">SR</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Total</th>
                       <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Avg Score</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Last Activity</th>
@@ -494,7 +522,7 @@ const UserAnalytics: React.FC = () => {
                   <tbody className="divide-y divide-gray-200">
                     {filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                           {searchQuery ? 'No students found matching your search' : 'No students yet'}
                         </td>
                       </tr>
@@ -504,7 +532,7 @@ const UserAnalytics: React.FC = () => {
                           <td className="px-6 py-4">
                             <div>
                               <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
-                              <div className="text-xs text-gray-500">@{student.username}</div>
+                              <div className="text-xs text-gray-500">@{student.username} {student.class ? `(${student.class})` : ''}</div>
                             </div>
                           </td>
                           <td className="px-6 py-4 text-center">
@@ -524,10 +552,23 @@ const UserAnalytics: React.FC = () => {
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
+                            <div className="text-sm text-gray-900">{student.reading_attempts}</div>
+                            {student.reading_attempts > 0 && (
+                              <div className="text-xs text-green-600 font-medium">
+                                {student.reading_perfect_count} perfect
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center">
                             <div className="text-sm text-gray-900">{student.memorization_sessions}</div>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="text-sm text-gray-900">{student.spaced_repetition_sessions}</div>
+                            <div className="text-sm text-gray-900">{student.sr_attempts}</div>
+                            {student.sr_attempts > 0 && (
+                                <div className={`text-xs font-medium ${getScoreColor(student.sr_avg_accuracy)}`}>
+                                    {student.sr_avg_accuracy}%
+                                </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="text-sm font-semibold text-gray-900">{student.total_practices}</div>

@@ -456,17 +456,16 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       // Update assignment table if needed
       if (assignmentId) {
         try {
-          const finalScore = score;
-          await (supabase
-            .from('reading_practice_assignments' as any) as any)
-            .update({
-              completed: true,
-              completed_at: new Date().toISOString(),
-              score: finalScore
-            })
-            .eq('id', assignmentId);
+          const { error: markError } = await (supabase as any).rpc('mark_assignment_complete', {
+            p_assignment_id: assignmentId,
+            p_assignment_type: 'reading'
+          });
+          
+          if (markError) {
+            console.error('Error marking reading assignment complete:', markError);
+          }
         } catch (err) {
-          console.error('Error updating reading assignment:', err);
+          console.error('Error calling mark_assignment_complete for reading:', err);
         }
       }
       onComplete(score, bonusCoins);
@@ -791,7 +790,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                  className="flex items-center gap-3 px-8 py-4 bg-amber-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100 animate-in zoom-in duration-300 hover:scale-105 active:scale-95"
                >
                  <Target className="w-5 h-5" />
-                 Link Evidence (+5 Coins)
+                 Link Evidence
                </button>
              )}
           </div>

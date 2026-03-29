@@ -144,6 +144,25 @@ export function ClassDashboardPage() {
 
     // New Selection State
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [availableRewards, setAvailableRewards] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchAvailableRewards = async () => {
+            const { data } = await (supabase
+                .from('class_rewards' as any)
+                .select('*')
+                .order('title', { ascending: true }) as any);
+            if (data) setAvailableRewards(data);
+        };
+        fetchAvailableRewards();
+
+        const handleUpdate = () => {
+            fetchAvailableRewards();
+        };
+
+        window.addEventListener('classRewardsUpdated', handleUpdate);
+        return () => window.removeEventListener('classRewardsUpdated', handleUpdate);
+    }, []);
     const [isSyncing, setIsSyncing] = useState(false);
     const [showMorningDuties, setShowMorningDuties] = useState(() => isHKMorningTime());
     const [showProgressLog, setShowProgressLog] = useState(false);
@@ -657,16 +676,13 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleQuickAward = async (userId: string) => {
-
-        const reason = REWARD_REASONS.ANSWER_QUESTION;
-        const amount = 10;
+    const handleQuickAward = async (userId: string, amount: number = 10, reason: string = REWARD_REASONS.ANSWER_QUESTION) => {
         try {
             const result = await coinService.awardCoins({
                 userId,
                 amount,
                 reason,
-                type: 'reward',
+                type: amount >= 0 ? 'reward' : 'consequence',
                 batchId: crypto.randomUUID()
             });
             if (!result.success) throw result.error;
@@ -679,6 +695,7 @@ export function ClassDashboardPage() {
     };
 
     const handleToiletBreakClick = async (student: UserWithCoins) => {
+        if (student.class === '4D') return;
         const isAllowedTime = isWithinToiletAllowanceTime();
 
 
@@ -1261,6 +1278,8 @@ export function ClassDashboardPage() {
                                             onStudentClick={handleStudentClick}
                                             onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
                                             onToiletBreakClick={handleToiletBreakClick}
+                                            onQuickAward={handleQuickAward}
+                                            availableRewards={availableRewards}
                                             onReorder={handleReorder}
                                             selectedIds={selectedStudentIds}
                                             onSelectionChange={setSelectedStudentIds}
@@ -1296,6 +1315,8 @@ export function ClassDashboardPage() {
                                                 onStudentClick={handleStudentClick}
                                                 onHomeworkClick={viewMode === 'classes' ? (student) => setSelectedHomeworkStudentId(student.id) : undefined}
                                                 onToiletBreakClick={handleToiletBreakClick}
+                                                onQuickAward={handleQuickAward}
+                                                availableRewards={availableRewards}
                                                 onReorder={handleReorder}
                                                 selectedIds={selectedStudentIds}
                                                 onSelectionChange={setSelectedStudentIds}
@@ -1319,6 +1340,7 @@ export function ClassDashboardPage() {
                 onAward={(amount, reason, kind) => handleAwardCoins(selectedForAward, amount, reason, kind)}
                 onAwardBulk={handleAwardBulk}
                 students={Object.values(groupedUsers).flat()}
+                activeClass={activeClass}
             />
 
             <StudentProfileModal
@@ -1357,7 +1379,7 @@ export function ClassDashboardPage() {
                     onQuickAward={handleQuickAward}
                     onClose={() => setShowNameSidebar(false)}
                     onPopOut={isPipSupported ? async () => {
-                        const win = await requestPip({ width: 200, height: window.screen.availHeight });
+                        const win = await requestPip({ width: 120, height: window.screen.availHeight });
                         if (win) setShowNameSidebar(false); // Only hide if pop out succeeded
                     } : undefined}
                 />

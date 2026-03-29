@@ -36,6 +36,10 @@ import {
 } from './types';
 
 const ExamFormatterPage = lazy(() => import('./modules/exam-formatter/ExamFormatterPage'));
+const GripStation = lazy(() => import('./pages/GripStation').then(module => ({ default: module.GripStation })));
+const WritingStation = lazy(() => import('./pages/WritingStation').then(module => ({ default: module.WritingStation })));
+const AssessmentReport = lazy(() => import('./pages/AssessmentReport').then(module => ({ default: module.AssessmentReport })));
+const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker').then(module => ({ default: module.VocabImagePicker })));
 
 // Regular Component Imports (not lazy)
 import TextInput from './components/TextInput/TextInput';
@@ -47,6 +51,7 @@ import DictationView from './components/MemorizationView/DictationView';
 import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
+import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string }
@@ -96,7 +101,11 @@ type AppState =
   | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
   | { page: 'adminAnalytics' }
   | { page: 'groupCompetition' }
-  | { page: 'examFormatter' };
+  | { page: 'gripStation' }
+  | { page: 'writingStation' }
+  | { page: 'assessmentReport' }
+  | { page: 'examFormatter' }
+  | { page: 'vocabImagePicker' };
 
 function AppContent() {
   const navigate = useNavigate();
@@ -302,7 +311,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker')) {
       setShowLoginModal(true);
       return;
     }
@@ -399,8 +408,16 @@ function AppContent() {
       setAppState({ page: 'adminAnalytics' });
     } else if (page === 'groupCompetition') {
       setAppState({ page: 'groupCompetition' });
+    } else if (page === 'gripStation') {
+      setAppState({ page: 'gripStation' });
+    } else if (page === 'writingStation') {
+      setAppState({ page: 'writingStation' });
+    } else if (page === 'assessmentReport') {
+      setAppState({ page: 'assessmentReport' });
     } else if (page === 'examFormatter') {
       setAppState({ page: 'examFormatter' });
+    } else if (page === 'vocabImagePicker') {
+      setAppState({ page: 'vocabImagePicker' });
     }
   };
 
@@ -739,6 +756,12 @@ function AppContent() {
               return <InteractiveScanQuizPage />;
             case 'groupCompetition':
               return <GroupCompetitionPage />;
+            case 'gripStation':
+              return <GripStation />;
+            case 'writingStation':
+              return <WritingStation />;
+            case 'assessmentReport':
+              return <AssessmentReport />;
             case 'markerGenerator':
               return <MarkerGenerator onBack={() => setAppState({ page: 'admin' })} />;
             case 'assetUpload':
@@ -778,6 +801,8 @@ function AppContent() {
               return <ContentDatabase />;
             case 'examFormatter':
               return <ExamFormatterPage />;
+            case 'vocabImagePicker':
+              return <VocabImagePicker />;
             case 'practice':
               if (appState.memorizationState.practiceMode === 'shuffledGame') {
                 return (
@@ -1236,6 +1261,24 @@ function AppContent() {
           } as React.CSSProperties}
         >
           <ErrorBoundary>
+            {isMobileDevice() && (appState.page === 'new' && appState.step === 'input') && (
+              <div className="mx-4 mt-4 mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center justify-between">
+                <p className="text-blue-800 font-medium">
+                  Recommended for this device: {getDeviceLabel().english} / {getDeviceLabel().chinese}
+                </p>
+                <button
+                  onClick={() => {
+                    const station = getRecommendedStation();
+                    if (station === 'grip') setAppState({ page: 'gripStation' });
+                    else if (station === 'writing') setAppState({ page: 'writingStation' });
+                  }}
+                  className="px-4 py-1.5 bg-blue-600 text-white rounded-md font-bold text-xs hover:bg-blue-700 transition-colors shrink-0 ml-4"
+                >
+                  Go to {getRecommendedStation() === 'grip' ? 'Grip Station' : 'Writing Station'} / 
+                  前往{getRecommendedStation() === 'grip' ? '握筆站' : '書寫站'}
+                </button>
+              </div>
+            )}
             {renderCurrentView()}
           </ErrorBoundary>
         </main>

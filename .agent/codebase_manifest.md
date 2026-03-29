@@ -26,7 +26,8 @@
 | **Reading / Notion** | `ReadingPracticeCreator.tsx` - Passage bulk cropping & Notion sync. | L168-L189 |
 | **Google TTS** | `google-tts/index.ts` - Drive proxy architecture for reliable audio. | L190-L201 |
 | **iPad Interactive** | `IPadInteractiveZone.tsx` - Pressure-sensitive handwriting training. | L218-L229 |
-| **Exam Formatter** | `ExamFormatterPage.tsx` - WYSIWYG editor with Notion sync & AI assistants. | L230-L245 |
+| **Exam Formatter** | `ExamFormatterPage.tsx` - WYSIWYG editor with Top Toolbar, Notion sync, & AI assistants. | L231-L245 |
+| **Vocab Image Picker** | `VocabImagePicker.tsx` - License-safe image scraper & bulk downloader. | L259-L270 |
 | **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L246-L257 |
 
 ---
@@ -129,6 +130,8 @@
 - **Virtual Coins**: Hard limit of 3 "Answering Questions" real rewards per day. Calls `increment_room_coins` RPC which handles the actual increment and auto-logs a transaction in `student_records`.
 - **Toilet Coins**: `deductToiletCoins(userId)` specialized logic to deduct 20 `toilet_coins` via `deduct_toilet_coins` RPC.
 - **Revert System**: Tracks `_lastBatchId`. When reverting, updates `is_reverted = true` in `student_records` and deducts points. Keeps reverted records for 30 days.
+- **Progress Synchronization**: Added in `2026-03-24`. The `rebuild_user_balances` RPC now aggregates reward coins from `spelling_practice_results`, `proofreading_practice_results`, and `reading_student_responses` to ensure balances accurately reflect actual student work.
+- **Automated Awarding**: Frontend hooks in `SpellingPractice.tsx`, `ReadingChallenge.tsx`, and `ProofreadingPractice.tsx` now automatically trigger coin awards (via `mark_assignment_complete` or manual `increment_room_coins`) upon completion.
 
 ### Quiz System (L101-L105)
 - **Path**: `src/pages/InteractiveScanQuizPage.tsx`
@@ -165,6 +168,8 @@
 ### DB & RPCs (L130-L135)
 - **coin_transactions / student_records**: Unifies all point changes. 
 - **`increment_room_coins(user_id, amount, reason, ...)`**: High-availability Postgres RPC that ensures atomicity when adding coins and logging. Overcomes concurrent request race conditions.
+- **`rebuild_user_balances(p_user_id)`**: Completely reconstructs a user's balance by summing all manual records AND practice results (Spelling, Reading, Proofreading). Resolves desynchronization between display coins and progress.
+- **`mark_assignment_complete(assignment_id, type)`**: Unified completion RPC that updates status AND awards appropriate `reward_coins` to the student, creating an auditable `student_record`.
 - **`revert_student_record(record_id)`**: Backs out a previous transaction exactly. Supports bulk via `revert_student_records_batch`.
 - **`award_dictation_bonus`**: Complex server-side logic assigning scale-based coins depending on dictation accuracy percentages.
 - **Gotcha**: Auth search_path `pgcrypto` is in the `extensions` schema. Any auth-related DB function *must* have `search_path = public, extensions, pg_temp`.
@@ -228,16 +233,20 @@
   - **Admin Recorder**: `ExerciseRecorder.tsx` allows admins to demonstrate paths with "Magnetic Snapping" to template ink.
 - **Data**: Exercises stored in `cursive_exercises`; student attempts and "Gentle" stats in `cursive_attempts`.
 
-### Exam Paper Formatter (L230-L245)
+### Exam Paper Formatter (L231-L245)
 - **Path**: `src/modules/exam-formatter/`
-- **Concept**: A WYSIWYG tool for teachers to build examination papers from scratch or via Notion.
-- **State Management**: Uses `ExamContext` for real-time document (`exam.json`) and template synchronization. persists to `localStorage`.
-- **Key Features**:
-  - **Block UI**: Canvas-based editor with `COVER`, `QUESTION`, `MCQ_OPTIONS`, and `INSTRUCTIONS` blocks.
-  - **Notion Integration**: `NotionImportModal.tsx` fetches questions from Notion databases. Supports bi-directional sync (pushing local edits back to Notion).
-  - **AI Content Assistants**: Integrated with Flowith API for **Simplify Language** and **Auto-Distractor** generation.
-  - **DOCX Export**: `DocxService.ts` maps the block-based document to a professional Word file with hierarchical numbering and alignment.
-- **Components**: `Canvas`, `Sidebar`, `Inspector`, `BlockRenderer`, `NotionImportModal`.
+...
+- **Components**: `Canvas`, `Toolbar`, `Sidebar`, `Inspector`, `BlockRenderer`, `NotionImportModal`.
+
+### Vocab Image Picker (L259-L270)
+- **Path**: `src/components/admin/VocabImagePicker.tsx`
+- **Concept**: A tool for teachers to scrape license-safe images (CC0/PD) for vocabulary lists.
+- **Mechanism**: 
+  - **Edge Function Proxy**: Uses `image-search` Edge Function to search Wikimedia Commons and Openverse.
+  - **Strict Licensing**: Filters for only CC0 and Public Domain licenses.
+  - **Download Proxy**: Proxies actual image bytes through the Edge Function to bypass CORS during ZIP generation.
+  - **Bulk Download**: Uses `jszip` to package selected images with a `selections.json` manifest.
+- **Workflow**: Paste vocab list -> Search -> Select -> Download ZIP.
 
 ### Token Optimization (L246-L257)
 - **Problem**: High context/token usage due to large file reads and verbose artifacts.
