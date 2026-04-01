@@ -364,7 +364,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   };
 
-  const addProofreadingPractice = async (title: string, sentences: string[], answers: ProofreadingAnswer[]): Promise<boolean> => {
+  const addProofreadingPractice = async (title: string, sentences: string[], answers: ProofreadingAnswer[], exercise_number?: string): Promise<boolean> => {
     if (!userId) {
       console.error('User not authenticated');
       return false;
@@ -381,6 +381,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           title,
           sentences,
           answers,
+          exercise_number,
           userId,
         }
       });
@@ -395,6 +396,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           id: data.practice.id,
           user_id: data.practice.user_id,
           title: data.practice.title,
+          exercise_number: data.practice.exercise_number,
           sentences: data.practice.sentences,
           answers: data.practice.answers,
           created_at: data.practice.created_at,
@@ -440,6 +442,56 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       console.error('Failed to delete proofreading practice:', error);
     }
   }, [userId]);
+
+  const appendProofreadingPractice = useCallback(async (title: string, sentences: string[], answers: ProofreadingAnswer[]): Promise<boolean> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const { data, error } = await supabase.functions.invoke('proofreading-practices/append', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey
+        },
+        body: {
+          title,
+          sentences,
+          answers,
+          userId,
+        }
+      });
+
+      if (error) {
+        console.error('Error appending proofreading practice:', error);
+        return false;
+      }
+
+      if (data.practice) {
+        setProofreadingPractices(prev => {
+          const index = prev.findIndex(p => p.id === data.practice.id);
+          if (index !== -1) {
+            const newPractices = [...prev];
+            newPractices[index] = {
+              ...data.practice,
+              sentences: data.practice.sentences,
+              answers: data.practice.answers,
+              updated_at: data.practice.updated_at,
+            };
+            return newPractices;
+          }
+          return [data.practice, ...prev];
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to append proofreading practice:', error);
+      return false;
+    }
+  }, [userId, session]);
 
   const updateProofreadingPractice = useCallback(async (id: string, title: string): Promise<boolean> => {
     if (!userId) {
@@ -497,6 +549,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     currentSaveCount,
     proofreadingPractices,
     addProofreadingPractice,
+    appendProofreadingPractice,
     updateProofreadingPractice,
     deleteProofreadingPractice,
     refreshSavedContents,
@@ -515,6 +568,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     currentSaveCount,
     proofreadingPractices,
     addProofreadingPractice,
+    appendProofreadingPractice,
     updateProofreadingPractice,
     deleteProofreadingPractice,
     refreshSavedContents,

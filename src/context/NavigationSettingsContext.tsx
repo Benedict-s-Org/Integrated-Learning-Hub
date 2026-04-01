@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "homeworkRecord", label: "Homework Record", visible: false},
     {id: "timetable", label: "Timetable Management", visible: false},
     {id: "broadcast", label: "Broadcast Management", visible: false},
+    {id: "progressLog", label: "Progress Log (Coin History)", visible: false},
     {id: "assignmentManagement", label: "Assignment Management", visible: false},
     {id: "readingManagement", label: "Reading Practice Management", visible: false},
     {id: "interactiveScannerAdmin", label: "Interactive Scanner", visible: false},

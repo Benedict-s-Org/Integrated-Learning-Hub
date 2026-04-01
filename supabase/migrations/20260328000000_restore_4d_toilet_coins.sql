@@ -8,8 +8,8 @@ DECLARE
     v_4d_student_ids UUID[];
 BEGIN
     -- 1. Identify all students currently in Class 4D
-    SELECT array_agg(user_id) INTO v_4d_student_ids
-    FROM public.user_room_data
+    SELECT array_agg(id) INTO v_4d_student_ids
+    FROM public.users
     WHERE class = '4D';
 
     IF v_4d_student_ids IS NULL OR array_length(v_4d_student_ids, 1) = 0 THEN

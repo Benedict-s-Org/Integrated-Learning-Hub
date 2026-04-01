@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-    X, Plus, Trash2, Edit2, Check, Star, Trophy
+    X, Plus, Trash2, Edit2, Check, Star, Trophy, Cloud
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '@/context/AuthContext';
@@ -52,6 +52,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
     
     // Shortcut State
     const [localShortcuts, setLocalShortcuts] = useState<{ id: string, rewardId: string | null }[]>([]);
+    const [isSavingToCloud, setIsSavingToCloud] = useState(false);
 
     const [pendingSubOptions, setPendingSubOptions] = useState<{ reward: ClassReward; selected: string[] } | null>(null);
     const [showDictationBonus, setShowDictationBonus] = useState(false);
@@ -70,28 +71,42 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
             // Load shortcuts if activeClass is provided
             if (activeClass) {
                 const standardizedKey = activeClass === 'all' ? 'global' : activeClass;
-                const storageKey = `quick_reward_shortcuts_${standardizedKey}`;
-                const saved = localStorage.getItem(storageKey);
                 
-                // Migration: If 'all' exists but 'global' doesn't, migrate it
-                if (activeClass === 'all' && !saved) {
-                    const legacy = localStorage.getItem('quick_reward_shortcuts_all');
-                    if (legacy) {
-                        localStorage.setItem('quick_reward_shortcuts_global', legacy);
-                        setLocalShortcuts(JSON.parse(legacy));
-                        return;
-                    }
-                }
+                const fetchCloudShortcuts = async () => {
+                    const { data, error } = await (supabase
+                        .from('dashboard_shortcuts' as any)
+                        .select('shortcuts')
+                        .eq('name', standardizedKey)
+                        .single() as any);
+                    
+                    if (data?.shortcuts) {
+                        setLocalShortcuts(data.shortcuts);
+                    } else {
+                        // Fallback to localStorage if cloud is empty
+                        const storageKey = `quick_reward_shortcuts_${standardizedKey}`;
+                        const saved = localStorage.getItem(storageKey);
+                        
+                        if (activeClass === 'all' && !saved) {
+                            const legacy = localStorage.getItem('quick_reward_shortcuts_all');
+                            if (legacy) {
+                                setLocalShortcuts(JSON.parse(legacy));
+                                return;
+                            }
+                        }
 
-                if (saved) {
-                    try {
-                        setLocalShortcuts(JSON.parse(saved));
-                    } catch (e) {
-                        setLocalShortcuts(generateDefaultShortcuts());
+                        if (saved) {
+                            try {
+                                setLocalShortcuts(JSON.parse(saved));
+                            } catch (e) {
+                                setLocalShortcuts(generateDefaultShortcuts());
+                            }
+                        } else {
+                            setLocalShortcuts(generateDefaultShortcuts());
+                        }
                     }
-                } else {
-                    setLocalShortcuts(generateDefaultShortcuts());
-                }
+                };
+
+                fetchCloudShortcuts();
             }
         }
     }, [isOpen, activeClass]);
@@ -116,6 +131,30 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         window.dispatchEvent(new CustomEvent('quick-shortcuts-updated', { 
             detail: { classId: standardizedKey } 
         }));
+    };
+
+    const handleSaveToCloud = async () => {
+        if (!activeClass) return;
+        const standardizedKey = activeClass === 'all' ? 'global' : activeClass;
+        
+        setIsSavingToCloud(true);
+        try {
+            const { error } = await (supabase
+                .from('dashboard_shortcuts' as any)
+                .upsert({
+                    name: standardizedKey,
+                    shortcuts: localShortcuts,
+                    updated_at: new Date().toISOString()
+                }) as any);
+            
+            if (error) throw error;
+            alert('Shortcuts saved to cloud successfully!');
+        } catch (error: any) {
+            console.error('Error saving to cloud:', error);
+            alert(`Failed to save to cloud: ${error.message}`);
+        } finally {
+            setIsSavingToCloud(false);
+        }
     };
 
     const fetchRewards = async () => {
@@ -412,9 +451,22 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                                         <div className="md:w-1/3 space-y-3">
                                             <div className="flex items-center justify-between px-2 mb-2">
                                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Toolbar Preview</h3>
-                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                                    {activeClass === 'all' ? 'GLOBAL' : `CLASS: ${activeClass}`}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={handleSaveToCloud}
+                                                        disabled={isSavingToCloud}
+                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold transition-all
+                                                            ${isSavingToCloud 
+                                                                ? 'bg-blue-50 text-blue-400' 
+                                                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm active:scale-95'}`}
+                                                    >
+                                                        <Cloud size={10} className={isSavingToCloud ? 'animate-pulse' : ''} />
+                                                        {isSavingToCloud ? 'SAVING...' : 'SAVE TO CLOUD'}
+                                                    </button>
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                                        {activeClass === 'all' ? 'GLOBAL' : `CLASS: ${activeClass}`}
+                                                    </span>
+                                                </div>
                                             </div>
                                             {localShortcuts.map((s, idx) => {
                                                 const linked = rewards.find(r => r.id === s.rewardId);

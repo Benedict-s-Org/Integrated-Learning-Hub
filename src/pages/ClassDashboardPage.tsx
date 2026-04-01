@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getHKTodayString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -14,7 +15,6 @@ import { SendNotificationModal } from '@/components/admin/notifications/SendNoti
 import { NotificationTemplate } from '@/types/notifications';
 import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { TimetableBoard } from '@/components/admin/TimetableBoard';
-import { ProgressLogModal } from '@/components/admin/ProgressLogModal';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 import { AvatarImageItem } from '@/components/avatar/avatarParts';
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
@@ -133,7 +133,8 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 });
 
 export function ClassDashboardPage() {
-    const { isAdmin, isStaff, user: currentUser, session } = useAuth();
+    const { user: currentUser, isAdmin, isStaff, session } = useAuth();
+    const navigate = useNavigate();
     const { theme } = useDashboardTheme();
 
     const [groupedUsers, setGroupedUsers] = useState<Record<string, UserWithCoins[]>>({});
@@ -164,8 +165,8 @@ export function ClassDashboardPage() {
         return () => window.removeEventListener('classRewardsUpdated', handleUpdate);
     }, []);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isSyncingBalances, setIsSyncingBalances] = useState(false);
     const [showMorningDuties, setShowMorningDuties] = useState(() => isHKMorningTime());
-    const [showProgressLog, setShowProgressLog] = useState(false);
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
     const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
@@ -180,19 +181,35 @@ export function ClassDashboardPage() {
         setIsCycleLoading(true);
         try {
             const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const { data, error } = await supabase.functions.invoke('notion-api', {
+            const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notion-api`;
+
+            const response = await fetch(fnUrl, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session?.access_token || anonKey}`,
-                    'apikey': anonKey
+                    'apikey': anonKey,
+                    'Content-Type': 'application/json',
+                    'x-action': 'get-cycle-day'
                 },
-                body: {
+                body: JSON.stringify({
                     action: 'get-cycle-day'
-                }
+                })
             });
 
-            if (error) {
-                console.error('[Dashboard] Edge Function error:', error);
-                throw error;
+            const responseText = await response.text();
+            let data = null;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                throw new Error(`Edge function returned non-JSON: ${response.status} ${responseText}`);
+            }
+
+            if (!response.ok) {
+                console.error('[Dashboard] Notion API Error for Cycle Day:', data);
+                if (response.status === 404 && data && data.object === 'error') {
+                    throw new Error(`Cycle Day DB not found in Notion! Ensure the DB is shared with the Supabase Integration.`);
+                }
+                throw new Error(data.error || data.message || 'Error fetching cycle data');
             }
 
             if (data && data.found) {
@@ -215,6 +232,27 @@ export function ClassDashboardPage() {
             console.error('Error fetching cycle data:', err);
         } finally {
             setIsCycleLoading(false);
+        }
+    };
+
+    const handleSyncBalances = async () => {
+        if (!isAdmin) return;
+        const confirmed = window.confirm('Are you sure you want to re-synchronize all student coin balances with their learning history? This will include missing Phonics and Memorization rewards.');
+        if (!confirmed) return;
+
+        setIsSyncingBalances(true);
+        try {
+            console.log('[Dashboard] Starting manual coin balance rebuild...');
+            const { error } = await (supabase as any).rpc('rebuild_user_balances');
+            if (error) throw error;
+
+            alert('Sync completed successfully! Balances have been rebuilt from the audit logs.');
+            await fetchUsers({ forceRefresh: true });
+        } catch (err: any) {
+            console.error('Balance sync failed:', err);
+            alert(`Balance sync failed: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsSyncingBalances(false);
         }
     };
 
@@ -282,7 +320,7 @@ export function ClassDashboardPage() {
             let catalogData: any[] = [];
 
             // 1. Parallel Phase 1: High-level data (Auth, Classes, Activities, Avatar Catalog)
-            console.time('fetchUsers-phase1');
+            console.log(`[fetchUsers] Processing users with concurrency limit...`);
             const phase1Promises: Promise<any>[] = [];
 
             // Auth/List Users (with cache)
@@ -329,7 +367,6 @@ export function ClassDashboardPage() {
             }
 
             const phase1Results = await Promise.all(phase1Promises);
-            console.timeEnd('fetchUsers-phase1');
 
             phase1Results.forEach(res => {
                 if (res.type === 'users') usersData = res.data;
@@ -348,7 +385,6 @@ export function ClassDashboardPage() {
             if (userIds.length === 0) {
                 setGroupedUsers({});
                 setIsLoading(false);
-                console.timeEnd('fetchUsers-total');
                 return;
             }
 
@@ -1008,7 +1044,7 @@ export function ClassDashboardPage() {
 
                     <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                         <button
-                            onClick={() => setShowProgressLog(true)}
+                            onClick={() => navigate('/admin/progress-log')}
                             className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
                         >
                             <History size={18} className="text-slate-400" />
@@ -1094,14 +1130,26 @@ export function ClassDashboardPage() {
                             Manage Rewards
                         </button>
                         {isAdmin && (
-                            <button
-                                onClick={handleSyncUsers}
-                                disabled={isSyncing}
-                                className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl font-semibold shadow-sm transition-all text-sm ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <RotateCcw size={18} className={`text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
-                                {isSyncing ? 'Syncing...' : 'Sync Users'}
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleSyncUsers}
+                                    disabled={isSyncing}
+                                    className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl font-semibold shadow-sm transition-all text-sm ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <RotateCcw size={18} className={`text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    {isSyncing ? 'Syncing...' : 'Sync Users'}
+                                </button>
+
+                                <button
+                                    onClick={handleSyncBalances}
+                                    disabled={isSyncingBalances}
+                                    title="Rebuild coin balances from history"
+                                    className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 text-yellow-700 rounded-xl font-semibold shadow-sm transition-all text-sm ${isSyncingBalances ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <Sparkles size={18} className={`text-yellow-400 ${isSyncingBalances ? 'animate-spin' : ''}`} />
+                                    {isSyncingBalances ? 'Syncing...' : 'Sync Coin Balances'}
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -1414,10 +1462,6 @@ export function ClassDashboardPage() {
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
             />
 
-            <ProgressLogModal
-                isOpen={showProgressLog}
-                onClose={() => setShowProgressLog(false)}
-            />
 
             {showBroadcastBoard && (
                 <BroadcastBoard

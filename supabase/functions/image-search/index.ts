@@ -17,7 +17,14 @@ interface ProxyRequest {
   url: string;
 }
 
-type RequestBody = SearchRequest | ProxyRequest;
+interface UploadRequest {
+  action: 'upload';
+  url: string;
+  customFileName?: string;
+  folderName?: string;
+}
+
+type RequestBody = SearchRequest | ProxyRequest | UploadRequest;
 
 export interface ImageCandidate {
   source: string;
@@ -273,6 +280,138 @@ function selectTopCandidates(wikiResults: ScoredCandidate[], openverseResults: S
    }));
 }
 
+/**
+ * Gets a Google Auth token using Service Account JSON.
+ */
+async function getAccessToken({ client_email, private_key }: { client_email: string, private_key: string }): Promise<string> {
+  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = btoa(JSON.stringify({
+    iss: client_email,
+    sub: client_email,
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+    scope: "https://www.googleapis.com/auth/drive",
+  }));
+
+  const keyBuffer = Uint8Array.from(atob(private_key.replace(/-----(BEGIN|END) PRIVATE KEY-----|\n/g, "")), c => c.charCodeAt(0));
+  const cryptoKey = await crypto.subtle.importKey("pkcs8", keyBuffer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(`${header}.${payload}`));
+  const jwt = `${header}.${payload}.${btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")}`;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+
+  const data = await response.json();
+  if (data.error) throw new Error(`Auth failed: ${data.error_description}`);
+  return data.access_token;
+}
+
+/**
+ * Set "anyone with the link can read" permission on a Drive file.
+ */
+async function setDrivePublicPermission(fileId: string, accessToken: string): Promise<void> {
+  await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&supportsTeamDrives=true`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "anyone", role: "reader" }),
+    }
+  );
+}
+
+/**
+ * Finds or creates a subfolder by name under a parent folder.
+ */
+/**
+ * Recursive folder search/creation.
+ * Supports paths like "Learning_Community/city/buildings"
+ */
+async function findOrCreateFolder(path: string, parentId: string, accessToken: string): Promise<string> {
+  const parts = path.split('/').filter(p => p.length > 0);
+  let currentParentId = parentId;
+
+  for (const part of parts) {
+    const query = encodeURIComponent(`name = '${part}' and '${currentParentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const searchRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${query}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id)`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    
+    let folderId = "";
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      if (data.files && data.files.length > 0) {
+        folderId = data.files[0].id;
+      }
+    }
+
+    if (!folderId) {
+      const createRes = await fetch(`https://www.googleapis.com/drive/v3/files?supportsAllDrives=true`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: part,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [currentParentId]
+        }),
+      });
+
+      if (!createRes.ok) throw new Error(`Failed to create folder ${part}: ${await createRes.text()}`);
+      const folderData = await createRes.json();
+      folderId = folderData.id;
+    }
+    currentParentId = folderId;
+  }
+
+  return currentParentId;
+}
+
+/**
+ * Lists files in a folder to check for existence or find by name.
+ */
+async function findFileInFolder(fileName: string, folderId: string, accessToken: string): Promise<string | null> {
+  const query = encodeURIComponent(`name = '${fileName}' and '${folderId}' in parents and trashed = false`);
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data.files && data.files.length > 0) ? data.files[0].id : null;
+}
+
+/**
+ * Downloads a file's content as text.
+ */
+async function getFileContent(fileId: string, accessToken: string): Promise<string> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) return "";
+  return await res.text();
+}
+
+/**
+ * Updates an existing file's content (re-upload).
+ */
+async function updateFileContent(fileId: string, content: string, contentType: string, accessToken: string): Promise<void> {
+  // Simple media-only update for text files
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { 
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": contentType 
+    },
+    body: content
+  });
+  if (!res.ok) throw new Error(`Failed to update file: ${await res.text()}`);
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -290,72 +429,149 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body: RequestBody = await req.json();
+    const payload: any = await req.json();
+    const { action } = payload;
 
-    if (body.action === 'search') {
-      const { query, limit = 5 } = body;
-      console.log(`[Search] Query: "${query}", Limit: ${limit}`);
-      
-      if (!query) {
-        return new Response(JSON.stringify({ error: 'Query is required' }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Fetch in parallel
+    // --- Search Action ---
+    if (action === 'search') {
+      const { query, limit = 5 } = payload;
+      if (!query) throw new Error('Query is required');
       const [wikiResults, openverseResults] = await Promise.all([
         searchWikimedia(query),
         searchOpenverse(query),
       ]);
-
-      console.log(`[Search] Candidates pre-filter: Wikimedia=${wikiResults.length}, Openverse=${openverseResults.length}`);
-
-      // Smart blend
       const finalCandidates = selectTopCandidates(wikiResults, openverseResults, limit);
+      return new Response(JSON.stringify({ success: true, candidates: finalCandidates }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Proxy Action ---
+    if (action === 'proxy') {
+      const { url } = payload;
+      if (!url) throw new Error("URL required");
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return new Response(blob, {
+        headers: { ...corsHeaders, "Content-Type": res.headers.get("Content-Type") || "application/octet-stream" }
+      });
+    }
+
+    // --- Drive Related Actions ---
+    const saEnv = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+    const parentFolderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
+    if (!saEnv || !parentFolderId) throw new Error("Drive configuration missing");
+    const saJson = JSON.parse(saEnv);
+    const accessToken = await getAccessToken(saJson);
+
+    // 1. Unified Upload / Master Index Update
+    if (action === 'upload' || action === 'update_index') {
+      const { url, content, customFileName, folderName, isCsv = false } = payload;
       
-      console.log(`[Search] Returning ${finalCandidates.length} candidates after blending.`);
+      // Determine folder
+      const targetFolderId = folderName 
+        ? await findOrCreateFolder(folderName, parentFolderId, accessToken)
+        : parentFolderId;
+      
+      const fileName = customFileName || (isCsv ? 'master_index.csv' : `file_${Date.now()}`);
 
-      return new Response(
-        JSON.stringify({ success: true, candidates: finalCandidates }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (action === 'update_index') {
+        const { row } = payload; // Array of items e.g. ["Word", "Filename", "URL"]
+        if (!row) throw new Error("Row data required for update_index");
+        
+        let existingId = await findFileInFolder(fileName, targetFolderId, accessToken);
+        let finalContent = "";
+        
+        if (existingId) {
+          const oldContent = await getFileContent(existingId, accessToken);
+          finalContent = oldContent.endsWith('\n') ? oldContent : oldContent + '\n';
+        } else {
+          // Add header if new file (optional, depends on if user provided it)
+          if (payload.header) finalContent = payload.header.join(',') + '\n';
         }
-      );
-    } 
+        
+        const csvLine = row.map((cell: any) => `"${(cell || "").toString().replace(/"/g, '""')}"`).join(',');
+        finalContent += csvLine + '\n';
 
-    if (body.action === 'proxy') {
-      const { url } = body;
-      if (!url) {
-        return new Response(JSON.stringify({ error: 'URL is required' }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        if (existingId) {
+          await updateFileContent(existingId, finalContent, "text/csv", accessToken);
+        } else {
+          // Create new
+          const metadata = { name: fileName, parents: [targetFolderId] };
+          const boundary = "-------314159265358979323846";
+          const multipartBody = 
+            `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+            `--${boundary}\r\nContent-Type: text/csv\r\n\r\n${finalContent}\r\n` +
+            `--${boundary}--`;
+          
+          const uploadRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+            body: multipartBody,
+          });
+          const uploadData = await uploadRes.json();
+          existingId = uploadData.id;
+          await setDrivePublicPermission(existingId, accessToken);
+        }
+
+        return new Response(JSON.stringify({ success: true, fileId: existingId, fileName }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
 
-      const imageResponse = await fetch(url, {
-        headers: {
-          'User-Agent': 'SupabaseLearningHub/1.0 (Integration/EdgeFunction Proxy)',
-        }
+      // Standard Upload
+      let fileContent: any;
+      let contentType = "application/octet-stream";
+
+      if (url) {
+        const imgRes = await fetch(url);
+        if (!imgRes.ok) throw new Error(`Source fetch failed: ${imgRes.status}`);
+        fileContent = await imgRes.arrayBuffer();
+        contentType = imgRes.headers.get("content-type") || "image/jpeg";
+      } else if (content) {
+        fileContent = content;
+        contentType = payload.contentType || "text/plain";
+      } else {
+        throw new Error("Either url or content is required for upload");
+      }
+
+      // Multipart upload
+      const metadata = { name: fileName, parents: [targetFolderId] };
+      const boundary = "-------314159265358979323846";
+      
+      // Convert buffer to base64 if it's binary
+      let base64Content = "";
+      if (typeof fileContent === 'string') {
+        base64Content = btoa(unescape(encodeURIComponent(fileContent)));
+      } else {
+        const uint8 = new Uint8Array(fileContent);
+        let binary = "";
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+        base64Content = btoa(binary);
+      }
+
+      const multipartBody = 
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Content}\r\n` +
+        `--${boundary}--`;
+
+      const uploadRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+        body: multipartBody,
       });
 
-      if (!imageResponse.ok) {
-        return new Response(JSON.stringify({ error: 'Failed to fetch image proxy' }), {
-          status: imageResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${await uploadRes.text()}`);
+      const uploadData = await uploadRes.json();
+      await setDrivePublicPermission(uploadData.id, accessToken);
 
-      const contentType = imageResponse.headers.get("content-type") || "application/octet-stream";
-      
-      return new Response(imageResponse.body, {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": contentType,
-          "Cache-Control": "public, max-age=86400", 
-        },
+      return new Response(JSON.stringify({ 
+        success: true, 
+        fileId: uploadData.id, 
+        fileName,
+        url: `https://drive.google.com/uc?export=download&id=${uploadData.id}` 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
@@ -364,14 +580,11 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
     
-  } catch (error) {
-    console.error("Error in image-search function:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+  } catch (error: any) {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error.message || "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

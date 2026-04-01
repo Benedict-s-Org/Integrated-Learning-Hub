@@ -41,7 +41,8 @@ export interface AppContextType {
   saveLimit: number | null;
   currentSaveCount: number;
   proofreadingPractices: ProofreadingPractice[];
-  addProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[]) => Promise<boolean>;
+  addProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[], exercise_number?: string) => Promise<boolean>;
+  appendProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[]) => Promise<boolean>;
   updateProofreadingPractice: (id: string, title: string) => Promise<boolean>;
   deleteProofreadingPractice: (id: string) => Promise<void>;
   refreshSavedContents: () => Promise<void>;
@@ -52,7 +53,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard';
 
 export type AppPage = PageType;
 
@@ -79,6 +80,7 @@ export interface ProofreadingAnswer {
   wordIndex: number;
   correction: string;
   tip?: string;
+  notionPageId?: string;
   isNotSure?: boolean;
 }
 
@@ -292,6 +294,7 @@ export interface ProofreadingPractice {
   id: string;
   user_id: string;
   title: string;
+  exercise_number?: string;
   sentences: string[];
   answers: ProofreadingAnswer[];
   created_at: string;
@@ -302,6 +305,7 @@ export interface AssignedProofreadingPracticeContent {
   id: string;
   practice_id: string;
   title: string;
+  exercise_number?: string;
   sentences: string[];
   answers: ProofreadingAnswer[];
   assigned_at: string;

@@ -61,7 +61,6 @@ export const VocabImagePicker: React.FC = () => {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const searchSingleItem = async (queryWord: string, sense: string): Promise<{ candidates: ImageCandidate[], error?: string }> => {
-    // Incorporate sense into query if meaningful to improve results
     const query = sense ? `${queryWord} ${sense}` : queryWord;
     
     try {
@@ -99,7 +98,7 @@ export const VocabImagePicker: React.FC = () => {
     const updatedItems = [...items];
     
     for (let i = 0; i < updatedItems.length; i++) {
-      if (updatedItems[i].status === 'selected') continue; // Skip already finished
+      if (updatedItems[i].status === 'selected') continue;
       
       updatedItems[i].status = 'searching';
       setItems([...updatedItems]);
@@ -107,16 +106,14 @@ export const VocabImagePicker: React.FC = () => {
       const { candidates, error: searchError } = await searchSingleItem(updatedItems[i].word, updatedItems[i].sense);
       
       updatedItems[i].candidates = candidates;
-      updatedItems[i].status = candidates.length > 0 ? 'ready' : (searchError ? 'no_result' : 'no_result');
+      updatedItems[i].status = candidates.length > 0 ? 'ready' : 'no_result';
       
       if (searchError && !error) {
-        setError(`Search Error for "${updatedItems[i].word}": ${searchError}. Please ensure "npx supabase functions serve image-search" is running.`);
+        setError(`Search Error for "${updatedItems[i].word}": ${searchError}`);
       }
 
       setItems([...updatedItems]);
       setProgress(((i + 1) / updatedItems.length) * 100);
-      
-      // Small delay to prevent API rate limiting from Openverse
       await delay(500);
     }
     
@@ -129,7 +126,7 @@ export const VocabImagePicker: React.FC = () => {
         return {
           ...item,
           status: 'selected' as const,
-          selectedIndex: item.selectedIndex >= 0 ? item.selectedIndex : 0 // pick first if none selected
+          selectedIndex: item.selectedIndex >= 0 ? item.selectedIndex : 0
         };
       }
       return item;
@@ -161,6 +158,24 @@ export const VocabImagePicker: React.FC = () => {
     return await res.blob();
   };
 
+  const getAudioAndUpload = async (word: string, accent: string = 'en-GB'): Promise<{ blob: Blob, fileName: string }> => {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`, {
+      method: 'POST',
+      headers: getFunctionHeaders(),
+      body: JSON.stringify({ text: word, accent })
+    });
+    
+    if (!res.ok) throw new Error(`Audio fetch failed: ${res.statusText}`);
+    const data = await res.json();
+    
+    const binary = atob(data.audioContent);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    
+    return { blob, fileName: data.fileName };
+  };
+
   const handleDownloadZip = async () => {
     const selectedItems = items.filter(i => i.status === 'selected' && i.selectedIndex >= 0);
     if (selectedItems.length === 0) {
@@ -175,51 +190,53 @@ export const VocabImagePicker: React.FC = () => {
     try {
       const zip = new JSZip();
       const imagesFolder = zip.folder('images');
-      if (!imagesFolder) throw new Error('Could not create images folder in ZIP');
+      const audioFolder = zip.folder('audio');
+      if (!imagesFolder || !audioFolder) throw new Error('Could not create folders in ZIP');
       
       const selectionsData = [];
+      const csvRows = [["Word", "Sense", "Image Filename", "Audio Filename", "Source", "License"]];
 
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
         const candidate = item.candidates[item.selectedIndex];
         
         try {
-          const blob = await getProxyBlob(candidate.downloadUrl);
-          
-          // Guess extension from blob type or fallback
+          const imgBlob = await getProxyBlob(candidate.downloadUrl);
           let ext = 'jpg';
-          if (blob.type === 'image/png') ext = 'png';
-          else if (blob.type === 'image/gif') ext = 'gif';
-          else if (blob.type === 'image/webp') ext = 'webp';
-          else if (blob.type === 'image/svg+xml') ext = 'svg';
+          if (imgBlob.type === 'image/png') ext = 'png';
+          else if (imgBlob.type === 'image/webp') ext = 'webp';
           
-          // Sanitize filename
           const safeWord = item.word.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-          const filename = `${safeWord}_${i + 1}.${ext}`;
-          
-          imagesFolder.file(filename, blob);
-          
+          const imgFileName = `${safeWord}_${i + 1}.${ext}`;
+          imagesFolder.file(imgFileName, imgBlob);
+
+          const { blob: audioBlob, fileName: audioFileName } = await getAudioAndUpload(item.word);
+          audioFolder.file(audioFileName, audioBlob);
+
           selectionsData.push({
             word: item.word,
             sense: item.sense,
-            filename: filename,
+            imageFile: imgFileName,
+            audioFile: audioFileName,
             sourcePageUrl: candidate.sourcePageUrl,
             licenseTag: candidate.licenseTag,
             source: candidate.source
           });
+
+          csvRows.push([item.word, item.sense, imgFileName, audioFileName, candidate.source, candidate.licenseTag]);
         } catch (err) {
-          console.error(`Failed to fetch image for ${item.word}:`, err);
-          // Continue with others
+          console.error(`Failed to process ${item.word}:`, err);
         }
         
         setProgress(((i + 1) / selectedItems.length) * 100);
       }
       
-      // Add JSON manifest
-      zip.file('selections.json', JSON.stringify(selectionsData, null, 2));
+      zip.file('manifest.json', JSON.stringify(selectionsData, null, 2));
+      const csvContent = csvRows.map(row => row.map(cell => `"${(cell || "").toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+      zip.file('index.csv', csvContent);
       
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, 'vocab_images.zip');
+      saveAs(zipBlob, `vocab_export_${Date.now()}.zip`);
       
     } catch (err: any) {
       console.error(err);
@@ -236,7 +253,6 @@ export const VocabImagePicker: React.FC = () => {
     <div className="min-h-full bg-slate-50 p-4 md:p-8 font-sans pb-32">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Header */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
@@ -249,7 +265,6 @@ export const VocabImagePicker: React.FC = () => {
           </div>
         </div>
 
-        {/* Input Region */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <h2 className="text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wider">Vocab List Input</h2>
           <p className="text-xs text-slate-500 mb-4">One word per line. Format: <code className="bg-slate-100 px-1 py-0.5 rounded">word | optional sense</code></p>
@@ -294,7 +309,6 @@ export const VocabImagePicker: React.FC = () => {
           </div>
         </div>
 
-        {/* Status / Error Bars */}
         {error && (
           <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 flex justify-between items-center">
             <p>{error}</p>
@@ -317,17 +331,17 @@ export const VocabImagePicker: React.FC = () => {
           </div>
         )}
 
-        {/* Results Grid */}
         {items.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <div className="text-sm font-medium text-slate-600">
                 <span className="text-green-600 font-bold">{completedCount}</span> selected / {items.length} total
               </div>
+              
               <button
                 onClick={handleDownloadZip}
                 disabled={isProcessing || completedCount === 0}
-                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
+                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 disabled:opacity-50 shadow-sm grow-0 shrink-0"
               >
                 <Download className="w-4 h-4" />
                 Download ZIP
@@ -336,8 +350,6 @@ export const VocabImagePicker: React.FC = () => {
 
             {items.map((item, rowIdx) => (
               <div key={item.id} className={`bg-white rounded-2xl p-5 shadow-sm border transition-colors ${item.status === 'selected' ? 'border-green-300 bg-green-50/10' : 'border-slate-200'} `}>
-                
-                {/* Row Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <span className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 rounded-lg text-sm font-bold">
@@ -360,7 +372,6 @@ export const VocabImagePicker: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Candidate Thumbnails */}
                 {item.candidates.length > 0 && (
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {item.candidates.map((cand, candIdx) => {
@@ -381,7 +392,6 @@ export const VocabImagePicker: React.FC = () => {
                               className="w-full h-full object-cover"
                               loading="lazy"
                             />
-                            {/* License & Source Overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
                               <span className="self-end px-2 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded uppercase tracking-wider">
                                 {cand.licenseTag}
@@ -392,7 +402,6 @@ export const VocabImagePicker: React.FC = () => {
                               </div>
                             </div>
                             
-                            {/* Selected Badge */}
                             {isSelected && (
                               <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full shadow-lg">
                                 <Check className="w-4 h-4"/>
@@ -413,12 +422,10 @@ export const VocabImagePicker: React.FC = () => {
                     })}
                   </div>
                 )}
-
               </div>
             ))}
           </div>
         )}
-
       </div>
     </div>
   );

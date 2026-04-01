@@ -267,6 +267,7 @@ export interface ReadingQuestion {
   error_sentence?: string;
   error?: string;
   day?: string;
+  mode?: string;
   page?: number;
 }
 
@@ -279,6 +280,7 @@ export interface ProofreadingImportData {
   feature?: string; // e.g. "subject verb agreement"
   level?: string; // e.g. "P.3"
   levelSpecific?: string; // "yes" or "no"
+  exercise_number?: string; // The exercise name/number from Notion
   day?: string;
 }
 
@@ -336,6 +338,7 @@ export function parseProofreadingNotionResponse(results: any[]): ProofreadingImp
     const levelText = extractNotionProperty(props, ['Level', 'level', '等級', '程度']);
     const levelSpecific = extractNotionProperty(props, ['Level Specific', 'level specific', '特定等級', '是否特定']);
     const tipText = extractNotionProperty(props, ['Tip', 'tip', 'Explanation', 'explanation', 'Hint', 'hint', '提示', '解釋']);
+    const exerciseNumber = extractNotionProperty(props, ['Exercise Number', 'exercise_number', 'Exercise', 'Ex No', 'No', '編號', '練習編號']);
     const dayText = extractNotionProperty(props, ['Day', 'day', '日期', '天']);
     
     if (originalText) {
@@ -348,6 +351,7 @@ export function parseProofreadingNotionResponse(results: any[]): ProofreadingImp
         level: levelText || undefined,
         levelSpecific: levelSpecific?.toLowerCase() || undefined,
         tip: tipText || undefined,
+        exercise_number: exerciseNumber || undefined,
         day: dayText || undefined
       });
     }

@@ -12,6 +12,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [realIsSuperAdmin, setRealIsSuperAdmin] = useState(false);
   const [realIsSuperAdminLoading, setRealIsSuperAdminLoading] = useState(true);
+  const currentUserIdRef = React.useRef<string | null>(null);
 
   // Helper to map Supabase User to App UserProfile
   const mapUserToProfile = (supabaseUser: User): UserProfile => {
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
+        currentUserIdRef.current = session.user.id;
         const profile = mapUserToProfile(session.user);
         setSessionUser(profile);
         
@@ -87,21 +89,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // 2. Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      
       if (session?.user) {
-        const profile = mapUserToProfile(session.user);
-        setSessionUser(profile);
-        setProfileLoaded(false); // Reset on auth change
-        setLoading(true);
+        const isNewUser = currentUserIdRef.current !== session.user.id;
+        currentUserIdRef.current = session.user.id;
+        
+        if (isNewUser) {
+          const profile = mapUserToProfile(session.user);
+          setSessionUser(profile);
+          setProfileLoaded(false); // Reset on auth change
+          setLoading(true);
 
-        fetchFullProfile(session.user.id).then(fullData => {
-          setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
-          setProfileLoaded(true);
-        }).finally(() => {
-          setLoading(false);
-        });
+          fetchFullProfile(session.user.id).then(fullData => {
+            setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+            setProfileLoaded(true);
+          }).finally(() => {
+            setLoading(false);
+          });
+        } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          // In the background, refresh the profile without blacking out the app
+          fetchFullProfile(session.user.id).then(fullData => {
+            setSessionUser(prev => prev ? { ...prev, ...fullData } : null);
+          });
+        }
       } else {
+        currentUserIdRef.current = null;
         setSessionUser(null);
         setProfileLoaded(true);
         setLoading(false);

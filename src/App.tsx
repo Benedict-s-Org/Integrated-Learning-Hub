@@ -40,6 +40,9 @@ const GripStation = lazy(() => import('./pages/GripStation').then(module => ({ d
 const WritingStation = lazy(() => import('./pages/WritingStation').then(module => ({ default: module.WritingStation })));
 const AssessmentReport = lazy(() => import('./pages/AssessmentReport').then(module => ({ default: module.AssessmentReport })));
 const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker').then(module => ({ default: module.VocabImagePicker })));
+const ProgressLogPage = lazy(() => import('./pages/ProgressLogPage').then(module => ({ default: module.ProgressLogPage })));
+const AdminHomeworkHabitPage = lazy(() => import('./pages/AdminHomeworkHabitPage'));
+const PhonicsDashboard = lazy(() => import('./components/admin/PhonicsDashboard')) as unknown as React.FC<{ onBack: () => void }>;
 
 // Regular Component Imports (not lazy)
 import TextInput from './components/TextInput/TextInput';
@@ -61,16 +64,14 @@ type AppState =
   | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
-  | { page: 'admin' }
   | { page: 'assetGenerator' }
   | { page: 'assetUpload' }
   | { page: 'database' }
-  | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
   | { page: 'proofreading'; step: 'input' }
-  | { page: 'proofreading'; step: 'answerSetting'; sentences: string[]; prefilledAnswers?: ProofreadingAnswer[] }
-  | { page: 'proofreading'; step: 'preview'; sentences: string[]; answers: ProofreadingAnswer[] }
-  | { page: 'proofreading'; step: 'practice'; sentences: string[]; answers: ProofreadingAnswer[] }
+  | { page: 'proofreading'; step: 'answerSetting'; sentences: string[]; prefilledAnswers?: ProofreadingAnswer[]; exerciseNumber?: string }
+  | { page: 'proofreading'; step: 'preview'; sentences: string[]; answers: ProofreadingAnswer[]; exerciseNumber?: string }
+  | { page: 'proofreading'; step: 'practice'; sentences: string[]; answers: ProofreadingAnswer[]; exerciseNumber?: string }
   | { page: 'proofreading'; step: 'saved' }
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
@@ -96,6 +97,7 @@ type AppState =
   | { page: 'markerGenerator' }
   | { page: 'interactiveScanner' }
   | { page: 'adminHomeworkRecord' }
+  | { page: 'adminHomeworkHabit' }
   | { page: 'broadcastManagement' }
   | { page: 'adminTimetable' }
   | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
@@ -105,7 +107,9 @@ type AppState =
   | { page: 'writingStation' }
   | { page: 'assessmentReport' }
   | { page: 'examFormatter' }
-  | { page: 'vocabImagePicker' };
+  | { page: 'vocabImagePicker' }
+  | { page: 'progressLog' }
+  | { page: 'phonicsDashboard' };
 
 function AppContent() {
   const navigate = useNavigate();
@@ -311,7 +315,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard')) {
       setShowLoginModal(true);
       return;
     }
@@ -398,6 +402,8 @@ function AppContent() {
       setIsNavOpen(false); // Auto-collapse when opening
     } else if (page === 'adminHomeworkRecord') {
       setAppState({ page: 'adminHomeworkRecord' });
+    } else if (page === 'adminHomeworkHabit') {
+      setAppState({ page: 'adminHomeworkHabit' });
     } else if (page === 'broadcastManagement') {
       setAppState({ page: 'broadcastManagement' });
     } else if (page === 'readingComprehension') {
@@ -418,6 +424,10 @@ function AppContent() {
       setAppState({ page: 'examFormatter' });
     } else if (page === 'vocabImagePicker') {
       setAppState({ page: 'vocabImagePicker' });
+    } else if (page === 'progressLog') {
+      setAppState({ page: 'progressLog' });
+    } else if (page === 'phonicsDashboard') {
+      setAppState({ page: 'phonicsDashboard' });
     }
   };
 
@@ -556,25 +566,25 @@ function AppContent() {
     setAppState({ page: 'new', step: 'input' });
   };
 
-  const handleProofreadingSentencesSubmit = (sentences: string[], prefilledAnswers?: ProofreadingAnswer[]) => {
-    setAppState({ page: 'proofreading', step: 'answerSetting', sentences, prefilledAnswers });
+  const handleProofreadingSentencesSubmit = (sentences: string[], prefilledAnswers?: ProofreadingAnswer[], exerciseNumber?: string) => {
+    setAppState({ page: 'proofreading', step: 'answerSetting', sentences, prefilledAnswers, exerciseNumber });
   };
 
   const handleProofreadingAnswersSet = (answers: ProofreadingAnswer[]) => {
     if (appState.page === 'proofreading' && appState.step === 'answerSetting') {
-      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers });
+      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers, exerciseNumber: appState.exerciseNumber });
     }
   };
 
   const handleProofreadingPreviewNext = () => {
     if (appState.page === 'proofreading' && appState.step === 'preview') {
-      setAppState({ page: 'proofreading', step: 'practice', sentences: appState.sentences, answers: appState.answers });
+      setAppState({ page: 'proofreading', step: 'practice', sentences: appState.sentences, answers: appState.answers, exerciseNumber: appState.exerciseNumber });
     }
   };
 
   const handleBackToProofreadingPreview = () => {
     if (appState.page === 'proofreading' && appState.step === 'practice') {
-      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers: appState.answers });
+      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers: appState.answers, exerciseNumber: (appState as any).exerciseNumber });
     }
   };
 
@@ -584,7 +594,7 @@ function AppContent() {
 
   const handleBackToAnswerSetting = () => {
     if (appState.page === 'proofreading' && appState.step === 'preview') {
-      setAppState({ page: 'proofreading', step: 'answerSetting', sentences: appState.sentences });
+      setAppState({ page: 'proofreading', step: 'answerSetting', sentences: appState.sentences, exerciseNumber: appState.exerciseNumber });
     }
   };
 
@@ -595,9 +605,21 @@ function AppContent() {
 
   const handleSelectProofreadingPractice = (practice: ProofreadingPractice) => {
     if (isAdmin) {
-      setAppState({ page: 'proofreading', step: 'preview', sentences: practice.sentences, answers: practice.answers });
+      setAppState({ 
+        page: 'proofreading', 
+        step: 'preview', 
+        sentences: practice.sentences, 
+        answers: practice.answers,
+        exerciseNumber: practice.exercise_number 
+      });
     } else {
-      setAppState({ page: 'proofreading', step: 'practice', sentences: practice.sentences, answers: practice.answers });
+      setAppState({ 
+        page: 'proofreading', 
+        step: 'practice', 
+        sentences: practice.sentences, 
+        answers: practice.answers,
+        exerciseNumber: practice.exercise_number 
+      });
     }
   };
 
@@ -751,6 +773,7 @@ function AppContent() {
                 onNavigateToAvatarUploader={() => setAppState({ page: 'adminAvatarUploader' })}
                 onNavigateToAvatarBuilder={() => setAppState({ page: 'avatarBuilder' })}
                 onNavigateToMarkerGenerator={() => setAppState({ page: 'markerGenerator' })}
+                onNavigateToPhonicsDashboard={() => setAppState({ page: 'phonicsDashboard' })}
               />;
             case 'interactiveScanner':
               return <InteractiveScanQuizPage />;
@@ -764,6 +787,14 @@ function AppContent() {
               return <AssessmentReport />;
             case 'markerGenerator':
               return <MarkerGenerator onBack={() => setAppState({ page: 'admin' })} />;
+            case 'vocabImagePicker':
+              return <VocabImagePicker onBack={() => setAppState({ page: 'admin' })} />;
+            case 'phonicsDashboard':
+              return (
+                <PhonicsDashboard 
+                  onBack={() => setAppState({ page: 'admin' })} 
+                />
+              );
             case 'assetUpload':
               return (
                 <div className="h-full bg-background p-4 md:p-8 flex flex-col overflow-hidden">
@@ -797,12 +828,12 @@ function AppContent() {
               );
             case 'assetGenerator':
               return <AssetGenerator />;
+            case 'progressLog':
+              return <ProgressLogPage />;
             case 'database':
               return <ContentDatabase />;
             case 'examFormatter':
               return <ExamFormatterPage />;
-            case 'vocabImagePicker':
-              return <VocabImagePicker />;
             case 'practice':
               if (appState.memorizationState.practiceMode === 'shuffledGame') {
                 return (
@@ -843,6 +874,7 @@ function AppContent() {
                     <ProofreadingAnswerSetting
                       sentences={appState.sentences}
                       prefilledAnswers={appState.prefilledAnswers}
+                      exerciseNumber={appState.exerciseNumber}
                       onNext={handleProofreadingAnswersSet}
                       onBack={handleBackToProofreadingInput}
                       onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
@@ -853,6 +885,7 @@ function AppContent() {
                     <ProofreadingPreview
                       sentences={appState.sentences}
                       answers={appState.answers}
+                      exerciseNumber={appState.exerciseNumber}
                       onNext={handleProofreadingPreviewNext}
                       onBack={handleBackToAnswerSetting}
                       onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
@@ -864,7 +897,6 @@ function AppContent() {
                       sentences={appState.sentences}
                       answers={appState.answers}
                       onBack={handleBackToProofreadingPreview}
-                      onViewSaved={isAdmin ? handleViewSavedProofreading : undefined}
                     />
                   );
                 case 'saved':
@@ -1653,6 +1685,14 @@ function AppRoutes() {
             }
           />
           <Route
+            path="/admin/homework-habit"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminHomeworkHabitPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="/admin/broadcast"
             element={
               <Suspense fallback={<PageLoader />}>
@@ -1665,6 +1705,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminTimetablePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/progress-log"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <ProgressLogPage />
               </Suspense>
             }
           />

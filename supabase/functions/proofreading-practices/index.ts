@@ -10,6 +10,7 @@ const corsHeaders = {
 
 interface CreatePracticeRequest {
   title: string;
+  exercise_number?: string;
   sentences: string[];
   answers: Array<{
     lineNumber: number;
@@ -72,7 +73,7 @@ Deno.serve(async (req: Request) => {
     const path = url.pathname;
 
     if (path.endsWith("/create")) {
-      const { title, sentences, answers, userId }: CreatePracticeRequest = await req.json();
+      const { title, exercise_number, sentences, answers, userId }: CreatePracticeRequest = await req.json();
 
       const { data: user, error: userError } = await supabase
         .from("users")
@@ -104,6 +105,7 @@ Deno.serve(async (req: Request) => {
         .from("proofreading_practices")
         .insert({
           title,
+          exercise_number,
           sentences,
           answers,
           user_id: userId,
@@ -281,6 +283,110 @@ Deno.serve(async (req: Request) => {
         console.error("Error updating practice:", updateError);
         return new Response(
           JSON.stringify({ error: "Failed to update practice", details: updateError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, practice }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/append")) {
+      const { title, sentences, answers, userId }: CreatePracticeRequest = await req.json();
+
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (user.role !== "admin" && user.role !== "class_staff") {
+        return new Response(
+          JSON.stringify({ error: "Only admins can append to practices" }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // 1. Find the existing practice
+      const { data: existing, error: findError } = await supabase
+        .from("proofreading_practices")
+        .select("*")
+        .eq("title", title)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (findError) {
+        console.error("Error finding existing practice:", findError);
+        return new Response(
+          JSON.stringify({ error: "Failed to find existing practice" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (!existing) {
+        return new Response(
+          JSON.stringify({ error: "Practice not found to append to" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // 2. Prepare merged data
+      const existingSentences = existing.sentences || [];
+      const existingAnswers = existing.answers || [];
+      const offset = existingSentences.length;
+
+      const mergedSentences = [...existingSentences, ...sentences];
+      const mergedAnswers = [
+        ...existingAnswers,
+        ...answers.map(a => ({
+          ...a,
+          lineNumber: a.lineNumber + offset
+        }))
+      ];
+
+      // 3. Update the practice
+      const { data: practice, error: updateError } = await supabase
+        .from("proofreading_practices")
+        .update({
+          sentences: mergedSentences,
+          answers: mergedAnswers,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error appending to practice:", updateError);
+        return new Response(
+          JSON.stringify({ error: "Failed to append to practice", details: updateError.message }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },

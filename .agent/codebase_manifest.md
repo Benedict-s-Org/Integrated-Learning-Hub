@@ -13,7 +13,7 @@
 | **Super Admin** | `SuperAdminPanel.tsx` - Granular roles & student re-assignment. | L78-L83 |
 | **Unified Assignments** | `UnifiedAssignments.tsx` - Automated student To-Do lists. | L84-L88 |
 | **Memory Palace** | `MemoryPalacePage.tsx` - Isometric customization & memory attachments. | L89-L95 |
-| **Phonics Ecosystem** | `PhonicsGameHub.tsx` - Phonetics levels & interaction board. | L96-L101 |
+| **Phonics Ecosystem** | `PhonicsDashboard.tsx` - Unified tool for audio generation and Sound Wall management. | L96-L101 |
 | **Memorization / Saved** | `SavedContent.tsx` - Difficulty-gated memorization texts. | L102-L108 |
 | **Coin Service** | `coinService.ts` - Central coin reward & revert logic. | L109-L115 |
 | **Quiz System** | `InteractiveScanQuizPage.tsx` - AR marker scanning group quizzes. | L116-L121 |
@@ -29,6 +29,16 @@
 | **Exam Formatter** | `ExamFormatterPage.tsx` - WYSIWYG editor with Top Toolbar, Notion sync, & AI assistants. | L231-L245 |
 | **Vocab Image Picker** | `VocabImagePicker.tsx` - License-safe image scraper & bulk downloader. | L259-L270 |
 | **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L246-L257 |
+| **Reliability** | Development standards to prevent infinite loops and stalls. | L35-L42 |
+
+---
+
+## Reliability & Loop Prevention (L33-L42)
+
+To ensure development remains fast and avoids "infinite loops" or stalled progress, the following standards are enforced (detailed in `safe-development.md#25`):
+- **Direct Edits Over Scripts**: Favor surgical code replacements over temporary data-fetching or infrastructure scripts.
+- **Fail-Fast & Pivot**: If an automated tool chain is interrupted or fails twice, pivot to a manual verification or a simpler editing strategy immediately.
+- **Documentation First**: Manifest updates prioritize human-readable documentation of architecture over building automated sync tools.
 
 ---
 
@@ -54,10 +64,13 @@
 - **Admin Navigation Organization**: The "Admin" section in `UnifiedNavigation` is grouped into four logical sub-categories: **User & System**, **Teaching & Records**, **Creative Studio**, and **Tools & Utilities**. It uses the `NavSubHeader` component for visual separation.
 - **Global UI Wrappers**: `appState` conditionally renders pages inside the main `<main>` container, usually alongside `UnifiedNavigation` unless hidden.
 
-### Teacher Administration (L53-L57)
-- **Concept**: A dedicated navigation space for teachers.
+### Teacher Administration (L53-L61)
+- **Concept**: A dedicated navigation space for teachers to manage educational resources.
 - **Components**: `NavSection` in `UnifiedNavigation.tsx`.
-- **Items**: Currently contains an **"(Add new tools here)"** placeholder. Designed to host future teacher-specific tools without cluttering the main Admin menu.
+- **Tools**:
+  - **Vocab Image Picker**: Scrapes license-safe images for vocab lists.
+  - **Phonics Dashboard**: Unified tool (`PhonicsDashboard.tsx`) for generating phoneme sounds and managing the Sound Wall. Features a **Generator** tab (SSML/IPA synthesis) and a **Manager** tab (Auto-Link cache & Manual Link modal).
+  - **Exam Paper Formatter**: WYSIWYG editor for creating structured exam papers.
 
 ### Class Dashboard (L51-L61)
 - **Path**: `src/pages/ClassDashboardPage.tsx`
@@ -111,11 +124,17 @@
 - **Interactions**: Clicking an entity triggers `handleEntityMemoryClick`, either opening existing notes or prompting to create one. Relies on `MemoryContentModal` for rendering the actual text/content attachments.
 - **Related Pages**: `SpaceDesignCenter.tsx`, `AssetUploadCenter.tsx` for admin uploading of base furniture PNGs.
 
-### Phonics Ecosystem (L84-L88)
-- **Path**: `src/components/phonics/PhonicsGameHub.tsx`
-- **Concept**: A gamified module specifically for learning English phonetics.
-- **Components**: `SoundWall`, `BlendingBoard` (for dragging and combining phonetic sounds), and interactive quizzes (`PhonicsQuiz`).
-- **Gamicifation**: Uses exact XP thresholds (`LEVEL_THRESHOLDS`) to award levels and achievement badges internally within the phonics module itself.
+### Phonics Ecosystem (L127-L132)
+- **Files**: `src/components/admin/PhonicsDashboard.tsx`, `src/components/phonics/PhonicsGameHub.tsx`
+- **Concept**: A unified administrative dashboard and a student-facing gamified hub for learning English phonetics.
+- **Admin Dashboard (`PhonicsDashboard.tsx`)**:
+    - **Audio Generator**: Bulk synthesis of IPA-accurate sounds. Stores results in `tts_cache`.
+    - **Sound Wall Manager**: Lists all `phonics_mappings`.
+        - **Auto-Link**: Scans cache for missing audio based on phoneme text/SSML.
+        - **Manual Link**: Modal for bulk-associating one audio file with multiple Sound Wall tiles.
+- **Student Hub (`PhonicsGameHub.tsx`)**:
+    - **Components**: `SoundWall`, `BlendingBoard` (for dragging and combining phonetic sounds), and interactive quizzes (`PhonicsQuiz`).
+- **Gamification**: Uses exact XP thresholds (`LEVEL_THRESHOLDS`) to award levels and achievement badges internally within the phonics module itself.
 
 ### Memorization / Saved (L90-L93)
 - **Path**: `src/components/SavedContent/SavedContent.tsx`
@@ -217,6 +236,8 @@
   - **Drive Storage**: MP3s are stored in **Google Shared Drive** (standard Folders have 0 quota for Service Accounts).
   - **Shared Drive Setup**: The `GOOGLE_DRIVE_FOLDER_ID` must be inside a Shared Drive, and the Service Account email must be added as a **Contributor**.
   - **Proxy Strategy (Fixed Playback)**: To bypass organizational restrictions that block public Drive links (`NotSupportedError`), the Edge Function **proxies** the audio. On cache hits, it downloads from Drive internally and returns the content as **Base64** (`audioContent`).
+  - **SSML Pass-through**: Added in `2026-03-31`. Detects `<speak>` tags to allow raw SSML (IPA) synthesis without XML escaping, critical for phonics.
+  - **Overwrite Support**: Added in `2026-03-31`. Supports an `overwrite: true` flag to bypass and refresh the cache if incorrect audio was previously stored.
   - **API Key Support**: Supports `GOOGLE_TTS_API_KEY` for synthesis, falling back to Service Account if missing.
 - **Frontend**: `voiceManager.ts` always prioritizes `audioContent` (Base64) for reliable playback, using `audioUrl` only as a secondary reference.
 - **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_TTS_API_KEY` secrets. Ensures `supportsAllDrives=true` and `supportsTeamDrives=true` are set on all Drive API calls.

@@ -248,6 +248,21 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
       if (scheduleError) throw scheduleError;
 
+      // --- NEW: GOOGLE DRIVE SYNC ---
+      const { syncAssetToDrive } = await import('../utils/googleDriveSync');
+      const setName = sets.find(s => s.id === setId)?.title || 'Untitled Set';
+      
+      typedQuestions.forEach(q => {
+        if (q.image_url && q.image_url.startsWith('http')) {
+          syncAssetToDrive(q.image_url, `Q_${q.id}_${Date.now()}.png`, `Flashcards/${setName}`, {
+            word: q.question_text.substring(0, 50),
+            category: 'flashcard',
+            context: 'learning',
+            originalName: q.question_text.substring(0, 30)
+          }).catch(err => console.warn('Flashcard sync failed:', err));
+        }
+      });
+
       setQuestions(typedQuestions);
       setSchedules(scheduleRecords as unknown as SpacedRepetitionSchedule[]);
       return true;
@@ -285,6 +300,20 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         .eq('id', questionId);
 
       if (error) throw error;
+
+      // --- NEW: GOOGLE DRIVE SYNC ---
+      if (updates.image_url && updates.image_url.startsWith('http')) {
+        const { syncAssetToDrive } = await import('../utils/googleDriveSync');
+        const q = questions.find(q => q.id === questionId);
+        const setName = sets.find(s => s.id === q?.set_id)?.title || 'Untitled Set';
+        
+        syncAssetToDrive(updates.image_url, `Q_${questionId}_${Date.now()}.png`, `Flashcards/${setName}`, {
+          word: q?.question_text.substring(0, 50) || 'Updated Question',
+          category: 'flashcard',
+          context: 'learning',
+          originalName: q?.question_text.substring(0, 30)
+        }).catch(err => console.warn('Flashcard update sync failed:', err));
+      }
 
       setQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } : q));
       return true;

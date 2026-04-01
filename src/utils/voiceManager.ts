@@ -297,7 +297,8 @@ export const fetchCloudAudio = async (
   text: string,
   accent: string,
   voiceName?: string,
-  speakingRate?: number
+  speakingRate?: number,
+  overwrite?: boolean
 ): Promise<string | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -320,7 +321,7 @@ export const fetchCloudAudio = async (
         'Authorization': `Bearer ${session?.access_token || anonKey}`,
         'apikey': anonKey
       },
-      body: { text, accent, voiceName, speakingRate }
+      body: { text, accent, voiceName, speakingRate, overwrite }
     });
 
     const { data, error } = response;

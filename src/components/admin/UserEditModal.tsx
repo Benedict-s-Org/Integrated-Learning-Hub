@@ -172,6 +172,15 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       // Add timestamp to prevent caching
       const newAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
       setAvatarUrl(newAvatarUrl);
+
+      // --- NEW: GOOGLE DRIVE SYNC ---
+      const { syncAssetToDrive } = await import('@/utils/googleDriveSync');
+      syncAssetToDrive(newAvatarUrl, fileName, 'Learning_Community/users/profile_pictures', {
+        category: 'profile_picture',
+        context: 'users',
+        originalName: file.name,
+        word: user.display_name || user.email || user.id
+      }).catch(err => console.warn('Profile picture Drive sync failed:', err));
     } catch (err: any) {
       console.error("Upload error:", err);
       setError(err.message || "上傳失敗");
@@ -230,6 +239,16 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       const newAvatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
       setAvatarUrl(newAvatarUrl);
       setAvatarPreview(processedDataUrl);
+
+      // --- NEW: GOOGLE DRIVE SYNC ---
+      const { syncAssetToDrive } = await import('@/utils/googleDriveSync');
+      syncAssetToDrive(newAvatarUrl, filePath, 'Learning_Community/users/profile_pictures', {
+        category: 'profile_picture',
+        context: 'users',
+        originalName: 'processed_avatar.png',
+        word: user.display_name || user.email || user.id,
+        source: 'Background Removal'
+      }).catch(err => console.warn('Processed profile picture Drive sync failed:', err));
     } catch (err: any) {
       console.error("Background removal upload error:", err);
       setError(err.message || "處理後上傳失敗");

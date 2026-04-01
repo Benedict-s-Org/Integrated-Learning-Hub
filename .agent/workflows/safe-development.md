@@ -210,6 +210,16 @@ Whenever a new learning function, interaction mode, or practice system is create
 - **Standardize**: Apply this pattern to **all** invocations, even if some seem to work without it, to ensure cross-environment consistency.
 - **Backend Secret Verification**: If a function fails despite correct payloads, verify that all required secrets (e.g., `GOOGLE_SERVICE_ACCOUNT_JSON`) are set in the Supabase Dashboard.
 
+### 25. Preventing Infinite Loops & Stalls
+**Problem**: The AI agent repeatedly attempts the same failing tool call (e.g., creating the same temporary script or re-reading a file) without making forward progress.
+
+**Prevention**:
+- **Avoid One-Off Scripting**: Do not create temporary Node/Python scripts for tasks that can be done with direct surgical edits (`multi_replace_file_content`) or direct CLI commands.
+- **Limit Tool-Chaining**: Avoid long chains of tool dependencies (e.g., `write_to_file` -> `run_command` -> `view_file` -> `delete_file`). If a step fails or is canceled, do not immediately retry; instead, pivot to a more direct approach.
+- **Explicit Failure Acknowledgement**: If an "unsafe" or "large" operation is canceled by the system, acknowledge the failure and ask the user for a more manual path rather than looping.
+- **Fresh Context Search**: If a "Target content not found" error occurs twice on the same block, **stop** and `view_file` the entire surrounding context to identify if the file structure has shifted.
+- **Prioritize Documentation Over Infra**: When requested to "update manifest," go straight to the documentation files (`.agent/codebase_manifest.md`) rather than attempting to build data-extraction tools first.
+
 ---
 
 ## 📊 Automatic Error Logging

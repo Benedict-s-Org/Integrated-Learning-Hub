@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette, Volume2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { StudentQRCodeModal } from '../admin/StudentQRCodeModal';
 import { ShopStyleManager } from '../admin/ShopStyleManager';
@@ -31,9 +31,17 @@ interface AdminPanelProps {
   onNavigateToAvatarUploader?: () => void;
   onNavigateToAvatarBuilder?: () => void;
   onNavigateToMarkerGenerator?: () => void;
+  onNavigateToPhonicsDashboard?: () => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOpenMapEditor, onNavigateToAvatarUploader, onNavigateToAvatarBuilder, onNavigateToMarkerGenerator }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ 
+  onNavigateToAssets, 
+  onOpenMapEditor, 
+  onNavigateToAvatarUploader, 
+  onNavigateToAvatarBuilder, 
+  onNavigateToMarkerGenerator,
+  onNavigateToPhonicsDashboard
+}) => {
   const { user: currentUser, isAdmin, session, realIsSuperAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -600,6 +608,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateToAssets, onOp
               >
                 <QrCode size={20} />
                 <span>Marker Generator</span>
+              </button>
+            )}
+            {onNavigateToPhonicsDashboard && (
+              <button
+                onClick={onNavigateToPhonicsDashboard}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <Volume2 size={20} />
+                <span>Phonics Dashboard</span>
               </button>
             )}
           </div>

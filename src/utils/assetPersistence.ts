@@ -7,9 +7,10 @@ import type { Asset } from '@/types/ui-builder';
 export const uploadAssetPersistently = async (
     file: File,
     type: 'image' | 'document' | 'data',
-    metadata: any = {}
+    metadata: Record<string, any> = {}
 ): Promise<Asset | null> => {
     try {
+        const { category = 'general', context = 'general', syncToDrive = true } = metadata;
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('User not authenticated');
 
@@ -18,7 +19,6 @@ export const uploadAssetPersistently = async (
         const fileName = `${type}/${timestamp}_${randomString}_${file.name}`;
 
         // 1. Upload to Storage
-        // Note: Ensure the 'ui-assets' bucket exists and is public or has appropriate RLS
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('ui-assets')
             .upload(fileName, file, {
@@ -40,8 +40,8 @@ export const uploadAssetPersistently = async (
                 name: file.name,
                 type,
                 metadata,
-                category: metadata.category || 'general',
-                context: metadata.context || 'general',
+                category: category,
+                context: context,
                 storage_path: uploadData.path,
                 public_url: publicUrl,
                 created_by: user.id
@@ -51,12 +51,27 @@ export const uploadAssetPersistently = async (
 
         if (dbError) throw dbError;
 
-        // 4. Map back to UI Builder Asset type
+        // 4. AUTOMATIC GOOGLE DRIVE SYNC for Learning Community
+        // Only sync if requested and it's a Learning Community asset
+        if (syncToDrive && (context !== 'general' || category !== 'general') && type === 'image') {
+            const { syncAssetToDrive } = await import('./googleDriveSync');
+            const folderPath = `Learning_Community/${context}/${category}`;
+            syncAssetToDrive(publicUrl, file.name, folderPath, {
+                category: dbData.category,
+                context: dbData.context,
+                originalName: file.name,
+                source: 'Asset Upload Center'
+            }).catch(err => console.warn('Silent Drive Sync Failed:', err));
+        }
+
+        // 5. Map back to UI Builder Asset type
         const asset: Asset = {
             id: dbData.id,
             name: dbData.name,
             type: dbData.type,
             createdAt: dbData.created_at,
+            category: dbData.category,
+            context: dbData.context,
             ...(type === 'image' ? {
                 image: {
                     id: dbData.id,

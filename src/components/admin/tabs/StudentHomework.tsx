@@ -11,6 +11,7 @@ interface HomeworkRecord {
     message: string;
     type: 'positive' | 'neutral' | 'negative';
     created_at: string;
+    assigned_at: string | null;
     coin_amount: number;
 }
 
@@ -34,7 +35,7 @@ export function StudentHomework({ studentId }: StudentHomeworkProps) {
         try {
             const { data, error } = await supabase
                 .from('student_records')
-                .select('id, message, type, created_at, coin_amount')
+                .select('id, message, type, created_at, assigned_at, coin_amount')
                 .eq('student_id', studentId)
                 .order('created_at', { ascending: false });
 
@@ -44,7 +45,8 @@ export function StudentHomework({ studentId }: StudentHomeworkProps) {
                 // Filter records that include our target homework reward strings
                 // Cast to any because coin_amount might not be in the local types yet
                 const filtered = (data as any[] || []).filter(r =>
-                    HOMEWORK_REWARDS.some(target => r.message.includes(target))
+                    HOMEWORK_REWARDS.some(target => r.message.includes(target)) ||
+                    r.assigned_at !== null
                 );
                 setRecords(filtered);
             }
@@ -148,13 +150,15 @@ export function StudentHomework({ studentId }: StudentHomeworkProps) {
                                     <div className="flex items-center gap-4 mt-2.5 text-[10px] text-slate-400 font-bold">
                                         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-full">
                                             <Clock size={12} className="opacity-70" />
-                                            {new Date(record.created_at).toLocaleString('zh-HK', {
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
+                                            {record.assigned_at 
+                                                ? new Date(record.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                                : new Date(record.created_at).toLocaleString('zh-HK', {
+                                                    year: 'numeric',
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
                                         </div>
                                         {record.coin_amount !== 0 && (
                                             <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${record.coin_amount > 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'

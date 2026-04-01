@@ -59,6 +59,17 @@ export const uploadImageToSupabase = async (
       alert('無法取得圖片連結');
       return null;
     }
+
+    // --- AUTOMATIC GOOGLE DRIVE SYNC for Furniture ---
+    if (folder === 'furniture') {
+      const { syncAssetToDrive } = await import('./googleDriveSync');
+      syncAssetToDrive(signedUrlData.signedUrl, file.name, 'Learning_Community/room/furniture', {
+        category: 'furniture',
+        context: 'room',
+        originalName: file.name,
+        source: 'Storage Upload'
+      }).catch(err => console.warn('Silent Furniture Drive Sync Failed:', err));
+    }
     
     return signedUrlData.signedUrl;
   } catch (err) {

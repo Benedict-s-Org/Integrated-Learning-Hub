@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Save, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
@@ -11,6 +11,7 @@ interface ProofreadingPreviewProps {
   onNext: () => void;
   onBack: () => void;
   onViewSaved?: () => void;
+  exerciseNumber?: string;
 }
 
 const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
@@ -19,19 +20,20 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
   onNext,
   onBack,
   onViewSaved,
+  exerciseNumber,
 }) => {
   const { user } = useAuth();
-  const { addProofreadingPractice } = useAppContext();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
   const [showResults, setShowResults] = useState(false);
   const [correctAnswers, setCorrectAnswers] = useState<Map<number, { wordIndex: number; correction: string }>>(new Map());
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [practiceTitle, setPracticeTitle] = useState('');
+  const [practiceTitle, setPracticeTitle] = useState(exerciseNumber || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showMergeConfirm, setShowMergeConfirm] = useState(false);
 
   useEffect(() => {
     const parsed = sentences.map((sentence, lineNumber) => {
@@ -138,7 +140,7 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
     setShowSaveModal(true);
   };
 
-  const handleSaveConfirm = async () => {
+  const handleSaveConfirm = async (forceAppend = false) => {
     if (!practiceTitle.trim()) {
       setSaveError('Please enter a practice title.');
       return;
@@ -149,27 +151,47 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
       return;
     }
 
+    const { proofreadingPractices, appendProofreadingPractice, addProofreadingPractice } = useAppContext();
+    const existingPractice = proofreadingPractices.find(p => p.title.trim().toLowerCase() === practiceTitle.trim().toLowerCase());
+
+    if (existingPractice && !forceAppend && !showMergeConfirm) {
+      setShowMergeConfirm(true);
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
     setSaveSuccess(false);
 
     try {
-      const success = await addProofreadingPractice(
-        practiceTitle.trim(),
-        sentences,
-        answers
-      );
+      let success = false;
+      if (existingPractice || forceAppend) {
+        success = await appendProofreadingPractice(
+          practiceTitle.trim(),
+          sentences,
+          answers
+        );
+      } else {
+        success = await addProofreadingPractice(
+          practiceTitle.trim(),
+          sentences,
+          answers,
+          exerciseNumber
+        );
+      }
 
       if (!success) {
         throw new Error('Failed to save practice');
       }
 
       setSaveSuccess(true);
+      setShowMergeConfirm(false);
       setTimeout(() => {
         setShowSaveModal(false);
         setPracticeTitle('');
         setSaveError(null);
-      }, 1500);
+        setSaveSuccess(false);
+      }, 2000);
     } catch (error) {
       console.error('Error saving practice:', error);
       setSaveError(error instanceof Error ? error.message : 'Failed to save practice');
@@ -398,24 +420,42 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
       {showSaveModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Save Practice</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Practice Title
-                </label>
-                <input
-                  type="text"
-                  value={practiceTitle}
-                  onChange={(e) => setPracticeTitle(e.target.value)}
-                  placeholder="Enter practice title"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
-                  autoFocus
-                />
-              </div>
-              <div className="text-sm text-gray-600">
-                <p>{sentences.length} sentence{sentences.length !== 1 ? 's' : ''} with answer keys will be saved.</p>
-              </div>
+              {!showMergeConfirm ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Practice Title
+                  </label>
+                  <input
+                    type="text"
+                    value={practiceTitle}
+                    onChange={(e) => setPracticeTitle(e.target.value)}
+                    placeholder="Enter practice title"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="text-amber-600 mt-1 shrink-0" size={24} />
+                    <div>
+                      <h3 className="font-bold text-amber-900 mb-1">Practice Already Exists</h3>
+                      <p className="text-sm text-amber-800 leading-relaxed">
+                        A practice titled <strong>"{practiceTitle}"</strong> already exists. 
+                        Do you want to <strong>append</strong> these {sentences.length} questions to it or use a <strong>different name</strong>?
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {!showMergeConfirm && (
+                <div className="text-sm text-gray-600">
+                  <p>{sentences.length} sentence{sentences.length !== 1 ? 's' : ''} with answer keys will be saved.</p>
+                </div>
+              )}
+
               {saveError && (
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2">
@@ -428,30 +468,54 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
                 <div className="bg-green-50 border-2 border-green-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2">
                     <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
-                    <p className="text-green-700 text-sm font-medium">Practice saved successfully!</p>
+                    <p className="text-green-700 text-sm font-medium">
+                      {showMergeConfirm ? 'Appended successfully!' : 'Practice saved successfully!'}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowSaveModal(false);
-                  setPracticeTitle('');
-                  setSaveError(null);
-                }}
-                disabled={isSaving}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveConfirm}
-                disabled={isSaving || !practiceTitle.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
+            
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+              {showMergeConfirm ? (
+                <>
+                  <button
+                    onClick={() => setShowMergeConfirm(false)}
+                    disabled={isSaving}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-4 px-4 rounded-xl transition-all"
+                  >
+                    Change Name
+                  </button>
+                  <button
+                    onClick={() => handleSaveConfirm(true)}
+                    disabled={isSaving}
+                    className="flex-[2] bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg active:scale-95"
+                  >
+                    {isSaving ? 'Appending...' : 'Append to Existing'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowSaveModal(false);
+                      setPracticeTitle('');
+                      setSaveError(null);
+                    }}
+                    disabled={isSaving}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-4 px-4 rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSaveConfirm()}
+                    disabled={isSaving || !practiceTitle.trim()}
+                    className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg active:scale-95"
+                  >
+                    {isSaving ? 'Saving...' : 'Save Practice'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

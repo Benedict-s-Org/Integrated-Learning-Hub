@@ -85,6 +85,7 @@ function UploadTab({ onAddAsset }: { onAddAsset: (asset: Asset) => void }) {
   const [uploadContext, setUploadContext] = useState<AssetContext>('general');
   const [uploadCategory, setUploadCategory] = useState<string>('general');
   const [isUploading, setIsUploading] = useState(false);
+  const [syncToDrive, setSyncToDrive] = useState(true);
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -114,7 +115,8 @@ function UploadTab({ onAddAsset }: { onAddAsset: (asset: Asset) => void }) {
 
           const asset = await uploadAssetPersistently(compressedFile, 'image', {
             category: uploadCategory,
-            context: uploadContext
+            context: uploadContext,
+            syncToDrive
           });
           if (asset) {
             onAddAsset(asset);
@@ -128,7 +130,8 @@ function UploadTab({ onAddAsset }: { onAddAsset: (asset: Asset) => void }) {
             html: parsed.html,
             pages: parsed.pages,
             category: uploadCategory,
-            context: uploadContext
+            context: uploadContext,
+            syncToDrive
           };
 
           const asset = await uploadAssetPersistently(file, 'document', metadata);
@@ -144,7 +147,8 @@ function UploadTab({ onAddAsset }: { onAddAsset: (asset: Asset) => void }) {
             columns: parsed.columns,
             rowCount: parsed.data?.length || 0,
             category: uploadCategory,
-            context: uploadContext
+            context: uploadContext,
+            syncToDrive
           };
 
           const asset = await uploadAssetPersistently(file, 'data', metadata);
@@ -225,6 +229,24 @@ function UploadTab({ onAddAsset }: { onAddAsset: (asset: Asset) => void }) {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="pl-11 mt-4">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <div className={`w-10 h-5 rounded-full transition-colors relative ${syncToDrive ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${syncToDrive ? 'left-6' : 'left-1'}`} />
+              </div>
+              <input 
+                type="checkbox" 
+                className="hidden" 
+                checked={syncToDrive} 
+                onChange={(e) => setSyncToDrive(e.target.checked)} 
+              />
+              <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <Cloud className={`w-4 h-4 ${syncToDrive ? 'text-blue-500' : 'text-slate-400'}`} />
+                同時同步至 Google Drive (自動索引)
+              </span>
+            </label>
           </div>
         </div>
 

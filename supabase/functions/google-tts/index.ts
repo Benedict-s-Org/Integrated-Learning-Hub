@@ -13,6 +13,7 @@ interface TTSRequest {
   accent?: string;
   voiceName?: string;
   speakingRate?: number;
+  overwrite?: boolean;
 }
 
 interface TTSResponse {
@@ -36,8 +37,14 @@ const VOICE_FALLBACKS: Record<string, string[]> = {
 
 /**
  * Escapes XML characters and adds breaks after punctuation for natural speech.
+ * If the text already starts with <speak>, it is assumed to be raw SSML and is returned as-is.
  */
 function toSSML(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("<speak>") && trimmed.endsWith("</speak>")) {
+    return trimmed;
+  }
+
   const escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -149,6 +156,50 @@ async function setDrivePublicPermission(fileId: string, accessToken: string): Pr
   }
 }
 
+/**
+ * Finds or creates a subfolder by name under a parent folder.
+ */
+async function findOrCreateFolder(folderName: string, parentId: string, accessToken: string): Promise<string> {
+  // 1. Search for existing folder
+  const query = encodeURIComponent(`name = '${folderName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  
+  if (searchRes.ok) {
+    const data = await searchRes.json();
+    if (data.files && data.files.length > 0) {
+      return data.files[0].id;
+    }
+  }
+
+  // 2. Create if not found
+  const createRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?supportsAllDrives=true`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentId]
+      }),
+    }
+  );
+
+  if (!createRes.ok) {
+    const err = await createRes.text();
+    throw new Error(`Failed to create Drive folder '${folderName}': ${err}`);
+  }
+
+  const folderData = await createRes.json();
+  return folderData.id;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
@@ -188,7 +239,7 @@ Deno.serve(async (req: Request) => {
     const folderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
 
     // ── 3. Parse Request ─────────────────────────────────────────────
-    const { text, accent = "en-GB", voiceName, speakingRate } = requestBody as TTSRequest;
+    const { text, accent = "en-GB", voiceName, speakingRate, folderName, customFileName, overwrite = false } = requestBody as TTSRequest & { folderName?: string, customFileName?: string };
     if (!text) throw new Error("Text is required");
 
     const normalizedText = text.trim().replace(/\s+/g, " ");
@@ -206,7 +257,7 @@ Deno.serve(async (req: Request) => {
       .eq("speaking_rate", effectiveRate)
       .maybeSingle();
 
-    if (cacheHit?.drive_file_id) {
+    if (cacheHit?.drive_file_id && !overwrite) {
       console.log(`[google-tts] Cache HIT: ${cacheHit.drive_file_id}. Fetching from Drive...`);
       try {
         const apiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
@@ -227,6 +278,17 @@ Deno.serve(async (req: Request) => {
         console.warn(`[google-tts] Proxy failed for cached file: ${hitError.message}. Re-generating...`);
         // Fall through to re-generation if proxy fails
       }
+    }
+
+    if (cacheHit?.drive_file_id && overwrite) {
+      console.log(`[google-tts] Overwrite requested. Deleting existing cache entry for: ${cacheText}`);
+      await supabaseAdmin
+        .from("tts_cache")
+        .delete()
+        .eq("text", cacheText)
+        .eq("accent", accent)
+        .eq("voice_name", effectiveVoice)
+        .eq("speaking_rate", effectiveRate);
     }
 
     // ── 5. Get Synthesis Authorization ──────────────────────────────
@@ -271,15 +333,25 @@ Deno.serve(async (req: Request) => {
     // ── 7. Upload to Google Drive ────────────────────────────────────
     const hashInput = `${cacheText}|${accent}|${effectiveVoice}|${effectiveRate}`;
     const fileHash = await sha256(hashInput);
-    const fileName = `${fileHash}.mp3`;
+    const fileName = customFileName ? (customFileName.endsWith('.mp3') ? customFileName : `${customFileName}.mp3`) : `${fileHash}.mp3`;
 
     let driveFileId: string | null = null;
     let driveError: string | null = null;
 
     try {
       const driveAccessToken = googleToken || await getAccessToken(saJson);
+      
+      let targetFolderId = folderId;
+      if (folderName && folderId) {
+        try {
+          targetFolderId = await findOrCreateFolder(folderName, folderId, driveAccessToken);
+        } catch (e: any) {
+          console.warn(`[google-tts] Subfolder creation failed, falling back to parent: ${e.message}`);
+        }
+      }
+
       const metadata: any = { name: fileName, mimeType: "audio/mpeg" };
-      if (folderId) metadata.parents = [folderId];
+      if (targetFolderId) metadata.parents = [targetFolderId];
 
       const boundary = "-------314159265358979323846";
       const multipartBody = 
@@ -320,6 +392,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({
       audioUrl: driveFileId ? driveDownloadUrl(driveFileId) : "",
       driveFileId: driveFileId || "",
+      fileName: fileName,
       cached: false,
       voiceName: usedVoice,
       speakingRate: effectiveRate,

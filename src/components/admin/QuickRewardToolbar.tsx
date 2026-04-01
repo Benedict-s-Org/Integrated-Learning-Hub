@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { REWARD_ICON_MAP } from '@/constants/rewardConfig';
 import { QuickRewardShortcut } from './CoinAwardModal';
+import { supabase } from '../../lib/supabase';
 
 interface QuickRewardToolbarProps {
     studentId: string;
@@ -22,13 +23,31 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
     const [shortcuts, setShortcuts] = useState<QuickRewardShortcut[]>([]);
     const [isAwarding, setIsAwarding] = useState<string | null>(null);
 
-    const STORAGE_KEY = `quick_reward_shortcuts_${className || 'global'}`;
+    const standardizedClass = (className === 'all' || !className) ? 'global' : className;
+    const STORAGE_KEY = `quick_reward_shortcuts_${standardizedClass}`;
 
-    const loadShortcuts = () => {
+    const loadShortcuts = useCallback(async () => {
+        // 1. Try cloud first
+        try {
+            const { data } = await (supabase
+                .from('dashboard_shortcuts' as any)
+                .select('shortcuts')
+                .eq('name', standardizedClass)
+                .single() as any);
+            
+            if (data?.shortcuts && data.shortcuts.length > 0) {
+                setShortcuts(data.shortcuts);
+                return;
+            }
+        } catch (e) {
+            console.error('Failed to fetch cloud shortcuts', e);
+        }
+
+        // 2. Fallback to localStorage
         let saved = localStorage.getItem(STORAGE_KEY);
         
         // Fallback: If class-specific is empty, try global
-        if ((!saved || JSON.parse(saved).every((s: any) => !s.rewardId)) && className && className !== 'global') {
+        if ((!saved || JSON.parse(saved).every((s: any) => !s.rewardId)) && standardizedClass !== 'global') {
             const globalSaved = localStorage.getItem('quick_reward_shortcuts_global');
             if (globalSaved) saved = globalSaved;
         }
@@ -49,34 +68,50 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
         } else {
             setShortcuts(EMPTY_SHORTCUTS);
         }
-    };
+    }, [STORAGE_KEY, standardizedClass]);
 
     useEffect(() => {
         loadShortcuts();
 
-        // Listen for updates from other tabs
+        // Listen for updates from other tabs (local)
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key === STORAGE_KEY || e.key === 'quick_reward_shortcuts_global') {
                 loadShortcuts();
             }
         };
 
-        // Listen for updates from the same tab (CoinAwardModal)
+        // Listen for updates from the same tab (local CustomEvent)
         const handleCustomUpdate = (e: any) => {
             const updatedClassId = e.detail?.classId;
-            if (updatedClassId === className || updatedClassId === 'global') {
+            if (updatedClassId === standardizedClass || updatedClassId === 'global') {
                 loadShortcuts();
             }
         };
+
+        // Real-time Cloud Subscription
+        const channel = supabase
+            .channel(`public:dashboard_shortcuts:name=eq.${standardizedClass}`)
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'dashboard_shortcuts',
+                filter: `name=eq.${standardizedClass}`
+            }, (payload) => {
+                if (payload.new && (payload.new as any).shortcuts) {
+                    setShortcuts((payload.new as any).shortcuts);
+                }
+            })
+            .subscribe();
 
         window.addEventListener('storage', handleStorageChange);
         window.addEventListener('quick-shortcuts-updated', handleCustomUpdate);
         
         return () => {
+            supabase.removeChannel(channel);
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('quick-shortcuts-updated', handleCustomUpdate);
         };
-    }, [STORAGE_KEY, className]);
+    }, [loadShortcuts, STORAGE_KEY, standardizedClass]);
 
     const handleAction = async (shortcut: QuickRewardShortcut) => {
         if (isAwarding || !shortcut.rewardId) return;

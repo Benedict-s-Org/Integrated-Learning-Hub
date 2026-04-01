@@ -10,6 +10,7 @@ interface ProofreadingAnswerSettingProps {
   onNext: (answers: ProofreadingAnswer[]) => void;
   onBack: () => void;
   onViewSaved?: () => void;
+  exerciseNumber?: string;
 }
 
 const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
@@ -18,6 +19,7 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
   onNext,
   onBack,
   onViewSaved,
+  exerciseNumber: _exerciseNumber,
 }) => {
   const { session } = useAuth();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);

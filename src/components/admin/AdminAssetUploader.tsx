@@ -28,7 +28,7 @@ export const AdminAssetUploader: React.FC = () => {
     const [zIndex, setZIndex] = useState<number>(20); // Defaults match initial category selection
     const [basePrice, setBasePrice] = useState<number>(0);
     const [isDefault, setIsDefault] = useState(false);
-
+    const [syncToDrive, setSyncToDrive] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -117,6 +117,17 @@ export const AdminAssetUploader: React.FC = () => {
                 });
 
             if (dbError) throw dbError;
+
+            // 4. AUTOMATIC GOOGLE DRIVE SYNC for Avatars
+            if (syncToDrive) {
+                const { syncAssetToDrive } = await import('../../utils/googleDriveSync');
+                syncAssetToDrive(publicUrl, `${name.trim().replace(/\s+/g, '_')}_${Date.now()}.png`, `Avatar_Assets/${category}`, {
+                    category,
+                    context: 'avatar',
+                    originalName: name.trim(),
+                    source: 'Avatar Uploader'
+                }).catch(err => console.warn('Silent Avatar Drive Sync Failed:', err));
+            }
 
             setSuccessMsg(`Successfully uploaded ${name}!`);
             clearForm();
@@ -280,6 +291,20 @@ export const AdminAssetUploader: React.FC = () => {
                             />
                             <label htmlFor="isDefault" className="text-sm font-medium text-gray-700 cursor-pointer">
                                 Give to all users by default? <span className="text-gray-500 font-normal">(Users will own this without buying it)</span>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-2">
+                            <input
+                                type="checkbox"
+                                id="syncToDrive"
+                                checked={syncToDrive}
+                                onChange={e => setSyncToDrive(e.target.checked)}
+                                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                            />
+                            <label htmlFor="syncToDrive" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center gap-2">
+                                <Cloud className="w-4 h-4 text-blue-500" />
+                                同步至 Google Drive
                             </label>
                         </div>
 

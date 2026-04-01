@@ -44,6 +44,7 @@ import {
     FileText,
     Crown,
     Image as ImageIcon,
+    Volume2,
 } from 'lucide-react';
 import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -362,6 +363,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={currentPage === 'vocabImagePicker'}
                                 onClick={() => onPageChange('vocabImagePicker')}
                             />
+                            <NavItem
+                                icon={Volume2}
+                                label="Phonics Dashboard"
+                                isActive={currentPage === 'phonicsDashboard'}
+                                onClick={() => onPageChange('phonicsDashboard')}
+                            />
                         </NavSection>
                     )}
 
@@ -432,6 +439,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     onClick={() => navigate('/admin/homework-record')}
                                 />
                             )}
+                            <NavItem
+                                icon={LayoutGrid}
+                                label="Habit Tracker"
+                                isActive={window.location.pathname === '/admin/homework-habit' || currentPage === 'adminHomeworkHabit' as any}
+                                onClick={() => navigate('/admin/homework-habit')}
+                            />
                             {isItemVisible('timetable') && (
                                 <NavItem
                                     icon={Layout}
@@ -446,6 +459,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                     label="Broadcasts"
                                     isActive={window.location.pathname === '/admin/broadcast' || currentPage === 'broadcastManagement'}
                                     onClick={() => navigate('/admin/broadcast')}
+                                />
+                            )}
+                            {isItemVisible('progressLog') && (
+                                <NavItem
+                                    icon={History}
+                                    label="Progress Log"
+                                    isActive={window.location.pathname === '/admin/progress-log' || currentPage === 'progressLog'}
+                                    onClick={() => onPageChange('progressLog')}
                                 />
                             )}
                             {isItemVisible('assignmentManagement') && (
