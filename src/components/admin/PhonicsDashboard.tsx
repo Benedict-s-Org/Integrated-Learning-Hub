@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { fetchCloudAudio, ACCENT_OPTIONS, PREMIUM_VOICES } from "../../utils/voiceManager";
+import { fetchCloudAudioRich, ACCENT_OPTIONS, PREMIUM_VOICES } from "../../utils/voiceManager";
 import { usePhonicsMappings } from "../../hooks/usePhonicsMappings";
 
 interface PhonicsGeneratorProps {
@@ -32,22 +32,68 @@ interface PhonicsItem {
   category: "vowel" | "consonant" | "digraph" | "blend";
   level: number;
   status: "pending" | "generating" | "ready" | "saving" | "saved" | "error";
-  audioUrl?: string;
+  audioUrl?: string; // Preview URL (Base64)
+  persistentUrl?: string; // Drive URL for DB
   error?: string;
 }
 
-const IPA_MAPPINGS: Record<string, string> = {
-  "a": "æ",
-  "e": "ɛ",
-  "i": "ɪ",
-  "o": "ɒ",
-  "u": "ʌ",
-  "sh": "ʃ",
-  "ch": "tʃ",
-  "th_unvoiced": "θ",
-  "th_voiced": "ð",
-  "ng": "ŋ",
-  "zh": "ʒ"
+// Database phoneme → IPA for TTS. Keys match phonics_mappings.phoneme values.
+const PHONEME_TO_IPA: Record<string, string> = {
+  // Short vowels
+  '/ă/': 'æ', '/ĕ/': 'ɛ', '/ĭ/': 'ɪ', '/ŏ/': 'ɒ', '/ŭ/': 'ʌ',
+  // Long vowels
+  '/ā/': 'eɪ', '/ē/': 'iː', '/ī/': 'aɪ', '/ō/': 'oʊ', '/ū/': 'juː',
+  // Consonants
+  '/b/': 'b', '/k/': 'k', '/d/': 'd', '/f/': 'f', '/g/': 'ɡ',
+  '/h/': 'h', '/j/': 'dʒ', '/l/': 'l', '/m/': 'm', '/n/': 'n',
+  '/p/': 'p', '/r/': 'r', '/s/': 's', '/t/': 't', '/v/': 'v',
+  '/w/': 'w', '/y/': 'j', '/z/': 'z',
+  // Digraphs
+  '/sh/': 'ʃ', '/ch/': 'tʃ', '/th/': 'θ', '/wh/': 'w', '/ng/': 'ŋ',
+  // R-controlled vowels
+  '/ar/': 'ɑːr', '/er/': 'ɜːr', '/or/': 'ɔːr', '/air/': 'ɛər',
+  // Diphthongs
+  '/oi/': 'ɔɪ', '/ou/': 'aʊ', '/aw/': 'ɔː',
+  // OO pair
+  '/uː/': 'uː', '/ʊ/': 'ʊ',
+  // Schwa
+  '/ə/': 'ə',
+  // Blends (L-blends)
+  '/bl/': 'bl', '/cl/': 'kl', '/fl/': 'fl', '/gl/': 'ɡl', '/pl/': 'pl', '/sl/': 'sl',
+  // Blends (R-blends)
+  '/br/': 'br', '/cr/': 'kr', '/dr/': 'dr', '/fr/': 'fr', '/gr/': 'ɡr', '/pr/': 'pr', '/tr/': 'tr',
+  // Blends (S-blends)
+  '/sc/': 'sk', '/sk/': 'sk', '/sm/': 'sm', '/sn/': 'sn', '/sp/': 'sp', '/st/': 'st', '/sw/': 'sw',
+  // Blends (Final)
+  '/ft/': 'ft', '/ld/': 'ld', '/lf/': 'lf', '/lk/': 'lk', '/lp/': 'lp', '/lt/': 'lt',
+  '/mp/': 'mp', '/nd/': 'nd', '/nk/': 'ŋk', '/nt/': 'nt', '/pt/': 'pt', '/kt/': 'kt',
+  // 3-letter blends
+  '/scr/': 'skr', '/shr/': 'ʃr', '/spl/': 'spl', '/spr/': 'spr', '/str/': 'str', '/thr/': 'θr',
+  // L3 Advanced silent patterns
+  '/af/': 'ɑːf', '/am/': 'ɑːm', '/ak/': 'ɔːk',
+  // L4 Suffixes
+  '/shən/': 'ʃən', '/zhən/': 'ʒən', '/chər/': 'tʃər', '/əs/': 'əs', '/iəs/': 'iəs',
+};
+
+/** Normalize phoneme for consistent display: always show as /phoneme/ */
+const displayPhoneme = (phoneme: string): string => {
+  if (!phoneme) return '';
+  // Strip existing slashes to avoid //double//
+  const stripped = phoneme.replace(/^\/*/, '').replace(/\/*$/, '');
+  // Special labels that shouldn't be wrapped in slashes
+  if (['Silent e', 'Root', 'ough'].includes(phoneme)) return phoneme;
+  return `/${stripped}/`;
+};
+
+/** Convert a database phoneme to IPA for TTS SSML generation */
+const phonemeToIPA = (phoneme: string): string => {
+  // Try exact match first
+  if (PHONEME_TO_IPA[phoneme]) return PHONEME_TO_IPA[phoneme];
+  // Try wrapping in slashes
+  const withSlashes = `/${phoneme.replace(/^\/*/, '').replace(/\/*$/, '')}/`;
+  if (PHONEME_TO_IPA[withSlashes]) return PHONEME_TO_IPA[withSlashes];
+  // Fallback: return the phoneme as-is (may already be IPA)
+  return phoneme.replace(/^\/*/, '').replace(/\/*$/, '');
 };
 
 export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) => {
@@ -63,9 +109,14 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
   const [globalCategory, setGlobalCategory] = useState<PhonicsItem["category"]>("vowel");
   const [globalLevel, setGlobalLevel] = useState(1);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error", text: string } | null>(null);
+  const { mappings, fetchAllMappings, isLoading: isLoadingMappings } = usePhonicsMappings();
   const [linkingItem, setLinkingItem] = useState<PhonicsItem | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  React.useEffect(() => {
+    fetchAllMappings();
+  }, [fetchAllMappings]);
 
   const handleParseInput = () => {
     const lines = inputText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
@@ -89,9 +140,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
   };
 
   const getSSMLForPhoneme = (phoneme: string) => {
-    // If it already looks like a complex IPA string or SSML, we might just wrap it
-    // But for simplicity, we assume the user provides the IPA symbol or we map it
-    const ipa = IPA_MAPPINGS[phoneme.toLowerCase()] || phoneme;
+    const ipa = phonemeToIPA(phoneme);
     return `<speak><phoneme alphabet="ipa" ph="${ipa}">${ipa}</phoneme></speak>`;
   };
 
@@ -105,11 +154,12 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
 
     try {
       const ssml = getSSMLForPhoneme(item.phoneme);
-      const audioUrl = await fetchCloudAudio(ssml, accent, voiceName, speakingRate, true);
+      const result = await fetchCloudAudioRich(ssml, accent, voiceName, speakingRate, true);
       
-      if (audioUrl) {
+      if (result) {
         const finalItems = [...items];
-        finalItems[index].audioUrl = audioUrl;
+        finalItems[index].audioUrl = result.audioContent;
+        finalItems[index].persistentUrl = result.audioUrl;
         finalItems[index].status = "ready";
         setItems(finalItems);
       } else {
@@ -142,26 +192,52 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
 
     setIsProcessing(true);
     setStatusMessage(null);
+    let savedCount = 0;
 
     try {
-      const { error } = await (supabase as any).from("phonics_mappings").upsert(
-        readyItems.map(item => ({
-          grapheme: item.grapheme,
-          phoneme: item.phoneme,
-          category: item.category,
-          level: item.level,
-          audio_url: item.audioUrl,
-        })),
-        { onConflict: "grapheme,phoneme,category,level" }
-      );
+      for (const item of readyItems) {
+        const audioToStore = item.persistentUrl || item.audioUrl;
 
-      if (error) throw error;
+        // Try to find an existing matching row
+        const { data: existing } = await (supabase as any)
+          .from("phonics_mappings")
+          .select("id")
+          .eq("grapheme", item.grapheme)
+          .eq("phoneme", item.phoneme)
+          .eq("category", item.category)
+          .eq("level", item.level)
+          .limit(1)
+          .maybeSingle();
+
+        if (existing) {
+          // Update the existing row
+          const { error } = await (supabase as any)
+            .from("phonics_mappings")
+            .update({ audio_url: audioToStore })
+            .eq("id", existing.id);
+          if (error) throw error;
+        } else {
+          // Insert a new row
+          const { error } = await (supabase as any)
+            .from("phonics_mappings")
+            .insert({
+              grapheme: item.grapheme,
+              phoneme: item.phoneme,
+              category: item.category,
+              level: item.level,
+              audio_url: audioToStore,
+            });
+          if (error) throw error;
+        }
+        savedCount++;
+      }
 
       setItems(prev => prev.map(item => 
         item.status === "ready" ? { ...item, status: "saved" } : item
       ));
       
-      setStatusMessage({ type: "success", text: `Successfully saved ${readyItems.length} items to database.` });
+      fetchAllMappings();
+      setStatusMessage({ type: "success", text: `Successfully saved ${savedCount} items to database.` });
     } catch (err: any) {
       console.error("Save to DB failed:", err);
       setStatusMessage({ type: "error", text: `Failed to save: ${err.message}` });
@@ -390,15 +466,18 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
                   </h3>
                   
                   <div className="flex gap-2">
-                    <Button 
-                      variant="secondary" 
-                      className="flex items-center gap-2"
-                      onClick={handleSaveToDB}
-                      disabled={isProcessing || !items.some(i => i.status === "ready")}
-                    >
-                      <Database size={14} />
-                      Sync to Database
-                    </Button>
+                    <div className="flex flex-col items-end">
+                      <Button 
+                        variant="secondary" 
+                        className="flex items-center gap-2"
+                        onClick={handleSaveToDB}
+                        disabled={isProcessing || !items.some(i => i.status === "ready")}
+                      >
+                        <Database size={14} />
+                        Sync to Database
+                      </Button>
+                      <span className="text-[9px] text-slate-400 mt-1 uppercase font-bold">Creates New Tiles</span>
+                    </div>
                   </div>
                 </div>
 
@@ -425,7 +504,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
                           <div className="flex-1">
                             <div className="flex items-center gap-3">
                               <span className="text-lg font-bold text-slate-800">{item.grapheme}</span>
-                              <span className="text-indigo-500 font-mono text-sm">/{item.phoneme}/</span>
+                              <span className="text-indigo-500 font-mono text-sm">{displayPhoneme(item.phoneme)}</span>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] uppercase font-bold text-slate-400">{item.category}</span>
@@ -487,7 +566,12 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
           </div>
         </>
       ) : (
-        <PhonicsManager onPlayPreview={handlePlayPreview} />
+        <PhonicsManager 
+          mappings={mappings}
+          isLoading={isLoadingMappings}
+          onRefresh={fetchAllMappings}
+          onPlayPreview={handlePlayPreview} 
+        />
       )}
       </div>
 
@@ -496,9 +580,12 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
       {linkingItem && (
         <ManualLinkingModal 
           item={linkingItem} 
+          mappings={mappings}
+          isLoading={isLoadingMappings}
           onClose={() => setLinkingItem(null)} 
           onSuccess={() => {
             setLinkingItem(null);
+            fetchAllMappings();
             setStatusMessage({ type: "success", text: "Successfully linked phonemes!" });
           }}
         />
@@ -511,15 +598,17 @@ export default PhonicsDashboard;
 
 // ─── Sub-Component: Phonics Manager ───
 
-const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ onPlayPreview }) => {
-  const { fetchAllMappings, mappings, isLoading } = usePhonicsMappings();
+interface PhonicsManagerProps {
+  mappings: any[];
+  isLoading: boolean;
+  onRefresh: () => void;
+  onPlayPreview: (url: string) => void;
+}
+
+const PhonicsManager: React.FC<PhonicsManagerProps> = ({ mappings, isLoading, onRefresh, onPlayPreview }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLinking, setIsLinking] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    fetchAllMappings();
-  }, [fetchAllMappings]);
 
   const filteredMappings = mappings.filter(m => 
     m.grapheme.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -541,8 +630,7 @@ const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ on
 
     try {
       for (const mapping of unlinked) {
-        // Use the global IPA_MAPPINGS
-        const ipa = IPA_MAPPINGS[mapping.phoneme.toLowerCase()] || mapping.phoneme;
+        const ipa = phonemeToIPA(mapping.phoneme);
         const ssml = `<speak><phoneme alphabet="ipa" ph="${ipa}">${ipa}</phoneme></speak>`;
 
         // Look for this SSML in tts_cache
@@ -563,7 +651,7 @@ const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ on
       }
       
       setSyncStatus(`Successfully linked ${linkedCount} sounds!`);
-      fetchAllMappings();
+      onRefresh();
     } catch (err) {
       console.error("Auto-link failed:", err);
       setSyncStatus("Sync failed. Check console.");
@@ -585,7 +673,7 @@ const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ on
           <div className="flex gap-2">
             <Button 
                 variant="secondary" 
-                onClick={() => fetchAllMappings()} 
+                onClick={() => onRefresh()} 
                 disabled={isLoading}
                 className="flex items-center gap-2"
             >
@@ -665,7 +753,7 @@ const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ on
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <span className="text-xl font-black text-slate-800">{mapping.grapheme}</span>
-                        <span className="text-indigo-500 font-mono text-sm">/{mapping.phoneme}/</span>
+                        <span className="text-indigo-500 font-mono text-sm">{displayPhoneme(mapping.phoneme)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -713,19 +801,18 @@ const PhonicsManager: React.FC<{ onPlayPreview: (url: string) => void }> = ({ on
 
 // ─── Sub-Component: Manual Linking Modal ───
 
-const ManualLinkingModal: React.FC<{ 
-  item: PhonicsItem; 
-  onClose: () => void; 
+interface ManualLinkingModalProps {
+  item: PhonicsItem;
+  mappings: any[];
+  isLoading: boolean;
+  onClose: () => void;
   onSuccess: () => void;
-}> = ({ item, onClose, onSuccess }) => {
-  const { mappings, fetchAllMappings, isLoading } = usePhonicsMappings();
+}
+
+const ManualLinkingModal: React.FC<ManualLinkingModalProps> = ({ item, mappings, isLoading, onClose, onSuccess }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLinking, setIsLinking] = useState(false);
-
-  React.useEffect(() => {
-    fetchAllMappings();
-  }, [fetchAllMappings]);
 
   const filteredMappings = mappings.filter(m => 
     m.grapheme.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -746,16 +833,32 @@ const ManualLinkingModal: React.FC<{
     setIsLinking(true);
     try {
       const idsArray = Array.from(selectedIds);
-      const { error } = await (supabase as any)
+      const audioToStore = item.persistentUrl || item.audioUrl;
+      
+      console.log('[ManualLink] Linking audio to', idsArray.length, 'tiles');
+      console.log('[ManualLink] URL type:', audioToStore?.startsWith('data:') ? 'BASE64' : 'DRIVE_URL');
+      console.log('[ManualLink] URL preview:', audioToStore?.substring(0, 80));
+
+      const { data, error } = await (supabase as any)
         .from("phonics_mappings")
-        .update({ audio_url: item.audioUrl })
-        .in("id", idsArray);
+        .update({ audio_url: audioToStore })
+        .in("id", idsArray)
+        .select("id");
 
       if (error) throw error;
+      
+      const updatedCount = data?.length || 0;
+      console.log('[ManualLink] Rows updated:', updatedCount, '/', idsArray.length);
+
+      if (updatedCount === 0) {
+        alert(`Update failed: 0 rows were updated. This is likely a permissions issue (RLS policy). Make sure the migration "20260402154000_fix_phonics_mappings_rls.sql" has been deployed.`);
+        return;
+      }
+
       onSuccess();
     } catch (err) {
       console.error("Manual linking failed:", err);
-      alert("Failed to link phonics. Check console.");
+      alert(`Failed to link phonics: ${(err as any)?.message || 'Unknown error'}`);
     } finally {
       setIsLinking(false);
     }
@@ -767,7 +870,7 @@ const ManualLinkingModal: React.FC<{
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-slate-800">Link to Sound Wall</h3>
-            <p className="text-sm text-slate-500">Pick which tiles should play this audio for /{item.phoneme}/</p>
+            <p className="text-sm text-slate-500">Pick which tiles should play this audio for {displayPhoneme(item.phoneme)}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
             <X size={20} />
@@ -817,7 +920,7 @@ const ManualLinkingModal: React.FC<{
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <span className="text-lg font-bold text-slate-800">{m.grapheme}</span>
-                    <span className="text-indigo-500 font-mono">/{m.phoneme}/</span>
+                    <span className="text-indigo-500 font-mono">{displayPhoneme(m.phoneme)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] uppercase font-bold text-slate-400">{m.category}</span>

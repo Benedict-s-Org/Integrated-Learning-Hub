@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Save, Loader2, ChevronLeft, ChevronRight, Zap, BookOpen, DoorOpen } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { NotificationTemplateModal } from './notifications/NotificationTemplateModal';
 import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import {
@@ -58,6 +59,7 @@ interface ClassDistributorProps {
     consequenceCounts?: Record<string, number>;
     showEmail?: boolean;
     className?: string;
+    shortcuts?: any[];
 }
 
 interface SortableUserItemProps {
@@ -77,13 +79,14 @@ interface SortableUserItemProps {
     consequenceCount?: number;
     showEmail?: boolean;
     className?: string;
+    shortcuts?: any[];
 }
 
 // --- Shared User Item Core ---
 function UserItemComponent({
     user, avatarCatalog, isSelected, index, total, isRearranging,
     onToggle, onClick, onHomeworkClick, onToiletBreakClick, onQuickAward, availableRewards, onMove,
-    showEmail, theme, className
+    showEmail, theme, className, shortcuts
 }: any) {
     return (
         <div className="relative z-10 w-full flex flex-col pointer-events-none gap-2">
@@ -216,14 +219,26 @@ function UserItemComponent({
                     </button>
                 )}
                 {onQuickAward && user.class === '3A' && (
-                    <QuickRewardToolbar studentId={user.id} onQuickAward={onQuickAward} availableRewards={availableRewards || []} className={className || user.class} />
+                    <QuickRewardToolbar 
+                        studentId={user.id} 
+                        onQuickAward={onQuickAward} 
+                        availableRewards={availableRewards || []} 
+                        className={className || user.class} 
+                        externalShortcuts={shortcuts || undefined}
+                    />
                 )}
             </div>
 
             {/* Quick Reward Toolbar for non-3A classes (placed above Homework) */}
             {onQuickAward && user.class !== '3A' && (
                 <div className="mt-1 w-full">
-                    <QuickRewardToolbar studentId={user.id} onQuickAward={onQuickAward} availableRewards={availableRewards || []} className={className || user.class} />
+                    <QuickRewardToolbar 
+                        studentId={user.id} 
+                        onQuickAward={onQuickAward} 
+                        availableRewards={availableRewards || []} 
+                        className={className || user.class} 
+                        externalShortcuts={shortcuts || undefined}
+                    />
                 </div>
             )}
 
@@ -334,6 +349,7 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
     if (prevProps.consequenceCount !== nextProps.consequenceCount) return false;
     if (prevProps.showEmail !== nextProps.showEmail) return false;
     if (prevProps.onToggle !== nextProps.onToggle) return false;
+    if (JSON.stringify(prevProps.shortcuts) !== JSON.stringify(nextProps.shortcuts)) return false;
 
     // Check specific user fields that affect rendering
     const pUser = prevProps.user;
@@ -365,6 +381,49 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [isRearranging, setIsRearranging] = useState(false);
+    const [classShortcuts, setClassShortcuts] = useState<any[] | null>(null);
+
+    const standardizedClass = (className === 'all' || !className) ? 'global' : className;
+
+    useEffect(() => {
+        const fetchShortcuts = async () => {
+            try {
+                const { data } = await (supabase
+                    .from('dashboard_shortcuts' as any)
+                    .select('shortcuts')
+                    .eq('name', standardizedClass)
+                    .single() as any);
+                
+                if (data?.shortcuts) {
+                    setClassShortcuts(data.shortcuts);
+                }
+            } catch (e) {
+                // Silently fail to avoid console clutter if table missing
+                // Fallback is handled by the component itself if null
+            }
+        };
+
+        fetchShortcuts();
+
+        // Subscribe to changes for this class
+        const channel = supabase
+            .channel(`class-distributor-shortcuts-${standardizedClass}`)
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'dashboard_shortcuts',
+                filter: `name=eq.${standardizedClass}`
+            }, (payload) => {
+                if (payload.new && (payload.new as any).shortcuts) {
+                    setClassShortcuts((payload.new as any).shortcuts);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [standardizedClass]);
 
     // Unified Broadcast Modal State
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -567,6 +626,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                                     consequenceCount={consequenceCounts[user.id] || 0}
                                     showEmail={showEmail}
                                     className={className}
+                                    shortcuts={classShortcuts || undefined}
                                 />
                             ))}
                         </div>

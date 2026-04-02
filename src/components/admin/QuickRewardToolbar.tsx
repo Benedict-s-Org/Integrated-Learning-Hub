@@ -8,6 +8,8 @@ interface QuickRewardToolbarProps {
     availableRewards: any[];
     onQuickAward: (userId: string, amount: number, reason: string) => Promise<void>;
     className?: string;
+    // New optional props for deduplication
+    externalShortcuts?: QuickRewardShortcut[];
 }
 
 export const EMPTY_SHORTCUTS: QuickRewardShortcut[] = [
@@ -19,14 +21,18 @@ export const EMPTY_SHORTCUTS: QuickRewardShortcut[] = [
     { id: '6', rewardId: null },
 ];
 
-export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, className }: QuickRewardToolbarProps) {
-    const [shortcuts, setShortcuts] = useState<QuickRewardShortcut[]>([]);
+export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, className, externalShortcuts }: QuickRewardToolbarProps) {
+    const [internalShortcuts, setInternalShortcuts] = useState<QuickRewardShortcut[]>([]);
     const [isAwarding, setIsAwarding] = useState<string | null>(null);
+
+    // Use external shortcuts if provided, otherwise use internal state
+    const shortcuts = externalShortcuts || internalShortcuts;
 
     const standardizedClass = (className === 'all' || !className) ? 'global' : className;
     const STORAGE_KEY = `quick_reward_shortcuts_${standardizedClass}`;
 
     const loadShortcuts = useCallback(async () => {
+        if (externalShortcuts) return; // Skip if handled externally
         // 1. Try cloud first
         try {
             const { data } = await (supabase
@@ -36,7 +42,7 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
                 .single() as any);
             
             if (data?.shortcuts && data.shortcuts.length > 0) {
-                setShortcuts(data.shortcuts);
+                setInternalShortcuts(data.shortcuts);
                 return;
             }
         } catch (e) {
@@ -57,20 +63,22 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
                 const parsed = JSON.parse(saved);
                 // Handle legacy format or missing rewardId
                 if (parsed.length > 0 && ('reason' in parsed[0])) {
-                    setShortcuts(EMPTY_SHORTCUTS);
+                    setInternalShortcuts(EMPTY_SHORTCUTS);
                 } else {
-                    setShortcuts(parsed);
+                    setInternalShortcuts(parsed);
                 }
             } catch (e) {
                 console.error('Failed to parse shortcuts', e);
-                setShortcuts(EMPTY_SHORTCUTS);
+                setInternalShortcuts(EMPTY_SHORTCUTS);
             }
         } else {
-            setShortcuts(EMPTY_SHORTCUTS);
+            setInternalShortcuts(EMPTY_SHORTCUTS);
         }
-    }, [STORAGE_KEY, standardizedClass]);
+    }, [STORAGE_KEY, standardizedClass, externalShortcuts]);
 
     useEffect(() => {
+        if (externalShortcuts) return; // Skip all internal management if handled externally
+
         loadShortcuts();
 
         // Listen for updates from other tabs (local)
@@ -98,7 +106,7 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
                 filter: `name=eq.${standardizedClass}`
             }, (payload) => {
                 if (payload.new && (payload.new as any).shortcuts) {
-                    setShortcuts((payload.new as any).shortcuts);
+                    setInternalShortcuts((payload.new as any).shortcuts);
                 }
             })
             .subscribe();
@@ -111,7 +119,7 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('quick-shortcuts-updated', handleCustomUpdate);
         };
-    }, [loadShortcuts, STORAGE_KEY, standardizedClass]);
+    }, [loadShortcuts, STORAGE_KEY, standardizedClass, externalShortcuts]);
 
     const handleAction = async (shortcut: QuickRewardShortcut) => {
         if (isAwarding || !shortcut.rewardId) return;

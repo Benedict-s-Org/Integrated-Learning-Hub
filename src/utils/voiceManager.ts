@@ -291,7 +291,7 @@ export const createUtterance = (
 
 /**
  * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function.
- * Returns a playable URL (Google Drive public link preferred, base64 data URI fallback).
+ * Returns a playable URL (Base64 data URI preferred, Google Drive URL fallback).
  */
 export const fetchCloudAudio = async (
   text: string,
@@ -300,15 +300,26 @@ export const fetchCloudAudio = async (
   speakingRate?: number,
   overwrite?: boolean
 ): Promise<string | null> => {
+  const result = await fetchCloudAudioRich(text, accent, voiceName, speakingRate, overwrite);
+  if (!result) return null;
+  // Prefer base64 for immediate playback
+  return result.audioContent || result.audioUrl || null;
+};
+
+/**
+ * Fetch audio and return BOTH the persistent Drive URL (for DB storage)
+ * and the Base64 data URI (for immediate playback).
+ * Used by the Phonics Dashboard where we need to store persistent URLs in the database.
+ */
+export const fetchCloudAudioRich = async (
+  text: string,
+  accent: string,
+  voiceName?: string,
+  speakingRate?: number,
+  overwrite?: boolean
+): Promise<{ audioUrl: string; audioContent: string } | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-
-    console.log(`[VoiceManager] Requesting cloud audio for: "${text.substring(0, 20)}..."`, { 
-      accent, 
-      voiceName,
-      speakingRate,
-      userId: session?.user?.id 
-    });
 
     if (!session) {
       console.warn('[VoiceManager] No active session found. Cloud TTS requires authentication.');
@@ -327,58 +338,19 @@ export const fetchCloudAudio = async (
     const { data, error } = response;
 
     if (error) {
-      // Try to extract JSON error message from the response if it exists
-      let errorMessage = error.message;
-      
-      // FunctionsHttpError contains the Response object in context
-      const context = (error as any).context;
-      if (context instanceof Response) {
-        try {
-          // Clone the response because we can only read it once
-          const clonedRes = context.clone();
-          const detail = await clonedRes.json();
-          // Use .details if it exists, as it's more specific (e.g. "Failed to parse JSON")
-          errorMessage = detail.details || detail.error || errorMessage;
-        } catch (e) {
-          // If not JSON, try text
-          try {
-            errorMessage = await context.clone().text();
-          } catch (e2) {
-            // Fallback to original message
-          }
-        }
-      }
-      
-      console.error('[VoiceManager] google-tts error details:', errorMessage);
-      throw new Error(`Google TTS Error: ${errorMessage}`);
+      console.error('[VoiceManager] google-tts error:', error);
+      return null;
     }
 
-    console.log('[VoiceManager] google-tts response:', { 
-      hasAudioUrl: !!data?.audioUrl, 
-      hasAudioContent: !!data?.audioContent,
-      cached: data?.cached 
-    });
-
-    // Surface any Drive upload errors for debugging
-    if (data?.driveError) {
-      console.error('[VoiceManager] ⚠️ Google Drive upload failed:', data.driveError);
+    if (!data?.audioUrl && !data?.audioContent) {
+      console.warn('[VoiceManager] No audio output in google-tts response');
+      return null;
     }
 
-    // ALWAYS PREFER Base64 (audioContent) if available.
-    // This is the most robust way to play audio in Workspace environments where public Drive links are often blocked.
-    if (data?.audioContent) {
-      console.log(`[VoiceManager] Using Base64 audioContent (cached=${data.cached})`);
-      return `data:audio/mp3;base64,${data.audioContent}`;
-    }
-
-    // FALLBACK: Use Drive URL (only if for some reason base64 is missing)
-    if (data?.audioUrl) {
-      console.log(`[VoiceManager] Using Drive audioUrl fallback (cached=${data.cached})`);
-      return data.audioUrl;
-    }
-
-    console.warn('[VoiceManager] No audio output in google-tts response');
-    return null;
+    return {
+      audioUrl: data.audioUrl || '',
+      audioContent: data.audioContent ? `data:audio/mp3;base64,${data.audioContent}` : (data.audioUrl || '')
+    };
   } catch (error) {
     console.error('[VoiceManager] fetchCloudAudio failed:', error);
     return null;
