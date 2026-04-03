@@ -124,12 +124,16 @@ Deno.serve(async (req: Request) => {
       if (data.results && data.results.length > 0) {
         const page = data.results[0];
         const props = page.properties;
+        const cycleDay = props["Day of the cycle"]?.select?.name;
+        const isHoliday = cycleDay === "Holiday" || cycleDay === "Holiday Mode";
+        
         return createCORSResponse({
           found: true,
-          cycleDay: props["Day of the cycle"]?.select?.name,
+          cycleDay: cycleDay,
           cycleNumber: props["Cycle"]?.select?.name,
           studentOnDuty: props["Student on Duty"]?.number,
-          date: props["Date"]?.date?.start
+          date: props["Date"]?.date?.start,
+          isHoliday: isHoliday
         }, 200, req);
       }
       return createCORSResponse({ found: false, searchDate: hkDateStr }, 200, req);

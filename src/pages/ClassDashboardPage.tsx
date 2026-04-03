@@ -8,7 +8,8 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun } from 'lucide-react';
+import { holidayService, HolidayConfig } from '@/services/holidayService';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
 import { SendNotificationModal } from '@/components/admin/notifications/SendNotificationModal';
@@ -174,8 +175,9 @@ export function ClassDashboardPage() {
     const [showSendNotificationModal, setShowSendNotificationModal] = useState(false);
     const [activeTemplate, setActiveTemplate] = useState<NotificationTemplate | null>(null);
     const [showTimetable, setShowTimetable] = useState(false);
-    const [cycleData, setCycleData] = useState<{ day: string, cycle: string, date: string, studentOnDuty: string } | null>(null);
+    const [cycleData, setCycleData] = useState<{ day: string, cycle: string, date: string, studentOnDuty: string, isHoliday: boolean } | null>(null);
     const [isCycleLoading, setIsCycleLoading] = useState(false);
+    const [holidayConfig, setHolidayConfig] = useState<HolidayConfig>({ holidayMode: false, manualHolidays: [] });
 
     const fetchCycleData = async () => {
         setIsCycleLoading(true);
@@ -195,6 +197,10 @@ export function ClassDashboardPage() {
                     action: 'get-cycle-day'
                 })
             });
+
+            // Parallel fetch holiday settings from system_config
+            holidayService.getHolidayConfig().then(setHolidayConfig);
+
 
             const responseText = await response.text();
             let data = null;
@@ -217,7 +223,8 @@ export function ClassDashboardPage() {
                     day: data.cycleDay || '-',
                     cycle: data.cycleNumber || '-',
                     studentOnDuty: data.studentOnDuty || '-',
-                    date: data.title || data.date || new Date().toLocaleDateString('en-HK')
+                    date: data.title || data.date || new Date().toLocaleDateString('en-HK'),
+                    isHoliday: !!data.isHoliday
                 });
             } else if (data && !data.found) {
                 console.warn('[Dashboard] No cycle found for today:', data.date);
@@ -225,7 +232,8 @@ export function ClassDashboardPage() {
                     day: '-',
                     cycle: '-',
                     studentOnDuty: '-',
-                    date: data.date || new Date().toLocaleDateString('en-HK')
+                    date: data.date || new Date().toLocaleDateString('en-HK'),
+                    isHoliday: false
                 });
             }
         } catch (err) {
@@ -234,6 +242,27 @@ export function ClassDashboardPage() {
             setIsCycleLoading(false);
         }
     };
+    const handleToggleHoliday = async () => {
+        const today = getHKTodayString();
+        const holidays = new Set(holidayConfig.manualHolidays);
+        const isActive = holidays.has(today);
+        
+        setIsSyncing(true);
+        const result = await holidayService.toggleDateHoliday(today);
+        if (result.success) {
+            const newConfig = await holidayService.getHolidayConfig();
+            setHolidayConfig(newConfig);
+        } else {
+            alert('Failed to update holiday mode');
+        }
+        setIsSyncing(false);
+    };
+
+    const isTodayHoliday = useMemo(() => {
+        if (cycleData?.isHoliday) return true;
+        const today = getHKTodayString();
+        return holidayConfig.manualHolidays.includes(today);
+    }, [cycleData, holidayConfig]);
 
     const handleSyncBalances = async () => {
         if (!isAdmin) return;
@@ -981,11 +1010,11 @@ export function ClassDashboardPage() {
                                     Current Cycle
                                 </span>
                                 <div 
-                                    className="font-black text-blue-600 tracking-tighter tabular-nums drop-shadow-sm"
+                                    className={`font-black tracking-tighter tabular-nums drop-shadow-sm transition-colors ${isTodayHoliday ? 'text-orange-500' : 'text-blue-600'}`}
                                     style={{ fontSize: `${(theme.headerFontSize || theme.fontSize) * 1.2}px` }}
                                     data-theme-key="headerFontSize"
                                 >
-                                    {isCycleLoading ? '...' : (cycleData?.cycle || '-')}
+                                    {isCycleLoading ? '...' : (isTodayHoliday ? 'Holiday' : (cycleData?.cycle || '-'))}
                                 </div>
                             </div>
 
@@ -1000,11 +1029,11 @@ export function ClassDashboardPage() {
                                     Today Is
                                 </span>
                                 <div 
-                                    className="font-black text-white tracking-tighter relative z-10 flex items-center gap-2"
+                                    className={`font-black tracking-tighter relative z-10 flex items-center gap-2 transition-colors ${isTodayHoliday ? 'text-orange-400' : 'text-white'}`}
                                     style={{ fontSize: `${(theme.headerFontSize || theme.fontSize) * 1.2}px` }}
                                     data-theme-key="headerFontSize"
                                 >
-                                    {isCycleLoading ? '...' : (cycleData?.day || '-')}
+                                    {isCycleLoading ? '...' : (isTodayHoliday ? 'Holiday' : (cycleData?.day || '-'))}
                                 </div>
                             </div>
 
@@ -1105,6 +1134,20 @@ export function ClassDashboardPage() {
                         >
                             <Activity size={18} className={(showNameSidebar || isSidebarPoppedOut) ? 'text-blue-600' : 'text-slate-400'} />
                             {isSidebarPoppedOut ? 'Close Desktop Bar' : (showNameSidebar ? 'Hide Name Bar' : 'Enable Name Bar')}
+                        </button>
+                        <button
+                            onClick={handleToggleHoliday}
+                            disabled={isSyncing}
+                            className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
+                            ${isTodayHoliday
+                                ? 'bg-orange-100 text-orange-700 border-orange-200'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                            ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}
+                        `}
+                            title="Toggle Holiday Mode for today"
+                        >
+                            <Sun size={18} className={isTodayHoliday ? 'text-orange-600' : 'text-slate-400'} />
+                            {isTodayHoliday ? 'Disable Holiday' : 'Holiday Mode'}
                         </button>
                         {activeClass !== 'all' && (
                             <button
