@@ -392,7 +392,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
                     .from('dashboard_shortcuts' as any)
                     .select('shortcuts')
                     .eq('name', standardizedClass)
-                    .single() as any);
+                    .maybeSingle() as any);
                 
                 if (data?.shortcuts) {
                     setClassShortcuts(data.shortcuts);

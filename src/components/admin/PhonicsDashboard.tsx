@@ -196,7 +196,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
 
     try {
       for (const item of readyItems) {
-        const audioToStore = item.persistentUrl || item.audioUrl;
+        const audioToStore = item.audioUrl; // Always use Base64 — Drive URLs are not playable in browsers
 
         // Try to find an existing matching row
         const { data: existing } = await (supabase as any)
@@ -833,7 +833,7 @@ const ManualLinkingModal: React.FC<ManualLinkingModalProps> = ({ item, mappings,
     setIsLinking(true);
     try {
       const idsArray = Array.from(selectedIds);
-      const audioToStore = item.persistentUrl || item.audioUrl;
+      const audioToStore = item.audioUrl; // Always use Base64 — Drive URLs are not playable in browsers
       
       console.log('[ManualLink] Linking audio to', idsArray.length, 'tiles');
       console.log('[ManualLink] URL type:', audioToStore?.startsWith('data:') ? 'BASE64' : 'DRIVE_URL');

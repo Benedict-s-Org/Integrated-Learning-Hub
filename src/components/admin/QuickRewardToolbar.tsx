@@ -39,7 +39,7 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
                 .from('dashboard_shortcuts' as any)
                 .select('shortcuts')
                 .eq('name', standardizedClass)
-                .single() as any);
+                .maybeSingle() as any);
             
             if (data?.shortcuts && data.shortcuts.length > 0) {
                 setInternalShortcuts(data.shortcuts);

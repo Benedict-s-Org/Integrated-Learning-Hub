@@ -77,7 +77,7 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                         .from('dashboard_shortcuts' as any)
                         .select('shortcuts')
                         .eq('name', standardizedKey)
-                        .single() as any);
+                        .maybeSingle() as any);
                     
                     if (data?.shortcuts) {
                         setLocalShortcuts(data.shortcuts);

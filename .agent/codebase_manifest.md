@@ -128,13 +128,17 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Files**: `src/components/admin/PhonicsDashboard.tsx`, `src/components/phonics/PhonicsGameHub.tsx`
 - **Concept**: A unified administrative dashboard and a student-facing gamified hub for learning English phonetics.
 - **Admin Dashboard (`PhonicsDashboard.tsx`)**:
-    - **Audio Generator**: Bulk synthesis of IPA-accurate sounds. Stores results in `tts_cache`.
+    - **Audio Generator**: Bulk synthesis of IPA-accurate sounds. Uses `PHONEME_TO_IPA` mapping for SSML.
+    - **Unified Display**: Implements `displayPhoneme()` to ensure consistent `/phoneme/` notation across all views (Generator, Manager, Linking Modal).
     - **Sound Wall Manager**: Lists all `phonics_mappings`.
         - **Auto-Link**: Scans cache for missing audio based on phoneme text/SSML.
         - **Manual Link**: Modal for bulk-associating one audio file with multiple Sound Wall tiles.
+    - **Storage Strategy**: Mandatory storage of **Base64 data URIs** in the database to bypass Google Drive CORS restrictions and ensure instant browser playback.
 - **Student Hub (`PhonicsGameHub.tsx`)**:
     - **Components**: `SoundWall`, `BlendingBoard` (for dragging and combining phonetic sounds), and interactive quizzes (`PhonicsQuiz`).
-- **Gamification**: Uses exact XP thresholds (`LEVEL_THRESHOLDS`) to award levels and achievement badges internally within the phonics module itself.
+- **Data & Security**:
+    - **RLS Policy**: Fixed in `2026-04-02`. `phonics_mappings` now allows both `admin` and `class_staff` roles to manage records.
+    - **Gamification**: Uses exact XP thresholds (`LEVEL_THRESHOLDS`) for levels and badges.
 
 ### Memorization / Saved (L90-L93)
 - **Path**: `src/components/SavedContent/SavedContent.tsx`
@@ -239,7 +243,10 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - **SSML Pass-through**: Added in `2026-03-31`. Detects `<speak>` tags to allow raw SSML (IPA) synthesis without XML escaping, critical for phonics.
   - **Overwrite Support**: Added in `2026-03-31`. Supports an `overwrite: true` flag to bypass and refresh the cache if incorrect audio was previously stored.
   - **API Key Support**: Supports `GOOGLE_TTS_API_KEY` for synthesis, falling back to Service Account if missing.
-- **Frontend**: `voiceManager.ts` always prioritizes `audioContent` (Base64) for reliable playback, using `audioUrl` only as a secondary reference.
+- **Frontend Utilities (`voiceManager.ts`)**:
+  - `fetchCloudAudio`: Returns `string | null` (Base64 or URL) for standard spelling/reading views.
+  - `fetchCloudAudioRich`: Returns both `audioUrl` (Drive) and `audioContent` (Base64). Used by Phonics to ensure persistent Base64 storage.
+  - **Playback Reliability**: Always prioritizes `audioContent` (Base64) for reliable browser playback, as Drive URLs are frequently CORS-blocked.
 - **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_TTS_API_KEY` secrets. Ensures `supportsAllDrives=true` and `supportsTeamDrives=true` are set on all Drive API calls.
 
 ### iPad Interactive Zone (L218-L229)
