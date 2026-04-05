@@ -56,6 +56,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchEntries();
@@ -64,6 +65,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
 
     const fetchEntries = async () => {
         setIsLoading(true);
+        setError(null);
         try {
             const { data, error } = await supabase
                 .from('student_records')
@@ -75,7 +77,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
                     )
                 `)
                 .eq('is_reverted', activeTab === 'reverted')
-                .or('coin_amount.neq.0,message.ilike.%Toilet/Break%,assigned_at.is.not.null') // Show valid coin impacts OR toilet time logs OR habit records
+                .or('coin_amount.neq.0,message.ilike.%Toilet/Break%,assigned_at.not.is.null') // Show valid coin impacts OR toilet time logs OR habit records
                 .order(activeTab === 'active' ? 'created_at' : 'reverted_at', { ascending: false })
                 .limit(100);
 
@@ -83,6 +85,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
             setEntries(data as any || []);
         } catch (err: any) {
             console.error('Error fetching log entries:', err.message, err.details, err.hint);
+            setError(err.message || 'Failed to fetch log entries');
         } finally {
             setIsLoading(false);
         }
@@ -231,6 +234,20 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
                     <div className="flex flex-col items-center justify-center h-64 gap-4">
                         <Loader2 className="animate-spin text-blue-500" size={40} />
                         <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Loading records...</p>
+                    </div>
+                ) : error ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-red-500 gap-4">
+                        <AlertCircle size={64} strokeWidth={1} />
+                        <div className="text-center">
+                            <p className="font-black">DATABASE ERROR</p>
+                            <p className="text-xs opacity-70 mt-1">{error}</p>
+                        </div>
+                        <button 
+                            onClick={() => fetchEntries()}
+                            className="mt-2 px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-all"
+                        >
+                            Try Again
+                        </button>
                     </div>
                 ) : filteredEntries.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-300 gap-4">

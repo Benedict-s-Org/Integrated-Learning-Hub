@@ -133,7 +133,11 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
     - **Sound Wall Manager**: Lists all `phonics_mappings`.
         - **Auto-Link**: Scans cache for missing audio based on phoneme text/SSML.
         - **Manual Link**: Modal for bulk-associating one audio file with multiple Sound Wall tiles.
-    - **Storage Strategy**: Mandatory storage of **Base64 data URIs** in the database to bypass Google Drive CORS restrictions and ensure instant browser playback.
+    - **Storage Strategy**: Persistent storage of **Google Drive URLs** in the database. Optimizes DB performance compared to legacy Base64 embedding.
+- **Audio Repository (`AudioManagementPage.tsx`)**:
+    - **Central Hub**: Unified management of all Drive-stored audio for Phonics and Spelling.
+    - **Repair Utility**: Logic to scan for legacy Base64 database entries and automatically reconnect them to physical Drive files by matching phoneme text.
+    - **Manifest Export**: Capability to download a ZIP of all linked audio with a `manifest.json` and `index.csv`.
 - **Student Hub (`PhonicsGameHub.tsx`)**:
     - **Components**: `SoundWall`, `BlendingBoard` (for dragging and combining phonetic sounds), and interactive quizzes (`PhonicsQuiz`).
 - **Data & Security**:
@@ -239,14 +243,14 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - **Cache Key**: 4-column uniqueness on `(text, accent, voice_name, speaking_rate)` in `tts_cache`.
   - **Drive Storage**: MP3s are stored in **Google Shared Drive** (standard Folders have 0 quota for Service Accounts).
   - **Shared Drive Setup**: The `GOOGLE_DRIVE_FOLDER_ID` must be inside a Shared Drive, and the Service Account email must be added as a **Contributor**.
-  - **Proxy Strategy (Fixed Playback)**: To bypass organizational restrictions that block public Drive links (`NotSupportedError`), the Edge Function **proxies** the audio. On cache hits, it downloads from Drive internally and returns the content as **Base64** (`audioContent`).
-  - **SSML Pass-through**: Added in `2026-03-31`. Detects `<speak>` tags to allow raw SSML (IPA) synthesis without XML escaping, critical for phonics.
-  - **Overwrite Support**: Added in `2026-03-31`. Supports an `overwrite: true` flag to bypass and refresh the cache if incorrect audio was previously stored.
-  - **API Key Support**: Supports `GOOGLE_TTS_API_KEY` for synthesis, falling back to Service Account if missing.
+  - **Proxy Strategy (Fixed Playback)**: To bypass organizational restrictions that block public Drive links (`NotSupportedError`), the Edge Function **proxies** the audio. 
+    - **`proxy_download` Action**: Takes a `fileId`, downloads from Drive internally, and returns content as **Base64** (`audioContent`).
+  - **SSML Pass-through**: Added in `2026-03-31`. Detects `<speak>` tags for raw IPA synthesis.
+  - **Overwrite Support**: Added in `2026-03-31`.
 - **Frontend Utilities (`voiceManager.ts`)**:
-  - `fetchCloudAudio`: Returns `string | null` (Base64 or URL) for standard spelling/reading views.
-  - `fetchCloudAudioRich`: Returns both `audioUrl` (Drive) and `audioContent` (Base64). Used by Phonics to ensure persistent Base64 storage.
-  - **Playback Reliability**: Always prioritizes `audioContent` (Base64) for reliable browser playback, as Drive URLs are frequently CORS-blocked.
+  - `fetchCloudAudio`: Returns Base64 for standard spelling/reading views.
+  - `fetchCloudAudioRich`: Returns both `audioUrl` (Drive) and `audioContent` (Base64). 
+  - **`resolveAudioUrl(url)`**: Multi-source playback resolver. If URL is Drive link, calls `proxy_download` and caches the resulting Base64 locally. Ensures reliable playback of persistent Drive files.
 - **Gotchas**: Requires `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_FOLDER_ID`, and `GOOGLE_TTS_API_KEY` secrets. Ensures `supportsAllDrives=true` and `supportsTeamDrives=true` are set on all Drive API calls.
 
 ### iPad Interactive Zone (L218-L229)

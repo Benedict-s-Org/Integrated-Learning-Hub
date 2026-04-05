@@ -32,6 +32,7 @@ interface AdminPanelProps {
   onNavigateToAvatarBuilder?: () => void;
   onNavigateToMarkerGenerator?: () => void;
   onNavigateToPhonicsDashboard?: () => void;
+  onNavigateToAudioManagement?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ 
@@ -40,7 +41,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onNavigateToAvatarUploader, 
   onNavigateToAvatarBuilder, 
   onNavigateToMarkerGenerator,
-  onNavigateToPhonicsDashboard
+  onNavigateToPhonicsDashboard,
+  onNavigateToAudioManagement
 }) => {
   const { user: currentUser, isAdmin, session, realIsSuperAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -617,6 +619,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               >
                 <Volume2 size={20} />
                 <span>Phonics Dashboard</span>
+              </button>
+            )}
+            {onNavigateToAudioManagement && (
+              <button
+                onClick={onNavigateToAudioManagement}
+                className="bg-slate-700 hover:bg-slate-800 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
+              >
+                <Mic size={20} />
+                <span>Audio Repository</span>
               </button>
             )}
           </div>

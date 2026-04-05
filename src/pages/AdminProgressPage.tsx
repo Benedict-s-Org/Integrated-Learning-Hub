@@ -17,7 +17,9 @@ import {
   BarChart3,
   Eye,
   RefreshCcw,
+  Download,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -76,6 +78,9 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
   const [sortBy, setSortBy] = useState<SortOption>('activity');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
+  const [isBulkEditMode, setIsBulkEditMode] = useState(false);
+  const [adjustments, setAdjustments] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchUserProgress = async () => {
     setIsLoading(true);
@@ -270,6 +275,109 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
     }
   };
 
+  const handleExportExcel = () => {
+    const exportData = filteredUsers.map(user => ({
+      '姓名': user.display_name || '未設定',
+      '用戶名': user.username,
+      '金幣': user.coins,
+      '虛擬金幣': user.virtual_coins,
+      '今日賺取': user.daily_real_earned,
+      '房屋等級': user.house_level,
+      '房屋名稱': HOUSE_LEVEL_NAMES[user.house_level] || '未知',
+      '傢俱庫存': user.inventory_count,
+      '已放置傢俱': user.placement_count,
+      '總練習次數': user.total_practices,
+      '平均準確度': `${user.overall_avg_accuracy}%`,
+      '記憶點': user.memory_count,
+      '默寫次數 (Spelling)': user.spelling_practices,
+      '校對次數 (Proofing)': user.proofreading_practices,
+      '最後活躍': user.last_activity ? new Date(user.last_activity).toLocaleString('zh-HK') : '--',
+      '註冊時間': user.created_at ? new Date(user.created_at).toLocaleString('zh-HK') : '--',
+      '用戶ID': user.id,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '學生進度');
+
+    // Set column widths
+    const wscols = [
+      { wch: 15 }, // 姓名
+      { wch: 15 }, // 用戶名
+      { wch: 10 }, // 金幣
+      { wch: 10 }, // 虛擬金幣
+      { wch: 12 }, // 今日賺取
+      { wch: 10 }, // 房屋等級
+      { wch: 15 }, // 房屋名稱
+      { wch: 12 }, // 傢俱庫存
+      { wch: 12 }, // 已放置
+      { wch: 15 }, // 總練習次數
+      { wch: 15 }, // 平均準確度
+      { wch: 10 }, // 記憶點
+      { wch: 18 }, // 默寫
+      { wch: 18 }, // 校對
+      { wch: 25 }, // 最後活躍
+      { wch: 25 }, // 註冊時間
+      { wch: 40 }, // ID
+    ];
+    worksheet['!cols'] = wscols;
+
+    XLSX.writeFile(workbook, `學生進度匯出_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleAdjustmentChange = (userId: string, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setAdjustments(prev => ({
+      ...prev,
+      [userId]: numValue
+    }));
+  };
+
+  const handleBulkSave = async () => {
+    const toUpdate = Object.entries(adjustments).filter(([_, val]) => val !== 0);
+    if (toUpdate.length === 0) {
+      alert("No adjustments to save.");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to save ${toUpdate.length} coin adjustments?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const results = await Promise.all(
+        toUpdate.map(async ([userId, amount]) => {
+          const { error } = await supabase.rpc('increment_room_coins', {
+            target_user_id: userId,
+            amount: amount,
+            log_reason: '手動調整 (Manual Balance Adjustment)',
+            log_admin_id: currentUser?.id,
+            p_skip_daily_count: true // Manual adjustments shouldn't count towards the 3-limit reward
+          });
+          return { userId, error };
+        })
+      );
+
+      const failures = results.filter(r => r.error);
+      if (failures.length > 0) {
+        console.error('Failed to update some users:', failures);
+        alert(`Finished with ${failures.length} errors. Please check the logs.`);
+      } else {
+        alert('All adjustments saved successfully!');
+      }
+
+      setAdjustments({});
+      setIsBulkEditMode(false);
+      fetchUserProgress();
+    } catch (err) {
+      console.error('Bulk save failed:', err);
+      alert('Failed to save adjustments.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const content = (
     <main className={isEmbedded ? "" : "p-3 md:p-8 overflow-auto"}>
       <div className="max-w-5xl mx-auto">
@@ -358,8 +466,26 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
           </div>
         </div>
 
-        {/* Sync Action */}
-        <div className="mb-6 flex justify-end">
+        {/* Actions Partition */}
+        <div className="mb-6 flex flex-wrap justify-end gap-3">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] rounded-lg hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"
+          >
+            <Download className="w-4 h-4" />
+            Export XLSX
+          </button>
+          <button
+            onClick={() => setIsBulkEditMode(!isBulkEditMode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-sm shadow-sm text-white ${
+              isBulkEditMode 
+                ? 'bg-red-500 hover:bg-red-600' 
+                : 'bg-indigo-600 hover:bg-indigo-700'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            {isBulkEditMode ? 'Cancel Edit' : 'Bulk Edit Coins'}
+          </button>
           <button
             onClick={handleSyncAll}
             disabled={isLoading}
@@ -370,6 +496,35 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
           </button>
         </div>
 
+        {/* Bulk Save Bar */}
+        {isBulkEditMode && (
+          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between sticky top-4 z-20 shadow-md">
+            <div className="flex items-center gap-3 text-indigo-700">
+              <Shield className="w-5 h-5" />
+              <span className="font-semibold text-sm">
+                You are in Bulk Edit Mode. Changes will be logged as manual adjustments.
+              </span>
+            </div>
+            <button
+              onClick={handleBulkSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 font-bold shadow-lg"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="w-4 h-4" />
+                  Save {Object.values(adjustments).filter(v => v !== 0).length} Adjustments
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Users List */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -378,6 +533,65 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
         ) : filteredUsers.length === 0 ? (
           <div className="text-center py-16 text-[hsl(var(--muted-foreground))]">
             {searchTerm ? '找不到符合的用戶' : '暫無用戶資料'}
+          </div>
+        ) : isBulkEditMode ? (
+          <div className="bg-[hsl(var(--card))] rounded-2xl border border-[hsl(var(--border))] overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[hsl(var(--muted)/0.5)] border-b border-[hsl(var(--border))]">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Student Name</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Current Coins</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] text-center">Adjustment (+/-)</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] text-right">Resulting Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[hsl(var(--border))]">
+                  {filteredUsers.map((user) => {
+                    const adjustment = adjustments[user.id] || 0;
+                    const resultTotal = user.coins + adjustment;
+
+                    return (
+                      <tr key={user.id} className="hover:bg-[hsl(var(--muted)/0.3)] transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-[hsl(var(--foreground))]">{user.display_name || user.username}</div>
+                          <div className="text-xs text-[hsl(var(--muted-foreground))]">ID: {user.id.split('-')[0]}...</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1.5 font-medium text-[hsl(var(--foreground))]">
+                            <Coins className="w-4 h-4 text-yellow-500" />
+                            {user.coins}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 flex justify-center">
+                          <input
+                            type="number"
+                            value={adjustments[user.id] === undefined ? '' : adjustments[user.id]}
+                            onChange={(e) => handleAdjustmentChange(user.id, e.target.value)}
+                            placeholder="0"
+                            className="w-24 px-3 py-1.5 text-center rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                          />
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className={`font-black text-lg ${
+                            adjustment > 0 ? 'text-green-600' : adjustment < 0 ? 'text-red-600' : 'text-[hsl(var(--foreground))]'
+                          }`}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {resultTotal}
+                              {adjustment !== 0 && (
+                                <span className="text-xs font-medium opacity-70">
+                                  ({adjustment > 0 ? '+' : ''}{adjustment})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

@@ -243,22 +243,27 @@ export function ClassDashboardPage() {
         }
     };
     const handleToggleHoliday = async () => {
-        const today = getHKTodayString();
-        const holidays = new Set(holidayConfig.manualHolidays);
-        const isActive = holidays.has(today);
-        
         setIsSyncing(true);
-        const result = await holidayService.toggleDateHoliday(today);
-        if (result.success) {
-            const newConfig = await holidayService.getHolidayConfig();
-            setHolidayConfig(newConfig);
-        } else {
-            alert('Failed to update holiday mode');
+        try {
+            const result = await holidayService.toggleGlobalHoliday();
+            if (result.success) {
+                console.log('[Dashboard] Global holiday toggled successfully');
+                const newConfig = await holidayService.getHolidayConfig();
+                setHolidayConfig(newConfig);
+            } else {
+                console.error('[Dashboard] Toggle failed:', result.error);
+                alert('Failed to update holiday mode: ' + (result.error?.message || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('[Dashboard] Unexpected error toggling holiday:', err);
+            alert('An unexpected error occurred while toggling holiday mode.');
+        } finally {
+            setIsSyncing(false);
         }
-        setIsSyncing(false);
     };
 
     const isTodayHoliday = useMemo(() => {
+        if (holidayConfig.holidayMode) return true;
         if (cycleData?.isHoliday) return true;
         const today = getHKTodayString();
         return holidayConfig.manualHolidays.includes(today);

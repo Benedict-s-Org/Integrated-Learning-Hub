@@ -14,6 +14,7 @@ import {
   Square,
   Trash2,
   Search,
+  Mic,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -530,13 +531,23 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
               </button>
             </div>
 
-            <button
-              onClick={() => navigate('/admin/scanner')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold shadow-md"
-            >
-              <ScanLine size={20} />
-              Scan QR
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate('/admin/audio-repo')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-xl font-semibold shadow-md hover:bg-slate-800 transition-colors"
+                title="Manage audio repo"
+              >
+                <Mic size={20} />
+                Audio Repo
+              </button>
+              <button
+                onClick={() => navigate('/admin/scanner')}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold shadow-md"
+              >
+                <ScanLine size={20} />
+                Scan QR
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

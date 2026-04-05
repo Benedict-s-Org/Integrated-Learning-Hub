@@ -13,12 +13,13 @@ import {
   Search,
   ExternalLink,
   Plus,
-  X
+  X,
+  Mic
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { fetchCloudAudioRich, ACCENT_OPTIONS, PREMIUM_VOICES } from "../../utils/voiceManager";
+import { fetchCloudAudioRich, ACCENT_OPTIONS, PREMIUM_VOICES, resolveAudioUrl } from "../../utils/voiceManager";
 import { usePhonicsMappings } from "../../hooks/usePhonicsMappings";
 
 interface PhonicsGeneratorProps {
@@ -213,7 +214,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
           // Update the existing row
           const { error } = await (supabase as any)
             .from("phonics_mappings")
-            .update({ audio_url: audioToStore })
+            .update({ audio_url: item.persistentUrl }) // Save the persistent Drive URL
             .eq("id", existing.id);
           if (error) throw error;
         } else {
@@ -225,7 +226,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
               phoneme: item.phoneme,
               category: item.category,
               level: item.level,
-              audio_url: audioToStore,
+              audio_url: item.persistentUrl, // Save the persistent Drive URL
             });
           if (error) throw error;
         }
@@ -246,9 +247,10 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
     }
   };
 
-  const handlePlayPreview = (url: string) => {
+  const handlePlayPreview = async (url: string) => {
     if (audioRef.current) {
-      audioRef.current.src = url;
+      const playableUrl = await resolveAudioUrl(url);
+      audioRef.current.src = playableUrl;
       audioRef.current.play();
     }
   };
@@ -264,7 +266,7 @@ export const PhonicsDashboard: React.FC<PhonicsGeneratorProps> = ({ onBack }) =>
   };
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 md:p-8 pb-32">
+    <div className="h-full overflow-y-auto bg-slate-50 p-4 md:p-8 pb-32">
       <div className="max-w-5xl mx-auto space-y-6">
         
         {/* Shared Header */}
@@ -689,6 +691,14 @@ const PhonicsManager: React.FC<PhonicsManagerProps> = ({ mappings, isLoading, on
               {isLinking ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
               Auto-Link Cache
             </Button>
+            <div className="w-px h-8 bg-slate-200 mx-2" />
+            <button 
+                onClick={() => window.location.href = '/admin/audio-repo'}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-900 transition-all shadow-sm"
+            >
+              <Mic size={18} />
+              Audio Repository
+            </button>
           </div>
         </div>
 
@@ -833,11 +843,10 @@ const ManualLinkingModal: React.FC<ManualLinkingModalProps> = ({ item, mappings,
     setIsLinking(true);
     try {
       const idsArray = Array.from(selectedIds);
-      const audioToStore = item.audioUrl; // Always use Base64 — Drive URLs are not playable in browsers
+      const audioToStore = item.persistentUrl; // Save the persistent Drive URL
       
       console.log('[ManualLink] Linking audio to', idsArray.length, 'tiles');
-      console.log('[ManualLink] URL type:', audioToStore?.startsWith('data:') ? 'BASE64' : 'DRIVE_URL');
-      console.log('[ManualLink] URL preview:', audioToStore?.substring(0, 80));
+      console.log('[ManualLink] URL:', audioToStore);
 
       const { data, error } = await (supabase as any)
         .from("phonics_mappings")

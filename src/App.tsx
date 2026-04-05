@@ -43,6 +43,7 @@ const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker'
 const ProgressLogPage = lazy(() => import('./pages/ProgressLogPage').then(module => ({ default: module.ProgressLogPage })));
 const AdminHomeworkHabitPage = lazy(() => import('./pages/AdminHomeworkHabitPage'));
 const PhonicsDashboard = lazy(() => import('./components/admin/PhonicsDashboard')) as unknown as React.FC<{ onBack: () => void }>;
+const AnagramApp = lazy(() => import('./modules/anagram/AnagramApp'));
 
 // Regular Component Imports (not lazy)
 import TextInput from './components/TextInput/TextInput';
@@ -99,6 +100,7 @@ type AppState =
   | { page: 'adminHomeworkRecord' }
   | { page: 'adminHomeworkHabit' }
   | { page: 'broadcastManagement' }
+  | { page: 'audioManagement' }
   | { page: 'adminTimetable' }
   | { page: 'readingComprehension'; practiceId?: string; assignmentId?: string }
   | { page: 'adminAnalytics' }
@@ -287,6 +289,23 @@ function AppContent() {
       </div>
     );
   }
+
+  // --- ISOLATED SIDE PROJECT ROUTING ---
+  // If the logged-in user is the dedicated Anagram admin, they get the isolated app layout entirely.
+  const userEmail = user?.email?.trim().toLowerCase();
+  const userName = user?.username?.trim().toLowerCase();
+  if (userEmail === 'admin@anagram.com' || userName === 'admin@anagram.com') {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-gray-600">Loading CognitivePsychology Module...</div>
+        </div>
+      }>
+        <AnagramApp />
+      </Suspense>
+    );
+  }
+  // -------------------------------------
 
   // Check if user is trying to access restricted pages
   const isRestrictedPage =
@@ -774,6 +793,7 @@ function AppContent() {
                 onNavigateToAvatarBuilder={() => setAppState({ page: 'avatarBuilder' })}
                 onNavigateToMarkerGenerator={() => setAppState({ page: 'markerGenerator' })}
                 onNavigateToPhonicsDashboard={() => setAppState({ page: 'phonicsDashboard' })}
+                onNavigateToAudioManagement={() => setAppState({ page: 'audioManagement' })}
               />;
             case 'interactiveScanner':
               return <InteractiveScanQuizPage />;
@@ -1155,6 +1175,8 @@ function AppContent() {
                   assignmentId={appState.page === 'readingComprehension' ? appState.assignmentId : undefined}
                 />
               );
+            case 'audioManagement':
+              return <AudioManagementPage />;
           }
         })()}
       </Suspense>
@@ -1206,6 +1228,9 @@ function AppContent() {
     }
     if (appState.page === 'readingComprehension') {
       return 'readingComprehension';
+    }
+    if (appState.page === 'audioManagement') {
+      return 'audioManagement';
     }
     return appState.page;
   };
@@ -1512,6 +1537,7 @@ const CodebaseManifestPage = lazy(() => import('./pages/CodebaseManifestPage.tsx
 const BroadcastManagementPage = lazy(() => import('./pages/admin/BroadcastManagementPage.tsx'));
 const ReadingManagementPage = lazy(() => import('./pages/admin/ReadingManagementPage.tsx'));
 const ReadingLearningPage = lazy(() => import('./pages/student/ReadingLearningPage.tsx').then(m => ({ default: m.ReadingLearningPage })));
+const AudioManagementPage = lazy(() => import('./pages/admin/AudioManagementPage.tsx'));
 
 const SpacedRepetitionPage = lazy(() => import('./components/SpacedRepetition/SpacedRepetitionPage').then(m => ({ default: m.SpacedRepetitionPage })));
 const NotionHub = lazy(() => import('./components/NotionHub/NotionHub').then(m => ({ default: m.NotionHub })));
@@ -1554,6 +1580,19 @@ function PageLoader() {
 }
 
 function App() {
+  // --- PUBLIC SIDE PROJECT BYPASS ---
+  // If the user visits the public anagram task URL, we render it directly
+  // bypassing all Learning Hub logic, providers, and auth checks.
+  const path = window.location.pathname;
+  if (path === '/cognitive-anagram' || path.startsWith('/cognitive-anagram/')) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <AnagramApp />
+      </Suspense>
+    );
+  }
+  // ----------------------------------
+
   return (
     <AuthProvider>
       <ThemeProvider>
@@ -1580,6 +1619,14 @@ function AppRoutes() {
       )}
       <div className="flex-1 overflow-hidden relative">
         <Routes>
+          <Route
+            path="/cognitive-anagram"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AnagramApp />
+              </Suspense>
+            }
+          />
           <Route
             path="/admin/ui-builder"
             element={
@@ -1681,6 +1728,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminHomeworkRecordPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/audio-repo"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AudioManagementPage />
               </Suspense>
             }
           />

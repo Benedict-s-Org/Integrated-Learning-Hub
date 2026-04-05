@@ -43,49 +43,55 @@ export function FacilityModal({ facility, onClose, onVisit }: FacilityModalProps
           <p className="text-muted-foreground">{displayInfo.description}</p>
 
           {/* Features */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-              <Star className="w-4 h-4 text-primary" />
-              設施特色
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {defaultConfig.features.map((feature) => (
-                <span
-                  key={feature}
-                  className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm"
-                >
-                  {feature}
-                </span>
-              ))}
+          {defaultConfig?.features && defaultConfig.features.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Star className="w-4 h-4 text-primary" />
+                設施特色
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {defaultConfig.features.map((feature) => (
+                  <span
+                    key={feature}
+                    className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm"
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Rewards */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-              <Gift className="w-4 h-4 text-primary" />
-              訪問獎勵
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(defaultConfig.rewards).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
-                >
-                  <span className="text-sm text-muted-foreground capitalize">
-                    {key.replace('_', ' ')}
-                  </span>
-                  <span className="font-semibold text-primary">+{value}</span>
-                </div>
-              ))}
+          {defaultConfig?.rewards && Object.keys(defaultConfig.rewards).length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Gift className="w-4 h-4 text-primary" />
+                訪問獎勵
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(defaultConfig.rewards).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
+                  >
+                    <span className="text-sm text-muted-foreground capitalize">
+                      {key.replace('_', ' ')}
+                    </span>
+                    <span className="font-semibold text-primary">+{value as number}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Capacity */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="w-4 h-4" />
-            <span>容納人數: {defaultConfig.capacity} 人</span>
-          </div>
+          {defaultConfig?.capacity && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="w-4 h-4" />
+              <span>容納人數: {defaultConfig.capacity} 人</span>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -94,7 +100,16 @@ export function FacilityModal({ facility, onClose, onVisit }: FacilityModalProps
             onClick={onVisit}
             className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-3 font-semibold hover:bg-primary/90 transition-colors"
           >
-            <span>進入設施</span>
+            <span>
+              {facility.facilityType === 'school' 
+                ? '進入學校 (回到學習首頁)' 
+                : facility.facilityType === 'bookstore' 
+                ? '進入書店 (即將開放)' 
+                : facility.facilityType === 'cafe'
+                ? '進入咖啡廳 (即將開放)'
+                : '進入設施'
+              }
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

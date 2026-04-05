@@ -5,7 +5,9 @@ export type FacilityType =
   | 'library'
   | 'town_hall'
   | 'train_station'
-  | 'marketplace';
+  | 'marketplace'
+  | 'bookstore'
+  | 'cafe';
 
 // Plot types
 export type PlotType = 'city' | 'public_facility' | 'empty';
@@ -157,5 +159,19 @@ export const FACILITY_DISPLAY_INFO: Record<FacilityType, FacilityDisplayInfo> = 
     label: '市場',
     color: 'hsl(45, 80%, 50%)',
     description: '交易物品與資源'
+  },
+  bookstore: {
+    type: 'bookstore',
+    icon: '📚',
+    label: '書店',
+    color: 'hsl(25, 70%, 45%)',
+    description: '上傳與購買精華筆記、各種心血結晶'
+  },
+  cafe: {
+    type: 'cafe',
+    icon: '☕',
+    label: '咖啡廳',
+    color: 'hsl(330, 60%, 55%)',
+    description: '分享心情點滴，互相打氣安慰的角落'
   }
 };

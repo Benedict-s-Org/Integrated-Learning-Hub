@@ -91,4 +91,14 @@ export const DEFAULT_FACILITY_CONFIGS: Record<FacilityType, FacilityConfig> = {
         features: ['Stalls', 'Auction House'],
         schedule: { open: '07:00', close: '19:00' },
     },
+    bookstore: {
+        description: 'Publish and purchase brilliant notes and stories.',
+        features: ['Bookshelves', 'Publishing Desk'],
+        schedule: { open: '08:00', close: '22:00' },
+    },
+    cafe: {
+        description: 'Share your feelings, get comfort and have a coffee.',
+        features: ['Mood Board', 'Coffee Counter'],
+        schedule: { open: '00:00', close: '23:59' },
+    },
 };

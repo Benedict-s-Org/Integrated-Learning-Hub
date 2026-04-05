@@ -290,6 +290,54 @@ export const createUtterance = (
 };
 
 /**
+ * Resolve a persistent URL (like Google Drive) to a playable Base64 URI.
+ * Uses a local cache to avoid redundant network calls.
+ */
+const playbackCache = new Map<string, string>();
+
+export const resolveAudioUrl = async (url: string): Promise<string> => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url; // Already Base64
+  
+  // Check cache first
+  if (playbackCache.has(url)) return playbackCache.get(url)!;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // Extract ID if it's a Drive URL
+    const driveMatch = url.match(/id=([^&]+)/);
+    if (!driveMatch) return url;
+
+    const fileId = driveMatch[1];
+    console.log(`[VoiceManager] Resolving Drive ID for playback: ${fileId}`);
+
+    const { data, error } = await supabase.functions.invoke('google-tts', {
+      headers: {
+        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+        'apikey': anonKey
+      },
+      body: { 
+        action: 'proxy_download',
+        fileId: fileId
+      }
+    });
+
+    if (error || !data?.audioContent) {
+      throw new Error(error?.message || 'No audio content returned');
+    }
+
+    const base64 = `data:audio/mp3;base64,${data.audioContent}`;
+    playbackCache.set(url, base64);
+    return base64;
+  } catch (err) {
+    console.error('[VoiceManager] Failed to resolve URL:', err);
+    return url;
+  }
+};
+
+/**
  * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function.
  * Returns a playable URL (Base64 data URI preferred, Google Drive URL fallback).
  */
@@ -302,8 +350,8 @@ export const fetchCloudAudio = async (
 ): Promise<string | null> => {
   const result = await fetchCloudAudioRich(text, accent, voiceName, speakingRate, overwrite);
   if (!result) return null;
-  // Prefer base64 for immediate playback
-  return result.audioContent || result.audioUrl || null;
+  // Always return the audioContent (Base64) for immediate playback
+  return result.audioContent || null;
 };
 
 /**

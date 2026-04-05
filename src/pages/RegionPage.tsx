@@ -8,7 +8,7 @@ export function RegionPage() {
   const navigate = useNavigate();
   const { region, loading, error } = useRegion();
 
-  const handleNavigateToCity = (ownerId: string) => {
+  const handleNavigateToCity = (_ownerId: string) => {
     // Navigate to the city page with the owner's ID
     // For now, just navigate to the main city page
     navigate('/city');
@@ -16,6 +16,16 @@ export function RegionPage() {
 
   const handleNavigateHome = () => {
     navigate('/city');
+  };
+
+  const handleNavigateToFeature = (feature: string) => {
+    if (feature === 'school') {
+      navigate('/');
+    } else if (feature === 'bookstore') {
+      alert('「書店 - 分享與購買精華著作」系統即將開放！');
+    } else if (feature === 'cafe') {
+      alert('「咖啡廳 - 分享心情與互相打氣」系統即將開放！');
+    }
   };
 
   if (loading) {
@@ -52,6 +62,7 @@ export function RegionPage() {
         region={region}
         onNavigateToCity={handleNavigateToCity}
         onNavigateHome={handleNavigateHome}
+        onNavigateToFeature={handleNavigateToFeature}
       />
     </div>
   );

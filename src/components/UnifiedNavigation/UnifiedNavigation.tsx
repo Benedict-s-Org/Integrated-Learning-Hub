@@ -369,6 +369,15 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={currentPage === 'phonicsDashboard'}
                                 onClick={() => onPageChange('phonicsDashboard')}
                             />
+                            <NavItem
+                                icon={Mic}
+                                label="Audio Repository"
+                                isActive={window.location.pathname === '/admin/audio-repo' || currentPage === 'audioManagement'}
+                                onClick={() => {
+                                    onPageChange('audioManagement');
+                                    navigate('/admin/audio-repo');
+                                }}
+                            />
                         </NavSection>
                     )}
 

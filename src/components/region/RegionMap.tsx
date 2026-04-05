@@ -14,9 +14,10 @@ interface RegionMapProps {
   region: RegionData;
   onNavigateToCity: (ownerId: string) => void;
   onNavigateHome: () => void;
+  onNavigateToFeature?: (feature: string) => void;
 }
 
-export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateHome }: RegionMapProps) {
+export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateHome, onNavigateToFeature }: RegionMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { defaultTerrain } = useDefaultAssets();
 
@@ -178,6 +179,16 @@ export function RegionMap({ region: initialRegion, onNavigateToCity, onNavigateH
 
   const handleVisitFacility = async () => {
     if (!selectedFacility) return;
+
+    if (['school', 'bookstore', 'cafe'].includes(selectedFacility.facilityType)) {
+      if (onNavigateToFeature) {
+        onNavigateToFeature(selectedFacility.facilityType);
+      } else {
+        alert(selectedFacility.facilityType === 'school' ? '學校系統' : '此設施即將開放');
+      }
+      handleCloseFacilityModal();
+      return;
+    }
 
     const result = await visitFacility(selectedFacility.id);
     if (result.success) {

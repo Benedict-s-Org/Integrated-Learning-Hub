@@ -9,21 +9,29 @@ const corsHeaders = {
 };
 
 interface TTSRequest {
-  text: string;
+  action?: 'synthesize' | 'list' | 'delete_multiple' | 'proxy_download';
+  text?: string;
   accent?: string;
   voiceName?: string;
   speakingRate?: number;
   overwrite?: boolean;
+  folderName?: string;
+  customFileName?: string;
+  recursive?: boolean;
+  fileIds?: string[];
+  fileId?: string;
 }
 
 interface TTSResponse {
-  audioUrl: string;
-  driveFileId: string;
-  cached: boolean;
-  voiceName: string;
-  speakingRate: number;
-  /** @deprecated Use audioUrl instead. Kept for backward compatibility. */
+  audioUrl?: string;
+  driveFileId?: string;
+  cached?: boolean;
+  voiceName?: string;
+  speakingRate?: number;
   audioContent?: string;
+  files?: any[];
+  success?: boolean;
+  deletedCount?: number;
 }
 
 const DEFAULT_VOICE = "en-GB-Neural2-B";
@@ -37,7 +45,6 @@ const VOICE_FALLBACKS: Record<string, string[]> = {
 
 /**
  * Escapes XML characters and adds breaks after punctuation for natural speech.
- * If the text already starts with <speak>, it is assumed to be raw SSML and is returned as-is.
  */
 function toSSML(text: string): string {
   const trimmed = text.trim();
@@ -75,11 +82,11 @@ function driveDownloadUrl(fileId: string): string {
 }
 
 /**
- * Gets a Google Auth token using Service Account JSON for Drive/TTS operations.
+ * Gets a Google Auth token using Service Account JSON.
  */
 async function getAccessToken({ client_email, private_key }: { client_email: string, private_key: string }): Promise<string> {
   if (!client_email || !private_key) {
-    throw new Error(`Invalid Service Account: client_email or private_key missing. (Got email=${!!client_email}, key=${!!private_key})`);
+    throw new Error(`Invalid Service Account: client_email or private_key missing.`);
   }
   
   const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -110,7 +117,7 @@ async function getAccessToken({ client_email, private_key }: { client_email: str
 }
 
 /**
- * Downloads a file from Google Drive as Base64 using internal service account auth.
+ * Downloads a file from Google Drive as Base64.
  */
 async function downloadFromDrive(fileId: string, accessToken: string): Promise<string> {
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&supportsTeamDrives=true`, {
@@ -118,13 +125,10 @@ async function downloadFromDrive(fileId: string, accessToken: string): Promise<s
   });
   
   if (!response.ok) {
-    const err = await response.text();
-    console.error(`[google-tts] Failed to download from Drive ${fileId}:`, err);
     throw new Error(`Drive download failed: ${response.status}`);
   }
 
   const buffer = await response.arrayBuffer();
-  // Using btoa with chunking for large files would be better, but small MP3s are fine
   const uint8 = new Uint8Array(buffer);
   let binary = "";
   for (let i = 0; i < uint8.length; i++) {
@@ -134,10 +138,10 @@ async function downloadFromDrive(fileId: string, accessToken: string): Promise<s
 }
 
 /**
- * Set "anyone with the link can read" permission on a Drive file.
+ * Set public read permission on a Drive file.
  */
 async function setDrivePublicPermission(fileId: string, accessToken: string): Promise<void> {
-  const permRes = await fetch(
+  await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true&supportsTeamDrives=true`,
     {
       method: "POST",
@@ -148,19 +152,12 @@ async function setDrivePublicPermission(fileId: string, accessToken: string): Pr
       body: JSON.stringify({ type: "anyone", role: "reader" }),
     }
   );
-
-  if (!permRes.ok) {
-    const errBody = await permRes.text();
-    console.warn(`[google-tts] Permission setting error (might be org policy):`, errBody);
-    // Non-fatal, return the ID anyway; maybe the file is already accessible.
-  }
 }
 
 /**
- * Finds or creates a subfolder by name under a parent folder.
+ * Finds or creates a subfolder by name.
  */
 async function findOrCreateFolder(folderName: string, parentId: string, accessToken: string): Promise<string> {
-  // 1. Search for existing folder
   const query = encodeURIComponent(`name = '${folderName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const searchRes = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${query}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id)`,
@@ -174,7 +171,6 @@ async function findOrCreateFolder(folderName: string, parentId: string, accessTo
     }
   }
 
-  // 2. Create if not found
   const createRes = await fetch(
     `https://www.googleapis.com/drive/v3/files?supportsAllDrives=true`,
     {
@@ -192,31 +188,151 @@ async function findOrCreateFolder(folderName: string, parentId: string, accessTo
   );
 
   if (!createRes.ok) {
-    const err = await createRes.text();
-    throw new Error(`Failed to create Drive folder '${folderName}': ${err}`);
+    throw new Error(`Failed to create Drive folder '${folderName}'`);
   }
 
   const folderData = await createRes.json();
   return folderData.id;
 }
 
+/**
+ * List all audio files recursively starting from a root folder.
+ */
+async function listAllFiles(rootFolderId: string, accessToken: string): Promise<any[]> {
+  const allFiles: any[] = [];
+  const folderCache: Record<string, string> = {};
+  let pageToken: string | null = null;
+  
+  do {
+    const query = encodeURIComponent(`mimeType = 'audio/mpeg' and trashed = false`);
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id, name, createdTime, size, parents, webViewLink, thumbnailLink)&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new Error("Failed to list files from Drive");
+    
+    const data = await res.json();
+    const batch = data.files || [];
+    
+    // Enrich with folder names
+    for (const file of batch) {
+      if (file.parents && file.parents.length > 0) {
+        const parentId = file.parents[0];
+        if (!folderCache[parentId]) {
+          const folderRes = await fetch(`https://www.googleapis.com/drive/v3/files/${parentId}?supportsAllDrives=true&fields=name`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          if (folderRes.ok) {
+            const folderData = await folderRes.json();
+            folderCache[parentId] = folderData.name;
+          } else {
+            folderCache[parentId] = "Unknown Folder";
+          }
+        }
+        file.folderName = folderCache[parentId];
+      } else {
+        file.folderName = "No Parent";
+      }
+    }
+
+    allFiles.push(...batch);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allFiles;
+}
+
+/**
+ * Delete a single file and verify it's actually gone.
+ * On Shared Drives, canDelete is often false but canTrash is true.
+ * Strategy: try trash first (more reliable), then permanent delete as bonus.
+ */
+async function deleteSingleFileVerified(id: string, accessToken: string): Promise<{id: string, success: boolean, method?: string, stillExists?: boolean, error?: string, capabilities?: any}> {
+  try {
+    // Step 1: Check file metadata + capabilities
+    const checkBefore = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true&fields=id,name,trashed,driveId,ownedByMe,capabilities(canDelete,canTrash)`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    
+    if (checkBefore.status === 404) {
+      return { id, success: true, method: 'already_gone', stillExists: false };
+    }
+    
+    const fileBefore = checkBefore.ok ? await checkBefore.json() : null;
+    const caps = fileBefore?.capabilities || {};
+    console.log(`[DEL] ${id}: name="${fileBefore?.name}" driveId=${fileBefore?.driveId || 'MyDrive'} canDelete=${caps.canDelete} canTrash=${caps.canTrash}`);
+
+    // Step 2: Choose strategy based on capabilities
+    if (caps.canTrash) {
+      // TRASH the file (works on Shared Drives where canDelete=false)
+      const trashRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trashed: true }),
+        }
+      );
+      console.log(`[DEL] TRASH ${id} => status=${trashRes.status}`);
+      
+      if (trashRes.ok) {
+        // Verify it's trashed
+        const checkAfter = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true&fields=id,trashed`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const fileAfter = checkAfter.ok ? await checkAfter.json() : null;
+        if (checkAfter.status === 404 || fileAfter?.trashed) {
+          console.log(`[DEL] ✅ ${id} trashed successfully`);
+          return { id, success: true, method: 'trashed', stillExists: false };
+        }
+        console.warn(`[DEL] Trash returned OK but file not trashed? trashed=${fileAfter?.trashed}`);
+      } else {
+        const errBody = await trashRes.text();
+        console.error(`[DEL] Trash failed for ${id}: ${trashRes.status} ${errBody}`);
+      }
+    }
+    
+    if (caps.canDelete) {
+      // Try permanent delete
+      const delRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      console.log(`[DEL] DELETE ${id} => status=${delRes.status}`);
+      
+      if (delRes.ok || delRes.status === 204) {
+        const checkAfter = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${id}?supportsAllDrives=true&fields=id`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (checkAfter.status === 404) {
+          console.log(`[DEL] ✅ ${id} permanently deleted`);
+          return { id, success: true, method: 'permanent', stillExists: false };
+        }
+      }
+    }
+
+    // If we get here, nothing worked
+    console.error(`[DEL] ❌ ${id} could not be deleted. canDelete=${caps.canDelete} canTrash=${caps.canTrash}`);
+    return { id, success: false, method: 'all_failed', stillExists: true, capabilities: caps, error: `Cannot delete "${fileBefore?.name}". canDelete=${caps.canDelete}, canTrash=${caps.canTrash}` };
+  } catch (e: any) {
+    console.error(`[DEL] Error ${id}:`, e);
+    return { id, success: false, stillExists: true, error: e.message };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
-  let raw = "";
+  let requestBody: TTSRequest = {};
   try {
-    raw = await req.text();
-  } catch (e) {}
-
-  let requestBody: any = {};
-  try {
-    if (raw.trim()) requestBody = JSON.parse(raw);
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
+    requestBody = await req.json();
+  } catch (e) {
+    // If it's a GET, requestBody remains empty
   }
 
   try {
-    // ── 1. Authenticate User ─────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
@@ -227,27 +343,86 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !user) return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: corsHeaders });
 
-    // ── 2. Setup Admin Client ────────────────────────────────────────
     const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     
-    let saJson: any = {};
     const saEnv = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") || "{}";
-    try {
-      saJson = JSON.parse(saEnv);
-    } catch (e) {}
-    
-    const folderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
+    const saJson = JSON.parse(saEnv);
+    const rootFolderId = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID") || "";
 
-    // ── 3. Parse Request ─────────────────────────────────────────────
-    const { text, accent = "en-GB", voiceName, speakingRate, folderName, customFileName, overwrite = false } = requestBody as TTSRequest & { folderName?: string, customFileName?: string };
-    if (!text) throw new Error("Text is required");
+    const { action = 'synthesize' } = requestBody;
+
+    // ── ACTION: LIST ────────────────────────────────────────────────
+    if (action === 'list') {
+      const accessToken = await getAccessToken(saJson);
+      const files = await listAllFiles(rootFolderId, accessToken);
+      
+      // Optionally enrich with file path logic here if needed, 
+      // but 'parents' should suffice for now.
+      
+      return new Response(JSON.stringify({ success: true, files }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // ── ACTION: DELETE ──────────────────────────────────────────────
+    if (action === 'delete_multiple') {
+      const { fileIds } = requestBody;
+      if (!fileIds || !Array.isArray(fileIds)) throw new Error("fileIds array is required");
+      
+      console.log(`[DELETE_MULTI] Received ${fileIds.length} IDs: ${JSON.stringify(fileIds)}`);
+      
+      const accessToken = await getAccessToken(saJson);
+      const results = await Promise.all(fileIds.map(id => deleteSingleFileVerified(id, accessToken)));
+      const deletedCount = results.filter(r => r.success).length;
+      const failedCount = results.filter(r => !r.success).length;
+      const stillExistCount = results.filter(r => r.stillExists).length;
+      
+      console.log(`[DELETE_MULTI] Done: ${deletedCount} ok, ${failedCount} failed, ${stillExistCount} still exist`);
+      
+      // Clean up cache entries for successfully deleted files
+      const successfulIds = results.filter(r => r.success).map(r => r.id);
+      if (successfulIds.length > 0) {
+        await supabaseAdmin
+          .from("tts_cache")
+          .delete()
+          .in("drive_file_id", successfulIds);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: failedCount === 0, 
+        deletedCount, 
+        failedCount,
+        stillExistCount,
+        results 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // ── ACTION: PROXY DOWNLOAD ──────────────────────────────────────
+    if (action === 'proxy_download') {
+      const { fileId } = requestBody;
+      if (!fileId) throw new Error("fileId is required for proxy_download");
+      
+      const accessToken = await getAccessToken(saJson);
+      const base64Audio = await downloadFromDrive(fileId, accessToken);
+      
+      return new Response(JSON.stringify({
+        success: true,
+        audioContent: base64Audio,
+        driveFileId: fileId,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── ACTION: SYNTHESIZE (Default) ────────────────────────────────
+    const { text, accent = "en-GB", voiceName, speakingRate, folderName, customFileName, overwrite = false } = requestBody;
+    if (!text) throw new Error("Text is required for synthesis");
 
     const normalizedText = text.trim().replace(/\s+/g, " ");
     const cacheText = normalizedText.toLowerCase();
     const effectiveVoice = voiceName || (VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"])[0] || DEFAULT_VOICE;
     const effectiveRate = speakingRate ?? DEFAULT_SPEAKING_RATE;
 
-    // ── 4. Cache lookup ──────────────────────────────────────────────
     const { data: cacheHit } = await supabaseAdmin
       .from("tts_cache")
       .select("drive_file_id")
@@ -258,16 +433,12 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (cacheHit?.drive_file_id && !overwrite) {
-      console.log(`[google-tts] Cache HIT: ${cacheHit.drive_file_id}. Fetching from Drive...`);
       try {
-        const apiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
-        let googleToken: string | null = null;
-        googleToken = await getAccessToken(saJson); // Still need token for Drive download even if apiKey exists for synthesis
-        
-        const base64Audio = await downloadFromDrive(cacheHit.drive_file_id, googleToken);
+        const accessToken = await getAccessToken(saJson);
+        const base64Audio = await downloadFromDrive(cacheHit.drive_file_id, accessToken);
         
         return new Response(JSON.stringify({
-          audioUrl: driveDownloadUrl(cacheHit.drive_file_id), // Keep for ref, but fallback to content
+          audioUrl: driveDownloadUrl(cacheHit.drive_file_id),
           audioContent: base64Audio,
           driveFileId: cacheHit.drive_file_id,
           cached: true,
@@ -275,13 +446,11 @@ Deno.serve(async (req: Request) => {
           speakingRate: effectiveRate,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       } catch (hitError: any) {
-        console.warn(`[google-tts] Proxy failed for cached file: ${hitError.message}. Re-generating...`);
-        // Fall through to re-generation if proxy fails
+        // Fall through
       }
     }
 
     if (cacheHit?.drive_file_id && overwrite) {
-      console.log(`[google-tts] Overwrite requested. Deleting existing cache entry for: ${cacheText}`);
       await supabaseAdmin
         .from("tts_cache")
         .delete()
@@ -291,12 +460,10 @@ Deno.serve(async (req: Request) => {
         .eq("speaking_rate", effectiveRate);
     }
 
-    // ── 5. Get Synthesis Authorization ──────────────────────────────
     const apiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
     let googleToken: string | null = null;
     if (!apiKey) googleToken = await getAccessToken(saJson);
 
-    // ── 6. Generate TTS ──────────────────────────────────────────────
     const ssml = toSSML(normalizedText);
     const voicesToTry = [effectiveVoice, ...(VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"]).filter(v => v !== effectiveVoice)];
 
@@ -324,13 +491,11 @@ Deno.serve(async (req: Request) => {
           usedVoice = currentVoice;
           break;
         }
-        console.warn(`[google-tts] Voice ${currentVoice} failed: ${data.error?.message}`);
       } catch (e) {}
     }
 
     if (!ttsContent) throw new Error("TTS synthesis failed");
 
-    // ── 7. Upload to Google Drive ────────────────────────────────────
     const hashInput = `${cacheText}|${accent}|${effectiveVoice}|${effectiveRate}`;
     const fileHash = await sha256(hashInput);
     const fileName = customFileName ? (customFileName.endsWith('.mp3') ? customFileName : `${customFileName}.mp3`) : `${fileHash}.mp3`;
@@ -340,14 +505,9 @@ Deno.serve(async (req: Request) => {
 
     try {
       const driveAccessToken = googleToken || await getAccessToken(saJson);
-      
-      let targetFolderId = folderId;
-      if (folderName && folderId) {
-        try {
-          targetFolderId = await findOrCreateFolder(folderName, folderId, driveAccessToken);
-        } catch (e: any) {
-          console.warn(`[google-tts] Subfolder creation failed, falling back to parent: ${e.message}`);
-        }
+      let targetFolderId = rootFolderId;
+      if (folderName && rootFolderId) {
+        targetFolderId = await findOrCreateFolder(folderName, rootFolderId, driveAccessToken);
       }
 
       const metadata: any = { name: fileName, mimeType: "audio/mpeg" };
@@ -365,18 +525,10 @@ Deno.serve(async (req: Request) => {
         body: multipartBody,
       });
 
-      if (!uploadRes.ok) {
-        const errBody = await uploadRes.text();
-        console.error(`[google-tts] Drive upload failed:`, errBody);
-        driveError = `Upload failed (${uploadRes.status})`;
-        if (errBody.includes("storageQuotaExceeded")) {
-          driveError = "Quota Exceeded. Ensure you use a Shared Drive (and add the Service Account as a Contributor).";
-        }
-      } else {
+      if (uploadRes.ok) {
         const driveData = await uploadRes.json();
         driveFileId = driveData.id;
         await setDrivePublicPermission(driveFileId!, driveAccessToken);
-
         await supabaseAdmin.from("tts_cache").upsert({
           text: cacheText,
           accent,
@@ -384,6 +536,8 @@ Deno.serve(async (req: Request) => {
           speaking_rate: effectiveRate,
           drive_file_id: driveFileId,
         }, { onConflict: "text,accent,voice_name,speaking_rate" });
+      } else {
+        driveError = `Upload failed (${uploadRes.status})`;
       }
     } catch (e: any) {
       driveError = e.message;

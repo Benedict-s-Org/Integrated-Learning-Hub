@@ -82,15 +82,33 @@ export const holidayService = {
      * Toggle holiday status for a specific date string (YYYY-MM-DD).
      */
     async toggleDateHoliday(date: string): Promise<{ success: boolean; error?: any }> {
-        const config = await this.getHolidayConfig();
-        const holidays = new Set(config.manualHolidays);
-        
-        if (holidays.has(date)) {
-            holidays.delete(date);
-        } else {
-            holidays.add(date);
-        }
+        try {
+            const config = await this.getHolidayConfig();
+            const holidays = new Set(config.manualHolidays);
+            
+            if (holidays.has(date)) {
+                holidays.delete(date);
+            } else {
+                holidays.add(date);
+            }
 
-        return this.updateHolidayConfig({ manualHolidays: Array.from(holidays) });
+            return await this.updateHolidayConfig({ manualHolidays: Array.from(holidays) });
+        } catch (err) {
+            console.error('Failed to toggle holiday date:', err);
+            return { success: false, error: err };
+        }
+    },
+
+    /**
+     * Toggle the global holiday mode boolean.
+     */
+    async toggleGlobalHoliday(): Promise<{ success: boolean; error?: any }> {
+        try {
+            const config = await this.getHolidayConfig();
+            return await this.updateHolidayConfig({ holidayMode: !config.holidayMode });
+        } catch (err) {
+            console.error('Failed to toggle global holiday mode:', err);
+            return { success: false, error: err };
+        }
     }
 };
