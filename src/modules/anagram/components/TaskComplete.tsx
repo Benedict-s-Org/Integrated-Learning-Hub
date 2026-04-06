@@ -4,6 +4,7 @@ interface Props {
   result: TaskResult;
   onNext: () => void;
   isLast: boolean;
+  cmsContent?: any;
 }
 
 /**
@@ -22,7 +23,7 @@ function calculatePFI(result: TaskResult): number | null {
   return (totalActual - totalPredicted) / totalPredicted;
 }
 
-export default function TaskComplete({ result, onNext, isLast }: Props) {
+export default function TaskComplete({ result, onNext, isLast, cmsContent }: Props) {
   const pfi = calculatePFI(result);
   const answered = result.responses.filter((r) => !r.skipped);
   const correct = answered.filter((r) => r.isCorrect).length;
@@ -36,9 +37,7 @@ export default function TaskComplete({ result, onNext, isLast }: Props) {
           <div className="text-4xl mb-2">
             {pfi !== null && pfi > 0 ? "🤔" : "✅"}
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            {result.taskName} Complete!
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900" dangerouslySetInnerHTML={{ __html: cmsContent?.title || `${result.taskName} Complete!` }} />
         </div>
 
         {/* Stats Grid */}
@@ -77,32 +76,24 @@ export default function TaskComplete({ result, onNext, isLast }: Props) {
               : "bg-emerald-50"
           }`}
         >
-          <p className="text-sm text-gray-500 mb-1">
-            Planning Fallacy Index (PFI)
-          </p>
+          <p className="text-sm text-gray-500 mb-1" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_label || "Planning Fallacy Index (PFI)" }} />
           {pfi === null ? (
-            <p className="text-xl font-bold text-red-600">
-              N/A (invalid data — all skipped)
-            </p>
+            <p className="text-xl font-bold text-red-600" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_invalid_text || "N/A (invalid data — all skipped)" }} />
           ) : (
             <>
               <p className="text-3xl font-bold text-gray-900">
                 {pfi.toFixed(2)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {pfi > 0
-                  ? "You underestimated the time needed"
-                  : "You overestimated the time needed"}
-              </p>
+              <p className="text-xs text-gray-500 mt-1" dangerouslySetInnerHTML={{ __html: pfi > 0
+                  ? (cmsContent?.pfi_underestimate_text || "You underestimated the time needed")
+                  : (cmsContent?.pfi_overestimate_text || "You overestimated the time needed") }} />
             </>
           )}
         </div>
 
         {/* Question breakdown */}
         <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-600">
-            Question breakdown:
-          </p>
+          <p className="text-sm font-medium text-gray-600" dangerouslySetInnerHTML={{ __html: cmsContent?.breakdown_label || "Question breakdown:" }} />
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {result.responses.map((r, i) => (
               <div
@@ -134,7 +125,7 @@ export default function TaskComplete({ result, onNext, isLast }: Props) {
           onClick={onNext}
           className="w-full py-3 rounded-xl font-semibold text-lg bg-violet-600 text-white hover:bg-violet-700 shadow-lg transition-all"
         >
-          {isLast ? "View Results →" : "Continue to Next Task →"}
+          <span dangerouslySetInnerHTML={{ __html: cmsContent?.button_text || (isLast ? "View Results →" : "Continue to Next Task →") }} />
         </button>
       </div>
     </div>

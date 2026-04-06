@@ -7,7 +7,9 @@ import {
   BarChart2, 
   ClipboardCheck, 
   FileCheck, 
-  Info
+  Info,
+  Database,
+  Zap
 } from 'lucide-react';
 
 interface ManifestStepProps {
@@ -41,24 +43,34 @@ function ManifestStep({ icon: Icon, title, description, isLast }: ManifestStepPr
 export default function AnagramManifest() {
   const steps = [
     {
+      icon: Database,
+      title: "Notion Question Sync",
+      description: "The experiment dynamically fetches its active question bank from Notion. Content management is handled externally for agility."
+    },
+    {
       icon: Hand,
       title: "Welcome & Consent",
       description: "Participants land on the welcome page, read the study information, and provide consent to participate."
     },
     {
       icon: Users,
-      title: "Demographics",
-      description: "Collection of basic data: Age, Gender, Education, and Language Proficiency for research stratification."
+      title: "Dynamic Demographics",
+      description: "Collection of customizable demographic data: Age, Gender, Education, and other researcher-defined fields."
+    },
+    {
+      icon: PlayCircle,
+      title: "Trial Phase",
+      description: "Short 4-question trial phase using 'Calibration' questions to familiarize participants with the interface."
     },
     {
       icon: Brain,
       title: "Task 1 (Easy) Prediction",
-      description: "The 'Self vs Other' manipulation starts here. Participants predict how many seconds it will take to solve 10 easy anagrams."
+      description: "The 'Self vs Other' manipulation starts here. Participants predict their performance for 10 anagrams (3 Warm-up + 7 Easy questions)."
     },
     {
       icon: PlayCircle,
       title: "Task 1 (Easy) Execution",
-      description: "Real-time attempt at 10 anagram puzzles. Each anagram has a 5-attempt limit or can be skipped."
+      description: "Real-time attempt at the task. 3 simple warm-up anagrams are followed by 7 B2-level easy anagrams to establish baseline confidence."
     },
     {
       icon: FileCheck,
@@ -68,12 +80,12 @@ export default function AnagramManifest() {
     {
       icon: Brain,
       title: "Task 2 (Hard) Prediction",
-      description: "Participants predict their performance for a more challenging set of 10 anagrams."
+      description: "Participants predict their performance for a more challenging set of 10 anagrams (8 6-letter + 2 7-letter words)."
     },
     {
       icon: PlayCircle,
       title: "Task 2 (Hard) Execution",
-      description: "Attempting the more difficult puzzles. This phase measures the 'Planning Fallacy' or 'Self-Bias'."
+      description: "Attempting the difficult puzzles. 7-letter words are strategically placed at the 4th and 7th positions to measure the planning gap."
     },
     {
       icon: FileCheck,
@@ -84,6 +96,11 @@ export default function AnagramManifest() {
       icon: ClipboardCheck,
       title: "Post-Experiment Survey",
       description: "Collection of psychological traits (Optimism, Need for Cognition) and verification of the manipulation check."
+    },
+    {
+      icon: Zap,
+      title: "Automated Notion Logging",
+      description: "Complete experiment data (Runs & Responses) is automatically synced to the Notion backup databases upon completion."
     },
     {
       icon: BarChart2,
@@ -125,14 +142,14 @@ export default function AnagramManifest() {
           <Info size={28} />
         </div>
         <div>
-          <h4 className="font-black text-white text-lg mb-2">Technical Flow Persistence</h4>
+          <h4 className="font-black text-white text-lg mb-2">Technical Flow & Notion Sync</h4>
           <p className="text-slate-400 text-sm leading-relaxed mb-4">
-            The experiment state is managed locally via React state but can be extended with Supabase sync for cross-session recovery. 
-            Currently, data is submitted only upon completion of the Debrief phase.
+            Experiment metadata and participant responses are automatically logged to **Notion (Runs & Responses DBs)** via the `anagram-notion` Edge Function. 
+            Two-way relations are established between responses and the question bank for granular analysis.
           </p>
           <div className="flex gap-4">
-             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Auth Bypassed: PUBLIC</div>
-             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Mode: ISOLATED</div>
+             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Sync: ACTIVE</div>
+             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Backend: Edge Runtime</div>
           </div>
         </div>
       </div>

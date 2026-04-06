@@ -12,7 +12,9 @@ export const GlobalUserStatus: React.FC = () => {
   return (
     <>
       <div className="fixed top-4 right-4 z-[9999]">
-        <div className="bg-white/90 backdrop-blur shadow-xl rounded-full px-4 py-2 border border-slate-200 flex items-center gap-3 animate-in slide-in-from-top-4 duration-500">
+        <div className={`bg-white/90 backdrop-blur shadow-xl rounded-full border border-slate-200 flex items-center gap-3 animate-in slide-in-from-top-4 duration-500 ${
+          window.location.pathname.includes('/cognitive-anagram') && !user ? 'p-1' : 'px-4 py-2'
+        }`}>
           {user ? (
             <>
               <div className="flex items-center gap-2">
@@ -40,10 +42,13 @@ export const GlobalUserStatus: React.FC = () => {
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 rounded-full px-5 py-2 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 group font-bold text-sm"
+              className={`bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 rounded-full flex items-center transition-all hover:scale-105 active:scale-95 group font-bold text-sm ${
+                window.location.pathname.includes('/cognitive-anagram') ? 'p-2' : 'px-5 py-2 gap-2'
+              }`}
+              title="Admin Login / 登入"
             >
-              <LogIn size={16} className="group-hover:translate-x-0.5 transition-transform" />
-              <span>Admin Login / 登入</span>
+              <LogIn size={window.location.pathname.includes('/cognitive-anagram') ? 18 : 16} className="group-hover:translate-x-0.5 transition-transform" />
+              {!window.location.pathname.includes('/cognitive-anagram') && <span>Admin Login / 登入</span>}
             </button>
           )}
         </div>

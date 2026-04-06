@@ -1,6 +1,14 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
-import { AppContent } from '../types';
+import { supabase } from '@/lib/supabase';
+
+export interface AppContent {
+  id: string;
+  key: string;
+  content: any;
+  description?: string;
+  updated_at: string;
+  updated_by?: string;
+}
 
 export function useCMS() {
   const [loading, setLoading] = useState(false);
@@ -13,18 +21,20 @@ export function useCMS() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Changed from .single() to .select() + manual pick to avoid 406 (Not Acceptable) errors
+      // with missing keys and content negotiation.
       const { data, error: fetchError } = await (supabase
         .from('app_content' as any)
         .select('*')
-        .eq('key', key) as any)
-        .single();
+        .eq('key', key) as any);
 
       if (fetchError) {
-        if (fetchError.code === 'PGRST116') return null; // Not found
         throw fetchError;
       }
 
-      return data as AppContent;
+      // Return first item or null if not found
+      return (data && data.length > 0) ? (data[0] as AppContent) : null;
     } catch (err: any) {
       console.error(`Error fetching CMS content for key ${key}:`, err);
       setError(err.message);

@@ -1,4 +1,6 @@
 export interface AnagramSet {
+  id?: string;
+  notionUrl?: string;
   letters: string;
   validAnswers: string[];
 }

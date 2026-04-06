@@ -1,4 +1,6 @@
 export interface QuestionResponse {
+  questionId?: string;
+  questionPageUrl?: string;
   questionIndex: number;
   letters: string;
   userAnswer: string;
@@ -17,13 +19,8 @@ export interface TaskResult {
   endTime: number;
 }
 
-export interface Demographics {
-  age: string;
-  gender: string;
-  education: string;
-  nativeLanguage: string;
-  englishProficiency: string;
-}
+export type Demographics = Record<string, string>;
+// Previous fixed structure for reference: age, gender, education, nativeLanguage, englishProficiency
 
 export interface PostSurveyData {
   // Optimism (1-7 scale)
@@ -53,6 +50,8 @@ export interface ExperimentData {
   timestamp: string;
   groupId: "self" | "other";
   demographics: Demographics | null;
+  demographicsContent?: any; // CMS content for labels
+  trialResult: TaskResult | null;
   task1Result: TaskResult | null;
   task2Result: TaskResult | null;
   postSurvey: PostSurveyData | null;

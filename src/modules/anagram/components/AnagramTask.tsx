@@ -105,6 +105,8 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
       setFeedback({ type: "correct", message: "✅ Correct!" });
       setWaitingForNext(true);
       setPendingResponse({
+        questionId: currentSet.id,
+        questionPageUrl: currentSet.notionUrl,
         questionIndex: currentIndex,
         letters: currentSet.letters,
         userAnswer: answer,
@@ -125,6 +127,8 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
         });
         setWaitingForNext(true);
         setPendingResponse({
+          questionId: currentSet.id,
+          questionPageUrl: currentSet.notionUrl,
           questionIndex: currentIndex,
           letters: currentSet.letters,
           userAnswer: answer,
@@ -157,6 +161,8 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
     });
     setWaitingForNext(true);
     setPendingResponse({
+      questionId: currentSet.id,
+      questionPageUrl: currentSet.notionUrl,
       questionIndex: currentIndex,
       letters: currentSet.letters,
       userAnswer: "",

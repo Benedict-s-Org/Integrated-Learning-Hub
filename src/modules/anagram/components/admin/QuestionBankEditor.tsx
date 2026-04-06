@@ -1,75 +1,52 @@
 import { useState, useEffect } from "react";
-import { useCMS } from "../../../../hooks/useCMS";
-import { easySets, hardSets } from "../../data/anagrams";
-import { Save, Loader2, Plus, Trash2, Brain, Sparkles, Info } from "lucide-react";
+import { fetchQuestions, NotionQuestion } from "../../services/notionLogger";
+import { Loader2, Brain, Sparkles, Info, ExternalLink } from "lucide-react";
 
 export default function QuestionBankEditor() {
-  const { getContent, updateContent } = useCMS();
-  const [content, setContent] = useState<any>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [content, setContent] = useState<{ easy: NotionQuestion[], hard: NotionQuestion[] } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeSet, setActiveSet] = useState<'easy' | 'hard'>('easy');
 
   useEffect(() => {
     const load = async () => {
-      const data = await getContent("anagram_questions");
-      if (data) {
-        setContent(data.content);
-      } else {
-        // Default structure from local data
-        setContent({
-          easy: easySets,
-          hard: hardSets
+      setIsLoading(true);
+      try {
+        const [warmup, easy, hard] = await Promise.all([
+          fetchQuestions("Warm-up", 50, true),
+          fetchQuestions("Easy", 100, true),
+          fetchQuestions("Hard", 100, true)
+        ]);
+        // Merge warmup and easy for the "Easy" view
+        setContent({ 
+          easy: [...warmup, ...easy], 
+          hard 
         });
+      } catch (err) {
+        console.error("Error loading Notion questions:", err);
       }
+      setIsLoading(false);
     };
     load();
-  }, [getContent]);
+  }, []);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    await updateContent("anagram_questions", content, "Anagram experiment question sets (Easy and Hard)");
-    setIsSaving(false);
-    alert("Question bank updated successfully!");
-  };
-
-  const addQuestion = () => {
-    const newQ = { letters: "ABCD", validAnswers: ["ABCD"] };
-    setContent({
-      ...content,
-      [activeSet]: [...content[activeSet], newQ]
-    });
-  };
-
-  const updateQuestion = (idx: number, updates: any) => {
-    const next = [...content[activeSet]];
-    next[idx] = { ...next[idx], ...updates };
-    setContent({ ...content, [activeSet]: next });
-  };
-
-  const removeQuestion = (idx: number) => {
-    setContent({
-      ...content,
-      [activeSet]: content[activeSet].filter((_: any, i: number) => i !== idx)
-    });
-  };
-
-  if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Question Bank...</div>;
+  if (isLoading || !content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Synching with Notion...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Question Bank</h2>
-          <p className="text-slate-500 text-sm font-medium">Manage the anagram sets for Task 1 and Task 2.</p>
+          <p className="text-slate-500 text-sm font-medium">Synced automatically from your Notion database.</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-50 disabled:opacity-50 active:scale-95"
+        <a
+          href="https://www.notion.so/d7ea40d03cde4e54b8a6226ac75130cc"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-lg shadow-slate-200 active:scale-95"
         >
-          {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          <span>Save Changes</span>
-        </button>
+          <ExternalLink size={18} />
+          <span>Edit in Notion</span>
+        </a>
       </div>
 
       {/* Tabs */}
@@ -102,59 +79,62 @@ export default function QuestionBankEditor() {
             </div>
             <div>
               <h3 className="font-extrabold text-slate-800 uppercase text-xs tracking-widest">
-                {activeSet === 'easy' ? 'Easy Set (3-4 Letters)' : 'Hard Set (5-6 Letters)'}
+                {activeSet === 'easy' ? 'Easy Set' : 'Hard Set'}
               </h3>
-              <p className="text-[10px] font-bold text-slate-400">Total: {content[activeSet].length} Questions</p>
+              <p className="text-[10px] font-bold text-slate-400">Total Active: {content[activeSet].length} Questions</p>
             </div>
           </div>
-          <button
-            onClick={addQuestion}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-100"
-          >
-            <Plus size={16} />
-            <span>Add Anagram</span>
-          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {(content[activeSet] || []).map((q: any, idx: number) => (
-            <div key={idx} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm group hover:border-blue-200 transition-all flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+          {(content[activeSet] || []).map((q) => (
+            <div key={q.questionId} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm group hover:border-blue-200 transition-all flex flex-col gap-4">
               <div className="flex items-start justify-between">
-                 <div className="flex items-center gap-2 font-black text-slate-400 text-[10px] uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded-lg">
-                    <span>Index</span>
-                    <span className="text-blue-500">#{idx + 1}</span>
+                 <div className="flex items-center gap-2">
+                   <div className="flex items-center gap-2 font-black text-slate-400 text-[10px] uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded-lg">
+                      <span>Notion ID</span>
+                      <span className="text-blue-500 text-[8px]">{q.questionId.split('-')[0]}...</span>
+                   </div>
+                   {q.tier && (
+                     <div className={`text-[8px] font-black px-2 py-0.5 rounded-lg uppercase tracking-widest ${
+                       q.tier === 'Warm-up' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                     }`}>
+                       {q.tier}
+                     </div>
+                   )}
                  </div>
-                 <button
-                    onClick={() => removeQuestion(idx)}
-                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                 <a
+                    href={q.questionPageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    title="View in Notion"
                   >
-                    <Trash2 size={16} />
-                 </button>
+                    <ExternalLink size={16} />
+                 </a>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Scrambled Letters</label>
-                  <input
-                    type="text"
-                    value={q.letters}
-                    onChange={(e) => updateQuestion(idx, { letters: e.target.value.toUpperCase() })}
-                    className="w-full px-4 py-2.5 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl transition-all outline-none font-black text-slate-800 text-center tracking-widest text-lg"
-                  />
+                  <div className="w-full px-4 py-2.5 bg-slate-50 rounded-2xl font-black text-slate-800 text-center tracking-widest text-lg">
+                    {q.letters}
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Valid Answers (comma separated)</label>
-                  <input
-                    type="text"
-                    value={q.validAnswers.join(', ')}
-                    onChange={(e) => updateQuestion(idx, { validAnswers: e.target.value.toUpperCase().split(',').map(s => s.trim()) })}
-                    placeholder="E.g. WORD, DROW"
-                    className="w-full px-4 py-2 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-xl transition-all outline-none font-bold text-slate-600 text-sm"
-                  />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Valid Answers</label>
+                  <div className="w-full px-4 py-2 bg-slate-50 rounded-xl font-bold text-slate-600 text-sm">
+                    {q.validAnswers.join(', ') || "No correct answers set"}
+                  </div>
                 </div>
               </div>
             </div>
           ))}
+          {content[activeSet].length === 0 && (
+            <div className="p-8 text-center text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-3xl">
+               No active questions found in Notion for this tier.
+            </div>
+          )}
         </div>
       </div>
 
@@ -163,10 +143,9 @@ export default function QuestionBankEditor() {
           <Info size={20} />
         </div>
         <div>
-          <h4 className="font-bold text-blue-900 text-sm">Real-time Randomized Delivery</h4>
+          <h4 className="font-bold text-blue-900 text-sm">Read-Only Mode</h4>
           <p className="text-blue-700/70 text-xs mt-1 leading-relaxed">
-            The experiment automatically shuffles these sets for each participant. 
-            Ensure you provide valid English words that can be formed from the scrambled letters.
+            The question bank is now mastered in your Notion database. Any edits to valid answers, active status, or letter sets must be done directly in Notion.
           </p>
         </div>
       </div>

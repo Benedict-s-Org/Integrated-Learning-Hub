@@ -28,13 +28,11 @@ function LikertScale({
 }) {
   const options = Array.from({ length: max - min + 1 }, (_, i) => min + i);
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-gray-700 font-medium">{label}</p>
+    <div className="space-y-2 text-left">
+      <p className="text-sm text-gray-700 font-medium" dangerouslySetInnerHTML={{ __html: label }} />
       <div className="flex items-center gap-1">
         {lowLabel && (
-          <span className="text-xs text-gray-400 w-20 text-right mr-2 shrink-0">
-            {lowLabel}
-          </span>
+          <span className="text-xs text-gray-400 w-20 text-right mr-2 shrink-0" dangerouslySetInnerHTML={{ __html: lowLabel }} />
         )}
         <div className="flex gap-1.5 flex-1 justify-center">
           {options.map((n) => (
@@ -52,9 +50,7 @@ function LikertScale({
           ))}
         </div>
         {highLabel && (
-          <span className="text-xs text-gray-400 w-20 ml-2 shrink-0">
-            {highLabel}
-          </span>
+          <span className="text-xs text-gray-400 w-20 ml-2 shrink-0" dangerouslySetInnerHTML={{ __html: highLabel }} />
         )}
       </div>
     </div>
@@ -167,7 +163,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
         {isAdmin && (
           <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
             <button 
-              onClick={() => window.alert("Navigate to Admin Panel -> App Content (CMS) to edit 'anagram_survey'")}
+              onClick={() => window.alert("Navigate to Admin Panel -> Content Editing -> Post-Experiment Survey to edit this page")}
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
               title="Edit Page Content"
             >
@@ -179,23 +175,15 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         <div className="text-center">
           <div className="text-5xl mb-4 transform group-hover:rotate-12 transition-transform">📝</div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-            {displayContent.title}
-          </h1>
-          <p className="text-sm text-slate-500 mt-2 font-medium">
-            {displayContent.subtitle}
-          </p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
+          <p className="text-sm text-slate-500 mt-2 font-medium" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
         </div>
 
         {/* Section 1: Optimism */}
         <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1">
-            <h2 className="font-bold text-slate-900 text-lg">
-              {displayContent.sections?.optimism?.title}
-            </h2>
-            <p className="text-xs text-slate-500 font-medium italic">
-              {displayContent.sections?.optimism?.description}
-            </p>
+          <div className="space-y-1 text-left">
+            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.title }} />
+            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.description }} />
           </div>
           <div className="space-y-6">
             <LikertScale
@@ -224,13 +212,9 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {/* Section 2: Need for Cognition */}
         <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1">
-            <h2 className="font-bold text-slate-900 text-lg">
-              {displayContent.sections?.thinking?.title}
-            </h2>
-            <p className="text-xs text-slate-500 font-medium italic">
-              {displayContent.sections?.thinking?.description}
-            </p>
+          <div className="space-y-1 text-left">
+            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.title }} />
+            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.description }} />
           </div>
           <div className="space-y-6">
             <LikertScale
@@ -259,13 +243,9 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {/* Section 3: Task Difficulty */}
         <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1">
-            <h2 className="font-bold text-slate-900 text-lg">
-              {displayContent.sections?.perception?.title}
-            </h2>
-            <p className="text-xs text-slate-500 font-medium italic">
-              {displayContent.sections?.perception?.description}
-            </p>
+          <div className="space-y-1 text-left">
+            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.title }} />
+            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.description }} />
           </div>
           <div className="space-y-6">
             <LikertScale
@@ -287,9 +267,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {/* Section 4: Past Experience */}
         <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-6 space-y-5">
-          <h2 className="font-bold text-slate-900 text-lg">
-            {displayContent.sections?.experience?.title}
-          </h2>
+          <h2 className="font-bold text-slate-900 text-lg text-left" dangerouslySetInnerHTML={{ __html: displayContent.sections?.experience?.title }} />
           <div className="space-y-6">
             <LikertScale
               label="How often have you done word puzzles or anagram games before?"
@@ -314,19 +292,15 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {/* Section 5: Manipulation Check */}
         <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-6 space-y-4">
-          <div className="space-y-1">
-            <h2 className="font-bold text-slate-900 text-lg">
-              {displayContent.sections?.check?.title}
-            </h2>
-            <p className="text-sm text-slate-600 font-medium">
-              {displayContent.sections?.check?.description}
-            </p>
+          <div className="space-y-1 text-left">
+            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.title }} />
+            <p className="text-sm text-slate-600 font-medium" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.description }} />
           </div>
           <div className="flex gap-3">
             {[
-              { value: "self", label: "Myself" },
-              { value: "other", label: "Other students" },
-              { value: "unsure", label: "Not sure" },
+              { value: "self", label: displayContent.option_self || "Myself" },
+              { value: "other", label: displayContent.option_other || "Other students" },
+              { value: "unsure", label: displayContent.option_unsure || "I'm not sure" },
             ].map((opt) => (
               <button
                 key={opt.value}
@@ -369,7 +343,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
         ))}
 
         {/* Comments */}
-        <div className="space-y-3 px-2">
+        <div className="space-y-3 px-2 text-left">
           <label className="block text-sm font-bold text-slate-700">
             💬 Any comments or feedback? (optional)
           </label>

@@ -63,7 +63,7 @@ export default function Welcome({ groupId, onStart }: Props) {
         {isAdmin && (
           <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
             <button 
-              onClick={() => window.alert("Navigate to Admin Panel -> App Content (CMS) to edit 'anagram_welcome'")}
+              onClick={() => window.alert("Navigate to Admin Panel -> Content Editing -> Welcome & Consent to edit this page")}
               className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
               title="Edit Page Content"
             >
@@ -75,18 +75,12 @@ export default function Welcome({ groupId, onStart }: Props) {
 
         <div className="text-center">
           <div className="text-6xl mb-6 transform group-hover:scale-110 transition-transform duration-500">🧠</div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            {displayContent.title}
-          </h1>
-          <p className="text-slate-500 mt-3 text-lg font-medium max-w-md mx-auto">
-            {displayContent.subtitle}
-          </p>
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
+          <p className="text-slate-500 mt-3 text-lg font-medium max-w-md mx-auto" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
         </div>
 
         <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 space-y-4 text-slate-700 relative group/section">
-          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2">
-            {displayContent.study_info_title}
-          </h2>
+          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2" dangerouslySetInnerHTML={{ __html: displayContent.study_info_title }} />
           <div className="space-y-3">
             {displayContent.study_info_items.map((item: string, idx: number) => (
               <p key={idx} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: item }} />
@@ -101,14 +95,12 @@ export default function Welcome({ groupId, onStart }: Props) {
         </div>
 
         <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-6 space-y-3 text-slate-700">
-          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2">
-            {displayContent.notes_title}
-          </h2>
+          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2" dangerouslySetInnerHTML={{ __html: displayContent.notes_title }} />
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {displayContent.notes_items.map((item: string, idx: number) => (
               <li key={idx} className="flex items-start gap-2 text-sm">
                 <span className="text-amber-500 mt-1">•</span>
-                <span>{item}</span>
+                <span dangerouslySetInnerHTML={{ __html: item }} />
               </li>
             ))}
           </ul>
@@ -137,9 +129,7 @@ export default function Welcome({ groupId, onStart }: Props) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <span className="text-base font-medium text-slate-700 group-hover/consent:text-slate-900 transition-colors">
-              {displayContent.consent_text}
-            </span>
+            <span className="text-base font-medium text-slate-700 group-hover/consent:text-slate-900 transition-colors" dangerouslySetInnerHTML={{ __html: displayContent.consent_text }} />
           </label>
 
           <button
@@ -153,7 +143,7 @@ export default function Welcome({ groupId, onStart }: Props) {
           >
             {agreed ? (
               <>
-                <span>{displayContent.start_button_text}</span>
+                <span dangerouslySetInnerHTML={{ __html: displayContent.start_button_text }} />
               </>
             ) : (
               "Please agree to continue"

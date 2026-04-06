@@ -27,9 +27,10 @@
 | **Google TTS** | `google-tts/index.ts` - Drive proxy architecture for reliable audio. | L190-L201 |
 | **iPad Interactive** | `IPadInteractiveZone.tsx` - Pressure-sensitive handwriting training. | L218-L229 |
 | **Exam Formatter** | `ExamFormatterPage.tsx` - WYSIWYG editor with Top Toolbar, Notion sync, & AI assistants. | L231-L245 |
-| **Vocab Image Picker** | `VocabImagePicker.tsx` - License-safe image scraper & bulk downloader. | L259-L270 |
-| **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L246-L257 |
-| **Reliability** | Development standards to prevent infinite loops and stalls. | L35-L42 |
+| **Vocab Image Picker** | `VocabImagePicker.tsx` - License-safe image scraper & bulk downloader. | L273-L281 |
+| **Cognitive Anagram** | `AnagramApp.tsx` - Notion-synced experiment & logging layer. | L290-L305 |
+| **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L283-L288 |
+| **Reliability** | Development standards to prevent infinite loops and stalls. | L36-L42 |
 
 ---
 
@@ -286,3 +287,19 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   1. **Targeted Edit**: Use `grep_search` and `multi_replace_file_content` for surgical changes. Avoid full file reads when possible.
   2. **Lean Artifacts**: Skip `implementation_plan.md` for routine fixes. Only use for complex refactors.
   3. **Context Reset**: Start a **New Chat** if the context becomes sluggish; work is saved in migrations/files.
+
+---
+
+### Cognitive Anagram & Notion Logging (L290-L305)
+- **Files**: `src/modules/anagram/AnagramApp.tsx`, `src/modules/anagram/services/notionLogger.ts`, `supabase/functions/anagram-notion/index.ts`
+- **Concept**: A research-oriented anagram experiment platform fully integrated with Notion for dynamic content management and automated data collection.
+- **Mechanism**:
+  - **Notion Question Bank**: Fetched via the `anagram-notion` Edge Function. Supports "Easy" and "Hard" tiers.
+  - **Automated Logging**: `postRun` logic automatically pushes experiment results (Runs) and individual trial data (Responses) to Notion.
+  - **Relational Integrity**: The Edge Function establishes two-way relations between `Responses`, `Runs`, and `Question Bank` items in Notion.
+  - **Robustness**: Uses the `createCORSResponse` pattern and native `fetch` within the Deno Edge Function to ensure reliability across environments.
+- **Admin Tools**:
+  - **Question Bank Editor**: A synced, read-only view in the UI.
+  - **Relation Setup**: Administrative endpoint (`?action=setup-relations`) to idempotently configure Notion database properties.
+- **Gotchas**: Requires `NOTION_TOKEN` secret in Supabase. Deployed with `--no-verify-jwt` to support flexible research-phase CORS and cross-origin development.
+

@@ -10,13 +10,6 @@ import {
   Brain
 } from 'lucide-react';
 import { useAuth } from "../../../../context/AuthContext";
-
-interface NavItem {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-}
-
 interface Props {
   activeTab: string;
   setActiveTab: (id: string) => void;
@@ -28,11 +21,28 @@ export default function AnagramAdminLayout({ activeTab, setActiveTab, onPreview,
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isMobileEmulator } = useAuth();
 
-  const navItems: NavItem[] = [
-    { id: 'welcome', label: 'Welcome Page', icon: FileText },
-    { id: 'survey', label: 'Survey Editing', icon: ClipboardList },
-    { id: 'questions', label: 'Question Bank', icon: Database },
-    { id: 'manifest', label: 'Project Manifest', icon: LayoutDashboard },
+  const categories = [
+    {
+      label: "Overview",
+      items: [
+        { id: 'manifest', label: 'Project Manifest', icon: LayoutDashboard },
+        { id: 'questions', label: 'Question Bank', icon: Database },
+      ]
+    },
+    {
+      label: "Content Editing",
+      items: [
+        { id: 'welcome', label: 'Welcome & Consent', icon: FileText },
+        { id: 'demographics', label: 'Demographics', icon: ClipboardList },
+        { id: 'trial', label: 'Trial Part', icon: FileText },
+        { id: 'predict1', label: 'Task 1 Prediction', icon: Brain },
+        { id: 'feedback1', label: 'Task 1 Feedback', icon: ClipboardList },
+        { id: 'predict2', label: 'Task 2 Prediction', icon: Brain },
+        { id: 'feedback2', label: 'Task 2 Feedback', icon: ClipboardList },
+        { id: 'survey', label: 'Post-Experiment Survey', icon: ClipboardList },
+        { id: 'debrief', label: 'Debrief & Data Viz', icon: LayoutDashboard },
+      ]
+    }
   ];
 
   const SidebarContent = () => (
@@ -49,29 +59,38 @@ export default function AnagramAdminLayout({ activeTab, setActiveTab, onPreview,
         </button>
       </div>
 
-      <nav className="flex-1 p-6 space-y-3 overflow-y-auto w-full">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.id;
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-                setIsMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-black transition-all transform active:scale-95 ${isActive
-                ? "bg-primary text-white shadow-lg shadow-primary/25 scale-[1.02]"
-                : "text-primary/60 hover:bg-white hover:text-primary hover:shadow-md"
-              }`}
-            >
-              <div className={`${isActive ? "text-white" : "text-primary/40 group-hover:text-primary"}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              {item.label}
-            </button>
-          );
-        })}
+      <nav className="flex-1 p-6 space-y-8 overflow-y-auto w-full custom-scrollbar">
+        {categories.map((category) => (
+          <div key={category.label} className="space-y-3">
+            <h3 className="px-4 text-[10px] font-black text-primary/40 uppercase tracking-[0.2em]">
+              {category.label}
+            </h3>
+            <div className="space-y-2">
+              {category.items.map((item) => {
+                const isActive = activeTab === item.id;
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs font-black transition-all transform active:scale-95 ${isActive
+                      ? "bg-primary text-white shadow-lg shadow-primary/25 scale-[1.02]"
+                      : "text-primary/60 hover:bg-white hover:text-primary hover:shadow-md"
+                    }`}
+                  >
+                    <div className={`${isActive ? "text-white" : "text-primary/20 group-hover:text-primary"}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="p-8 border-t border-primary/10 bg-white/20">
@@ -81,14 +100,14 @@ export default function AnagramAdminLayout({ activeTab, setActiveTab, onPreview,
           </div>
           <div>
             <p className="text-xs font-black text-primary uppercase tracking-widest">Anagram Admin</p>
-            <p className="text-[10px] text-primary/40 font-bold">Control Center v2.1</p>
+            <p className="text-[10px] text-primary/40 font-bold">Control Center v2.2</p>
           </div>
         </div>
       </div>
     </>
   );
 
-  const activeLabel = navItems.find(n => n.id === activeTab)?.label;
+  const activeLabel = categories.flatMap(c => c.items).find(n => n.id === activeTab)?.label;
 
   return (
     <div className="min-h-screen flex bg-background relative font-bold text-left overflow-hidden">

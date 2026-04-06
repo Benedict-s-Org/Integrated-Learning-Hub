@@ -5,6 +5,7 @@ interface Props {
   taskDescription: string;
   targetLabel: string;
   onConfirm: (seconds: number) => void;
+  cmsContent?: any;
 }
 
 export default function PredictionScreen({
@@ -12,12 +13,15 @@ export default function PredictionScreen({
   taskDescription,
   targetLabel,
   onConfirm,
+  cmsContent,
 }: Props) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const numValue = parseInt(value);
-  const isValid = !isNaN(numValue) && numValue > 0 && numValue <= 600;
+  const minVal = cmsContent?.min_val ?? 1;
+  const maxVal = cmsContent?.max_val ?? 600;
+  const isValid = !isNaN(numValue) && numValue >= minVal && numValue <= maxVal;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -32,25 +36,24 @@ export default function PredictionScreen({
       <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8 space-y-8">
         <div className="text-center">
           <div className="text-4xl mb-3">⏱️</div>
-          <h2 className="text-2xl font-bold text-gray-900">Time Prediction</h2>
+          <h2 className="text-2xl font-bold text-gray-900" dangerouslySetInnerHTML={{ __html: cmsContent?.title || "Time Prediction" }} />
         </div>
 
         {/* Task info */}
         <div className="bg-indigo-50 rounded-xl p-5 space-y-2">
-          <p className="text-center font-semibold text-indigo-800">
-            {taskName}
-          </p>
-          <p className="text-center text-sm text-gray-600">
-            {taskDescription}
-          </p>
+          <p className="text-center font-semibold text-indigo-800" dangerouslySetInnerHTML={{ __html: taskName }} />
+          <p className="text-center text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: taskDescription }} />
         </div>
 
         {/* Question */}
         <div className="text-center">
           <p className="text-gray-700 text-lg">
-            How many <strong>seconds</strong> do you think{" "}
-            <strong className="text-indigo-600">{targetLabel}</strong> will need
-            to solve <strong>each puzzle</strong>?
+            {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-indigo-600\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
+              <span key={i}>
+                <span dangerouslySetInnerHTML={{ __html: part }} />
+                {i < arr.length - 1 && <strong className="text-indigo-600">{targetLabel}</strong>}
+              </span>
+            ))}
           </p>
         </div>
 
@@ -61,13 +64,13 @@ export default function PredictionScreen({
               ref={inputRef}
               type="number"
               min={1}
-              max={600}
+              max={maxVal}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSubmit();
               }}
-              placeholder="Enter seconds"
+              placeholder={cmsContent?.input_placeholder || "Enter seconds"}
               className={`w-40 px-4 py-3 border-2 rounded-xl text-center text-2xl font-bold focus:outline-none transition-all ${
                 isValid
                   ? "border-indigo-500 bg-indigo-50 text-indigo-700"
@@ -85,7 +88,7 @@ export default function PredictionScreen({
           {/* Validation hint */}
           {value.length > 0 && !isValid && (
             <p className="text-sm text-red-500">
-              Please enter a number between 1 and 600
+              Please enter a number between {minVal} and {maxVal}
             </p>
           )}
         </div>
@@ -117,7 +120,7 @@ export default function PredictionScreen({
               : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >
-          Confirm Prediction →
+          <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button || "Confirm Prediction →" }} />
         </button>
       </div>
     </div>
