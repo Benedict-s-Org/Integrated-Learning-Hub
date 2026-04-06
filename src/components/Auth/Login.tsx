@@ -3,7 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
-export const Login: React.FC = () => {
+interface LoginProps {
+  onLoginSuccess?: () => void;
+}
+
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +24,9 @@ export const Login: React.FC = () => {
     try {
       const result = await signIn(email, password);
 
-      if (result.error) {
+      if (!result.error) {
+        onLoginSuccess?.();
+      } else {
         setError(result.error.message);
       }
     } catch (err) {

@@ -44,6 +44,8 @@ export interface PostSurveyData {
   task2Difficulty: number; // 1-7
   // Open-ended
   comments: string;
+  // Dynamic Questions from CMS
+  dynamicResponses?: Record<string, any>;
 }
 
 export interface ExperimentData {

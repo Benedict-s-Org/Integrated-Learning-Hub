@@ -4,6 +4,8 @@ import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2,
 import { supabase } from '../../lib/supabase';
 import { StudentQRCodeModal } from '../admin/StudentQRCodeModal';
 import { ShopStyleManager } from '../admin/ShopStyleManager';
+import { CMSManager } from '../admin/CMSManager';
+import { Globe } from 'lucide-react';
 
 interface User {
   id: string;
@@ -85,6 +87,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
   const [showShopStyles, setShowShopStyles] = useState(false);
+  const [showCMS, setShowCMS] = useState(false);
 
   // Sorting and Filtering States
   const [sortBy, setSortBy] = useState<'created_at' | 'username' | 'class'>('created_at');
@@ -603,6 +606,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <span>Avatar Studio</span>
               </button>
             )}
+            <button
+               onClick={() => setShowCMS(prev => !prev)}
+               className={`${showCMS ? 'bg-blue-800 text-white border-2 border-blue-400' : 'bg-white text-blue-600 border border-blue-200'} hover:bg-blue-50 font-bold py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm active:scale-95`}
+             >
+               <Globe size={20} />
+               <span>{showCMS ? 'Close CMS' : 'App Content (CMS)'}</span>
+             </button>
             {onNavigateToMarkerGenerator && (
               <button
                 onClick={onNavigateToMarkerGenerator}
@@ -1293,6 +1303,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {showShopStyles && (
         <ShopStyleManager onClose={() => setShowShopStyles(false)} />
+      )}
+
+      {showCMS && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+          <div className="bg-slate-50 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+            <div className="p-6 border-b bg-white flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-200">
+                  <Globe size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800 tracking-tight">App Content Management</h2>
+                  <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-0.5">System CMS Manager</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowCMS(false)} 
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full transition-all hover:rotate-90"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 md:p-8">
+              <CMSManager />
+            </div>
+            <div className="p-4 border-t bg-white flex justify-end">
+              <button
+                onClick={() => setShowCMS(false)}
+                className="px-8 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-slate-200"
+              >
+                Close Manager
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

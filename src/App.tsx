@@ -23,6 +23,7 @@ import { FurnitureUploader } from './components/furniture/FurnitureUploader';
 import { FurnitureEditor } from './components/editor/FurnitureEditor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
+import { GlobalUserStatus } from './components/Auth/GlobalUserStatus';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
 import {
   Word,
@@ -119,7 +120,6 @@ function AppContent() {
   const { isItemVisible } = useNavigationSettings();
   const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
 
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(true);
   const {
     fetchPublicContent,
@@ -202,11 +202,6 @@ function AppContent() {
   }, []);
 
   // Close login modal when user signs in
-  useEffect(() => {
-    if (user && showLoginModal) {
-      setShowLoginModal(false);
-    }
-  }, [user, showLoginModal]);
 
   // Reset app state when user signs out
   useEffect(() => {
@@ -296,13 +291,18 @@ function AppContent() {
   const userName = user?.username?.trim().toLowerCase();
   if (userEmail === 'admin@anagram.com' || userName === 'admin@anagram.com') {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-gray-600">Loading CognitivePsychology Module...</div>
-        </div>
-      }>
-        <AnagramApp />
-      </Suspense>
+      <AuthProvider>
+        <ThemeProvider>
+          <GlobalUserStatus />
+          <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-gray-600">Loading CognitivePsychology Module...</div>
+            </div>
+          }>
+            <AnagramApp />
+          </Suspense>
+        </ThemeProvider>
+      </AuthProvider>
     );
   }
   // -------------------------------------
@@ -335,7 +335,7 @@ function AppContent() {
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
     if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard')) {
-      setShowLoginModal(true);
+      alert('Please log in with an administrator account to access this page.');
       return;
     }
 
@@ -451,7 +451,8 @@ function AppContent() {
   };
 
   const handleLogin = () => {
-    setShowLoginModal(true);
+    // User will manually click the Admin Login button in the top right
+    console.log('Admin login required for scanner');
   };
 
   const handleTextSubmit = (text: string) => {
@@ -1259,7 +1260,7 @@ function AppContent() {
 
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex min-h-screen bg-background">
         {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
@@ -1308,7 +1309,7 @@ function AppContent() {
           />
         )}
         <main
-          className={`h-screen overflow-y-auto transition-all duration-300 pb-16 md:pb-0 flex-1 w-full ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
+          className={`flex-1 w-full transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
           style={{
             '--nav-width': isMobileEmulator || ['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))
               ? '0px'
@@ -1317,6 +1318,8 @@ function AppContent() {
                 : (window.innerWidth >= 768 ? '80px' : '0px') // w-20 or 0
           } as React.CSSProperties}
         >
+          {/* Global Top-Right Login/User Button */}
+          <GlobalUserStatus />
           <ErrorBoundary>
             {isMobileDevice() && (appState.page === 'new' && appState.step === 'input') && (
               <div className="mx-4 mt-4 mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center justify-between">
@@ -1339,13 +1342,6 @@ function AppContent() {
             {renderCurrentView()}
           </ErrorBoundary>
         </main>
-        {showLoginModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="relative">
-              <Login />
-            </div>
-          </div>
-        )}
         <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
         <ComponentInspector enabled={showComponentInspector} />
         <UnifiedMapEditor
@@ -1582,13 +1578,18 @@ function PageLoader() {
 function App() {
   // --- PUBLIC SIDE PROJECT BYPASS ---
   // If the user visits the public anagram task URL, we render it directly
-  // bypassing all Learning Hub logic, providers, and auth checks.
+  // bypassing all Learning Hub logic, but maintaining Auth context for CMS editing.
   const path = window.location.pathname;
   if (path === '/cognitive-anagram' || path.startsWith('/cognitive-anagram/')) {
     return (
-      <Suspense fallback={<PageLoader />}>
-        <AnagramApp />
-      </Suspense>
+      <AuthProvider>
+        <ThemeProvider>
+          <GlobalUserStatus />
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><p className="text-slate-400 font-medium animate-pulse text-lg">Initializing Experiment...</p></div>}>
+            <AnagramApp />
+          </Suspense>
+        </ThemeProvider>
+      </AuthProvider>
     );
   }
   // ----------------------------------
@@ -1610,14 +1611,14 @@ function AppRoutes() {
   const { isImpersonating, user, setImpersonatedAdminId } = useAuth();
 
   return (
-    <div className="min-h-screen flex flex-col overflow-hidden">
+    <div className="min-h-screen flex flex-col">
       {isImpersonating && (
         <ImpersonationBanner
           name={user?.display_name || user?.username || 'Admin'}
           onExit={() => setImpersonatedAdminId(null)}
         />
       )}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 relative">
         <Routes>
           <Route
             path="/cognitive-anagram"

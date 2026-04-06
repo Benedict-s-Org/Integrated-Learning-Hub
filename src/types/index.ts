@@ -495,3 +495,13 @@ export interface NavigationSettings {
   admin: NavItemConfig[];
   teacher: NavItemConfig[];
 }
+
+export interface AppContent {
+  id: string;
+  key: string;
+  content: any;
+  description?: string;
+  updated_at?: string;
+  updated_by?: string;
+  created_at?: string;
+}

@@ -187,14 +187,14 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
   );
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden relative font-bold">
+    <div className="min-h-screen flex bg-background relative font-bold">
       {/* Decorative blobs */}
       <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Desktop Sidebar */}
       {!hideSidebar && (
-        <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-64 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 relative z-10 shadow-xl shadow-primary/5`}>
+        <aside className={`${isMobileEmulator ? 'hidden' : 'hidden md:flex'} w-64 border-r-4 border-white bg-secondary/30 backdrop-blur-md flex-col shrink-0 sticky top-0 h-screen z-10 shadow-xl shadow-primary/5`}>
           <SidebarContent />
         </aside>
       )}
@@ -213,7 +213,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       <main className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Header */}
         {!hideHeader && (
-          <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4">
+          <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4 sticky top-0 z-20">
             <div className="flex items-center gap-3 md:gap-5">
               {/* Mobile Menu Button */}
               <button
@@ -236,7 +236,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1">
           {children}
         </div>
       </main>
