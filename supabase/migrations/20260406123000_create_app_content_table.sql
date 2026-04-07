@@ -13,28 +13,46 @@ CREATE TABLE IF NOT EXISTS public.app_content (
 ALTER TABLE public.app_content ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access to content
-CREATE POLICY "Allow public read access to app_content" 
-ON public.app_content FOR SELECT 
-USING (true);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'app_content' 
+        AND policyname = 'Allow public read access to app_content'
+    ) THEN
+        CREATE POLICY "Allow public read access to app_content" 
+        ON public.app_content FOR SELECT 
+        USING (true);
+    END IF;
+END $$;
 
 -- Allow admins to manage content (using user_profiles role check)
-CREATE POLICY "Allow admins to manage app_content" 
-ON public.app_content FOR ALL 
-TO authenticated
-USING (
-    EXISTS (
-        SELECT 1 FROM public.user_profiles 
-        WHERE id = auth.uid() 
-        AND role = 'admin'
-    )
-)
-WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM public.user_profiles 
-        WHERE id = auth.uid() 
-        AND role = 'admin'
-    )
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'app_content' 
+        AND policyname = 'Allow admins to manage app_content'
+    ) THEN
+        CREATE POLICY "Allow admins to manage app_content" 
+        ON public.app_content FOR ALL 
+        TO authenticated
+        USING (
+            EXISTS (
+                SELECT 1 FROM public.user_profiles 
+                WHERE id = auth.uid() 
+                AND role = 'admin'
+            )
+        )
+        WITH CHECK (
+            EXISTS (
+                SELECT 1 FROM public.user_profiles 
+                WHERE id = auth.uid() 
+                AND role = 'admin'
+            )
+        );
+    END IF;
+END $$;
 
 -- Initial seed data for all Anagram Experiment keys
 INSERT INTO public.app_content (key, content, description)

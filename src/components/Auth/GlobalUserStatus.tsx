@@ -9,6 +9,11 @@ export const GlobalUserStatus: React.FC = () => {
 
   if (loading) return null;
 
+  const isAnagramRoute = window.location.pathname.includes('/cognitive-anagram');
+
+  // Hide the admin icon globally except on anagram routes
+  if (!isAnagramRoute) return null;
+
   return (
     <>
       <div className="fixed top-4 right-4 z-[9999]">
