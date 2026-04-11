@@ -16,28 +16,31 @@ export default function FeedbackEditor({ cmsKey, taskLabel }: Props) {
   useEffect(() => {
     const load = async () => {
       const data = await getContent(cmsKey);
-      if (data) {
-        setContent(data.content);
+      
+      const defaults = {
+        title: "Task Complete!",
+        success_msg: "Great job! You were faster than you predicted.",
+        failure_msg: "You were a bit slower than you predicted.",
+        continue_button: "Continue to Next Phase →",
+        stat_correct_label: "Correct",
+        stat_skipped_label: "Skipped",
+        stat_predicted_label: "Predicted / question",
+        stat_actual_label: "Actual total time",
+        pfi_label: "Planning Fallacy Index (PFI)",
+        pfi_invalid_text: "N/A (invalid data — all skipped)",
+        pfi_underestimate_text: "You underestimated the time needed",
+        pfi_overestimate_text: "You overestimated the time needed",
+        breakdown_label: "Question breakdown:",
+        breakdown_q_prefix: "Q",
+        breakdown_skipped_text: "Skipped",
+        breakdown_correct_template: "✓ {ans} ({timer}s)",
+        breakdown_incorrect_template: "✗ ({timer}s, {tries} tries)"
+      };
+
+      if (data && data.content) {
+        setContent({ ...defaults, ...data.content });
       } else {
-        setContent({
-          title: "Task Complete!",
-          success_msg: "Great job! You were faster than you predicted.",
-          failure_msg: "You were a bit slower than you predicted.",
-          continue_button: "Continue to Next Phase →",
-          stat_correct_label: "Correct",
-          stat_skipped_label: "Skipped",
-          stat_predicted_label: "Predicted / question",
-          stat_actual_label: "Actual total time",
-          pfi_label: "Planning Fallacy Index (PFI)",
-          pfi_invalid_text: "N/A (invalid data — all skipped)",
-          pfi_underestimate_text: "You underestimated the time needed",
-          pfi_overestimate_text: "You overestimated the time needed",
-          breakdown_label: "Question breakdown:",
-          breakdown_q_prefix: "Q",
-          breakdown_skipped_text: "Skipped",
-          breakdown_correct_template: "✓ {ans} ({timer}s)",
-          breakdown_incorrect_template: "✗ ({timer}s, {tries} tries)"
-        });
+        setContent(defaults);
       }
     };
     load();

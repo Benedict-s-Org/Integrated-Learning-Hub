@@ -16,24 +16,28 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
   useEffect(() => {
     const load = async () => {
       const data = await getContent(cmsKey);
-      if (data) {
-        setContent(data.content);
+      
+      const defaults = {
+        title: "Time Prediction",
+        task_name: taskLabel,
+        task_description: taskLabel === "Task 1 (Easy)" 
+          ? "10 anagrams (3 warmup + 7 easy puzzles)" 
+          : "10 anagrams (8 6-letter + 2 7-letter puzzles)",
+        question_text: "How many <strong>seconds</strong> do you think <strong class=\"text-indigo-600\">[target]</strong> will need to solve <strong>each puzzle</strong>?",
+        input_placeholder: "Enter seconds",
+        min_val: 1,
+        max_val: 600,
+        confirm_button: "Confirm Prediction →",
+        unit_label: "seconds/puzzle",
+        validation_error_template: "Please enter a number between {min} and {max}",
+        result_preview_template: "Predicted: <strong class=\"text-[#673ab7]\">{val}s</strong> / puzzle"
+      };
+
+      if (data && data.content) {
+        // Merge fetched data with defaults to ensure new fields are never empty
+        setContent({ ...defaults, ...data.content });
       } else {
-        setContent({
-          title: "Time Prediction",
-          task_name: taskLabel,
-          task_description: taskLabel === "Task 1 (Easy)" 
-            ? "10 anagrams (3 warmup + 7 easy puzzles)" 
-            : "10 anagrams (8 6-letter + 2 7-letter puzzles)",
-          question_text: "How many <strong>seconds</strong> do you think <strong class=\"text-indigo-600\">[target]</strong> will need to solve <strong>each puzzle</strong>?",
-          input_placeholder: "Enter seconds",
-          min_val: 1,
-          max_val: 600,
-          confirm_button: "Confirm Prediction →",
-          unit_label: "seconds/puzzle",
-          validation_error_template: "Please enter a number between {min} and {max}",
-          result_preview_template: "Predicted: <strong class=\"text-[#673ab7]\">{val}s</strong> / puzzle"
-        });
+        setContent(defaults);
       }
     };
     load();

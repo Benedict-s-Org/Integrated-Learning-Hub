@@ -435,11 +435,9 @@ export default function App() {
             </button>
           )}
           <PredictionScreen
-            taskName={cmsContent.anagram_task1_prediction?.task_name || "Task 1 (Easy)"}
-            taskDescription={cmsContent.anagram_task1_prediction?.task_description || "10 anagrams with IELTS B2 vocabulary (3–4 letters each)"}
-            targetLabel={targetLabel}
-            onConfirm={handlePred1}
-            cmsContent={cmsContent.anagram_task1_prediction}
+             targetLabel={targetLabel}
+             onConfirm={handlePred1}
+             cmsContent={cmsContent.anagram_task1_prediction}
           />
         </div>
       );
@@ -476,11 +474,9 @@ export default function App() {
             </button>
           )}
           <PredictionScreen
-            taskName={cmsContent.anagram_task2_prediction?.task_name || "Task 2 (Hard)"}
-            taskDescription={cmsContent.anagram_task2_prediction?.task_description || "10 anagrams with IELTS B2 vocabulary (5–6 letters each)"}
-            targetLabel={targetLabel}
-            onConfirm={handlePred2}
-            cmsContent={cmsContent.anagram_task2_prediction}
+             targetLabel={targetLabel}
+             onConfirm={handlePred2}
+             cmsContent={cmsContent.anagram_task2_prediction}
           />
         </div>
       );

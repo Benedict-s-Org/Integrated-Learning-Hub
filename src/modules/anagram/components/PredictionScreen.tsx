@@ -3,8 +3,8 @@ import { useAuth } from "../../../context/AuthContext";
 import { Edit2 } from "lucide-react";
 
 interface Props {
-  taskName: string;
-  taskDescription: string;
+  taskName?: string;
+  taskDescription?: string;
   targetLabel: string;
   onConfirm: (seconds: number) => void;
   cmsContent?: any;
@@ -20,6 +20,10 @@ export default function PredictionScreen({
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { isAdmin } = useAuth();
+
+  // Use CMS content if available, prioritize props if explicitly passed, otherwise use fallbacks
+  const finalTaskName = taskName || cmsContent?.task_name || "Anagram Task";
+  const finalTaskDescription = taskDescription || cmsContent?.task_description || "Please predict the time needed.";
 
   const numValue = parseInt(value);
   const minVal = cmsContent?.min_val ?? 1;
@@ -62,8 +66,8 @@ export default function PredictionScreen({
 
             {/* Task info */}
             <div className="bg-[#f8f9fa] rounded p-4 space-y-1 border mt-4" style={{ borderColor: "#dadce0" }}>
-              <p className="font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: taskName }} />
-              <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: taskDescription }} />
+              <p className="font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: finalTaskName }} />
+              <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: finalTaskDescription }} />
             </div>
           </div>
         </div>
