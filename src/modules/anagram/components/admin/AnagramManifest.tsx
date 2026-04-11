@@ -63,6 +63,11 @@ export default function AnagramManifest() {
       description: "Short 4-question trial phase using 'Calibration' questions to familiarize participants with the interface."
     },
     {
+      icon: ClipboardCheck,
+      title: "Practice Trial Check",
+      description: "Participants evaluate the difficulty of the calibration anagrams to establish a subjective baseline before making predictions for Task 1."
+    },
+    {
       icon: Brain,
       title: "Task 1 (Easy) Prediction",
       description: "The 'Self vs Other' manipulation starts here. Participants predict their performance for 10 anagrams (3 Warm-up + 7 Easy questions)."

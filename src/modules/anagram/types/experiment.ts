@@ -8,6 +8,13 @@ export interface QuestionResponse {
   timeTaken: number;
   attempts: number;
   skipped: boolean;
+  // Hint tracking
+  hintStage?: 'none' | 'first_letter' | 'last_letter' | 'gave_up';
+  revealedFirstLetter?: string;
+  revealedLastLetter?: string;
+  hintFirstLetterTime?: number;  // seconds from question start when first letter was revealed
+  hintLastLetterTime?: number;   // seconds from question start when last letter was revealed
+  hintGaveUpTime?: number;       // seconds from question start when "I really have no idea" was clicked
 }
 
 export interface TaskResult {
@@ -52,6 +59,7 @@ export interface ExperimentData {
   demographics: Demographics | null;
   demographicsContent?: any; // CMS content for labels
   trialResult: TaskResult | null;
+  trialDifficulty?: 'easy' | 'moderate' | 'difficult';
   task1Result: TaskResult | null;
   task2Result: TaskResult | null;
   postSurvey: PostSurveyData | null;

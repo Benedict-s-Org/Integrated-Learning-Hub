@@ -5,13 +5,16 @@ import { scrambleLetters } from "../data/anagrams";
 
 const MAX_ATTEMPTS = 5;
 
+type HintStage = 'none' | 'first_letter' | 'last_letter';
+
 interface Props {
   sets: AnagramSet[];
   taskName: string;
   onComplete: (responses: QuestionResponse[]) => void;
+  enableHints?: boolean; // true for Task 1 & 2, false/omitted for Trial
 }
 
-export default function AnagramTask({ sets, taskName, onComplete }: Props) {
+export default function AnagramTask({ sets, taskName, onComplete, enableHints = false }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState("");
   const [attempts, setAttempts] = useState(0);
@@ -25,6 +28,11 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
   const [waitingForNext, setWaitingForNext] = useState(false);
   const [pendingResponse, setPendingResponse] = useState<QuestionResponse | null>(null);
 
+  // Hint state (only used when enableHints is true)
+  const [hintStage, setHintStage] = useState<HintStage>('none');
+  const [hintFirstLetterTime, setHintFirstLetterTime] = useState<number | undefined>(undefined);
+  const [hintLastLetterTime, setHintLastLetterTime] = useState<number | undefined>(undefined);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const nextBtnRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -33,6 +41,11 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
   const [scrambled, setScrambled] = useState(() =>
     scrambleLetters(currentSet.letters, currentSet.validAnswers)
   );
+
+  // Derive the revealed letters from the first valid answer
+  const firstAnswer = currentSet.validAnswers[0]?.toUpperCase() || "";
+  const revealedFirst = firstAnswer[0] || "";
+  const revealedLast = firstAnswer[firstAnswer.length - 1] || "";
 
   // Start timer for each question
   useEffect(() => {
@@ -53,6 +66,13 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
     );
   }, [currentIndex, sets]);
 
+  // Reset hint state when question changes
+  useEffect(() => {
+    setHintStage('none');
+    setHintFirstLetterTime(undefined);
+    setHintLastLetterTime(undefined);
+  }, [currentIndex]);
+
   // Auto-focus input on question change (only when NOT waiting for next)
   useEffect(() => {
     if (!waitingForNext && inputRef.current) {
@@ -70,6 +90,19 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
   const stopTimer = () => {
     setTimerRunning(false);
     if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  // Build hint data for the current question's response
+  const buildHintData = (gaveUp: boolean) => {
+    if (!enableHints) return {};
+    return {
+      hintStage: gaveUp ? 'gave_up' as const : hintStage === 'none' ? 'none' as const : hintStage === 'first_letter' ? 'first_letter' as const : 'last_letter' as const,
+      revealedFirstLetter: hintStage !== 'none' ? revealedFirst : undefined,
+      revealedLastLetter: hintStage === 'last_letter' || gaveUp ? revealedLast : undefined,
+      hintFirstLetterTime: hintFirstLetterTime,
+      hintLastLetterTime: hintLastLetterTime,
+      hintGaveUpTime: gaveUp ? timer : undefined,
+    };
   };
 
   // Handle clicking "Next →"
@@ -114,6 +147,7 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
         timeTaken: timer,
         attempts: attempts + 1,
         skipped: false,
+        ...buildHintData(false),
       });
     } else {
       const newAttempts = attempts + 1;
@@ -136,6 +170,7 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
           timeTaken: timer,
           attempts: newAttempts,
           skipped: true,
+          ...buildHintData(false),
         });
       } else {
         setFeedback({
@@ -149,8 +184,9 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
         }, 1200);
       }
     }
-  }, [input, waitingForNext, currentSet, currentIndex, timer, attempts]);
+  }, [input, waitingForNext, currentSet, currentIndex, timer, attempts, hintStage, hintFirstLetterTime, hintLastLetterTime, enableHints]);
 
+  // Handle skip (used for Trial "I don't know the answer")
   const handleSkip = useCallback(() => {
     if (waitingForNext) return;
     stopTimer();
@@ -173,7 +209,63 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
     });
   }, [waitingForNext, currentSet, currentIndex, timer]);
 
+  // Handle hint button click (3-stage progressive)
+  const handleHintClick = useCallback(() => {
+    if (waitingForNext || !!feedback) return;
+
+    if (hintStage === 'none') {
+      // Stage 0 → reveal first letter
+      setHintStage('first_letter');
+      setHintFirstLetterTime(timer);
+    } else if (hintStage === 'first_letter') {
+      // Stage 1 → reveal last letter
+      setHintStage('last_letter');
+      setHintLastLetterTime(timer);
+    } else {
+      // Stage 2 → "I really have no idea" → skip
+      stopTimer();
+      setFeedback({
+        type: "skip",
+        message: "⏭️ No worries! Moving on...",
+      });
+      setWaitingForNext(true);
+      setPendingResponse({
+        questionId: currentSet.id,
+        questionPageUrl: currentSet.notionUrl,
+        questionIndex: currentIndex,
+        letters: currentSet.letters,
+        userAnswer: "",
+        isCorrect: false,
+        timeTaken: timer,
+        attempts,
+        skipped: true,
+        ...buildHintData(true),
+      });
+    }
+  }, [waitingForNext, feedback, hintStage, timer, currentSet, currentIndex, attempts, hintFirstLetterTime, hintLastLetterTime, enableHints]);
+
+  // Hint button label and styling
+  const getHintButtonConfig = () => {
+    if (hintStage === 'none') {
+      return {
+        label: "🔍 Reveal 1st letter",
+        className: "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100",
+      };
+    } else if (hintStage === 'first_letter') {
+      return {
+        label: "🔍 Reveal final letter",
+        className: "bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200",
+      };
+    } else {
+      return {
+        label: "I really have no idea",
+        className: "bg-emerald-200 text-emerald-800 border-emerald-400 hover:bg-emerald-300",
+      };
+    }
+  };
+
   const isLastQuestion = currentIndex === sets.length - 1;
+  const hintConfig = getHintButtonConfig();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 flex items-center justify-center p-4">
@@ -233,6 +325,24 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
           </p>
         </div>
 
+        {/* Revealed letter hints — only shown when hints are active */}
+        {enableHints && hintStage !== 'none' && !waitingForNext && (
+          <div className="flex justify-center gap-3">
+            {(hintStage === 'first_letter' || hintStage === 'last_letter') && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-700">
+                <span className="text-xs text-emerald-500">1st:</span>
+                <span className="text-lg">{revealedFirst}</span>
+              </span>
+            )}
+            {hintStage === 'last_letter' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-700">
+                <span className="text-xs text-emerald-500">Last:</span>
+                <span className="text-lg">{revealedLast}</span>
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Input — hidden when waiting for Next */}
         {!waitingForNext && (
           <div className="space-y-3">
@@ -266,13 +376,25 @@ export default function AnagramTask({ sets, taskName, onComplete }: Props) {
               >
                 Submit
               </button>
-              <button
-                onClick={handleSkip}
-                disabled={!!feedback}
-                className="px-6 py-3 rounded-xl font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50"
-              >
-                Skip
-              </button>
+
+              {/* Conditional button: hints (Task 1 & 2) vs simple skip (Trial) */}
+              {enableHints ? (
+                <button
+                  onClick={handleHintClick}
+                  disabled={!!feedback}
+                  className={`px-5 py-3 rounded-xl font-medium border transition-all disabled:opacity-50 ${hintConfig.className}`}
+                >
+                  {hintConfig.label}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSkip}
+                  disabled={!!feedback}
+                  className="px-5 py-3 rounded-xl font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                >
+                  I don't know the answer
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -11,6 +11,7 @@ import Welcome from "./components/Welcome";
 import Demographics from "./components/Demographics";
 import PredictionScreen from "./components/PredictionScreen";
 import AnagramTask from "./components/AnagramTask";
+import TrialDifficultyEvaluation from "./components/TrialDifficultyEvaluation";
 import TaskComplete from "./components/TaskComplete";
 import PostSurvey from "./components/PostSurvey";
 import Debrief from "./components/Debrief";
@@ -24,6 +25,7 @@ import PredictionEditor from "./components/admin/PredictionEditor";
 import FeedbackEditor from "./components/admin/FeedbackEditor";
 import SurveyEditor from "./components/admin/SurveyEditor";
 import QuestionBankEditor from "./components/admin/QuestionBankEditor";
+import DifficultyEvaluationEditor from "./components/admin/DifficultyEvaluationEditor";
 import AnagramManifest from "./components/admin/AnagramManifest";
 import { Settings, Play } from "lucide-react";
 
@@ -32,6 +34,7 @@ type Phase =
   | "demographics"
   | "trial_intro"
   | "trial"
+  | "trial_difficulty"
   | "predict1"
   | "task1"
   | "complete1"
@@ -114,6 +117,7 @@ export default function App() {
         "anagram_welcome",
         "anagram_demographics",
         "anagram_trial",
+        "anagram_trial_difficulty",
         "anagram_task1_prediction",
         "anagram_task2_prediction",
         "anagram_task1_feedback",
@@ -203,6 +207,7 @@ export default function App() {
     null
   );
   const [trialResult, setTrialResult] = useState<TaskResult | null>(null);
+  const [trialDifficulty, setTrialDifficulty] = useState<'easy' | 'moderate' | 'difficult' | null>(null);
   const [task1Result, setTask1Result] = useState<TaskResult | null>(null);
   const [task2Result, setTask2Result] = useState<TaskResult | null>(null);
   const [postSurvey, setPostSurvey] = useState<PostSurveyData | null>(null);
@@ -225,10 +230,15 @@ export default function App() {
         endTime: Date.now(),
       };
       setTrialResult(result);
-      setPhase("predict1");
+      setPhase("trial_difficulty");
     },
     []
   );
+
+  const handleTrialDifficulty = useCallback((difficulty: 'easy' | 'moderate' | 'difficult') => {
+    setTrialDifficulty(difficulty);
+    setPhase("predict1");
+  }, []);
 
   const handlePred1 = useCallback((seconds: number) => {
     setPred1(seconds);
@@ -300,7 +310,14 @@ export default function App() {
              skipped: r.skipped,
              attempts: r.attempts,
              timeTakenMs: r.timeTaken * 1000, 
-             validAnswersSnapshot: "N/A" 
+             validAnswersSnapshot: "N/A",
+             // Hint tracking
+             hintStage: r.hintStage || 'none',
+             revealedFirstLetter: r.revealedFirstLetter || null,
+             revealedLastLetter: r.revealedLastLetter || null,
+             hintFirstLetterTimeSec: r.hintFirstLetterTime ?? null,
+             hintLastLetterTimeSec: r.hintLastLetterTime ?? null,
+             hintGaveUpTimeSec: r.hintGaveUpTime ?? null,
            }));
         };
 
@@ -344,6 +361,7 @@ export default function App() {
     demographics,
     demographicsContent: cmsContent.anagram_demographics,
     trialResult,
+    trialDifficulty: trialDifficulty || undefined,
     task1Result,
     task2Result,
     postSurvey,
@@ -364,6 +382,7 @@ export default function App() {
           {activeAdminTab === 'welcome' && <WelcomeEditor />}
           {activeAdminTab === 'demographics' && <DemographicsEditor />}
           {activeAdminTab === 'trial' && <TrialEditor />}
+          {activeAdminTab === 'trial_difficulty' && <DifficultyEvaluationEditor />}
           {activeAdminTab === 'predict1' && <PredictionEditor cmsKey="anagram_task1_prediction" taskLabel="Task 1 (Easy)" />}
           {activeAdminTab === 'feedback1' && <FeedbackEditor cmsKey="anagram_task1_feedback" taskLabel="Task 1 (Easy)" />}
           {activeAdminTab === 'predict2' && <PredictionEditor cmsKey="anagram_task2_prediction" taskLabel="Task 2 (Hard)" />}
@@ -422,6 +441,15 @@ export default function App() {
         />
       );
 
+    case "trial_difficulty":
+      return (
+        <TrialDifficultyEvaluation
+          onBack={() => setPhase("trial_intro")}
+          onSubmit={handleTrialDifficulty}
+          cmsContent={cmsContent.anagram_trial_difficulty}
+        />
+      );
+
     case "predict1":
       return (
         <div className="relative">
@@ -448,6 +476,7 @@ export default function App() {
           sets={activeEasySets}
           taskName="Task 1 (Easy)"
           onComplete={handleTask1Complete}
+          enableHints
         />
       );
 
@@ -487,6 +516,7 @@ export default function App() {
           sets={activeHardSets}
           taskName="Task 2 (Hard)"
           onComplete={handleTask2Complete}
+          enableHints
         />
       );
 
