@@ -22,128 +22,20 @@ interface Props {
   };
 }
 
-export default function Demographics({ onComplete, content }: Props) {
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const { isAdmin } = useAuth();
-
-  const defaultFields: DemoField[] = [
-    {
-      id: "age",
-      label: "Age",
-      type: 'number',
-      placeholder: "Enter your age"
-    },
-    {
-      id: "gender",
-      label: "Gender",
-      type: 'multiple_choice',
-      options: "Male\nFemale\nOther"
-    },
-    {
-      id: "education",
-      label: "Education Level",
-      type: 'dropdown',
-      options: "Secondary school\nUndergraduate student\nBachelor's degree\nMaster's student / degree\nPhD student / degree\nOther"
-    },
-    {
-      id: "language",
-      label: "Native Language",
-      type: 'dropdown',
-      options: "English\nChinese (Mandarin / Cantonese)\nSpanish\nHindi\nArabic\nFrench\nJapanese\nKorean\nOther"
-    },
-    {
-      id: "proficiency",
-      label: "English Proficiency",
-      type: 'multiple_choice',
-      options: "Native speaker\nAdvanced (C1–C2)\nUpper-intermediate (B2)\nIntermediate (B1)\nElementary (A2)\nBeginner (A1)"
-    }
-  ];
-
-  // Derive active fields with migration logic
-  const activeFields: DemoField[] = (() => {
-    const fields = content?.fields;
-    
-    // If fields is missing, or is an empty array, or is an empty object, use defaults
-    if (!fields) return defaultFields;
-    if (Array.isArray(fields) && fields.length === 0) return defaultFields;
-    if (typeof fields === 'object' && !Array.isArray(fields) && Object.keys(fields).length === 0) return defaultFields;
-    
-    if (Array.isArray(fields)) {
-      return fields;
-    }
-    
-    if (typeof fields === 'object') {
-      return Object.entries(fields).map(([key, val]: [string, any]) => ({
-        id: key,
-        ...val,
-        options: val.options?.includes(',') && !val.options?.includes('\n') 
-          ? val.options.split(',').map((s: string) => s.trim()).join('\n')
-          : val.options
-      }));
-    }
-    
-    return defaultFields;
-  })();
-
-  const displayContent = {
-    title: content?.title || "Background Information",
-    subtitle: content?.subtitle || "Please provide some basic information before we begin.",
-    button_text: content?.button_text || "Continue →",
-    validation_error: content?.validation_error || "Please fill in all fields",
-    fields: activeFields
-  };
-
-  // Initialize form state when content loads
-  useEffect(() => {
-    const initialForm: Record<string, string> = {};
-    activeFields.forEach((field: DemoField) => {
-      initialForm[field.id] = "";
-    });
-    setForm(initialForm);
-  }, [content, activeFields.length]);
-
-  const update = (fieldId: string, value: string) => {
-    setForm((prev) => ({ ...prev, [fieldId]: value }));
-  };
-
-  const parseOptions = (optionsStr: string) => {
-    if (!optionsStr) return [];
-    const delimiter = optionsStr.includes('\n') ? '\n' : ',';
-    return optionsStr.split(delimiter).map((s) => s.trim()).filter(Boolean);
-  };
-
-  // Pagination logic: split fields into two per page roughly
-  const totalPages = useMemo(() => Math.ceil(activeFields.length / 3), [activeFields.length]);
-  const fieldsOnCurrentPage = useMemo(() => {
-    const start = (currentPage - 1) * 3;
-    return activeFields.slice(start, start + 3);
-  }, [activeFields, currentPage]);
-
-  const isCurrentPageValid = fieldsOnCurrentPage.every((field) => Boolean(form[field.id]));
-  const isFinalPage = currentPage === totalPages;
-
-  const handleNext = () => {
-    if (isFinalPage) {
-      onComplete(form as any);
-    } else {
-      setCurrentPage(prev => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // Question Block Component
-  const QuestionBlock = ({ label, children }: any) => (
-    <div className="bg-white rounded-[8px] border p-6 space-y-4 transition-colors" style={{ borderColor: "#dadce0" }}>
-      <label className="block text-base font-medium text-[#202124] tracking-tight">
-        <span dangerouslySetInnerHTML={{ __html: label }} />
-        <span className="text-[#d93025] ml-1">*</span>
-      </label>
-      <div>
-        {children}
-      </div>
+// Question Block Component - Moved outside to prevent remounting and focus loss
+const QuestionBlock = ({ label, children }: any) => (
+  <div className="bg-white rounded-[8px] border p-6 space-y-4 transition-colors" style={{ borderColor: "#dadce0" }}>
+    <label className="block text-base font-medium text-[#202124] tracking-tight">
+      <span dangerouslySetInnerHTML={{ __html: label }} />
+      <span className="text-[#d93025] ml-1">*</span>
+    </label>
+    <div>
+      {children}
     </div>
-  );
+  </div>
+);
+
+export default function Demographics({ onComplete, content }: Props) {
 
   const renderFieldInput = (field: any) => {
     const value = form[field.id] || "";
