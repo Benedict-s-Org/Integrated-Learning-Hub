@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "../../../context/AuthContext";
+import { Edit2 } from "lucide-react";
 
 interface Props {
   taskName: string;
@@ -17,6 +19,7 @@ export default function PredictionScreen({
 }: Props) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { isAdmin } = useAuth();
 
   const numValue = parseInt(value);
   const minVal = cmsContent?.min_val ?? 1;
@@ -33,7 +36,20 @@ export default function PredictionScreen({
 
   return (
     <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
-      <div className="max-w-[720px] mx-auto space-y-3">
+      <div className="max-w-[720px] mx-auto space-y-3 relative group">
+        {/* Admin Edit Shortcut */}
+        {isAdmin && (
+          <div className="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={() => window.alert(`Navigate to Admin Panel -> Content Editing -> ${taskName.includes('1') ? 'Task 1' : 'Task 2'} Prediction to edit this page`)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#4285f4] text-white rounded-[4px] text-xs font-medium shadow-sm hover:bg-blue-600 transition-all"
+              title="Edit Page Content"
+            >
+              <Edit2 size={12} />
+              <span>Edit Page</span>
+            </button>
+          </div>
+        )}
         
         {/* Main Header Block */}
         <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
