@@ -62,10 +62,7 @@ export default function SurveyEditor() {
             title: "📚 Past Experience",
             description: "Tell us about your previous background."
           },
-          check: {
-            title: "✅ Comprehension Check",
-            description: "When you made your time predictions, who were you predicting for?"
-          }
+
         },
         option_self: "Myself",
         option_other: "Other Students",
@@ -171,8 +168,7 @@ export default function SurveyEditor() {
           { key: 'optimism', icon: Info, title: "Optimism Scale", border: "border-l-blue-500" },
           { key: 'thinking', icon: HelpCircle, title: "Thinking Style (NFC)", border: "border-l-emerald-500" },
           { key: 'perception', icon: MessageSquare, title: "Task Perception", border: "border-l-amber-500" },
-          { key: 'experience', icon: Type, title: "Past Experience", border: "border-l-violet-500" },
-          { key: 'check', icon: ClipboardCheck, title: "Comprehension Check", border: "border-l-rose-500" }
+          { key: 'experience', icon: Type, title: "Past Experience", border: "border-l-violet-500" }
         ].map((sec, idx) => (
           <DesignerCard key={sec.key} icon={sec.icon} title={sec.title} sectionId={`Core Section ${idx + 1}`} borderColor={sec.border}>
              <RichTextEditor
@@ -193,34 +189,7 @@ export default function SurveyEditor() {
                     sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], description: v } }
                 })}
               />
-              {sec.key === 'check' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-50">
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Self Option Label</label>
-                      <input 
-                        value={content.option_self}
-                        onChange={(e) => setContent({ ...content, option_self: e.target.value })}
-                        className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 outline-none text-sm font-bold"
-                      />
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Other Option Label</label>
-                      <input 
-                        value={content.option_other}
-                        onChange={(e) => setContent({ ...content, option_other: e.target.value })}
-                        className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 outline-none text-sm font-bold"
-                      />
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unsure Option Label</label>
-                      <input 
-                        value={content.option_unsure}
-                        onChange={(e) => setContent({ ...content, option_unsure: e.target.value })}
-                        className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 outline-none text-sm font-bold"
-                      />
-                   </div>
-                </div>
-              )}
+
           </DesignerCard>
         ))}
 

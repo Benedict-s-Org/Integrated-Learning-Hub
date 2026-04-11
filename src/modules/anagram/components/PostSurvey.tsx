@@ -113,7 +113,6 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
     form.pastPsychExperience > 0;
 
   const isPage3Valid =
-    form.manipulationCheck !== "" &&
     (content?.customQuestions || []).every((q: any) => 
       !q.enabled || (form.dynamicResponses?.[q.id] > 0)
     );
@@ -339,38 +338,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {currentPage === 3 && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
-            {/* Section 5: Manipulation Check */}
-            <div className="bg-white rounded-[8px] border p-6 space-y-4" style={{ borderColor: "#dadce0" }}>
-              <div className="space-y-1 text-left">
-                <h2 className="text-base font-medium text-[#202124]">
-                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.title }} />
-                  <span className="text-[#d93025] ml-1">*</span>
-                </h2>
-                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.description }} />
-              </div>
-              <div className="space-y-3 mt-3">
-                {[
-                  { value: "self", label: displayContent.option_self || "Myself" },
-                  { value: "other", label: displayContent.option_other || "Other students" },
-                  { value: "unsure", label: displayContent.option_unsure || "I'm not sure" },
-                ].map((opt) => (
-                  <label
-                    key={opt.value}
-                    className="flex items-center gap-3 py-1 cursor-pointer hover:bg-[#f8f9fa] rounded-md px-2 -mx-2 transition-colors"
-                    onClick={() => update("manipulationCheck", opt.value)}
-                  >
-                    <div className="relative flex items-center shrink-0">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                        form.manipulationCheck === opt.value ? "border-[#673ab7]" : "border-[#5f6368]"
-                      }`}>
-                        {form.manipulationCheck === opt.value && <div className="w-2.5 h-2.5 rounded-full bg-[#673ab7]" />}
-                      </div>
-                    </div>
-                    <span className="text-sm text-[#202124]">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+
 
             {/* Dynamic Questions from CMS */}
             {(content?.customQuestions || []).filter((q: any) => q.enabled).map((q: any) => (

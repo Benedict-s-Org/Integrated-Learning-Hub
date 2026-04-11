@@ -109,13 +109,7 @@ export default function Welcome({ groupId, onStart }: Props) {
                 {displayContent.study_info_items.map((item: string, idx: number) => (
                   <p key={idx} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: item }} />
                 ))}
-                <div className="bg-[#f8f9fa] p-3 rounded border border-gray-200 inline-block mt-2">
-                  <strong className="text-[#673ab7]" dangerouslySetInnerHTML={{ __html: displayContent.group_label || "Your assigned group:" }} />{" "}
-                  <span dangerouslySetInnerHTML={{ __html: groupId === "self" 
-                    ? (displayContent.predict_self_text || 'You will predict for "yourself"')
-                    : (displayContent.predict_other_text || 'You will predict for "other students"') 
-                  }} />
-                </div>
+
               </div>
             </div>
           </div>

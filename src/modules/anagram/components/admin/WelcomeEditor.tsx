@@ -169,25 +169,6 @@ export default function WelcomeEditor() {
           />
         </DesignerCard>
  
-        {/* Group Assignment Card */}
-        <DesignerCard icon={Target} title="Group Assignment Messaging" sectionId="Section 4" borderColor="border-l-purple-500">
-           <RichTextEditor
-             label="Group Assignment Header"
-             value={content.group_label}
-             onChange={(v) => setContent({ ...content, group_label: v })}
-           />
-           <RichTextEditor
-             label="Description for 'Self' Group"
-             value={content.predict_self_text}
-             onChange={(v) => setContent({ ...content, predict_self_text: v })}
-           />
-           <RichTextEditor
-             label="Description for 'Other' Group"
-             value={content.predict_other_text}
-             onChange={(v) => setContent({ ...content, predict_other_text: v })}
-           />
-        </DesignerCard>
-
       </div>
 
       {/* Info Tip */}

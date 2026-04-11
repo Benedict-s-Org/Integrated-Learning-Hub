@@ -72,9 +72,7 @@ export default function App() {
   const [isCmsLoaded, setIsCmsLoaded] = useState(false);
 
   const [participantId] = useState(() => generateId());
-  const [groupId] = useState<"self" | "other">(() =>
-    Math.random() < 0.5 ? "self" : "other"
-  );
+  const [groupId] = useState<"self" | "other">("self");
 
   useEffect(() => {
     const loadNotionQuestions = async () => {
