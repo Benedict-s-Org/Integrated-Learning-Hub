@@ -29,7 +29,10 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
           input_placeholder: "Enter seconds",
           min_val: 1,
           max_val: 600,
-          confirm_button: "Confirm Prediction →"
+          confirm_button: "Confirm Prediction →",
+          unit_label: "seconds/puzzle",
+          validation_error_template: "Please enter a number between {min} and {max}",
+          result_preview_template: "Predicted: <strong class=\"text-[#673ab7]\">{val}s</strong> / puzzle"
         });
       }
     };
@@ -171,6 +174,46 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
               value={content.confirm_button}
               onChange={(v) => setContent({ ...content, confirm_button: v })}
             />
+          </div>
+        </div>
+ 
+        {/* Labels & Formatting Card */}
+        <div className="bg-white rounded-2xl border-l-[6px] border-l-slate-400 border border-slate-200 shadow-sm p-6 space-y-6 group hover:shadow-md transition-all">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center">
+              <Type size={18} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-800 tracking-tight">Labels & Formatting</h4>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Section 3</span>
+            </div>
+          </div>
+          <div className="space-y-4">
+             <RichTextEditor
+               label="Unit Label (e.g., seconds/puzzle)"
+               value={content.unit_label}
+               onChange={(v) => setContent({ ...content, unit_label: v })}
+             />
+             <div className="space-y-1">
+               <RichTextEditor
+                 label="Validation Error Template"
+                 value={content.validation_error_template}
+                 onChange={(v) => setContent({ ...content, validation_error_template: v })}
+               />
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                 Tip: Use {`{min}`} and {`{max}`} placeholders.
+               </p>
+             </div>
+             <div className="space-y-1">
+               <RichTextEditor
+                 label="Result Preview Template (Shown after input)"
+                 value={content.result_preview_template}
+                 onChange={(v) => setContent({ ...content, result_preview_template: v })}
+               />
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                 Tip: Use {`{val}`} placeholder.
+               </p>
+             </div>
           </div>
         </div>
       </div>

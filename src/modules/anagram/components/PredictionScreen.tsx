@@ -98,16 +98,14 @@ export default function PredictionScreen({
                   value.length > 0 ? "border-[#d93025] text-[#d93025]" : "border-gray-300 text-[#202124]"
                 }`}
               />
-              <span className="text-[#5f6368] text-sm">
-                seconds/puzzle
-              </span>
+              <span className="text-[#5f6368] text-sm" dangerouslySetInnerHTML={{ __html: cmsContent?.unit_label || "seconds/puzzle" }} />
             </div>
 
             {/* Validation hint */}
             {value.length > 0 && !isValid && (
               <p className="text-sm text-[#d93025] flex items-center gap-1 mt-1">
                 <svg aria-hidden="true" className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>
-                Please enter a number between {minVal} and {maxVal}
+                <span dangerouslySetInnerHTML={{ __html: (cmsContent?.validation_error_template || "Please enter a number between {min} and {max}").replace("{min}", minVal.toString()).replace("{max}", maxVal.toString()) }} />
               </p>
             )}
           </div>
@@ -115,26 +113,26 @@ export default function PredictionScreen({
 
         {/* Submit Block */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid}
-            className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
-              isValid
-                ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
-                : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
-            }`}
-          >
-            <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button ? cmsContent.confirm_button.replace("→", "").trim() : "Submit" }} />
-          </button>
-          
-          <div className="flex-1 flex justify-end">
-             {isValid && (
-               <div className="text-[#5f6368] text-sm">
-                 Predicted: <strong className="text-[#673ab7]">{numValue}s</strong> / puzzle
-               </div>
-             )}
+            <button
+              onClick={handleSubmit}
+              disabled={!isValid}
+              className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+                isValid
+                  ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                  : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+              }`}
+            >
+              <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button ? cmsContent.confirm_button.replace("→", "").trim() : "Submit" }} />
+            </button>
+            
+            <div className="flex-1 flex justify-end">
+               {isValid && (
+                 <div className="text-[#5f6368] text-sm">
+                   <span dangerouslySetInnerHTML={{ __html: (cmsContent?.result_preview_template || "Predicted: <strong class=\"text-[#673ab7]\">{val}s</strong> / puzzle").replace("{val}", numValue.toString()) }} />
+                 </div>
+               )}
+            </div>
           </div>
-        </div>
 
       </div>
     </div>

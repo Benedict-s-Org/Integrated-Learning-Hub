@@ -55,23 +55,23 @@ export default function TaskComplete({ result, onNext, isLast, cmsContent }: Pro
               <p className="text-xl font-medium text-[#1a73e8]">
                 {correct}/{result.responses.length}
               </p>
-              <p className="text-xs text-[#5f6368] mt-1">Correct</p>
+              <p className="text-xs text-[#5f6368] mt-1" dangerouslySetInnerHTML={{ __html: cmsContent?.stat_correct_label || "Correct" }} />
             </div>
             <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
               <p className="text-xl font-medium text-[#f29900]">{skipped}</p>
-              <p className="text-xs text-[#5f6368] mt-1">Skipped</p>
+              <p className="text-xs text-[#5f6368] mt-1" dangerouslySetInnerHTML={{ __html: cmsContent?.stat_skipped_label || "Skipped" }} />
             </div>
             <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
               <p className="text-xl font-medium text-[#188038]">
                 {result.predictionSeconds}s
               </p>
-              <p className="text-xs text-[#5f6368] mt-1">Predicted / question</p>
+              <p className="text-xs text-[#5f6368] mt-1" dangerouslySetInnerHTML={{ __html: (cmsContent?.stat_predicted_label || "Predicted / question").replace('s', '') }} />
             </div>
             <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
               <p className="text-xl font-medium text-[#673ab7]">
                 {totalTime}s
               </p>
-              <p className="text-xs text-[#5f6368] mt-1">Actual total time</p>
+              <p className="text-xs text-[#5f6368] mt-1" dangerouslySetInnerHTML={{ __html: (cmsContent?.stat_actual_label || "Actual total time").replace('s', '') }} />
             </div>
           </div>
 
@@ -116,15 +116,14 @@ export default function TaskComplete({ result, onNext, isLast, cmsContent }: Pro
                   }`}
                 >
                   <span className="font-medium">
-                    Q{i + 1}: {r.letters}
+                    {cmsContent?.breakdown_q_prefix || "Q"}{i + 1}: {r.letters}
                   </span>
-                  <span>
-                    {r.skipped
-                      ? "Skipped"
+                  <span dangerouslySetInnerHTML={{ __html: r.skipped
+                      ? (cmsContent?.breakdown_skipped_text || "Skipped")
                       : r.isCorrect
-                      ? `✓ ${r.userAnswer} (${r.timeTaken}s)`
-                      : `✗ (${r.timeTaken}s, ${r.attempts} tries)`}
-                  </span>
+                      ? (cmsContent?.breakdown_correct_template || "✓ {ans} ({timer}s)").replace("{ans}", r.userAnswer).replace("{timer}", r.timeTaken.toString())
+                      : (cmsContent?.breakdown_incorrect_template || "✗ ({timer}s, {tries} tries)").replace("{timer}", r.timeTaken.toString()).replace("{tries}", r.attempts.toString())
+                  }} />
                 </div>
               ))}
             </div>

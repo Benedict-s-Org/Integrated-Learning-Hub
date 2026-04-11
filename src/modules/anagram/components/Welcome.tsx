@@ -44,7 +44,10 @@ export default function Welcome({ groupId, onStart }: Props) {
       "Your data will be used for research purposes only"
     ],
     consent_text: "I understand the study and agree to participate",
-    start_button_text: "Start Experiment →"
+    start_button_text: "Start Experiment →",
+    group_label: "Your assigned group:",
+    predict_self_text: 'You will predict for "yourself"',
+    predict_other_text: 'You will predict for "other students"'
   };
 
   if (cmsLoading && !content) {
@@ -107,10 +110,11 @@ export default function Welcome({ groupId, onStart }: Props) {
                   <p key={idx} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: item }} />
                 ))}
                 <div className="bg-[#f8f9fa] p-3 rounded border border-gray-200 inline-block mt-2">
-                  <strong className="text-[#673ab7]">Your assigned group:</strong>{" "}
-                  {groupId === "self"
-                    ? 'You will predict for "yourself"'
-                    : 'You will predict for "other students"'}
+                  <strong className="text-[#673ab7]" dangerouslySetInnerHTML={{ __html: displayContent.group_label || "Your assigned group:" }} />{" "}
+                  <span dangerouslySetInnerHTML={{ __html: groupId === "self" 
+                    ? (displayContent.predict_self_text || 'You will predict for "yourself"')
+                    : (displayContent.predict_other_text || 'You will predict for "other students"') 
+                  }} />
                 </div>
               </div>
             </div>

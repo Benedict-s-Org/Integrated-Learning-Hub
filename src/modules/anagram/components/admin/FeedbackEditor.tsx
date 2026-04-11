@@ -23,7 +23,20 @@ export default function FeedbackEditor({ cmsKey, taskLabel }: Props) {
           title: "Task Complete!",
           success_msg: "Great job! You were faster than you predicted.",
           failure_msg: "You were a bit slower than you predicted.",
-          continue_button: "Continue to Next Phase →"
+          continue_button: "Continue to Next Phase →",
+          stat_correct_label: "Correct",
+          stat_skipped_label: "Skipped",
+          stat_predicted_label: "Predicted / question",
+          stat_actual_label: "Actual total time",
+          pfi_label: "Planning Fallacy Index (PFI)",
+          pfi_invalid_text: "N/A (invalid data — all skipped)",
+          pfi_underestimate_text: "You underestimated the time needed",
+          pfi_overestimate_text: "You overestimated the time needed",
+          breakdown_label: "Question breakdown:",
+          breakdown_q_prefix: "Q",
+          breakdown_skipped_text: "Skipped",
+          breakdown_correct_template: "✓ {ans} ({timer}s)",
+          breakdown_incorrect_template: "✗ ({timer}s, {tries} tries)"
         });
       }
     };
@@ -101,6 +114,56 @@ export default function FeedbackEditor({ cmsKey, taskLabel }: Props) {
               value={content.continue_button}
               onChange={(v) => setContent({ ...content, continue_button: v })}
             />
+          </div>
+        </div>
+ 
+        {/* Detailed Stats & Labels Card */}
+        <div className="bg-white rounded-2xl border-l-[6px] border-l-slate-400 border border-slate-200 shadow-sm p-6 space-y-6 group hover:shadow-md transition-all">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center">
+              <BarChart3 size={18} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-800 tracking-tight">Detailed Stats & Labels</h4>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Section 2</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <div className="space-y-4">
+              <h5 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-1">Stat Card Labels</h5>
+              <RichTextEditor label="Correct Stat" value={content.stat_correct_label} onChange={(v) => setContent({ ...content, stat_correct_label: v })} />
+              <RichTextEditor label="Skipped Stat" value={content.stat_skipped_label} onChange={(v) => setContent({ ...content, stat_skipped_label: v })} />
+              <RichTextEditor label="Predicted Stat" value={content.stat_predicted_label} onChange={(v) => setContent({ ...content, stat_predicted_label: v })} />
+              <RichTextEditor label="Actual Stat" value={content.stat_actual_label} onChange={(v) => setContent({ ...content, stat_actual_label: v })} />
+            </div>
+            
+            <div className="space-y-4">
+              <h5 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-1">PFI Messaging</h5>
+              <RichTextEditor label="PFI Main Label" value={content.pfi_label} onChange={(v) => setContent({ ...content, pfi_label: v })} />
+              <RichTextEditor label="Invalid Data Text" value={content.pfi_invalid_text} onChange={(v) => setContent({ ...content, pfi_invalid_text: v })} />
+              <RichTextEditor label="Underestimate Msg" value={content.pfi_underestimate_text} onChange={(v) => setContent({ ...content, pfi_underestimate_text: v })} />
+              <RichTextEditor label="Overestimate Msg" value={content.pfi_overestimate_text} onChange={(v) => setContent({ ...content, pfi_overestimate_text: v })} />
+            </div>
+          </div>
+ 
+          <div className="pt-6 border-t border-slate-100 space-y-4">
+            <h5 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-1">Question Breakdown Formatting</h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <RichTextEditor label="Breakdown Title" value={content.breakdown_label} onChange={(v) => setContent({ ...content, breakdown_label: v })} />
+              <RichTextEditor label="Question Prefix" value={content.breakdown_q_prefix} onChange={(v) => setContent({ ...content, breakdown_q_prefix: v })} />
+              <RichTextEditor label="Skipped Text" value={content.breakdown_skipped_text} onChange={(v) => setContent({ ...content, breakdown_skipped_text: v })} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-1">
+                 <RichTextEditor label="Correct Template" value={content.breakdown_correct_template} onChange={(v) => setContent({ ...content, breakdown_correct_template: v })} />
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Placeholders: {`{ans}`}, {`{timer}`}</p>
+               </div>
+               <div className="space-y-1">
+                 <RichTextEditor label="Incorrect Template" value={content.breakdown_incorrect_template} onChange={(v) => setContent({ ...content, breakdown_incorrect_template: v })} />
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Placeholders: {`{timer}`}, {`{tries}`}</p>
+               </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, Info, Layout, CheckCircle2, MessageSquare, AlertCircle } from "lucide-react";
+import { Save, Loader2, Info, Layout, CheckCircle2, MessageSquare, AlertCircle, Target } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 export default function WelcomeEditor() {
@@ -32,7 +32,10 @@ export default function WelcomeEditor() {
             "Your data will be used for research purposes only"
           ],
           consent_text: "I understand the study and agree to participate",
-          start_button_text: "Start Experiment →"
+          start_button_text: "Start Experiment →",
+          group_label: "Your assigned group:",
+          predict_self_text: 'You will predict for "yourself"',
+          predict_other_text: 'You will predict for "other students"'
         });
       }
     };
@@ -164,6 +167,25 @@ export default function WelcomeEditor() {
             value={content.start_button_text}
             onChange={(v) => setContent({ ...content, start_button_text: v })}
           />
+        </DesignerCard>
+ 
+        {/* Group Assignment Card */}
+        <DesignerCard icon={Target} title="Group Assignment Messaging" sectionId="Section 4" borderColor="border-l-purple-500">
+           <RichTextEditor
+             label="Group Assignment Header"
+             value={content.group_label}
+             onChange={(v) => setContent({ ...content, group_label: v })}
+           />
+           <RichTextEditor
+             label="Description for 'Self' Group"
+             value={content.predict_self_text}
+             onChange={(v) => setContent({ ...content, predict_self_text: v })}
+           />
+           <RichTextEditor
+             label="Description for 'Other' Group"
+             value={content.predict_other_text}
+             onChange={(v) => setContent({ ...content, predict_other_text: v })}
+           />
         </DesignerCard>
 
       </div>
