@@ -367,12 +367,12 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               <label className="block text-base font-medium text-[#202124]">
                 Any comments or feedback? (optional)
               </label>
-              <input
-                type="text"
+              <textarea
                 value={form.comments}
                 onChange={(e) => update("comments", e.target.value)}
                 placeholder="Your answer"
-                className="w-full md:w-3/4 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent"
+                rows={2}
+                className="w-full md:w-3/4 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent resize-y min-h-[44px]"
               />
             </div>
           </div>

@@ -121,12 +121,13 @@ export default function Demographics({ onComplete, content }: Props) {
       
       case 'short_text':
         return (
-          <input
-            type="text"
+          <textarea
             value={value}
             onChange={(e) => update(field.id, e.target.value)}
             placeholder={field.placeholder || "Your answer"}
-            className="w-full md:w-2/3 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent"
+            rows={1}
+            className="w-full md:w-2/3 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent resize-y min-h-[32px] overflow-y-auto"
+            style={{ height: value.includes('\n') ? 'auto' : '32px' }}
           />
         );
 

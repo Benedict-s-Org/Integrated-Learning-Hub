@@ -78,8 +78,9 @@ function RichTextEditor({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!multiline && e.key === 'Enter') {
-      e.preventDefault();
+    // Always allow Enter to insert a new line
+    if (e.key === 'Enter') {
+      // Don't prevent default, let it insert a newline
     }
     
     // Shortcuts
@@ -209,7 +210,7 @@ function RichTextEditor({
           }}
           onKeyDown={handleKeyDown}
           className={`w-full px-5 py-4 bg-transparent outline-none text-slate-700 leading-relaxed min-h-[44px] relative
-            ${multiline ? 'min-h-[120px] resize-y overflow-auto' : 'flex items-center whitespace-nowrap overflow-x-auto overflow-y-hidden'}
+            ${multiline ? 'min-h-[120px] resize-y overflow-auto' : 'min-h-[44px] overflow-y-auto whitespace-pre-wrap'}
             ${!value && 'before:content-[attr(data-placeholder)] before:text-slate-400 before:absolute before:left-5 before:top-4 before:pointer-events-none before:font-medium text-sm'}
           `}
           data-placeholder={placeholder}

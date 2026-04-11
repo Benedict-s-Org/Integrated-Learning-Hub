@@ -214,6 +214,12 @@ Deno.serve(async (req: Request) => {
               "Time Taken (ms)": { number: res.timeTakenMs || 0 },
               "Submitted At": res.submittedAt ? { date: { start: res.submittedAt } } : undefined,
               "Valid Answers Snapshot": { rich_text: [{ text: { content: res.validAnswersSnapshot || "" } }] },
+              "Hint Stage": { select: { name: res.hintStage || "none" } },
+              "Revealed 1st Letter": { rich_text: [{ text: { content: res.revealedFirstLetter || "" } }] },
+              "Revealed Last Letter": { rich_text: [{ text: { content: res.revealedLastLetter || "" } }] },
+              ...(res.hintFirstLetterTimeSec != null ? { "Hint 1st Letter Time (sec)": { number: res.hintFirstLetterTimeSec } } : {}),
+              ...(res.hintLastLetterTimeSec != null ? { "Hint Last Letter Time (sec)": { number: res.hintLastLetterTimeSec } } : {}),
+              ...(res.hintGaveUpTimeSec != null ? { "Hint Gave Up Time (sec)": { number: res.hintGaveUpTimeSec } } : {}),
               "Run": { relation: [{ id: runPage.id }] },
               ...(res.questionId ? { "Question": { relation: [{ id: res.questionId }] } } : {})
             }

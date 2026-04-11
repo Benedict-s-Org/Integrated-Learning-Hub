@@ -286,9 +286,9 @@ export default function App() {
     setPostSurvey(data);
     setPhase("debrief");
 
-    const logToNotion = async () => {
+    const logToSheets = async () => {
       try {
-        const { postRun } = await import("./services/notionLogger");
+        const { postRunToGoogleSheet } = await import("./services/googleSheetsLogger");
         const getDeviceBrowser = () => {
            if (typeof navigator !== 'undefined') return navigator.userAgent;
            return "Unknown";
@@ -344,12 +344,12 @@ export default function App() {
           ]
         };
 
-        await postRun(payload);
+        await postRunToGoogleSheet(payload);
       } catch (err) {
-        console.error("Failed to log to Notion silently:", err);
+        console.error("Failed to log to Google Sheets silently:", err);
       }
     };
-    logToNotion();
+    logToSheets();
   }, [participantId, trialResult, task1Result, task2Result]);
 
   const targetLabel = groupId === "self" ? "you" : "other students";

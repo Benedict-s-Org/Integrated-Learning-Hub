@@ -159,14 +159,15 @@ export default function FormRenderer({ definition, onSubmit, submitText = "Submi
               {item.title}
               {item.required && <span className="text-[#d93025] ml-1">*</span>}
             </p>
-            <input
-              type="text"
+            <textarea
               value={answers[item.id] ?? ""}
               onChange={(e) => setAnswer(item.id, e.target.value)}
               placeholder={item.placeholder || "Your answer"}
-              className="w-full md:w-2/3 border-b-2 pb-1 bg-transparent focus:outline-none transition-colors text-sm text-[#202124]"
+              rows={1}
+              className="w-full md:w-2/3 border-b-2 pb-1 bg-transparent focus:outline-none transition-colors text-sm text-[#202124] resize-y min-h-[32px] overflow-y-auto"
               style={{
                 borderColor: hasError ? "#d93025" : answers[item.id] ? primary : "#dadce0",
+                height: (answers[item.id] || "").includes('\n') ? 'auto' : '32px'
               }}
             />
             {hasError && (
