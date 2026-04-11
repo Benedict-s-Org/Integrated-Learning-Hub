@@ -93,6 +93,8 @@ Deno.serve(async (req: Request) => {
       const activeParam = url.searchParams.get("active");
       const isActive = activeParam !== "false";
       const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+      // Allow caller to override the DB; fall back to hardcoded default
+      const questionDbId = url.searchParams.get("databaseId") || DB_QUESTIONS;
 
       // Helper for Notion pagination
       const fetchAllResults = async (databaseId: string) => {
@@ -126,7 +128,7 @@ Deno.serve(async (req: Request) => {
       };
 
       try {
-        const results = await fetchAllResults(DB_QUESTIONS);
+        const results = await fetchAllResults(questionDbId);
         const allResults = results.map((page: any) => {
           const props = page.properties;
           return {
@@ -262,6 +264,47 @@ Deno.serve(async (req: Request) => {
       }
 
       return createCORSResponse({ success: true, message: "Relations already exist." }, 200, req);
+    }
+
+    // ── 4. action=update-answers ─────────────────────────────────────────
+    if (action === "update-answers" && req.method === "POST") {
+      const { pageId, answers } = body;
+
+      if (!pageId || !Array.isArray(answers) || answers.length === 0) {
+        return createCORSResponse(
+          { error: "Missing required fields: pageId (string) and answers (string[])" },
+          400, req
+        );
+      }
+
+      // Build the multi_select array from the provided answer strings
+      const multiSelectValues = answers.map((a: string) => ({ name: a }));
+
+      const patchResp = await fetch(`${NOTION_API}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: notionHeaders(notionToken),
+        body: JSON.stringify({
+          properties: {
+            "Valid answers": {
+              multi_select: multiSelectValues,
+            },
+          },
+        }),
+      });
+
+      if (!patchResp.ok) {
+        const errText = await patchResp.text();
+        return createCORSResponse(
+          { error: "Notion update failed", details: errText },
+          500, req
+        );
+      }
+
+      const patchData = await patchResp.json();
+      return createCORSResponse(
+        { success: true, pageId, updatedAnswers: answers, notionUrl: patchData.url },
+        200, req
+      );
     }
 
     return createCORSResponse({ error: `Invalid action: ${action}`, url: req.url }, 404, req);

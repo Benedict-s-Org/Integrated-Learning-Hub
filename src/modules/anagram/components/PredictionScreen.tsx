@@ -32,96 +32,94 @@ export default function PredictionScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center p-4">
-      <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8 space-y-8">
-        <div className="text-center">
-          <div className="text-4xl mb-3">⏱️</div>
-          <h2 className="text-2xl font-bold text-gray-900" dangerouslySetInnerHTML={{ __html: cmsContent?.title || "Time Prediction" }} />
+    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
+      <div className="max-w-[720px] mx-auto space-y-3">
+        
+        {/* Main Header Block */}
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">⏱️</div>
+              <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: cmsContent?.title || "Time Prediction" }} />
+            </div>
+
+            {/* Task info */}
+            <div className="bg-[#f8f9fa] rounded p-4 space-y-1 border mt-4" style={{ borderColor: "#dadce0" }}>
+              <p className="font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: taskName }} />
+              <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: taskDescription }} />
+            </div>
+          </div>
         </div>
 
-        {/* Task info */}
-        <div className="bg-indigo-50 rounded-xl p-5 space-y-2">
-          <p className="text-center font-semibold text-indigo-800" dangerouslySetInnerHTML={{ __html: taskName }} />
-          <p className="text-center text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: taskDescription }} />
-        </div>
-
-        {/* Question */}
-        <div className="text-center">
-          <p className="text-gray-700 text-lg">
-            {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-indigo-600\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
+        {/* Question Block */}
+        <div className="bg-white rounded-[8px] border p-6 space-y-6" style={{ borderColor: "#dadce0" }}>
+          <h2 className="text-base font-medium text-[#202124] leading-relaxed">
+            {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-[#673ab7]\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
               <span key={i}>
-                <span dangerouslySetInnerHTML={{ __html: part }} />
-                {i < arr.length - 1 && <strong className="text-indigo-600">{targetLabel}</strong>}
+                <span dangerouslySetInnerHTML={{ __html: part.replace(/text-indigo-600/g, "text-[#673ab7]") }} />
+                {i < arr.length - 1 && <strong className="text-[#673ab7]">{targetLabel}</strong>}
               </span>
             ))}
-          </p>
-        </div>
+            <span className="text-[#d93025] ml-1">*</span>
+          </h2>
 
-        {/* Free input only — no preset buttons to avoid anchoring bias */}
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex items-center gap-3">
-            <input
-              ref={inputRef}
-              type="number"
-              min={1}
-              max={maxVal}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
-              }}
-              placeholder={cmsContent?.input_placeholder || "Enter seconds"}
-              className={`w-40 px-4 py-3 border-2 rounded-xl text-center text-2xl font-bold focus:outline-none transition-all ${
-                isValid
-                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                  : value.length > 0
-                  ? "border-red-300 bg-red-50 text-red-600"
-                  : "border-gray-300 bg-white text-gray-700"
-              }`}
-            />
-            <span className="text-gray-600 font-medium text-lg">
-              seconds<br />
-              <span className="text-sm text-gray-400">per puzzle</span>
-            </span>
+          <div className="flex flex-col items-start gap-2">
+            <div className="flex items-center gap-3 w-full">
+              <input
+                ref={inputRef}
+                type="number"
+                min={1}
+                max={maxVal}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSubmit();
+                }}
+                placeholder={cmsContent?.input_placeholder || "Your answer"}
+                className={`w-32 px-0 py-1.5 border-b focus:border-b-2 focus:outline-none transition-colors text-sm bg-transparent ${
+                  isValid ? "border-[#673ab7] text-[#202124]" :
+                  value.length > 0 ? "border-[#d93025] text-[#d93025]" : "border-gray-300 text-[#202124]"
+                }`}
+              />
+              <span className="text-[#5f6368] text-sm">
+                seconds/puzzle
+              </span>
+            </div>
+
+            {/* Validation hint */}
+            {value.length > 0 && !isValid && (
+              <p className="text-sm text-[#d93025] flex items-center gap-1 mt-1">
+                <svg aria-hidden="true" className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>
+                Please enter a number between {minVal} and {maxVal}
+              </p>
+            )}
           </div>
-
-          {/* Validation hint */}
-          {value.length > 0 && !isValid && (
-            <p className="text-sm text-red-500">
-              Please enter a number between {minVal} and {maxVal}
-            </p>
-          )}
         </div>
 
-        {/* Preview */}
-        <div className="text-center py-2">
-          {isValid ? (
-            <p className="text-lg text-gray-700">
-              Your prediction:{" "}
-              <span className="font-bold text-indigo-600 text-2xl">
-                {numValue}s
-              </span>{" "}
-              per puzzle
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400">
-              Enter your estimated time above
-            </p>
-          )}
+        {/* Submit Block */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+          <button
+            onClick={handleSubmit}
+            disabled={!isValid}
+            className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+              isValid
+                ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+            }`}
+          >
+            <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button ? cmsContent.confirm_button.replace("→", "").trim() : "Submit" }} />
+          </button>
+          
+          <div className="flex-1 flex justify-end">
+             {isValid && (
+               <div className="text-[#5f6368] text-sm">
+                 Predicted: <strong className="text-[#673ab7]">{numValue}s</strong> / puzzle
+               </div>
+             )}
+          </div>
         </div>
 
-        {/* Confirm button */}
-        <button
-          onClick={handleSubmit}
-          disabled={!isValid}
-          className={`w-full py-3 rounded-xl font-semibold text-lg transition-all ${
-            isValid
-              ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg"
-              : "bg-gray-200 text-gray-400 cursor-not-allowed"
-          }`}
-        >
-          <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button || "Confirm Prediction →" }} />
-        </button>
       </div>
     </div>
   );

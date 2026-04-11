@@ -48,9 +48,13 @@ export interface ResponsePayload {
 /**
  * Fetch questions from the Notion Question Bank via Edge Function
  */
-export async function fetchQuestions(tier: string = "Hard", limit: number = 200, active: boolean = true): Promise<NotionQuestion[]> {
+export async function fetchQuestions(
+  tier: string = "Hard",
+  limit: number = 200,
+  active: boolean = true,
+  databaseId?: string
+): Promise<NotionQuestion[]> {
   try {
-    // Standardize on Direct Fetch for better control and reliability over Content-Negotiation (406 errors)
     const functionUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/anagram-notion';
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
@@ -59,12 +63,15 @@ export async function fetchQuestions(tier: string = "Hard", limit: number = 200,
         return [];
     }
 
-    const params = new URLSearchParams({
+    const paramObj: Record<string, string> = {
       action: "questions",
       tier: tier,
       active: String(active),
-      limit: String(limit)
-    });
+      limit: String(limit),
+    };
+    if (databaseId) paramObj.databaseId = databaseId;
+
+    const params = new URLSearchParams(paramObj);
 
     const res = await fetch(`${functionUrl}?${params.toString()}`, {
       method: "GET",
@@ -82,11 +89,14 @@ export async function fetchQuestions(tier: string = "Hard", limit: number = 200,
     return await res.json();
   } catch (error) {
     console.warn("Retrying Notion fetch through standard invoke...");
-    // Fallback if direct fetch is blocked by CORS or other issues
     try {
+        const queryParams: Record<string, string> = {
+          action: "questions", tier, active: String(active), limit: String(limit)
+        };
+        if (databaseId) queryParams.databaseId = databaseId;
         const { data, error: invokeError } = await (supabase.functions.invoke("anagram-notion", {
             method: 'GET',
-            queryParams: { action: "questions", tier, active: String(active), limit: String(limit) }
+            queryParams,
         }) as any);
         if (invokeError) throw invokeError;
         return data || [];
@@ -151,5 +161,40 @@ export async function setupNotionRelations() {
   } catch (error) {
     console.error("Error setting up relations:", error);
     throw error;
+  }
+}
+
+/**
+ * Update the "Valid answers" multi_select for a given Notion question page.
+ * This REPLACES the full list, so always pass existing + new answers.
+ */
+export async function updateValidAnswers(
+  pageId: string,
+  allAnswers: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const functionUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/anagram-notion';
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!functionUrl || !anonKey) throw new Error("Supabase config missing");
+
+    const res = await fetch(`${functionUrl}?action=update-answers`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pageId, answers: allAnswers }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(errData.error || `Update failed: ${res.status}`);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating valid answers:", error);
+    return { success: false, error: error.message };
   }
 }

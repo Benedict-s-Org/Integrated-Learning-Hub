@@ -1,24 +1,98 @@
 import { useState, useEffect } from "react";
 import type { Demographics as DemographicsData } from "../types/experiment";
 
+interface DemoField {
+  id: string;
+  label: string;
+  type: 'number' | 'multiple_choice' | 'dropdown' | 'short_text';
+  options?: string;
+  placeholder?: string;
+}
+
 interface Props {
   onComplete: (data: DemographicsData) => void;
-  content?: any;
+  content?: {
+    title?: string;
+    subtitle?: string;
+    button_text?: string;
+    validation_error?: string;
+    fields?: DemoField[] | Record<string, any>;
+  };
 }
 
 export default function Demographics({ onComplete, content }: Props) {
   const [form, setForm] = useState<Record<string, string>>({});
 
+  const defaultFields: DemoField[] = [
+    {
+      id: "age",
+      label: "Age",
+      type: 'number',
+      placeholder: "Enter your age"
+    },
+    {
+      id: "gender",
+      label: "Gender",
+      type: 'multiple_choice',
+      options: "Male\nFemale\nOther"
+    },
+    {
+      id: "education",
+      label: "Education Level",
+      type: 'dropdown',
+      options: "Secondary school\nUndergraduate student\nBachelor's degree\nMaster's student / degree\nPhD student / degree\nOther"
+    },
+    {
+      id: "language",
+      label: "Native Language",
+      type: 'dropdown',
+      options: "English\nChinese (Mandarin / Cantonese)\nSpanish\nHindi\nArabic\nFrench\nJapanese\nKorean\nOther"
+    },
+    {
+      id: "proficiency",
+      label: "English Proficiency",
+      type: 'multiple_choice',
+      options: "Native speaker\nAdvanced (C1–C2)\nUpper-intermediate (B2)\nIntermediate (B1)\nElementary (A2)\nBeginner (A1)"
+    }
+  ];
+
+  // Derive active fields with migration logic
+  const activeFields: DemoField[] = (() => {
+    if (!content?.fields) return defaultFields;
+    
+    if (Array.isArray(content.fields)) {
+      return content.fields;
+    }
+    
+    if (typeof content.fields === 'object') {
+      return Object.entries(content.fields).map(([key, val]: [string, any]) => ({
+        id: key,
+        ...val,
+        options: val.options?.includes(',') && !val.options?.includes('\n') 
+          ? val.options.split(',').map((s: string) => s.trim()).join('\n')
+          : val.options
+      }));
+    }
+    
+    return defaultFields;
+  })();
+
+  const displayContent = {
+    title: content?.title || "Background Information",
+    subtitle: content?.subtitle || "Please provide some basic information before we begin.",
+    button_text: content?.button_text || "Continue →",
+    validation_error: content?.validation_error || "Please fill in all fields",
+    fields: activeFields
+  };
+
   // Initialize form state when content loads
   useEffect(() => {
-    if (content?.fields && Array.isArray(content.fields)) {
-      const initialForm: Record<string, string> = {};
-      content.fields.forEach((field: any) => {
-        initialForm[field.id] = "";
-      });
-      setForm(initialForm);
-    }
-  }, [content]);
+    const initialForm: Record<string, string> = {};
+    activeFields.forEach((field: DemoField) => {
+      initialForm[field.id] = "";
+    });
+    setForm(initialForm);
+  }, [content, activeFields.length]);
 
   const update = (fieldId: string, value: string) => {
     setForm((prev) => ({ ...prev, [fieldId]: value }));
@@ -30,13 +104,17 @@ export default function Demographics({ onComplete, content }: Props) {
     return optionsStr.split(delimiter).map((s) => s.trim()).filter(Boolean);
   };
 
-  const isValid = content?.fields?.every((field: any) => Boolean(form[field.id]));
+  const isValid = displayContent.fields.length > 0 && 
+                  displayContent.fields.every((field: DemoField) => Boolean(form[field.id]));
 
   // Question Block Component
   const QuestionBlock = ({ label, children }: any) => (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <label className="block text-base font-bold text-slate-800 tracking-tight" dangerouslySetInnerHTML={{ __html: label }} />
-      <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+    <div className="bg-white rounded-[8px] border p-6 space-y-4 transition-colors" style={{ borderColor: "#dadce0" }}>
+      <label className="block text-base font-medium text-[#202124] tracking-tight">
+        <span dangerouslySetInnerHTML={{ __html: label }} />
+        <span className="text-[#d93025] ml-1">*</span>
+      </label>
+      <div>
         {children}
       </div>
     </div>
@@ -55,8 +133,8 @@ export default function Demographics({ onComplete, content }: Props) {
             max="120"
             value={value}
             onChange={(e) => update(field.id, e.target.value)}
-            placeholder={field.placeholder || "Enter number"}
-            className="w-full md:w-1/3 px-0 py-2 border-b-2 border-slate-100 focus:border-indigo-600 focus:outline-none transition-all text-lg font-medium bg-transparent"
+            placeholder={field.placeholder || "Your answer"}
+            className="w-full md:w-1/2 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent"
           />
         );
       
@@ -66,8 +144,8 @@ export default function Demographics({ onComplete, content }: Props) {
             type="text"
             value={value}
             onChange={(e) => update(field.id, e.target.value)}
-            placeholder={field.placeholder || "Type your answer..."}
-            className="w-full md:w-2/3 px-0 py-2 border-b-2 border-slate-100 focus:border-indigo-600 focus:outline-none transition-all text-lg font-medium bg-transparent"
+            placeholder={field.placeholder || "Your answer"}
+            className="w-full md:w-2/3 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent"
           />
         );
 
@@ -77,19 +155,17 @@ export default function Demographics({ onComplete, content }: Props) {
             {options.map((opt) => (
               <label 
                 key={opt} 
-                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                  value === opt.toLowerCase() 
-                    ? "border-indigo-600 bg-indigo-50" 
-                    : "border-slate-50 hover:bg-slate-50"
-                }`}
+                className={`flex items-center gap-3 py-1 cursor-pointer hover:bg-[#f8f9fa] rounded-md px-2 -mx-2 transition-colors`}
                 onClick={() => update(field.id, opt.toLowerCase())}
               >
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                  value === opt.toLowerCase() ? "border-indigo-600" : "border-slate-300"
-                }`}>
-                  {value === opt.toLowerCase() && <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />}
+                <div className="relative flex items-center shrink-0">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                    value === opt.toLowerCase() ? "border-[#673ab7]" : "border-[#5f6368]"
+                  }`}>
+                    {value === opt.toLowerCase() && <div className="w-2.5 h-2.5 rounded-full bg-[#673ab7]" />}
+                  </div>
                 </div>
-                <span className={`text-slate-700 font-bold ${value === opt.toLowerCase() ? "text-indigo-950" : ""}`}>{opt}</span>
+                <span className="text-sm text-[#202124]">{opt}</span>
               </label>
             ))}
           </div>
@@ -100,9 +176,9 @@ export default function Demographics({ onComplete, content }: Props) {
           <select
             value={value}
             onChange={(e) => update(field.id, e.target.value)}
-            className="w-full md:w-2/3 px-4 py-3 border-2 border-slate-100 rounded-xl focus:border-indigo-600 focus:outline-none transition-all bg-white text-slate-700 font-bold appearance-none shadow-sm"
+            className="w-full md:w-1/2 px-3 py-2.5 border border-gray-300 rounded focus:border-[#673ab7] focus:border-2 focus:outline-none transition-all bg-white text-sm text-[#202124] appearance-none"
           >
-            <option value="">Choose...</option>
+            <option value="">Choose</option>
             {options.map((opt) => (
               <option key={opt} value={opt.toLowerCase()}>{opt}</option>
             ))}
@@ -115,42 +191,52 @@ export default function Demographics({ onComplete, content }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4 py-12">
-      <div className="max-w-2xl w-full space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-700">
+    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
+      <div className="max-w-[720px] mx-auto space-y-3">
         
         {/* Main Header Block */}
-        <div className="bg-white rounded-2xl border-t-[10px] border-t-indigo-600 border border-slate-200 p-8 space-y-4 shadow-sm">
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter" dangerouslySetInnerHTML={{ __html: content?.title || "Background Information" }} />
-          <div className="h-1 w-full bg-slate-100 rounded-full" />
-          <p className="text-slate-600 font-medium leading-relaxed" dangerouslySetInnerHTML={{ __html: content?.subtitle || "Please provide some basic information before we begin." }} />
-          <p className="text-red-500 text-xs font-bold uppercase tracking-widest mt-4 flex items-center gap-1">
-            * Required
-          </p>
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
+          <div className="p-6 space-y-3">
+            <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
+            <p className="text-sm text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
+            <div className="pt-2 border-t border-gray-100 mt-4">
+              <p className="text-[#d93025] text-sm font-medium">
+                * Indicates required question
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Render Dynamic Questions */}
-        {content?.fields?.map((field: any) => (
+        {displayContent.fields.map((field: DemoField) => (
           <QuestionBlock key={field.id} label={field.label}>
             {renderFieldInput(field)}
           </QuestionBlock>
         ))}
 
         {/* Submit Block */}
-        <div className="flex flex-col items-center gap-4 py-6">
-          {!isValid && (
-             <p className="text-red-500 text-sm font-black italic animate-pulse" dangerouslySetInnerHTML={{ __html: content?.validation_error || "Please fill in all fields" }} />
-          )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
           <button
             onClick={() => onComplete(form)}
             disabled={!isValid}
-            className={`w-full md:w-auto px-12 py-4 rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95 ${
+            className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
               isValid
-                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100"
-                : "bg-white text-slate-300 border-2 border-slate-100 cursor-not-allowed"
+                ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed"
             }`}
           >
-            <span dangerouslySetInnerHTML={{ __html: content?.button_text || "Continue →" }} />
+            <span dangerouslySetInnerHTML={{ __html: content?.button_text ? content.button_text.replace("→", "").trim() : "Submit" }} />
           </button>
+          
+          <div className="flex-1 flex justify-end">
+             {!isValid && (
+               <div className="text-[#d93025] text-sm flex items-center gap-1">
+                 <svg aria-hidden="true" className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>
+                 <span dangerouslySetInnerHTML={{ __html: content?.validation_error || "Please fill in all required fields" }} />
+               </div>
+             )}
+          </div>
         </div>
       </div>
     </div>

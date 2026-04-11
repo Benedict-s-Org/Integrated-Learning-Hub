@@ -31,102 +31,115 @@ export default function TaskComplete({ result, onNext, isLast, cmsContent }: Pro
   const totalTime = result.responses.reduce((sum, r) => sum + r.timeTaken, 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-violet-50 flex items-center justify-center p-4">
-      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl p-8 space-y-6">
-        <div className="text-center">
-          <div className="text-4xl mb-2">
-            {pfi !== null && pfi > 0 ? "🤔" : "✅"}
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900" dangerouslySetInnerHTML={{ __html: cmsContent?.title || `${result.taskName} Complete!` }} />
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-blue-50 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">
-              {correct}/{result.responses.length}
-            </p>
-            <p className="text-xs text-gray-500">Correct</p>
-          </div>
-          <div className="bg-amber-50 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{skipped}</p>
-            <p className="text-xs text-gray-500">Skipped</p>
-          </div>
-          <div className="bg-emerald-50 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-600">
-              {result.predictionSeconds}s
-            </p>
-            <p className="text-xs text-gray-500">Predicted / question</p>
-          </div>
-          <div className="bg-violet-50 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-violet-600">
-              {totalTime}s
-            </p>
-            <p className="text-xs text-gray-500">Actual total time</p>
-          </div>
-        </div>
-
-        {/* PFI */}
-        <div
-          className={`rounded-xl p-5 text-center ${
-            pfi === null
-              ? "bg-red-50 border-2 border-red-200"
-              : pfi > 0.5
-              ? "bg-amber-50"
-              : "bg-emerald-50"
-          }`}
-        >
-          <p className="text-sm text-gray-500 mb-1" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_label || "Planning Fallacy Index (PFI)" }} />
-          {pfi === null ? (
-            <p className="text-xl font-bold text-red-600" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_invalid_text || "N/A (invalid data — all skipped)" }} />
-          ) : (
-            <>
-              <p className="text-3xl font-bold text-gray-900">
-                {pfi.toFixed(2)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1" dangerouslySetInnerHTML={{ __html: pfi > 0
-                  ? (cmsContent?.pfi_underestimate_text || "You underestimated the time needed")
-                  : (cmsContent?.pfi_overestimate_text || "You overestimated the time needed") }} />
-            </>
-          )}
-        </div>
-
-        {/* Question breakdown */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-600" dangerouslySetInnerHTML={{ __html: cmsContent?.breakdown_label || "Question breakdown:" }} />
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {result.responses.map((r, i) => (
-              <div
-                key={i}
-                className={`flex justify-between items-center px-3 py-2 rounded-lg text-sm ${
-                  r.skipped
-                    ? "bg-red-50 text-red-600"
-                    : r.isCorrect
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-amber-50 text-amber-700"
-                }`}
-              >
-                <span>
-                  Q{i + 1}: {r.letters}
-                </span>
-                <span>
-                  {r.skipped
-                    ? "Skipped"
-                    : r.isCorrect
-                    ? `✓ ${r.userAnswer} (${r.timeTaken}s)`
-                    : `✗ (${r.timeTaken}s, ${r.attempts} tries)`}
-                </span>
+    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
+      <div className="max-w-[720px] mx-auto space-y-3">
+        
+        {/* Main Header Block */}
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">
+                {pfi !== null && pfi > 0 ? "🤔" : "✅"}
               </div>
-            ))}
+              <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: cmsContent?.title || `${result.taskName} Complete!` }} />
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={onNext}
-          className="w-full py-3 rounded-xl font-semibold text-lg bg-violet-600 text-white hover:bg-violet-700 shadow-lg transition-all"
-        >
-          <span dangerouslySetInnerHTML={{ __html: cmsContent?.button_text || (isLast ? "View Results →" : "Continue to Next Task →") }} />
-        </button>
+        {/* Results Block */}
+        <div className="bg-white rounded-[8px] border p-6 space-y-6" style={{ borderColor: "#dadce0" }}>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
+              <p className="text-xl font-medium text-[#1a73e8]">
+                {correct}/{result.responses.length}
+              </p>
+              <p className="text-xs text-[#5f6368] mt-1">Correct</p>
+            </div>
+            <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
+              <p className="text-xl font-medium text-[#f29900]">{skipped}</p>
+              <p className="text-xs text-[#5f6368] mt-1">Skipped</p>
+            </div>
+            <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
+              <p className="text-xl font-medium text-[#188038]">
+                {result.predictionSeconds}s
+              </p>
+              <p className="text-xs text-[#5f6368] mt-1">Predicted / question</p>
+            </div>
+            <div className="bg-[#f8f9fa] border rounded p-4 text-center" style={{ borderColor: "#dadce0" }}>
+              <p className="text-xl font-medium text-[#673ab7]">
+                {totalTime}s
+              </p>
+              <p className="text-xs text-[#5f6368] mt-1">Actual total time</p>
+            </div>
+          </div>
+
+          {/* PFI */}
+          <div
+            className={`rounded border p-5 text-center ${
+              pfi === null
+                ? "bg-[#fce8e6] border-[#f28b82]"
+                : pfi > 0.5
+                ? "bg-[#fef7e0] border-[#fde293]"
+                : "bg-[#e6f4ea] border-[#81c995]"
+            }`}
+          >
+            <p className="text-sm text-[#202124] mb-2 font-medium" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_label || "Planning Fallacy Index (PFI)" }} />
+            {pfi === null ? (
+              <p className="text-lg font-medium text-[#d93025]" dangerouslySetInnerHTML={{ __html: cmsContent?.pfi_invalid_text || "N/A (invalid data — all skipped)" }} />
+            ) : (
+              <>
+                <p className="text-3xl font-medium text-[#202124]">
+                  {pfi.toFixed(2)}
+                </p>
+                <p className="text-xs text-[#5f6368] mt-2" dangerouslySetInnerHTML={{ __html: pfi > 0
+                    ? (cmsContent?.pfi_underestimate_text || "You underestimated the time needed")
+                    : (cmsContent?.pfi_overestimate_text || "You overestimated the time needed") }} />
+              </>
+            )}
+          </div>
+
+          {/* Question breakdown */}
+          <div className="space-y-3 pt-2">
+            <h2 className="text-base font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: cmsContent?.breakdown_label || "Question breakdown:" }} />
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {result.responses.map((r, i) => (
+                <div
+                  key={i}
+                  className={`flex justify-between items-center px-4 py-2.5 rounded text-sm border ${
+                    r.skipped
+                      ? "bg-[#fce8e6] border-[#f28b82] text-[#d93025]"
+                      : r.isCorrect
+                      ? "bg-[#e6f4ea] border-[#81c995] text-[#188038]"
+                      : "bg-[#fef7e0] border-[#fde293] text-[#f29900]"
+                  }`}
+                >
+                  <span className="font-medium">
+                    Q{i + 1}: {r.letters}
+                  </span>
+                  <span>
+                    {r.skipped
+                      ? "Skipped"
+                      : r.isCorrect
+                      ? `✓ ${r.userAnswer} (${r.timeTaken}s)`
+                      : `✗ (${r.timeTaken}s, ${r.attempts} tries)`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Submit Block */}
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={onNext}
+            className="px-6 py-2 rounded-[4px] font-medium text-sm transition-colors bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+          >
+            <span dangerouslySetInnerHTML={{ __html: cmsContent?.button_text || (isLast ? "View Results" : "Continue to Next Task") }} />
+          </button>
+        </div>
       </div>
     </div>
   );

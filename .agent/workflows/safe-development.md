@@ -220,6 +220,18 @@ Whenever a new learning function, interaction mode, or practice system is create
 - **Fresh Context Search**: If a "Target content not found" error occurs twice on the same block, **stop** and `view_file` the entire surrounding context to identify if the file structure has shifted.
 - **Prioritize Documentation Over Infra**: When requested to "update manifest," go straight to the documentation files (`.agent/codebase_manifest.md`) rather than attempting to build data-extraction tools first.
 
+### 26. AI Agent Stability & Success
+**Problem**: Encountering `400 Bad Request` or `500 Internal Server Error` when using high-end models (Claude Opus, Gemini Pro) for complex features.
+
+**Prevention**:
+- **Task Atomic-ization**: Break large features into small, verifiable chunks (e.g., "Create Utility X" -> "Update Component Y"). High-end models have great reasoning but are more likely to time out or error out on "mega-edits" affecting 5+ files.
+- **Respect Model Constraints**: Avoid rigid role-play constraints like *"Do not add any assistant prefill"* when using Claude or Gemini Pro. These models often require their "thinking" block to maintain the API handshake. Forcing them to strip it can lead to protocol violations (400 errors).
+- **Context Health**: If a chat session grows too long (20+ messages), the "attention load" on the model increases the chance of a 500 error. Start a new session for each major new feature, carrying over context via a summary or Knowledge Item.
+- **Surgical Edits**: Use `replace_file_content` for single contiguous logic blocks. Only use `multi_replace_file_content` when the changes are trivial (regex-like) or strictly non-contiguous. A single line-number error in a `multi_replace` call will fail the entire task.
+- **Verification Priority**: After a high-end model performs a big change, **always** perform a `view_file` on the resulting file to ensure no blocks were accidentally truncated or syntactically broken (a common issue in long-model generations).
+
+---
+
 ---
 
 ## 📊 Automatic Error Logging

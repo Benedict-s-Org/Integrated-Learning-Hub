@@ -10,6 +10,8 @@ interface Props {
 
 export default function Welcome({ groupId, onStart }: Props) {
   const [agreed, setAgreed] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = 2;
   const { getContent, loading: cmsLoading } = useCMS();
   const { isAdmin } = useAuth();
   const [content, setContent] = useState<any>(null);
@@ -57,14 +59,14 @@ export default function Welcome({ groupId, onStart }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-8 md:p-10 space-y-8 relative overflow-hidden group">
+    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
+      <div className="max-w-[720px] mx-auto space-y-3 relative group">
         {/* Admin Edit Shortcut */}
         {isAdmin && (
-          <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
             <button 
               onClick={() => window.alert("Navigate to Admin Panel -> Content Editing -> Welcome & Consent to edit this page")}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#4285f4] text-white rounded-[4px] text-xs font-medium shadow-sm hover:bg-blue-600 transition-all"
               title="Edit Page Content"
             >
               <Edit2 size={12} />
@@ -73,82 +75,124 @@ export default function Welcome({ groupId, onStart }: Props) {
           </div>
         )}
 
-        <div className="text-center">
-          <div className="text-6xl mb-6 transform group-hover:scale-110 transition-transform duration-500">🧠</div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
-          <p className="text-slate-500 mt-3 text-lg font-medium max-w-md mx-auto" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
-        </div>
-
-        <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 space-y-4 text-slate-700 relative group/section">
-          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2" dangerouslySetInnerHTML={{ __html: displayContent.study_info_title }} />
-          <div className="space-y-3">
-            {displayContent.study_info_items.map((item: string, idx: number) => (
-              <p key={idx} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: item }} />
-            ))}
-            <p className="bg-white/60 p-3 rounded-lg border border-blue-100 inline-block">
-              <strong className="text-blue-700">Your assigned group:</strong>{" "}
-              {groupId === "self"
-                ? 'You will predict for "yourself"'
-                : 'You will predict for "other students"'}
-            </p>
+        {/* Main Header Block */}
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl transform group-hover:scale-110 transition-transform duration-500">🧠</div>
+              <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
+            </div>
+            <div className="border-t border-gray-100 pt-3 mt-1">
+              <p className="text-[#5f6368] text-sm" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
+            </div>
           </div>
         </div>
 
-        <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-6 space-y-3 text-slate-700">
-          <h2 className="font-bold text-slate-900 text-xl flex items-center gap-2" dangerouslySetInnerHTML={{ __html: displayContent.notes_title }} />
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {displayContent.notes_items.map((item: string, idx: number) => (
-              <li key={idx} className="flex items-start gap-2 text-sm">
-                <span className="text-amber-500 mt-1">•</span>
-                <span dangerouslySetInnerHTML={{ __html: item }} />
-              </li>
-            ))}
-          </ul>
+        {/* Pagination Progress */}
+        <div className="flex items-center gap-2 mb-6 text-[#5f6368] text-sm font-medium">
+          <span>Page {currentPage} of {totalPages}</span>
+          <div className="flex-1 max-w-[200px] h-2.5 bg-[#e8eaed] rounded-full overflow-hidden ml-2">
+            <div className="h-full bg-[#673ab7] transition-all duration-300" style={{ width: `${(currentPage / totalPages) * 100}%` }} />
+          </div>
         </div>
 
-        <div className="space-y-6 pt-4">
-          <label className="flex items-center gap-4 cursor-pointer p-4 rounded-xl hover:bg-slate-50 transition-colors select-none group/consent">
-            <div className="relative flex items-center">
-              <input
-                type="checkbox"
-                id="consent-checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="peer h-6 w-6 cursor-pointer appearance-none rounded-lg border-2 border-slate-300 transition-all checked:border-blue-600 checked:bg-blue-600 focus:outline-none"
-              />
-              <svg
-                className="absolute left-1 top-1 h-4 w-4 stroke-white opacity-0 transition-opacity peer-checked:opacity-100"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+        {currentPage === 1 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4">
+            {/* Info Block 1 */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-4" style={{ borderColor: "#dadce0" }}>
+              <h2 className="text-base font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.study_info_title }} />
+              <div className="space-y-3 text-sm text-[#202124]">
+                {displayContent.study_info_items.map((item: string, idx: number) => (
+                  <p key={idx} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: item }} />
+                ))}
+                <div className="bg-[#f8f9fa] p-3 rounded border border-gray-200 inline-block mt-2">
+                  <strong className="text-[#673ab7]">Your assigned group:</strong>{" "}
+                  {groupId === "self"
+                    ? 'You will predict for "yourself"'
+                    : 'You will predict for "other students"'}
+                </div>
+              </div>
             </div>
-            <span className="text-base font-medium text-slate-700 group-hover/consent:text-slate-900 transition-colors" dangerouslySetInnerHTML={{ __html: displayContent.consent_text }} />
-          </label>
+          </div>
+        )}
 
-          <button
-            onClick={onStart}
-            disabled={!agreed}
-            className={`w-full py-4 rounded-2xl font-bold text-xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 ${
-              agreed
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-200"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-            }`}
-          >
-            {agreed ? (
-              <>
-                <span dangerouslySetInnerHTML={{ __html: displayContent.start_button_text }} />
-              </>
-            ) : (
-              "Please agree to continue"
-            )}
-          </button>
+        {currentPage === 2 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4">
+            {/* Info Block 2 */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-4" style={{ borderColor: "#dadce0" }}>
+              <h2 className="text-base font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.notes_title }} />
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm text-[#202124]">
+                {displayContent.notes_items.map((item: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-[#673ab7] mt-0.5">•</span>
+                    <span dangerouslySetInnerHTML={{ __html: item }} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Consent Block */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-6" style={{ borderColor: "#dadce0" }}>
+              <label className="flex items-center gap-4 cursor-pointer hover:bg-[#f8f9fa] rounded-md px-2 -mx-2 py-1 transition-colors select-none">
+                <div className="relative flex items-center shrink-0">
+                  <input
+                    type="checkbox"
+                    id="consent-checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="peer h-5 w-5 cursor-pointer appearance-none rounded border-2 transition-all checked:border-[#673ab7] checked:bg-[#673ab7] border-[#5f6368] focus:outline-none"
+                  />
+                  <svg
+                    className="absolute left-0.5 top-0.5 h-4 w-4 stroke-white opacity-0 transition-opacity peer-checked:opacity-100 pointer-events-none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <span className="text-sm text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.consent_text }} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Block */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 mt-8 border-t border-gray-200">
+          {currentPage > 1 ? (
+             <button
+               onClick={() => setCurrentPage(p => p - 1)}
+               className="px-6 py-2 rounded-[4px] font-medium text-sm transition-colors text-[#673ab7] hover:bg-purple-50"
+             >
+               Back
+             </button>
+          ) : <div />}
+          
+          {currentPage < totalPages ? (
+             <button
+               onClick={() => setCurrentPage(p => p + 1)}
+               className="px-6 py-2 rounded-[4px] font-medium text-sm transition-colors bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+             >
+               Next
+             </button>
+          ) : (
+            <button
+              onClick={onStart}
+              disabled={!agreed}
+              className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+                agreed
+                  ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                  : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+              }`}
+            >
+              <span dangerouslySetInnerHTML={{ __html: displayContent.start_button_text ? displayContent.start_button_text.replace("→", "").trim() : "Submit" }} />
+            </button>
+          )}
         </div>
       </div>
     </div>

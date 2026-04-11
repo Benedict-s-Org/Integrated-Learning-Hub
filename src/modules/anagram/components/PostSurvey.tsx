@@ -28,29 +28,30 @@ function LikertScale({
 }) {
   const options = Array.from({ length: max - min + 1 }, (_, i) => min + i);
   return (
-    <div className="space-y-2 text-left">
-      <p className="text-sm text-gray-700 font-medium" dangerouslySetInnerHTML={{ __html: label }} />
-      <div className="flex items-center gap-1">
+    <div className="space-y-4 text-left">
+      <p className="text-sm font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: label }} />
+      <div className="flex items-center gap-2 flex-wrap">
         {lowLabel && (
-          <span className="text-xs text-gray-400 w-20 text-right mr-2 shrink-0" dangerouslySetInnerHTML={{ __html: lowLabel }} />
+          <span className="text-xs text-[#70757a] w-16 text-right mr-1 shrink-0" dangerouslySetInnerHTML={{ __html: lowLabel }} />
         )}
-        <div className="flex gap-1.5 flex-1 justify-center">
+        <div className="flex gap-2 flex-1 justify-center flex-wrap">
           {options.map((n) => (
             <button
               key={n}
               onClick={() => onChange(n)}
-              className={`w-10 h-10 rounded-xl text-sm font-bold transition-all border-2 ${
-                value === n
-                  ? "border-blue-600 bg-blue-600 text-white shadow-md scale-110"
-                  : "border-gray-100 hover:border-blue-200 bg-gray-50 text-gray-600 hover:bg-white"
-              }`}
+              className="w-10 h-10 rounded-full text-sm font-medium transition-all border shrink-0 flex items-center justify-center"
+              style={{
+                borderColor: value === n ? "#673ab7" : "#dadce0",
+                backgroundColor: value === n ? "#673ab7" : "transparent",
+                color: value === n ? "#fff" : "#202124",
+              }}
             >
               {n}
             </button>
           ))}
         </div>
         {highLabel && (
-          <span className="text-xs text-gray-400 w-20 ml-2 shrink-0" dangerouslySetInnerHTML={{ __html: highLabel }} />
+          <span className="text-xs text-[#70757a] w-16 ml-1 shrink-0" dangerouslySetInnerHTML={{ __html: highLabel }} />
         )}
       </div>
     </div>
@@ -58,6 +59,8 @@ function LikertScale({
 }
 
 export default function PostSurvey({ groupId, onComplete }: Props) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = 3;
   const { getContent, loading: cmsLoading } = useCMS();
   const { isAdmin } = useAuth();
   const [content, setContent] = useState<any>(null);
@@ -95,21 +98,30 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const allLikertsFilled =
+  const isPage1Valid =
     form.optimism1 > 0 &&
     form.optimism2 > 0 &&
     form.optimism3 > 0 &&
     form.nfc1 > 0 &&
     form.nfc2 > 0 &&
-    form.nfc3 > 0 &&
-    form.pastAnagramExperience > 0 &&
-    form.pastPsychExperience > 0 &&
-    form.manipulationCheck !== "" &&
+    form.nfc3 > 0;
+
+  const isPage2Valid =
     form.task1Difficulty > 0 &&
     form.task2Difficulty > 0 &&
+    form.pastAnagramExperience > 0 &&
+    form.pastPsychExperience > 0;
+
+  const isPage3Valid =
+    form.manipulationCheck !== "" &&
     (content?.customQuestions || []).every((q: any) => 
       !q.enabled || (form.dynamicResponses?.[q.id] > 0)
     );
+
+  const canProceed = 
+    currentPage === 1 ? isPage1Valid : 
+    currentPage === 2 ? isPage2Valid : 
+    isPage3Valid;
 
   // Fallback content if DB fetch fails or is empty
   const defaultSurveyContent = {
@@ -157,14 +169,14 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 middle:from-emerald-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-8 md:p-10 space-y-10 relative group">
+    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
+      <div className="max-w-[720px] mx-auto space-y-3 relative group">
         {/* Admin Edit Shortcut */}
         {isAdmin && (
-          <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
             <button 
               onClick={() => window.alert("Navigate to Admin Panel -> Content Editing -> Post-Experiment Survey to edit this page")}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#4285f4] text-white rounded-[4px] text-xs font-medium shadow-sm hover:bg-blue-600 transition-all"
               title="Edit Page Content"
             >
               <Edit2 size={12} />
@@ -173,202 +185,277 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
           </div>
         )}
 
-        <div className="text-center">
-          <div className="text-5xl mb-4 transform group-hover:rotate-12 transition-transform">📝</div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
-          <p className="text-sm text-slate-500 mt-2 font-medium" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
-        </div>
-
-        {/* Section 1: Optimism */}
-        <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1 text-left">
-            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.title }} />
-            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.description }} />
-          </div>
-          <div className="space-y-6">
-            <LikertScale
-              label="1. I generally expect things to go well for me."
-              value={form.optimism1}
-              onChange={(v) => update("optimism1", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
-            <LikertScale
-              label="2. I rarely expect things to work out the way I want them to."
-              value={form.optimism2}
-              onChange={(v) => update("optimism2", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
-            <LikertScale
-              label="3. I'm always optimistic about my future."
-              value={form.optimism3}
-              onChange={(v) => update("optimism3", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
+          <div className="p-6 space-y-3">
+            <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.title }} />
+            <p className="text-sm text-[#202124]" dangerouslySetInnerHTML={{ __html: displayContent.subtitle }} />
+            <div className="pt-2 border-t border-gray-100 mt-4">
+              <p className="text-[#d93025] text-sm font-medium">
+                * Indicates required question
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Section 2: Need for Cognition */}
-        <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1 text-left">
-            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.title }} />
-            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.description }} />
-          </div>
-          <div className="space-y-6">
-            <LikertScale
-              label="1. I enjoy tasks that require a lot of thinking."
-              value={form.nfc1}
-              onChange={(v) => update("nfc1", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
-            <LikertScale
-              label="2. I prefer complex problems over simple ones."
-              value={form.nfc2}
-              onChange={(v) => update("nfc2", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
-            <LikertScale
-              label="3. Thinking hard and for a long time is not my idea of fun."
-              value={form.nfc3}
-              onChange={(v) => update("nfc3", v)}
-              lowLabel="Disagree"
-              highLabel="Agree"
-            />
+        {/* Pagination Progress */}
+        <div className="flex items-center gap-2 mb-6 text-[#5f6368] text-sm font-medium">
+          <span>Page {currentPage} of {totalPages}</span>
+          <div className="flex-1 max-w-[200px] h-2.5 bg-[#e8eaed] rounded-full overflow-hidden ml-2">
+            <div className="h-full bg-[#673ab7] transition-all duration-300" style={{ width: `${(currentPage / totalPages) * 100}%` }} />
           </div>
         </div>
 
-        {/* Section 3: Task Difficulty */}
-        <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-6 space-y-5">
-          <div className="space-y-1 text-left">
-            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.title }} />
-            <p className="text-xs text-slate-500 font-medium italic" dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.description }} />
-          </div>
-          <div className="space-y-6">
-            <LikertScale
-              label="Task 1 (3–4 letter words)"
-              value={form.task1Difficulty}
-              onChange={(v) => update("task1Difficulty", v)}
-              lowLabel="Very Easy"
-              highLabel="Very Hard"
-            />
-            <LikertScale
-              label="Task 2 (5–6 letter words)"
-              value={form.task2Difficulty}
-              onChange={(v) => update("task2Difficulty", v)}
-              lowLabel="Very Easy"
-              highLabel="Very Hard"
-            />
-          </div>
-        </div>
-
-        {/* Section 4: Past Experience */}
-        <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-6 space-y-5">
-          <h2 className="font-bold text-slate-900 text-lg text-left" dangerouslySetInnerHTML={{ __html: displayContent.sections?.experience?.title }} />
-          <div className="space-y-6">
-            <LikertScale
-              label="How often have you done word puzzles or anagram games before?"
-              value={form.pastAnagramExperience}
-              onChange={(v) => update("pastAnagramExperience", v)}
-              min={1}
-              max={5}
-              lowLabel="Never"
-              highLabel="Very often"
-            />
-            <LikertScale
-              label="How often have you participated in psychology experiments before?"
-              value={form.pastPsychExperience}
-              onChange={(v) => update("pastPsychExperience", v)}
-              min={1}
-              max={5}
-              lowLabel="Never"
-              highLabel="Very often"
-            />
-          </div>
-        </div>
-
-        {/* Section 5: Manipulation Check */}
-        <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-6 space-y-4">
-          <div className="space-y-1 text-left">
-            <h2 className="font-bold text-slate-900 text-lg" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.title }} />
-            <p className="text-sm text-slate-600 font-medium" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.description }} />
-          </div>
-          <div className="flex gap-3">
-            {[
-              { value: "self", label: displayContent.option_self || "Myself" },
-              { value: "other", label: displayContent.option_other || "Other students" },
-              { value: "unsure", label: displayContent.option_unsure || "I'm not sure" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => update("manipulationCheck", opt.value)}
-                className={`flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all border-2 shadow-sm ${
-                  form.manipulationCheck === opt.value
-                    ? "border-blue-600 bg-white text-blue-600 ring-4 ring-blue-50"
-                    : "border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          {form.manipulationCheck &&
-            form.manipulationCheck !== groupId &&
-            form.manipulationCheck !== "unsure" && (
-              <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-bold animate-in slide-in-from-left">
-                <span>⚠️ Note: Selection does not match assigned group.</span>
+        {currentPage === 1 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
+            {/* Section 1: Optimism */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
+              <div className="space-y-1 text-left">
+                <h2 className="text-base font-medium text-[#202124]">
+                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.title }} />
+                  <span className="text-[#d93025] ml-1">*</span>
+                </h2>
+                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.description }} />
               </div>
-            )}
-        </div>
+              <div className="space-y-8 mt-4">
+                <LikertScale
+                  label="1. I generally expect things to go well for me."
+                  value={form.optimism1}
+                  onChange={(v) => update("optimism1", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+                <LikertScale
+                  label="2. I rarely expect things to work out the way I want them to."
+                  value={form.optimism2}
+                  onChange={(v) => update("optimism2", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+                <LikertScale
+                  label="3. I'm always optimistic about my future."
+                  value={form.optimism3}
+                  onChange={(v) => update("optimism3", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+              </div>
+            </div>
 
-        {/* Dynamic Questions from CMS */}
-        {(content?.customQuestions || []).filter((q: any) => q.enabled).map((q: any) => (
-          <div key={q.id} className="bg-slate-50/50 border border-slate-200 rounded-3xl p-8 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <LikertScale
-              label={q.label}
-              value={form.dynamicResponses?.[q.id] || 0}
-              onChange={(v) => {
-                const next = { ...(form.dynamicResponses || {}), [q.id]: v };
-                update("dynamicResponses", next);
-              }}
-              min={q.min}
-              max={q.max}
-              lowLabel={q.lowLabel}
-              highLabel={q.highLabel}
-            />
+            {/* Section 2: Need for Cognition */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
+              <div className="space-y-1 text-left">
+                <h2 className="text-base font-medium text-[#202124]">
+                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.title }} />
+                  <span className="text-[#d93025] ml-1">*</span>
+                </h2>
+                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.description }} />
+              </div>
+              <div className="space-y-8 mt-4">
+                <LikertScale
+                  label="1. I enjoy tasks that require a lot of thinking."
+                  value={form.nfc1}
+                  onChange={(v) => update("nfc1", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+                <LikertScale
+                  label="2. I prefer complex problems over simple ones."
+                  value={form.nfc2}
+                  onChange={(v) => update("nfc2", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+                <LikertScale
+                  label="3. Thinking hard and for a long time is not my idea of fun."
+                  value={form.nfc3}
+                  onChange={(v) => update("nfc3", v)}
+                  lowLabel="Disagree"
+                  highLabel="Agree"
+                />
+              </div>
+            </div>
           </div>
-        ))}
+        )}
 
-        {/* Comments */}
-        <div className="space-y-3 px-2 text-left">
-          <label className="block text-sm font-bold text-slate-700">
-            💬 Any comments or feedback? (optional)
-          </label>
-          <textarea
-            value={form.comments}
-            onChange={(e) => update("comments", e.target.value)}
-            placeholder="Share any thoughts about the experiment..."
-            rows={4}
-            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-emerald-500 focus:bg-white focus:outline-none transition-all resize-none shadow-inner"
-          />
+        {currentPage === 2 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
+            {/* Section 3: Task Difficulty */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
+              <div className="space-y-1 text-left">
+                <h2 className="text-base font-medium text-[#202124]">
+                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.title }} />
+                  <span className="text-[#d93025] ml-1">*</span>
+                </h2>
+                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.perception?.description }} />
+              </div>
+              <div className="space-y-8 mt-4">
+                <LikertScale
+                  label="Task 1 (3–4 letter words)"
+                  value={form.task1Difficulty}
+                  onChange={(v) => update("task1Difficulty", v)}
+                  lowLabel="Very Easy"
+                  highLabel="Very Hard"
+                />
+                <LikertScale
+                  label="Task 2 (5–6 letter words)"
+                  value={form.task2Difficulty}
+                  onChange={(v) => update("task2Difficulty", v)}
+                  lowLabel="Very Easy"
+                  highLabel="Very Hard"
+                />
+              </div>
+            </div>
+
+            {/* Section 4: Past Experience */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
+              <h2 className="text-base font-medium text-[#202124] text-left">
+                 <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.experience?.title }} />
+                 <span className="text-[#d93025] ml-1">*</span>
+              </h2>
+              <div className="space-y-8 mt-4">
+                <LikertScale
+                  label="How often have you done word puzzles or anagram games before?"
+                  value={form.pastAnagramExperience}
+                  onChange={(v) => update("pastAnagramExperience", v)}
+                  min={1}
+                  max={5}
+                  lowLabel="Never"
+                  highLabel="Very often"
+                />
+                <LikertScale
+                  label="How often have you participated in psychology experiments before?"
+                  value={form.pastPsychExperience}
+                  onChange={(v) => update("pastPsychExperience", v)}
+                  min={1}
+                  max={5}
+                  lowLabel="Never"
+                  highLabel="Very often"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPage === 3 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
+            {/* Section 5: Manipulation Check */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-4" style={{ borderColor: "#dadce0" }}>
+              <div className="space-y-1 text-left">
+                <h2 className="text-base font-medium text-[#202124]">
+                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.title }} />
+                  <span className="text-[#d93025] ml-1">*</span>
+                </h2>
+                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.check?.description }} />
+              </div>
+              <div className="space-y-3 mt-3">
+                {[
+                  { value: "self", label: displayContent.option_self || "Myself" },
+                  { value: "other", label: displayContent.option_other || "Other students" },
+                  { value: "unsure", label: displayContent.option_unsure || "I'm not sure" },
+                ].map((opt) => (
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-3 py-1 cursor-pointer hover:bg-[#f8f9fa] rounded-md px-2 -mx-2 transition-colors"
+                    onClick={() => update("manipulationCheck", opt.value)}
+                  >
+                    <div className="relative flex items-center shrink-0">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        form.manipulationCheck === opt.value ? "border-[#673ab7]" : "border-[#5f6368]"
+                      }`}>
+                        {form.manipulationCheck === opt.value && <div className="w-2.5 h-2.5 rounded-full bg-[#673ab7]" />}
+                      </div>
+                    </div>
+                    <span className="text-sm text-[#202124]">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Dynamic Questions from CMS */}
+            {(content?.customQuestions || []).filter((q: any) => q.enabled).map((q: any) => (
+              <div key={q.id} className="bg-white rounded-[8px] border p-6 space-y-4" style={{ borderColor: "#dadce0" }}>
+                <h2 className="text-base font-medium text-[#202124]">
+                  {q.label}
+                  <span className="text-[#d93025] ml-1">*</span>
+                </h2>
+                <LikertScale
+                  label=""
+                  value={form.dynamicResponses?.[q.id] || 0}
+                  onChange={(v) => {
+                    const next = { ...(form.dynamicResponses || {}), [q.id]: v };
+                    update("dynamicResponses", next);
+                  }}
+                  min={q.min}
+                  max={q.max}
+                  lowLabel={q.lowLabel}
+                  highLabel={q.highLabel}
+                />
+              </div>
+            ))}
+
+            {/* Comments */}
+            <div className="bg-white rounded-[8px] border p-6 space-y-4 text-left" style={{ borderColor: "#dadce0" }}>
+              <label className="block text-base font-medium text-[#202124]">
+                Any comments or feedback? (optional)
+              </label>
+              <input
+                type="text"
+                value={form.comments}
+                onChange={(e) => update("comments", e.target.value)}
+                placeholder="Your answer"
+                className="w-full md:w-3/4 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Block */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 mt-8 border-t border-gray-200">
+          {currentPage > 1 ? (
+             <button
+               onClick={() => setCurrentPage(p => p - 1)}
+               className="px-6 py-2 rounded-[4px] font-medium text-sm transition-colors text-[#673ab7] hover:bg-purple-50"
+             >
+               Back
+             </button>
+          ) : <div />}
+          
+          {currentPage < totalPages ? (
+             <button
+               onClick={() => setCurrentPage(p => p + 1)}
+               className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+                 canProceed
+                   ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                   : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+               }`}
+               disabled={!canProceed}
+             >
+               Next
+             </button>
+          ) : (
+            <button
+              onClick={() => onComplete(form)}
+              disabled={!canProceed}
+              className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+                canProceed
+                  ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                  : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+              }`}
+            >
+              Submit
+            </button>
+          )}
+
+          <div className="flex-1 flex justify-end">
+             {!canProceed && (
+               <div className="text-[#d93025] text-sm flex items-center gap-1">
+                 <svg aria-hidden="true" className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>
+                 <span>Complete required questions on this page</span>
+               </div>
+             )}
+          </div>
         </div>
-
-        <button
-          onClick={() => onComplete(form)}
-          disabled={!allLikertsFilled}
-          className={`w-full py-5 rounded-2xl font-black text-xl transition-all shadow-xl active:scale-[0.98] ${
-            allLikertsFilled
-              ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-emerald-200"
-              : "bg-slate-100 text-slate-300 cursor-not-allowed shadow-none"
-          }`}
-        >
-          {allLikertsFilled
-            ? "Complete & View Analysis →"
-            : "Complete All Required Questions"}
-        </button>
       </div>
     </div>
   );
