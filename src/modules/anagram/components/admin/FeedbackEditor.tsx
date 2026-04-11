@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, BarChart3, CheckCircle2, XCircle } from "lucide-react";
+import { Save, Loader2, BarChart3, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 interface Props {
@@ -46,11 +46,20 @@ export default function FeedbackEditor({ cmsKey, taskLabel }: Props) {
     load();
   }, [getContent, cmsKey, taskLabel]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent(cmsKey, content, `Feedback phase for ${taskLabel}`);
+    setSaveStatus(null);
+    const result = await updateContent(cmsKey, content, `Feedback phase for ${taskLabel}`);
     setIsSaving(false);
-    alert(`${taskLabel} feedback saved!`);
+    
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: `${taskLabel} feedback saved!` });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Designer...</div>;
@@ -76,6 +85,19 @@ export default function FeedbackEditor({ cmsKey, taskLabel }: Props) {
             <span>Save Designer</span>
           </button>
         </div>
+
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              saveStatus.type === 'success' ? 'bg-emerald-100' : 'bg-rose-100'
+            }`}>
+              {saveStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <p className="text-sm font-black">{saveStatus.message}</p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6">

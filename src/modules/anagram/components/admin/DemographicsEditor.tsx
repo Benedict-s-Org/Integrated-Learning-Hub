@@ -92,11 +92,20 @@ export default function DemographicsEditor() {
     load();
   }, [getContent]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent("anagram_demographics", content, "Updated demographics with dynamic fields");
+    setSaveStatus(null);
+    const result = await updateContent("anagram_demographics", content, "Updated demographics with dynamic fields");
     setIsSaving(false);
-    alert("Demographics settings updated!");
+
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: "Demographics updated successfully!" });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   const addQuestion = () => {
@@ -151,6 +160,14 @@ export default function DemographicsEditor() {
             <span>Save Designer</span>
           </button>
         </div>
+        
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            {saveStatus.message}
+          </div>
+        )}
 
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
@@ -230,31 +247,23 @@ export default function DemographicsEditor() {
                 />
 
                 {(field.type === 'multiple_choice' || field.type === 'dropdown') && (
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                      Options (One per line)
-                    </label>
-                    <textarea
-                      className="w-full min-h-[100px] p-4 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-medium text-slate-700 text-sm"
-                      placeholder="Option 1&#10;Option 2&#10;Option 3"
-                      value={field.options || ""}
-                      onChange={(e) => updateField(field.id, { options: e.target.value })}
-                    />
-                  </div>
+                  <RichTextEditor
+                    label="Options (One per line)"
+                    multiline
+                    rows={4}
+                    value={field.options || ""}
+                    onChange={(v) => updateField(field.id, { options: v })}
+                    placeholder="Option 1&#10;Option 2&#10;Option 3"
+                  />
                 )}
 
                 {(field.type === 'number' || field.type === 'short_text') && (
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                      Placeholder Text
-                    </label>
-                    <input
-                      className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-medium text-slate-700 text-sm"
-                      placeholder="e.g. Enter your age"
-                      value={field.placeholder || ""}
-                      onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
-                    />
-                  </div>
+                  <RichTextEditor
+                    label="Placeholder Text"
+                    value={field.placeholder || ""}
+                    onChange={(v) => updateField(field.id, { placeholder: v })}
+                    placeholder="e.g. Enter your age"
+                  />
                 )}
               </div>
             </div>

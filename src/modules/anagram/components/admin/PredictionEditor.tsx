@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, Brain, Info, Target, HelpCircle, Hash, Type } from "lucide-react";
+import { Save, Loader2, Brain, Info, Target, HelpCircle, Hash, Type, CheckCircle2, AlertCircle } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 interface Props {
@@ -43,11 +43,20 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
     load();
   }, [getContent, cmsKey, taskLabel]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent(cmsKey, content, `Prediction settings for ${taskLabel}`);
+    setSaveStatus(null);
+    const result = await updateContent(cmsKey, content, `Prediction settings for ${taskLabel}`);
     setIsSaving(false);
-    alert(`${taskLabel} settings updated!`);
+    
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: `${taskLabel} settings updated!` });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Designer...</div>;
@@ -73,6 +82,19 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
             <span>Save Designer</span>
           </button>
         </div>
+
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              saveStatus.type === 'success' ? 'bg-emerald-100' : 'bg-rose-100'
+            }`}>
+              {saveStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <p className="text-sm font-black">{saveStatus.message}</p>
+          </div>
+        )}
 
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
@@ -159,18 +181,11 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
                   />
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Input Placeholder</label>
-                <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
-                  <Type size={14} className="text-slate-400" />
-                  <input 
-                    type="text"
-                    value={content.input_placeholder}
-                    onChange={(e) => setContent({ ...content, input_placeholder: e.target.value })}
-                    className="bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full"
-                  />
-                </div>
-              </div>
+            <RichTextEditor
+              label="Input Placeholder"
+              value={content.input_placeholder}
+              onChange={(v) => setContent({ ...content, input_placeholder: v })}
+            />
             </div>
 
             <RichTextEditor

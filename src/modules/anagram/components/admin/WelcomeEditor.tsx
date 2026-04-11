@@ -63,11 +63,20 @@ export default function WelcomeEditor() {
     load();
   }, [getContent]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent("anagram_welcome", content, "Main Welcome page content for Anagram project");
+    setSaveStatus(null);
+    const result = await updateContent("anagram_welcome", content, "Main Welcome page content for Anagram project");
     setIsSaving(false);
-    alert("Welcome page updated successfully!");
+    
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: "Welcome page updated successfully!" });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Designer...</div>;
@@ -93,6 +102,19 @@ export default function WelcomeEditor() {
             <span>Save Designer</span>
           </button>
         </div>
+        
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              saveStatus.type === 'success' ? 'bg-emerald-100' : 'bg-rose-100'
+            }`}>
+              {saveStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <p className="text-sm font-black">{saveStatus.message}</p>
+          </div>
+        )}
 
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
@@ -120,18 +142,14 @@ export default function WelcomeEditor() {
             value={content.study_info_title}
             onChange={(v) => setContent({ ...content, study_info_title: v })}
           />
-          <div className="space-y-2">
-            <div className="flex items-center justify-between pl-1">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Information Items (One per line)</label>
-            </div>
-            <textarea
-              value={(content.study_info_items || []).join('\n')}
-              onChange={(e) => setContent({ ...content, study_info_items: e.target.value.split('\n') })}
-              rows={6}
-              className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 focus:border-blue-500 focus:bg-white rounded-2xl transition-all outline-none font-medium text-slate-700 text-sm resize-y"
-              placeholder="Enter study details here..."
-            />
-          </div>
+          <RichTextEditor
+            label="Information Items (One per line)"
+            multiline
+            rows={6}
+            value={(content.study_info_items || []).join('\n')}
+            onChange={(v) => setContent({ ...content, study_info_items: v.split('\n') })}
+            placeholder="Enter study details here..."
+          />
         </DesignerCard>
 
         {/* Important Notes Card */}
@@ -141,18 +159,14 @@ export default function WelcomeEditor() {
             value={content.notes_title}
             onChange={(v) => setContent({ ...content, notes_title: v })}
           />
-          <div className="space-y-2">
-            <div className="flex items-center justify-between pl-1">
-               <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Notes (One per line)</label>
-            </div>
-            <textarea
-              value={(content.notes_items || []).join('\n')}
-              onChange={(e) => setContent({ ...content, notes_items: e.target.value.split('\n') })}
-              rows={4}
-              className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 focus:border-amber-500 focus:bg-white rounded-2xl transition-all outline-none font-medium text-slate-700 text-sm resize-y"
-              placeholder="Enter experiment rules/notes..."
-            />
-          </div>
+          <RichTextEditor
+            label="Notes (One per line)"
+            multiline
+            rows={4}
+            value={(content.notes_items || []).join('\n')}
+            onChange={(v) => setContent({ ...content, notes_items: v.split('\n') })}
+            placeholder="Enter experiment rules/notes..."
+          />
         </DesignerCard>
 
         {/* Consent Card */}

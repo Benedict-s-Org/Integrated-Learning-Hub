@@ -70,7 +70,7 @@ export function useCMS() {
   /**
    * Update or create content by key
    */
-  const updateContent = useCallback(async (key: string, content: any, description?: string): Promise<boolean> => {
+  const updateContent = useCallback(async (key: string, content: any, description?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setLoading(true);
       setError(null);
@@ -88,11 +88,15 @@ export function useCMS() {
         }, { onConflict: 'key' }) as any);
 
       if (upsertError) throw upsertError;
-      return true;
+      return { success: true };
     } catch (err: any) {
+      const { data: { user } } = await supabase.auth.getUser();
       console.error(`Error updating CMS content for key ${key}:`, err);
-      setError(err.message);
-      return false;
+      console.error(`Attempted by user: ${user?.email || 'Not logged in'} (ID: ${user?.id || 'None'})`);
+      
+      const errorMessage = err.message || String(err);
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }

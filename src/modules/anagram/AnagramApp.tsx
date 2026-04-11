@@ -111,12 +111,14 @@ export default function App() {
 
     const loadAllCMS = async () => {
       const keys = [
+        "anagram_welcome",
         "anagram_demographics",
         "anagram_trial",
         "anagram_task1_prediction",
         "anagram_task2_prediction",
         "anagram_task1_feedback",
         "anagram_task2_feedback",
+        "anagram_survey",
         "anagram_debrief"
       ];
       

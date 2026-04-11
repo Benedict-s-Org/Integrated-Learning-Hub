@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, ClipboardCheck, Info, MessageSquare, HelpCircle, Type, Plus, Trash2, GripVertical } from "lucide-react";
+import { Save, Loader2, ClipboardCheck, Info, MessageSquare, HelpCircle, Type, Plus, Trash2, GripVertical, CheckCircle2, AlertCircle } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 interface CustomQuestion {
@@ -83,11 +83,20 @@ export default function SurveyEditor() {
     load();
   }, [getContent]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent("anagram_survey", content, "Updated survey with advanced sections and custom questions");
+    setSaveStatus(null);
+    const result = await updateContent("anagram_survey", content, "Updated survey with advanced sections and custom questions");
     setIsSaving(false);
-    alert("Survey settings updated!");
+    
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: "Survey settings updated successfully!" });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   const addCustomQuestion = () => {
@@ -145,6 +154,19 @@ export default function SurveyEditor() {
             <span>Save Designer</span>
           </button>
         </div>
+
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              saveStatus.type === 'success' ? 'bg-emerald-100' : 'bg-rose-100'
+            }`}>
+              {saveStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <p className="text-sm font-black">{saveStatus.message}</p>
+          </div>
+        )}
 
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
@@ -245,22 +267,16 @@ export default function SurveyEditor() {
                         className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Low Label</label>
-                      <input 
-                        value={q.lowLabel}
-                        onChange={(e) => updateCustomQuestion(q.id, { lowLabel: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">High Label</label>
-                      <input 
-                        value={q.highLabel}
-                        onChange={(e) => updateCustomQuestion(q.id, { highLabel: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm"
-                      />
-                    </div>
+                    <RichTextEditor
+                      label="Low Label"
+                      value={q.lowLabel}
+                      onChange={(v) => updateCustomQuestion(q.id, { lowLabel: v })}
+                    />
+                    <RichTextEditor
+                      label="High Label"
+                      value={q.highLabel}
+                      onChange={(v) => updateCustomQuestion(q.id, { highLabel: v })}
+                    />
                   </div>
                 </div>
               </div>

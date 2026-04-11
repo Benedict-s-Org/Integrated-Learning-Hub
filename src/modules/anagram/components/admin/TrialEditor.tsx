@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, PlayCircle, Info, MessageSquare } from "lucide-react";
+import { Save, Loader2, PlayCircle, Info, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 export default function TrialEditor() {
@@ -24,11 +24,20 @@ export default function TrialEditor() {
     load();
   }, [getContent]);
 
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
-    await updateContent("anagram_trial", content, "Trial phase instructions for Anagram project");
+    setSaveStatus(null);
+    const result = await updateContent("anagram_trial", content, "Trial phase instructions for Anagram project");
     setIsSaving(false);
-    alert("Trial settings updated successfully!");
+    
+    if (result.success) {
+      setSaveStatus({ type: 'success', message: "Trial settings updated successfully!" });
+      setTimeout(() => setSaveStatus(null), 3000);
+    } else {
+      setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
+    }
   };
 
   if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Designer...</div>;
@@ -54,6 +63,19 @@ export default function TrialEditor() {
             <span>Save Designer</span>
           </button>
         </div>
+
+        {saveStatus && (
+          <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 overflow-hidden ${
+            saveStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              saveStatus.type === 'success' ? 'bg-emerald-100' : 'bg-rose-100'
+            }`}>
+              {saveStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            </div>
+            <p className="text-sm font-black">{saveStatus.message}</p>
+          </div>
+        )}
       </div>
 
       {/* Main Content Card */}

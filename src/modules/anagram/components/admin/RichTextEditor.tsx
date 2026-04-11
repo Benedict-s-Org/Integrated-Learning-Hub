@@ -32,11 +32,11 @@ const COLORS = [
 ];
 
 const FONT_SIZES = [
-  { name: 'Small', value: '0.875rem' },
-  { name: 'Base', value: '1rem' },
-  { name: 'Large', value: '1.25rem' },
-  { name: 'X-Large', value: '1.5rem' },
-  { name: '2X-Large', value: '1.875rem' },
+  { name: 'Small', value: '1' }, // 1-7 for execCommand
+  { name: 'Base', value: '3' },
+  { name: 'Large', value: '4' },
+  { name: 'X-Large', value: '5' },
+  { name: '2X-Large', value: '6' },
 ];
 
 function RichTextEditor({
@@ -48,79 +48,88 @@ function RichTextEditor({
   className = '',
   rows = 3
 }: RichTextEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [showColors, setShowColors] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
-  const insertTag = (startTag: string, endTag: string) => {
-    if (!textareaRef.current) return;
-
-    const textarea = textareaRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    
-    // If wrapping an existing tag of the same type, we could untag it, 
-    // but for simplicity we just wrap.
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    const newValue = `${before}${startTag}${selectedText}${endTag}${after}`;
-    onChange(newValue);
-
-    // Set selection back
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + startTag.length, end + startTag.length);
-    }, 0);
-  };
-
-  const handleBold = () => insertTag('<strong>', '</strong>');
-  const handleItalic = () => insertTag('<em>', '</em>');
-  const handleUnderline = () => insertTag('<u>', '</u>');
-  
-  const handleColor = (color: string) => {
-    if (color) {
-      insertTag(`<span style="color: ${color}">`, '</span>');
+  // Sync value prop to internal content only when not focused or on initial mount
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      if (!isFocused || value === "") {
+        editorRef.current.innerHTML = value || '';
+      }
     }
-    setShowColors(false);
+  }, [value, isFocused]);
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      let html = editorRef.current.innerHTML;
+      // If it's just a <br> (common in empty contentEditable), treat as empty
+      if (html === '<br>') html = '';
+      onChange(html);
+    }
   };
 
-  const handleSize = (size: string) => {
-    insertTag(`<span style="font-size: ${size}">`, '</span>');
-    setShowSizes(false);
+  const handleCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    handleInput();
+    if (editorRef.current) editorRef.current.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+    }
+    
+    // Shortcuts
+    if (e.metaKey || e.ctrlKey) {
+      if (e.key === 'b') {
+        e.preventDefault();
+        handleCommand('bold');
+      }
+      if (e.key === 'i') {
+        e.preventDefault();
+        handleCommand('italic');
+      }
+      if (e.key === 'u') {
+        e.preventDefault();
+        handleCommand('underline');
+      }
+    }
   };
 
   return (
-    <div className={`space-y-1.5 w-full ${className}`}>
+    <div className={`space-y-1.5 w-full ${className} group/rte`}>
       {label && (
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
           {label}
         </label>
       )}
       
-      <div className="relative border-2 border-slate-100 rounded-2xl bg-slate-50 focus-within:border-blue-500 focus-within:bg-white transition-all overflow-hidden group">
+      <div className={`relative border-2 rounded-2xl transition-all overflow-hidden bg-slate-50 ${
+        isFocused ? 'border-indigo-500 bg-white ring-4 ring-indigo-50' : 'border-slate-100'
+      }`}>
         {/* Toolbar */}
-        <div className="flex items-center gap-1 p-1.5 border-b border-slate-100 bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="flex items-center gap-1 p-1.5 border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
           <button
-            onClick={handleBold}
+            onMouseDown={(e) => { e.preventDefault(); handleCommand('bold'); }}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-            title="Bold"
+            title="Bold (Cmd+B)"
           >
             <Bold size={16} />
           </button>
           <button
-            onClick={handleItalic}
+             onMouseDown={(e) => { e.preventDefault(); handleCommand('italic'); }}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-            title="Italic"
+            title="Italic (Cmd+I)"
           >
             <Italic size={16} />
           </button>
           <button
-            onClick={handleUnderline}
+             onMouseDown={(e) => { e.preventDefault(); handleCommand('underline'); }}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-            title="Underline"
+            title="Underline (Cmd+U)"
           >
             <Underline size={16} />
           </button>
@@ -142,7 +151,11 @@ function RichTextEditor({
                 {COLORS.map((c) => (
                   <button
                     key={c.name}
-                    onClick={() => handleColor(c.value)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleCommand('foreColor', c.value);
+                      setShowColors(false);
+                    }}
                     className="w-6 h-6 rounded-md border border-slate-100 hover:scale-110 transition-transform flex items-center justify-center shrink-0"
                     style={{ backgroundColor: c.value || '#fff' }}
                     title={c.name}
@@ -169,8 +182,12 @@ function RichTextEditor({
                 {FONT_SIZES.map((s) => (
                   <button
                     key={s.name}
-                    onClick={() => handleSize(s.value)}
-                    className="px-3 py-2 text-left hover:bg-blue-50 text-xs font-bold text-slate-600 rounded-lg transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleCommand('fontSize', s.value);
+                      setShowSizes(false);
+                    }}
+                    className="px-3 py-2 text-left hover:bg-indigo-50 text-xs font-bold text-slate-600 rounded-lg transition-colors"
                   >
                     {s.name}
                   </button>
@@ -180,32 +197,46 @@ function RichTextEditor({
           </div>
         </div>
 
-        {/* Input/Textarea */}
-        {multiline ? (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={rows}
-            placeholder={placeholder}
-            className="w-full px-5 py-4 bg-transparent outline-none font-medium text-slate-700 resize-y min-h-[100px] leading-relaxed"
-          />
-        ) : (
-          <input
-            ref={textareaRef as any}
-            type="text"
-            value={value}
-            onChange={(e: any) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full px-5 py-4 bg-transparent outline-none font-bold text-slate-800"
-          />
-        )}
+        {/* ContentEditable Area */}
+        <div
+          ref={editorRef}
+          contentEditable
+          onInput={handleInput}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => {
+            setIsFocused(false);
+            handleInput();
+          }}
+          onKeyDown={handleKeyDown}
+          className={`w-full px-5 py-4 bg-transparent outline-none text-slate-700 leading-relaxed min-h-[44px] relative
+            ${multiline ? 'min-h-[120px] resize-y overflow-auto' : 'flex items-center whitespace-nowrap overflow-x-auto overflow-y-hidden'}
+            ${!value && 'before:content-[attr(data-placeholder)] before:text-slate-400 before:absolute before:left-5 before:top-4 before:pointer-events-none before:font-medium text-sm'}
+          `}
+          data-placeholder={placeholder}
+          style={multiline ? { height: rows ? `${rows * 1.5}rem` : 'auto' } : {}}
+        />
       </div>
 
-      {/* Preview hint */}
-      <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest pl-1">
-        Supports HTML tags for rich formatting
-      </p>
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+          WYSIWYG Mode Enabled — Changes are saved automatically
+        </p>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        [contenteditable]:empty:before {
+          content: attr(data-placeholder);
+          color: #94a3b8;
+          position: absolute;
+          pointer-events: none;
+        }
+        [contenteditable] {
+          min-height: 1.5em;
+        }
+        [contenteditable] b, [contenteditable] strong {
+          font-weight: 800;
+        }
+      `}} />
     </div>
   );
 }

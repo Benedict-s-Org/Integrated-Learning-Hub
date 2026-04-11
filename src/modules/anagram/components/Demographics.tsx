@@ -37,6 +37,70 @@ const QuestionBlock = ({ label, children }: any) => (
 
 export default function Demographics({ onComplete, content }: Props) {
 
+  const { isAdmin } = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const displayContent = useMemo(() => {
+    const defaultFields = [
+      { id: "age", label: "Age", type: 'number', placeholder: "Enter your age" },
+      { id: "gender", label: "Gender", type: 'multiple_choice', options: "Male\nFemale\nOther" },
+      { id: "education", label: "Education Level", type: 'dropdown', options: "Secondary school\nUndergraduate student\nBachelor's degree\nMaster's student / degree\nPhD student / degree\nOther" },
+      { id: "language", label: "Native Language", type: 'dropdown', options: "English\nChinese (Mandarin / Cantonese)\nSpanish\nHindi\nArabic\nFrench\nJapanese\nKorean\nOther" },
+      { id: "proficiency", label: "English Proficiency", type: 'multiple_choice', options: "Native speaker\nAdvanced (C1–C2)\nUpper-intermediate (B2)\nIntermediate (B1)\nElementary (A2)\nBeginner (A1)" }
+    ];
+
+    const base: any = content || {
+      title: "Background Information",
+      subtitle: "Please provide some basic information before we begin.",
+      button_text: "Continue →",
+      validation_error: "Please fill in all fields",
+      fields: defaultFields
+    };
+
+    // Normalize fields to array
+    let fields = [];
+    if (Array.isArray(base.fields)) {
+      fields = base.fields;
+    } else if (base.fields && typeof base.fields === 'object') {
+      fields = Object.entries(base.fields).map(([id, f]: [string, any]) => ({ id, ...f }));
+    } else {
+      fields = defaultFields;
+    }
+
+    return { ...base, fields };
+  }, [content]);
+
+  const update = (id: string, value: string) => {
+    setForm(prev => ({ ...prev, [id]: value }));
+  };
+
+  const parseOptions = (optionsStr: string) => {
+    if (!optionsStr) return [];
+    return optionsStr.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  };
+
+  const FIELDS_PER_PAGE = 4;
+  const totalPages = Math.ceil(displayContent.fields.length / FIELDS_PER_PAGE);
+  const startIndex = (currentPage - 1) * FIELDS_PER_PAGE;
+  const fieldsOnCurrentPage = displayContent.fields.slice(startIndex, startIndex + FIELDS_PER_PAGE);
+
+  const isCurrentPageValid = fieldsOnCurrentPage.every((f: any) => {
+    const val = form[f.id];
+    return val !== undefined && val !== "";
+  });
+
+  const isFinalPage = currentPage === totalPages;
+
+  const handleNext = () => {
+    if (isFinalPage) {
+      onComplete(form);
+    } else {
+      setCurrentPage(prev => prev + 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
   const renderFieldInput = (field: any) => {
     const value = form[field.id] || "";
     const options = parseOptions(field.options || "");

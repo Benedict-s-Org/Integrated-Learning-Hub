@@ -3,6 +3,7 @@ import { useCMS } from "../../../../hooks/useCMS";
 import { Save, Loader2, AlertTriangle, Eye, EyeOff, Code } from "lucide-react";
 import type { FormDefinition } from "../../types/forms";
 import FormRenderer from "../forms/FormRenderer";
+import RichTextEditor from "./RichTextEditor";
 
 interface Props {
   cmsKey: string;
@@ -75,11 +76,18 @@ export default function FormEditor({ cmsKey, title, defaultForm }: Props) {
       setParseError(err.message);
       return;
     }
+    
     setIsSaving(true);
-    await updateContent(cmsKey, parsed, `Form definition for ${title}`);
+    setSaveSuccess(false);
+    const result = await updateContent(cmsKey, parsed, `Form definition for ${title}`);
     setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    
+    if (result.success) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } else {
+      setParseError(`Save failed: ${result.error || 'Unknown error'}`);
+    }
   };
 
   // Replaced previewDef block with parsedForm inline computation
@@ -248,48 +256,34 @@ export default function FormEditor({ cmsKey, title, defaultForm }: Props) {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Title</label>
-                            <input 
-                              type="text" 
-                              value={sec.title || ""} 
-                              onChange={(e) => updateForm(draft => { draft.sections[secIndex].title = e.target.value; })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all"
-                              placeholder="Section title"
-                            />
-                          </div>
-                          <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Description</label>
-                            <textarea 
-                              value={sec.description || ""} 
-                              onChange={(e) => updateForm(draft => { draft.sections[secIndex].description = e.target.value; })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all resize-none"
-                              rows={2}
-                              placeholder="Optional description"
-                            />
-                          </div>
+                          <RichTextEditor 
+                            label="Title"
+                            value={sec.title || ""} 
+                            onChange={(v) => updateForm(draft => { draft.sections[secIndex].title = v; })}
+                            placeholder="Section title"
+                          />
+                          <RichTextEditor 
+                            label="Description"
+                            multiline
+                            rows={2}
+                            value={sec.description || ""} 
+                            onChange={(v) => updateForm(draft => { draft.sections[secIndex].description = v; })}
+                            placeholder="Optional description"
+                          />
                           {parsedForm.navigation?.mode === "sections" && (
                             <>
-                              <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Next Button Text</label>
-                                <input 
-                                  type="text" 
-                                  value={sec.nextButtonText || ""} 
-                                  onChange={(e) => updateForm(draft => { draft.sections[secIndex].nextButtonText = e.target.value; })}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all"
-                                  placeholder="e.g. Continue"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Back Button Text</label>
-                                <input 
-                                  type="text" 
-                                  value={sec.backButtonText || ""} 
-                                  onChange={(e) => updateForm(draft => { draft.sections[secIndex].backButtonText = e.target.value; })}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium text-slate-800 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition-all"
-                                  placeholder="e.g. Go Back"
-                                />
-                              </div>
+                              <RichTextEditor 
+                                label="Next Button Text"
+                                value={sec.nextButtonText || ""} 
+                                onChange={(v) => updateForm(draft => { draft.sections[secIndex].nextButtonText = v; })}
+                                placeholder="e.g. Continue"
+                              />
+                              <RichTextEditor 
+                                label="Back Button Text"
+                                value={sec.backButtonText || ""} 
+                                onChange={(v) => updateForm(draft => { draft.sections[secIndex].backButtonText = v; })}
+                                placeholder="e.g. Go Back"
+                              />
                             </>
                           )}
                         </div>
