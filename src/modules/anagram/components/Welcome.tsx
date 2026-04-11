@@ -66,7 +66,7 @@ export default function Welcome({ groupId, onStart }: Props) {
 
   return (
     <div className="min-h-screen py-8 px-4" style={{ backgroundColor: "#f1f3f4" }}>
-      <div className="max-w-[720px] mx-auto space-y-3 relative group">
+      <div className="w-full max-w-[95vw] md:max-w-[92vw] lg:max-w-6xl xl:max-w-7xl mx-auto space-y-3 relative group">
         {/* Admin Edit Shortcut */}
         {isAdmin && (
           <div className="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">

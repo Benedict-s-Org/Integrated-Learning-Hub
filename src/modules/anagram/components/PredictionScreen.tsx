@@ -45,7 +45,7 @@ export default function PredictionScreen({
         {isAdmin && (
           <div className="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
             <button 
-              onClick={() => window.alert(`Navigate to Admin Panel -> Content Editing -> ${taskName.includes('1') ? 'Task 1' : 'Task 2'} Prediction to edit this page`)}
+              onClick={() => window.alert(`Navigate to Admin Panel -> Content Editing -> ${finalTaskName?.includes('1') ? 'Task 1' : 'Task 2'} Prediction to edit this page`)}
               className="flex items-center gap-2 px-3 py-1.5 bg-[#4285f4] text-white rounded-[4px] text-xs font-medium shadow-sm hover:bg-blue-600 transition-all"
               title="Edit Page Content"
             >
@@ -64,10 +64,21 @@ export default function PredictionScreen({
               <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: cmsContent?.title || "Time Prediction" }} />
             </div>
 
-            {/* Task info */}
-            <div className="bg-[#f8f9fa] rounded p-4 space-y-1 border mt-4" style={{ borderColor: "#dadce0" }}>
-              <p className="font-medium text-[#202124]" dangerouslySetInnerHTML={{ __html: finalTaskName }} />
-              <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: finalTaskDescription }} />
+            {/* Section 1: Task Identification - Much more prominent */}
+            <div className="mt-6 border-2 border-[#e8f0fe] rounded-xl overflow-hidden shadow-sm bg-[#f8f9fa]">
+              <div className="bg-[#e8f0fe] px-4 py-2 border-b border-[#d2e3fc] flex items-center gap-2">
+                <span className="text-sm font-black text-[#1967d2] uppercase tracking-wider">Upcoming Task</span>
+              </div>
+              <div className="p-5 space-y-2">
+                <div 
+                  className="text-xl font-bold text-[#202124] leading-tight" 
+                  dangerouslySetInnerHTML={{ __html: finalTaskName }} 
+                />
+                <div 
+                  className="text-sm text-[#5f6368] leading-relaxed" 
+                  dangerouslySetInnerHTML={{ __html: finalTaskDescription }} 
+                />
+              </div>
             </div>
           </div>
         </div>

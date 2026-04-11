@@ -27,6 +27,7 @@ import SurveyEditor from "./components/admin/SurveyEditor";
 import QuestionBankEditor from "./components/admin/QuestionBankEditor";
 import DifficultyEvaluationEditor from "./components/admin/DifficultyEvaluationEditor";
 import AnagramManifest from "./components/admin/AnagramManifest";
+import AdminQuickNav from "./components/admin/AdminQuickNav";
 import { Settings, Play } from "lucide-react";
 
 type Phase =
@@ -118,9 +119,10 @@ export default function App() {
         "anagram_demographics",
         "anagram_trial",
         "anagram_trial_difficulty",
+        "anagram_trial_difficulty",
         "anagram_task1_prediction",
-        "anagram_task2_prediction",
         "anagram_task1_feedback",
+        "anagram_task2_prediction",
         "anagram_task2_feedback",
         "anagram_survey",
         "anagram_debrief"
@@ -145,6 +147,36 @@ export default function App() {
       setIsCmsLoaded(true);
     };
     loadAllCMS();
+  }, [getContent]);
+
+  const refreshCMS = useCallback(async () => {
+    setIsCmsLoaded(false);
+    const keys = [
+      "anagram_welcome",
+      "anagram_demographics",
+      "anagram_trial",
+      "anagram_trial_difficulty",
+      "anagram_task1_prediction",
+      "anagram_task2_prediction",
+      "anagram_task1_feedback",
+      "anagram_task2_feedback",
+      "anagram_survey",
+      "anagram_debrief"
+    ];
+    
+    const results: Record<string, any> = {};
+    for (const key of keys) {
+      try {
+        const data = await getContent(key);
+        if (data && data.content) {
+          results[key] = data.content;
+        }
+      } catch (err) {
+        console.warn(`Silently failed to load CMS key ${key}:`, err);
+      }
+    }
+    setCmsContent(results);
+    setIsCmsLoaded(true);
   }, [getContent]);
 
   // Helper to get N random items from an array
@@ -214,6 +246,11 @@ export default function App() {
   const [pred1, setPred1] = useState(0);
   const [pred2, setPred2] = useState(0);
 
+  // Time tracking for non-zero durations
+  const [trialStart, setTrialStart] = useState<number>(0);
+  const [task1Start, setTask1Start] = useState<number>(0);
+  const [task2Start, setTask2Start] = useState<number>(0);
+
   const handleDemographics = useCallback((data: DemographicsData) => {
     setDemographics(data);
     setPhase("trial_intro");
@@ -226,7 +263,7 @@ export default function App() {
         taskName: "Trial Part",
         predictionSeconds: 0,
         responses,
-        startTime: Date.now(),
+        startTime: trialStart || Date.now(),
         endTime: Date.now(),
       };
       setTrialResult(result);
@@ -242,6 +279,7 @@ export default function App() {
 
   const handlePred1 = useCallback((seconds: number) => {
     setPred1(seconds);
+    setTask1Start(Date.now());
     setPhase("task1");
   }, []);
 
@@ -252,17 +290,18 @@ export default function App() {
         taskName: "Task 1 (Easy)",
         predictionSeconds: pred1,
         responses,
-        startTime: Date.now(),
+        startTime: task1Start || Date.now(),
         endTime: Date.now(),
       };
       setTask1Result(result);
       setPhase("complete1");
     },
-    [pred1]
+    [pred1, task1Start]
   );
 
   const handlePred2 = useCallback((seconds: number) => {
     setPred2(seconds);
+    setTask2Start(Date.now());
     setPhase("task2");
   }, []);
 
@@ -273,7 +312,7 @@ export default function App() {
         taskName: "Task 2 (Hard)",
         predictionSeconds: pred2,
         responses,
-        startTime: Date.now(),
+        startTime: task2Start || Date.now(),
         endTime: Date.now(),
       };
       setTask2Result(result);
@@ -320,29 +359,72 @@ export default function App() {
              hintGaveUpTimeSec: r.hintGaveUpTime ?? null,
            }));
         };
+        const getFlattenedData = () => {
+          const flat: Record<string, any> = {
+            ParticipantID: participantId,
+            Timestamp_Start: experimentData.timestamp,
+            Timestamp_End: new Date().toISOString(),
+            Total_Duration_Ms: totalDurationMs,
+            GroupID: groupId,
+            Browser: getDeviceBrowser(),
+            Trial_Difficulty_Evaluation: trialDifficulty || "none"
+          };
 
-        const payload = {
-          runId: participantId,
-          participantId: participantId,
-          taskVersion: 'v1',
-          startedAt: trialResult ? new Date(trialResult.startTime).toISOString() : (task1Result ? new Date(task1Result.startTime).toISOString() : new Date().toISOString()),
-          finishedAt: new Date().toISOString(),
-          totalDurationMs,
-          completed: true,
-          calibrationPredSec: 0,
-          calibrationActualSec: trialResult?.responses.filter(r => !r.skipped).reduce((acc, r) => acc + r.timeTaken, 0) || 0,
-          easyPredSec: task1Result?.predictionSeconds || 0,
-          easyActualSec: task1Result?.responses.filter(r => !r.skipped).reduce((acc, r) => acc + r.timeTaken, 0) || 0,
-          hardPredSec: task2Result?.predictionSeconds || 0,
-          hardActualSec: task2Result?.responses.filter(r => !r.skipped).reduce((acc, r) => acc + r.timeTaken, 0) || 0,
-          deviceBrowser: getDeviceBrowser(),
-          notes: data.comments || "",
-          responses: [
-            ...buildResponses(trialResult, "Trial"),
-            ...buildResponses(task1Result, "Easy"),
-            ...buildResponses(task2Result, "Hard")
-          ]
+          // Demographics
+          if (demographics) {
+            Object.entries(demographics).forEach(([key, val]) => {
+              flat[`demo_${key}`] = val;
+            });
+          }
+
+          // Summary performance
+          flat.Easy_Prediction_Sec = pred1;
+          flat.Hard_Prediction_Sec = pred2;
+          flat.Easy_Total_Actual_Sec = (task1Result?.endTime && task1Result?.startTime) ? (task1Result.endTime - task1Result.startTime) / 1000 : 0;
+          flat.Hard_Total_Actual_Sec = (task2Result?.endTime && task2Result?.startTime) ? (task2Result.endTime - task2Result.startTime) / 1000 : 0;
+
+          // Helper for puzzles
+          const mapPuzzles = (task: TaskResult | null, prefix: string) => {
+            if (!task) return;
+            task.responses.forEach((r, idx) => {
+              const p = `${prefix}_p${idx + 1}`;
+              flat[`${p}_letters`] = r.letters;
+              flat[`${p}_answer`] = r.userAnswer;
+              flat[`${p}_correct`] = r.isCorrect;
+              flat[`${p}_time_ms`] = r.timeTaken * 1000;
+              flat[`${p}_attempts`] = r.attempts;
+              flat[`${p}_skipped`] = r.skipped;
+              flat[`${p}_hintStage`] = r.hintStage;
+              flat[`${p}_hint1_time`] = r.hintFirstLetterTime;
+              flat[`${p}_hint2_time`] = r.hintLastLetterTime;
+              flat[`${p}_gaveUp_time`] = r.hintGaveUpTime;
+            });
+          };
+
+          mapPuzzles(trialResult, "trial");
+          mapPuzzles(task1Result, "easy");
+          mapPuzzles(task2Result, "hard");
+
+          // Post-Survey
+          if (postSurvey) {
+            Object.entries(postSurvey).forEach(([key, val]) => {
+              if (key === 'dynamicResponses' && val && typeof val === 'object') {
+                Object.entries(val).forEach(([dk, dv]) => {
+                  flat[`survey_dynamic_${dk}`] = dv;
+                });
+              } else {
+                flat[`survey_${key}`] = val;
+              }
+            });
+          }
+
+          return flat;
         };
+
+        const payload = getFlattenedData();
+
+        // Log the flattened payload for verification
+        console.log("Exporting wide-format data:", payload);
 
         await postRunToGoogleSheet(payload);
       } catch (err) {
@@ -350,7 +432,35 @@ export default function App() {
       }
     };
     logToSheets();
-  }, [participantId, trialResult, task1Result, task2Result]);
+  }, [participantId, trialResult, task1Result, task2Result, demographics, groupId, trialDifficulty]);
+
+  const handlePreview = useCallback(() => {
+    const mapping: Record<string, Phase> = {
+      welcome: "welcome",
+      demographics: "demographics",
+      trial: "trial_intro",
+      trial_difficulty: "trial_difficulty",
+      predict1: "predict1",
+      feedback1: "complete1",
+      predict2: "predict2",
+      feedback2: "complete2",
+      survey: "postsurvey",
+      debrief: "debrief",
+    };
+    setPhase(mapping[activeAdminTab] || "welcome");
+  }, [activeAdminTab]);
+
+  const nextPhase = useCallback(() => {
+    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "debrief"];
+    const currentIndex = phases.indexOf(phase);
+    if (currentIndex < phases.length - 1) setPhase(phases[currentIndex + 1]);
+  }, [phase]);
+
+  const prevPhase = useCallback(() => {
+    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "debrief"];
+    const currentIndex = phases.indexOf(phase);
+    if (currentIndex > 0) setPhase(phases[currentIndex - 1]);
+  }, [phase]);
 
   const targetLabel = groupId === "self" ? "you" : "other students";
 
@@ -371,44 +481,43 @@ export default function App() {
     return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">Initializing Experiment...</div>;
   }
 
-  switch (phase) {
-    case "cms":
-      return (
-        <AnagramAdminLayout 
-          activeTab={activeAdminTab} 
-          setActiveTab={setActiveAdminTab} 
-          onPreview={() => setPhase("welcome")}
-        >
-          {activeAdminTab === 'welcome' && <WelcomeEditor />}
-          {activeAdminTab === 'demographics' && <DemographicsEditor />}
-          {activeAdminTab === 'trial' && <TrialEditor />}
-          {activeAdminTab === 'trial_difficulty' && <DifficultyEvaluationEditor />}
-          {activeAdminTab === 'predict1' && <PredictionEditor cmsKey="anagram_task1_prediction" taskLabel="Task 1 (Easy)" />}
-          {activeAdminTab === 'feedback1' && <FeedbackEditor cmsKey="anagram_task1_feedback" taskLabel="Task 1 (Easy)" />}
-          {activeAdminTab === 'predict2' && <PredictionEditor cmsKey="anagram_task2_prediction" taskLabel="Task 2 (Hard)" />}
-          {activeAdminTab === 'feedback2' && <FeedbackEditor cmsKey="anagram_task2_feedback" taskLabel="Task 2 (Hard)" />}
-          {activeAdminTab === 'survey' && <SurveyEditor />}
-          {activeAdminTab === 'debrief' && <Debrief data={experimentData} groupId={groupId} />}
+  const renderPhase = () => {
+    switch (phase) {
+      case "cms":
+        return (
+          <AnagramAdminLayout 
+            activeTab={activeAdminTab} 
+            setActiveTab={setActiveAdminTab} 
+            onPreview={handlePreview}
+          >
+          {activeAdminTab === 'welcome' && <WelcomeEditor onPreview={handlePreview} />}
+          {activeAdminTab === 'demographics' && <DemographicsEditor onPreview={handlePreview} />}
+          {activeAdminTab === 'trial' && <TrialEditor onPreview={handlePreview} />}
+          {activeAdminTab === 'trial_difficulty' && <DifficultyEvaluationEditor onPreview={handlePreview} />}
+          {activeAdminTab === 'predict1' && <PredictionEditor cmsKey="anagram_task1_prediction" taskLabel="Task 1 (Easy)" onPreview={handlePreview} />}
+          {activeAdminTab === 'feedback1' && <FeedbackEditor cmsKey="anagram_task1_feedback" taskLabel="Task 1 (Easy)" onPreview={handlePreview} />}
+          {activeAdminTab === 'predict2' && <PredictionEditor cmsKey="anagram_task2_prediction" taskLabel="Task 2 (Hard)" onPreview={handlePreview} />}
+          {activeAdminTab === 'feedback2' && <FeedbackEditor cmsKey="anagram_task2_feedback" taskLabel="Task 2 (Hard)" onPreview={handlePreview} />}
+          {activeAdminTab === 'survey' && <SurveyEditor onPreview={handlePreview} />}
+          {activeAdminTab === 'debrief' && (
+            <Debrief 
+               data={experimentData.trialResult ? experimentData : {
+                 ...experimentData,
+                 participantId: "ADMIN-PREVIEW",
+                 trialResult: { taskId: "trial", taskName: "Trial (Mock)", predictionSeconds: 0, responses: [], startTime: Date.now(), endTime: Date.now() },
+                 task1Result: { taskId: "task1", taskName: "Task 1 (Mock)", predictionSeconds: 30, responses: [], startTime: Date.now(), endTime: Date.now() },
+                 task2Result: { taskId: "task2", taskName: "Task 2 (Mock)", predictionSeconds: 45, responses: [], startTime: Date.now(), endTime: Date.now() }
+               }} 
+               groupId={groupId} 
+            />
+          )}
           {activeAdminTab === 'questions' && <QuestionBankEditor />}
           {activeAdminTab === 'manifest' && <AnagramManifest />}
         </AnagramAdminLayout>
       );
 
-    case "welcome":
-      return (
-        <div className="relative">
-          {isAdmin && (
-            <button
-              onClick={() => setPhase("cms")}
-              className="fixed bottom-6 right-6 z-50 p-3 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition-all animate-in fade-in slide-in-from-bottom-4"
-              title="Back to Admin"
-            >
-              <Settings size={20} />
-            </button>
-          )}
-          <Welcome groupId={groupId} onStart={() => setPhase("demographics")} />
-        </div>
-      );
+      case "welcome":
+        return <Welcome groupId={groupId} onStart={() => setPhase("demographics")} />;
 
     case "demographics":
       return <Demographics onComplete={handleDemographics} content={cmsContent.anagram_demographics} />;
@@ -423,7 +532,10 @@ export default function App() {
             <h2 className="text-3xl font-black text-slate-800 tracking-tight" dangerouslySetInnerHTML={{ __html: cmsContent.anagram_trial?.title || "Trial Phase" }} />
             <div className="text-slate-600 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: cmsContent.anagram_trial?.description || "Get ready for a short trial phase to practice the puzzles." }} />
             <button
-              onClick={() => setPhase("trial")}
+              onClick={() => {
+                setTrialStart(Date.now());
+                setPhase("trial");
+              }}
               className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95"
             >
               <span dangerouslySetInnerHTML={{ __html: cmsContent.anagram_trial?.button_text || "Start Trial →" }} />
@@ -441,34 +553,14 @@ export default function App() {
         />
       );
 
-    case "trial_difficulty":
-      return (
-        <TrialDifficultyEvaluation
-          onBack={() => setPhase("trial_intro")}
-          onSubmit={handleTrialDifficulty}
-          cmsContent={cmsContent.anagram_trial_difficulty}
-        />
-      );
-
-    case "predict1":
-      return (
-        <div className="relative">
-          {isAdmin && (
-            <button
-              onClick={() => setPhase("cms")}
-              className="fixed bottom-6 right-6 z-50 p-3 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition-all"
-              title="Back to Admin"
-            >
-              <Settings size={20} />
-            </button>
-          )}
+      case "predict1":
+        return (
           <PredictionScreen
              targetLabel={targetLabel}
              onConfirm={handlePred1}
              cmsContent={cmsContent.anagram_task1_prediction}
           />
-        </div>
-      );
+        );
 
     case "task1":
       return (
@@ -490,25 +582,14 @@ export default function App() {
         />
       ) : null;
 
-    case "predict2":
-      return (
-        <div className="relative">
-          {isAdmin && (
-            <button
-              onClick={() => setPhase("cms")}
-              className="fixed bottom-6 right-6 z-50 p-3 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition-all"
-              title="Back to Admin"
-            >
-              <Settings size={20} />
-            </button>
-          )}
+      case "predict2":
+        return (
           <PredictionScreen
              targetLabel={targetLabel}
              onConfirm={handlePred2}
              cmsContent={cmsContent.anagram_task2_prediction}
           />
-        </div>
-      );
+        );
 
     case "task2":
       return (
@@ -533,10 +614,37 @@ export default function App() {
     case "postsurvey":
       return <PostSurvey groupId={groupId} onComplete={handlePostSurvey} />;
 
-    case "debrief":
-      return <Debrief data={experimentData} groupId={groupId} />;
+      case "debrief":
+        return (
+          <Debrief 
+            data={experimentData.trialResult ? experimentData : {
+              ...experimentData,
+              participantId: "ADMIN-PREVIEW",
+              trialResult: { taskId: "trial", taskName: "Trial (Mock)", predictionSeconds: 0, responses: [], startTime: Date.now(), endTime: Date.now() },
+              task1Result: { taskId: "task1", taskName: "Task 1 (Mock)", predictionSeconds: 30, responses: [], startTime: Date.now(), endTime: Date.now() },
+              task2Result: { taskId: "task2", taskName: "Task 2 (Mock)", predictionSeconds: 45, responses: [], startTime: Date.now(), endTime: Date.now() }
+            }} 
+            groupId={groupId} 
+          />
+        );
 
-    default:
-      return null;
-  }
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen">
+      {renderPhase()}
+      {isAdmin && phase !== "cms" && (
+        <AdminQuickNav 
+          onBackToAdmin={() => setPhase("cms")}
+          onRefreshContent={refreshCMS}
+          onNextPhase={nextPhase}
+          onPrevPhase={prevPhase}
+          currentPhase={phase}
+        />
+      )}
+    </div>
+  );
 }

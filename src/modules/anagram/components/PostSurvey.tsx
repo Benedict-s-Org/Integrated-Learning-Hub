@@ -129,35 +129,61 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
     sections: {
       optimism: {
         title: "🌟 Optimism Scale",
-        description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)"
+        description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)",
+        q1: "I generally expect things to go well for me.",
+        q2: "I rarely expect things to work out the way I want them to.",
+        q3: "I'm always optimistic about my future.",
+        lowLabel: "Disagree",
+        highLabel: "Agree"
       },
       thinking: {
         title: "🧠 Thinking Style",
-        description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)"
+        description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)",
+        q1: "I enjoy tasks that require a lot of thinking.",
+        q2: "I prefer complex problems over simple ones.",
+        q3: "Thinking hard and for a long time is not my idea of fun.",
+        lowLabel: "Disagree",
+        highLabel: "Agree"
       },
       perception: {
         title: "📊 Task Perception",
-        description: "How difficult did you find each task? (1 = Very Easy, 7 = Very Difficult)"
+        description: "How difficult did you find each task? (1 = Very Easy, 7 = Very Difficult)",
+        q1_label: "Task 1 (3–4 letter words)",
+        q2_label: "Task 2 (5–6 letter words)",
+        lowLabel: "Very Easy",
+        highLabel: "Very Hard"
       },
       experience: {
         title: "📚 Past Experience",
-        description: ""
+        description: "Tell us about your previous background.",
+        q1: "How often have you done word puzzles or anagram games before?",
+        q2: "How often have you participated in psychology experiments before?",
+        lowLabel: "Never",
+        highLabel: "Very often"
       },
       check: {
         title: "✅ Comprehension Check",
         description: "When you made your time predictions, who were you predicting for?"
       }
-    }
+    },
+    button_text: "Complete & View Analysis →",
+    comments_label: "Any comments or feedback? (optional)",
+    comments_placeholder: "Your answer"
   };
 
-  const displayContent = {
-    ...defaultSurveyContent,
-    ...content,
-    sections: {
-      ...defaultSurveyContent.sections,
-      ...(content?.sections || {})
-    }
-  };
+  // Correctly merge content with defaults
+  const displayContent = { ...defaultSurveyContent, ...content };
+  if (content?.sections) {
+    displayContent.sections = { ...defaultSurveyContent.sections };
+    Object.keys(content.sections).forEach(key => {
+      if (displayContent.sections[key]) {
+        displayContent.sections[key] = {
+          ...displayContent.sections[key],
+          ...content.sections[key]
+        };
+      }
+    });
+  }
 
   if (cmsLoading && !content) {
     return (
@@ -218,25 +244,25 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               </div>
               <div className="space-y-8 mt-4">
                 <LikertScale
-                  label="1. I generally expect things to go well for me."
+                  label={displayContent.sections?.optimism?.q1}
                   value={form.optimism1}
                   onChange={(v) => update("optimism1", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.optimism?.lowLabel}
+                  highLabel={displayContent.sections?.optimism?.highLabel}
                 />
                 <LikertScale
-                  label="2. I rarely expect things to work out the way I want them to."
+                  label={displayContent.sections?.optimism?.q2}
                   value={form.optimism2}
                   onChange={(v) => update("optimism2", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.optimism?.lowLabel}
+                  highLabel={displayContent.sections?.optimism?.highLabel}
                 />
                 <LikertScale
-                  label="3. I'm always optimistic about my future."
+                  label={displayContent.sections?.optimism?.q3}
                   value={form.optimism3}
                   onChange={(v) => update("optimism3", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.optimism?.lowLabel}
+                  highLabel={displayContent.sections?.optimism?.highLabel}
                 />
               </div>
             </div>
@@ -252,25 +278,25 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               </div>
               <div className="space-y-8 mt-4">
                 <LikertScale
-                  label="1. I enjoy tasks that require a lot of thinking."
+                  label={displayContent.sections?.thinking?.q1}
                   value={form.nfc1}
                   onChange={(v) => update("nfc1", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.thinking?.lowLabel}
+                  highLabel={displayContent.sections?.thinking?.highLabel}
                 />
                 <LikertScale
-                  label="2. I prefer complex problems over simple ones."
+                  label={displayContent.sections?.thinking?.q2}
                   value={form.nfc2}
                   onChange={(v) => update("nfc2", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.thinking?.lowLabel}
+                  highLabel={displayContent.sections?.thinking?.highLabel}
                 />
                 <LikertScale
-                  label="3. Thinking hard and for a long time is not my idea of fun."
+                  label={displayContent.sections?.thinking?.q3}
                   value={form.nfc3}
                   onChange={(v) => update("nfc3", v)}
-                  lowLabel="Disagree"
-                  highLabel="Agree"
+                  lowLabel={displayContent.sections?.thinking?.lowLabel}
+                  highLabel={displayContent.sections?.thinking?.highLabel}
                 />
               </div>
             </div>
@@ -290,18 +316,18 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               </div>
               <div className="space-y-8 mt-4">
                 <LikertScale
-                  label="Task 1 (3–4 letter words)"
+                  label={displayContent.sections?.perception?.q1_label}
                   value={form.task1Difficulty}
                   onChange={(v) => update("task1Difficulty", v)}
-                  lowLabel="Very Easy"
-                  highLabel="Very Hard"
+                  lowLabel={displayContent.sections?.perception?.lowLabel}
+                  highLabel={displayContent.sections?.perception?.highLabel}
                 />
                 <LikertScale
-                  label="Task 2 (5–6 letter words)"
+                  label={displayContent.sections?.perception?.q2_label}
                   value={form.task2Difficulty}
                   onChange={(v) => update("task2Difficulty", v)}
-                  lowLabel="Very Easy"
-                  highLabel="Very Hard"
+                  lowLabel={displayContent.sections?.perception?.lowLabel}
+                  highLabel={displayContent.sections?.perception?.highLabel}
                 />
               </div>
             </div>
@@ -314,22 +340,22 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               </h2>
               <div className="space-y-8 mt-4">
                 <LikertScale
-                  label="How often have you done word puzzles or anagram games before?"
+                  label={displayContent.sections?.experience?.q1}
                   value={form.pastAnagramExperience}
                   onChange={(v) => update("pastAnagramExperience", v)}
                   min={1}
                   max={5}
-                  lowLabel="Never"
-                  highLabel="Very often"
+                  lowLabel={displayContent.sections?.experience?.lowLabel}
+                  highLabel={displayContent.sections?.experience?.highLabel}
                 />
                 <LikertScale
-                  label="How often have you participated in psychology experiments before?"
+                  label={displayContent.sections?.experience?.q2}
                   value={form.pastPsychExperience}
                   onChange={(v) => update("pastPsychExperience", v)}
                   min={1}
                   max={5}
-                  lowLabel="Never"
-                  highLabel="Very often"
+                  lowLabel={displayContent.sections?.experience?.lowLabel}
+                  highLabel={displayContent.sections?.experience?.highLabel}
                 />
               </div>
             </div>
@@ -365,12 +391,12 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
             {/* Comments */}
             <div className="bg-white rounded-[8px] border p-6 space-y-4 text-left" style={{ borderColor: "#dadce0" }}>
               <label className="block text-base font-medium text-[#202124]">
-                Any comments or feedback? (optional)
+                {displayContent.comments_label}
               </label>
               <textarea
                 value={form.comments}
                 onChange={(e) => update("comments", e.target.value)}
-                placeholder="Your answer"
+                placeholder={displayContent.comments_placeholder}
                 rows={2}
                 className="w-full md:w-3/4 px-0 py-1.5 border-b border-gray-300 focus:border-[#673ab7] focus:border-b-2 focus:outline-none transition-colors text-sm text-[#202124] bg-transparent resize-y min-h-[44px]"
               />
@@ -411,7 +437,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
                   : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
               }`}
             >
-              Submit
+              {displayContent.button_text}
             </button>
           )}
 

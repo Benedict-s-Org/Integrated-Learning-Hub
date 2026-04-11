@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, ClipboardCheck, Info, MessageSquare, HelpCircle, Type, Plus, Trash2, GripVertical, CheckCircle2, AlertCircle } from "lucide-react";
+import { Save, Loader2, ClipboardCheck, Info, MessageSquare, HelpCircle, Type, Plus, Trash2, GripVertical, CheckCircle2, AlertCircle, Eye } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 interface CustomQuestion {
@@ -34,7 +34,7 @@ const DesignerCard = ({ icon: Icon, title, sectionId, children, borderColor = "b
   </div>
 );
 
-export default function SurveyEditor() {
+export default function SurveyEditor({ onPreview }: { onPreview?: () => void }) {
   const { getContent, updateContent } = useCMS();
   const [content, setContent] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,22 +48,41 @@ export default function SurveyEditor() {
         sections: {
           optimism: {
             title: "🌟 Optimism Scale",
-            description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)"
+            description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)",
+            q1: "I generally expect things to go well for me.",
+            q2: "I rarely expect things to work out the way I want them to.",
+            q3: "I'm always optimistic about my future.",
+            lowLabel: "Disagree",
+            highLabel: "Agree"
           },
           thinking: {
             title: "🧠 Thinking Style",
-            description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)"
+            description: "Rate how much you agree with each statement (1 = Strongly Disagree, 7 = Strongly Agree)",
+            q1: "I enjoy tasks that require a lot of thinking.",
+            q2: "I prefer complex problems over simple ones.",
+            q3: "Thinking hard and for a long time is not my idea of fun.",
+            lowLabel: "Disagree",
+            highLabel: "Agree"
           },
           perception: {
             title: "📊 Task Perception",
-            description: "How difficult did you find each task? (1 = Very Easy, 7 = Very Difficult)"
+            description: "How difficult did you find each task? (1 = Very Easy, 7 = Very Difficult)",
+            q1_label: "Task 1 (3–4 letter words)",
+            q2_label: "Task 2 (5–6 letter words)",
+            lowLabel: "Very Easy",
+            highLabel: "Very Hard"
           },
           experience: {
             title: "📚 Past Experience",
-            description: "Tell us about your previous background."
+            description: "Tell us about your previous background.",
+            q1: "How often have you done word puzzles or anagram games before?",
+            q2: "How often have you participated in psychology experiments before?",
+            lowLabel: "Never",
+            highLabel: "Very often"
           },
-
         },
+        comments_label: "Any comments or feedback? (optional)",
+        comments_placeholder: "Your answer",
         option_self: "Myself",
         option_other: "Other Students",
         option_unsure: "I'm not sure",
@@ -72,9 +91,22 @@ export default function SurveyEditor() {
       };
 
       if (data && data.content) {
-        // Deep merge/ensure nested structure exists
-        const merged = { ...defaultContent, ...data.content };
-        merged.sections = { ...defaultContent.sections, ...data.content.sections };
+        // Deep merge sections to ensure new schema fields (q1, q2, etc.) are preserved
+        const mergedSections = { ...defaultContent.sections };
+        Object.keys(data.content.sections || {}).forEach(key => {
+          if (mergedSections[key]) {
+            mergedSections[key] = {
+              ...mergedSections[key],
+              ...data.content.sections[key]
+            };
+          }
+        });
+
+        const merged = { 
+          ...defaultContent, 
+          ...data.content,
+          sections: mergedSections
+        };
         setContent(merged);
       } else {
         setContent(defaultContent);
@@ -145,14 +177,23 @@ export default function SurveyEditor() {
             </h2>
             <p className="text-slate-500 text-sm font-medium">Design the psychometric scales and custom questions.</p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
-          >
-            {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-            <span>Save Designer</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onPreview}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-indigo-600 text-slate-600 hover:text-indigo-600 rounded-2xl font-black transition-all active:scale-95"
+            >
+              <Eye size={20} />
+              <span>Preview Page</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+              <span>Save Designer</span>
+            </button>
+          </div>
         </div>
 
         {saveStatus && (
@@ -211,6 +252,60 @@ export default function SurveyEditor() {
                     sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], description: v } }
                 })}
               />
+
+              <div className="pt-4 space-y-4 border-t border-slate-50">
+                <h5 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest pb-1 border-b border-indigo-50 inline-block">Questions & Scale Labels</h5>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sec.key === 'perception' ? (
+                    <>
+                      <RichTextEditor 
+                        label="Task 1 Label" 
+                        value={content.sections[sec.key].q1_label} 
+                        onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q1_label: v } }})} 
+                      />
+                      <RichTextEditor 
+                        label="Task 2 Label" 
+                        value={content.sections[sec.key].q2_label} 
+                        onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q2_label: v } }})} 
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <RichTextEditor 
+                        label="Question 1" 
+                        value={content.sections[sec.key].q1} 
+                        onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q1: v } }})} 
+                      />
+                      <RichTextEditor 
+                        label="Question 2" 
+                        value={content.sections[sec.key].q2} 
+                        onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q2: v } }})} 
+                      />
+                    </>
+                  )}
+                  {(sec.key === 'optimism' || sec.key === 'thinking') && (
+                    <RichTextEditor 
+                      label="Question 3" 
+                      value={content.sections[sec.key].q3} 
+                      onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q3: v } }})} 
+                    />
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <RichTextEditor 
+                    label="Low Label (e.g. Disagree)" 
+                    value={content.sections[sec.key].lowLabel} 
+                    onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], lowLabel: v } }})} 
+                  />
+                  <RichTextEditor 
+                    label="High Label (e.g. Agree)" 
+                    value={content.sections[sec.key].highLabel} 
+                    onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], highLabel: v } }})} 
+                  />
+                </div>
+              </div>
 
           </DesignerCard>
         ))}
@@ -291,8 +386,24 @@ export default function SurveyEditor() {
           </button>
         </div>
 
+        {/* Comments Setting Card */}
+        <DesignerCard icon={MessageSquare} title="Final Comments" sectionId="Section 3" borderColor="border-l-indigo-400">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <RichTextEditor
+                label="Comments Box Label"
+                value={content.comments_label}
+                onChange={(v) => setContent({ ...content, comments_label: v })}
+              />
+              <RichTextEditor
+                label="Comments Placeholder"
+                value={content.comments_placeholder}
+                onChange={(v) => setContent({ ...content, comments_placeholder: v })}
+              />
+           </div>
+        </DesignerCard>
+
         {/* Submit Setting Card */}
-        <DesignerCard icon={Save} title="Finalization" sectionId="Section 3" borderColor="border-l-emerald-500">
+        <DesignerCard icon={Save} title="Finalization" sectionId="Section 4" borderColor="border-l-emerald-500">
            <RichTextEditor
               label="Complete Button Text"
               value={content.button_text}

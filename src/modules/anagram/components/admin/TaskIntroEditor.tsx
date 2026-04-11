@@ -1,39 +1,53 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, PlayCircle, Info, MessageSquare, CheckCircle2, AlertCircle, Eye } from "lucide-react";
+import { Save, Loader2, PlayCircle, Info, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
-export default function TrialEditor({ onPreview }: { onPreview?: () => void }) {
+interface Props {
+  cmsKey: string;
+  taskLabel: string;
+  defaultTitle?: string;
+  defaultDescription?: string;
+  defaultButtonText?: string;
+}
+
+export default function TaskIntroEditor({ 
+  cmsKey, 
+  taskLabel,
+  defaultTitle = "Next Phase",
+  defaultDescription = "Get ready for the next part of the experiment.",
+  defaultButtonText = "Continue →"
+}: Props) {
   const { getContent, updateContent } = useCMS();
   const [content, setContent] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const data = await getContent("anagram_trial");
-      if (data) {
+      const data = await getContent(cmsKey);
+      if (data && data.content) {
         setContent(data.content);
       } else {
         setContent({
-          title: "Trial Phase",
-          description: "Get ready for a short trial phase to practice the puzzles. You will see 4 calibration questions.",
-          button_text: "Start Trial →"
+          title: defaultTitle,
+          description: defaultDescription,
+          button_text: defaultButtonText
         });
       }
     };
     load();
-  }, [getContent]);
+  }, [getContent, cmsKey, defaultTitle, defaultDescription, defaultButtonText]);
 
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const handleSave = async () => {
     setIsSaving(true);
     setSaveStatus(null);
-    const result = await updateContent("anagram_trial", content, "Trial phase instructions for Anagram project");
+    const result = await updateContent(cmsKey, content, `${taskLabel} instructions for Anagram project`);
     setIsSaving(false);
     
     if (result.success) {
-      setSaveStatus({ type: 'success', message: "Trial settings updated successfully!" });
+      setSaveStatus({ type: 'success', message: `${taskLabel} settings updated successfully!` });
       setTimeout(() => setSaveStatus(null), 3000);
     } else {
       setSaveStatus({ type: 'error', message: `Failed to save: ${result.error || 'Unknown error'}` });
@@ -50,27 +64,18 @@ export default function TrialEditor({ onPreview }: { onPreview?: () => void }) {
           <div className="space-y-1">
             <h2 className="text-3xl font-black text-slate-800 tracking-tight italic flex items-center gap-3">
               <PlayCircle className="text-indigo-600" size={32} />
-              Trial Phase Designer
+              {taskLabel} Designer
             </h2>
-            <p className="text-slate-500 text-sm font-medium">Design the instructions for the calibration trial phase.</p>
+            <p className="text-slate-500 text-sm font-medium">Design the instructions for {taskLabel}.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onPreview}
-              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-indigo-600 text-slate-600 hover:text-indigo-600 rounded-2xl font-black transition-all active:scale-95"
-            >
-              <Eye size={20} />
-              <span>Preview Page</span>
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
-            >
-              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-              <span>Save Designer</span>
-            </button>
-          </div>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
+          >
+            {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+            <span>Save Designer</span>
+          </button>
         </div>
 
         {saveStatus && (
@@ -119,19 +124,6 @@ export default function TrialEditor({ onPreview }: { onPreview?: () => void }) {
               onChange={(v) => setContent({ ...content, button_text: v })}
             />
           </div>
-        </div>
-      </div>
-
-      {/* Info Tip */}
-      <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 flex items-start gap-4 text-slate-600">
-        <div className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-sm">
-           <Info size={24} className="text-indigo-400" />
-        </div>
-        <div className="space-y-1">
-          <h5 className="font-extrabold text-slate-800 tracking-tight">Technical Note</h5>
-          <p className="text-sm font-medium leading-relaxed opacity-80 italic">
-            The trial phase always fetches 4 questions tagged as 'Calibration' from your Notion Question Bank to establish participant speed.
-          </p>
         </div>
       </div>
     </div>

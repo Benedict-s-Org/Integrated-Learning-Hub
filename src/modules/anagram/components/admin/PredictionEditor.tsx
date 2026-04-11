@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { useCMS } from "../../../../hooks/useCMS";
-import { Save, Loader2, Brain, Info, Target, HelpCircle, Hash, Type, CheckCircle2, AlertCircle } from "lucide-react";
+import { Save, Loader2, Brain, Info, Target, HelpCircle, Hash, Type, CheckCircle2, AlertCircle, Eye } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
 interface Props {
   cmsKey: string;
   taskLabel: string;
+  onPreview?: () => void;
 }
 
-export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
+export default function PredictionEditor({ cmsKey, taskLabel, onPreview }: Props) {
   const { getContent, updateContent } = useCMS();
   const [content, setContent] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,14 +74,23 @@ export default function PredictionEditor({ cmsKey, taskLabel }: Props) {
             </h2>
             <p className="text-slate-500 text-sm font-medium">Design the prediction screen for {taskLabel}.</p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
-          >
-            {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-            <span>Save Designer</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onPreview}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-indigo-600 text-slate-600 hover:text-indigo-600 rounded-2xl font-black transition-all active:scale-95"
+            >
+              <Eye size={20} />
+              <span>Preview Page</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+              <span>Save Designer</span>
+            </button>
+          </div>
         </div>
 
         {saveStatus && (

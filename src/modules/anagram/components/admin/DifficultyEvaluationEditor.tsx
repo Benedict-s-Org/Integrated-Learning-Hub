@@ -4,7 +4,7 @@ import { Save, Loader2, ClipboardList, Info, MessageSquare, CheckCircle2, AlertC
 import RichTextEditor from "./RichTextEditor";
 import TrialDifficultyEvaluation from "../TrialDifficultyEvaluation";
 
-export default function DifficultyEvaluationEditor() {
+export default function DifficultyEvaluationEditor({ onPreview }: { onPreview?: () => void }) {
   const { getContent, updateContent } = useCMS();
   const [content, setContent] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,14 +63,23 @@ export default function DifficultyEvaluationEditor() {
             </h2>
             <p className="text-slate-500 text-sm font-medium">Customize the feedback collection screen shown after the practice trial.</p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
-          >
-            {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-            <span>Save Designer</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onPreview}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-indigo-600 text-slate-600 hover:text-indigo-600 rounded-2xl font-black transition-all active:scale-95"
+            >
+              <Eye size={20} />
+              <span>Preview Page</span>
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+              <span>Save Designer</span>
+            </button>
+          </div>
         </div>
 
         {saveStatus && (
