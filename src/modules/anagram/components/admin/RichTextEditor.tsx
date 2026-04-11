@@ -39,7 +39,7 @@ const FONT_SIZES = [
   { name: '2X-Large', value: '1.875rem' },
 ];
 
-export default function RichTextEditor({
+function RichTextEditor({
   value,
   onChange,
   label,
@@ -209,3 +209,5 @@ export default function RichTextEditor({
     </div>
   );
 }
+
+export default React.memo(RichTextEditor);

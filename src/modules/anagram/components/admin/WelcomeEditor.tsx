@@ -3,6 +3,27 @@ import { useCMS } from "../../../../hooks/useCMS";
 import { Save, Loader2, Info, Layout, CheckCircle2, MessageSquare, AlertCircle, Target } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 
+const DesignerCard = ({ icon: Icon, title, sectionId, children, borderColor = "border-l-indigo-500" }: any) => (
+  <div className={`bg-white rounded-2xl border-l-[6px] ${borderColor} border border-slate-200 shadow-sm overflow-hidden group transition-all hover:shadow-md`}>
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center">
+            <Icon size={18} />
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-slate-800 tracking-tight">{title}</h4>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sectionId}</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-4 pt-2">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
 export default function WelcomeEditor() {
   const { getContent, updateContent } = useCMS();
   const [content, setContent] = useState<any>(null);
@@ -50,27 +71,6 @@ export default function WelcomeEditor() {
   };
 
   if (!content) return <div className="p-8 text-center text-slate-500 font-medium"><Loader2 className="animate-spin inline-block mr-2" /> Loading Designer...</div>;
-
-  const DesignerCard = ({ icon: Icon, title, sectionId, children, borderColor = "border-l-indigo-500" }: any) => (
-    <div className={`bg-white rounded-2xl border-l-[6px] ${borderColor} border border-slate-200 shadow-sm overflow-hidden group transition-all hover:shadow-md`}>
-      <div className="p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center">
-              <Icon size={18} />
-            </div>
-            <div>
-              <h4 className="text-sm font-black text-slate-800 tracking-tight">{title}</h4>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sectionId}</span>
-            </div>
-          </div>
-        </div>
-        <div className="space-y-4 pt-2">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
