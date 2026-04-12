@@ -548,6 +548,7 @@ export default function App() {
     case "predict1":
         return (
           <PredictionScreen
+             taskName="Task 1 (Easy)"
              targetLabel={targetLabel}
              onConfirm={handlePred1}
              cmsContent={cmsContent.anagram_task1_prediction}
@@ -577,6 +578,7 @@ export default function App() {
       case "predict2":
         return (
           <PredictionScreen
+             taskName="Task 2 (Hard)"
              targetLabel={targetLabel}
              onConfirm={handlePred2}
              cmsContent={cmsContent.anagram_task2_prediction}

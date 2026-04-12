@@ -58,16 +58,26 @@ export default function PredictionScreen({
         {/* Main Header Block */}
         <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
           <div className="h-[10px]" style={{ backgroundColor: "#673ab7" }} />
-          <div className="p-6 space-y-4">
+          <div className="p-6">
             <div className="flex items-center gap-3">
               <div className="text-3xl">⏱️</div>
               <h1 className="text-3xl font-normal text-[#202124]" dangerouslySetInnerHTML={{ __html: cmsContent?.title || "Time Prediction" }} />
             </div>
+          </div>
+        </div>
 
-            {/* Section 1: Task Identification - Much more prominent */}
-            <div className="mt-6 border-2 border-[#e8f0fe] rounded-xl overflow-hidden shadow-sm bg-[#f8f9fa]">
-              <div className="bg-[#e8f0fe] px-4 py-2 border-b border-[#d2e3fc] flex items-center gap-2">
-                <span className="text-sm font-black text-[#1967d2] uppercase tracking-wider">Upcoming Task</span>
+        {/* Section 1: Task Identification - Standalone Card */}
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="bg-[#f8f9fa] px-4 py-2 border-b border-[#dadce0] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-[#5f6368] opacity-70 uppercase tracking-widest">Section 1</span>
+              <span className="text-xs font-black text-[#5f6368] uppercase tracking-wider">Task Identification</span>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="border-2 border-[#e8f0fe] rounded-xl overflow-hidden bg-[#f8f9fa]">
+              <div className="bg-[#e8f0fe] px-4 py-1.5 border-b border-[#d2e3fc]">
+                <span className="text-[10px] font-black text-[#1967d2] uppercase tracking-wider">Upcoming Exercise</span>
               </div>
               <div className="p-5 space-y-2">
                 <div 
@@ -83,9 +93,16 @@ export default function PredictionScreen({
           </div>
         </div>
 
-        {/* Question Block */}
-        <div className="bg-white rounded-[8px] border p-6 space-y-6" style={{ borderColor: "#dadce0" }}>
-          <h2 className="text-base font-medium text-[#202124] leading-relaxed">
+        {/* Question Block (Section 2) */}
+        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
+          <div className="bg-[#f8f9fa] px-4 py-2 border-b border-[#dadce0] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-[#5f6368] opacity-70 uppercase tracking-widest">Section 2</span>
+              <span className="text-xs font-black text-[#5f6368] uppercase tracking-wider">Prediction Guidance</span>
+            </div>
+          </div>
+          <div className="p-6 space-y-6">
+            <h2 className="text-base font-medium text-[#202124] leading-relaxed">
             {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-[#673ab7]\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
               <span key={i}>
                 <span dangerouslySetInnerHTML={{ __html: part.replace(/text-indigo-600/g, "text-[#673ab7]") }} />
