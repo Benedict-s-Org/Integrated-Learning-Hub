@@ -7,32 +7,36 @@ export const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb
  * Post a Run and its Responses directly to the Google Apps Script Webhook
  */
 export async function postRunToGoogleSheet(payload: any) {
+  console.log("DEBUG: Hitting Google Apps Script URL:", GOOGLE_APPS_SCRIPT_URL);
   if (GOOGLE_APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
     console.warn("Google Apps Script URL is not set. Skipping data sync.");
     return { status: "skipped", message: "URL not configured" };
   }
 
   try {
-    const res = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: {
-        // Warning: 'Content-Type': 'application/json' often triggers CORS preflight issues with standard webhooks.
-        // Google Apps script handles text/plain without preflight, but we implemented doOptions in the script to handle JSON perfectly.
-        "Content-Type": "text/plain;charset=utf-8", 
-      },
-      // Important to use no-cors if preflight fails, but if you want to read the response you need cors.
-      // We will try standard 'cors' mode since doOptions is implemented in the App Script snippet.
-      mode: "cors"
-    });
-
-    if (!res.ok) {
-        throw new Error(`Failed to post run to Google Sheets: ${res.status}`);
+    // We use URLSearchParams to send data as a standard form-encoded string.
+    // This is the most compatible way to hit Google Apps Script's doPost(e.parameter).
+    const formData = new URLSearchParams();
+    for (const key in payload) {
+      if (typeof payload[key] === 'object') {
+        formData.append(key, JSON.stringify(payload[key]));
+      } else {
+        formData.append(key, payload[key]);
+      }
     }
 
-    const data = await res.json();
-    console.log("Google Sheets Log Success:", data);
-    return data;
+    const res = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+      method: "POST",
+      body: formData.toString(),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded", 
+      },
+      mode: "no-cors"
+    });
+
+    // In no-cors mode, the response is 'opaque'. We cannot check res.ok or read the status/body.
+    // If the code reaches here and haven't jumped to the 'catch' block, the request was successfully sent.
+    return { status: "success", message: "Data packet successfully sent to Google Sheets (no-cors mode)" };
   } catch (error) {
     console.error("Error posting run to Google Sheets:", error);
     // Silent fail so we don't crash the user experience

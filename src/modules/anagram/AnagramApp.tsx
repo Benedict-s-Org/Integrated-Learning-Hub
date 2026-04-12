@@ -77,6 +77,7 @@ export default function App() {
 
   const [participantId] = useState(() => generateId());
   const [groupId] = useState<"self" | "other">("self");
+  const [startTime] = useState(() => new Date().toISOString());
 
   useEffect(() => {
     const loadNotionQuestions = async () => {
@@ -321,44 +322,39 @@ export default function App() {
     [pred2]
   );
 
-  const handlePostSurvey = useCallback((data: PostSurveyData) => {
-    setPostSurvey(data);
+  const experimentData: ExperimentData = {
+    participantId,
+    timestamp: startTime,
+    groupId,
+    demographics,
+    demographicsContent: cmsContent.anagram_demographics,
+    trialResult,
+    trialDifficulty: trialDifficulty || undefined,
+    task1Result,
+    task2Result,
+    postSurvey,
+  };
+
+  const handlePostSurvey = useCallback((surveyData: PostSurveyData) => {
+    // 1. Update local state for UI/Debrief (Async)
+    setPostSurvey(surveyData);
     setPhase("debrief");
 
+    // 2. Trigger immediate logging to Google Sheets using the fresh 'surveyData'
     const logToSheets = async () => {
       try {
         const { postRunToGoogleSheet } = await import("./services/googleSheetsLogger");
+        
         const getDeviceBrowser = () => {
            if (typeof navigator !== 'undefined') return navigator.userAgent;
            return "Unknown";
         };
 
-        const totalDurationMs = (trialResult ? (trialResult.endTime - trialResult.startTime) : 0) + (task1Result ? (task1Result.endTime - task1Result.startTime) : 0) + (task2Result ? (task2Result.endTime - task2Result.startTime) : 0);
+        const totalDurationMs = 
+          (trialResult ? (trialResult.endTime - trialResult.startTime) : 0) + 
+          (task1Result ? (task1Result.endTime - task1Result.startTime) : 0) + 
+          (task2Result ? (task2Result.endTime - task2Result.startTime) : 0);
 
-        const buildResponses = (task: TaskResult | null, blockName: string) => {
-           if (!task) return [];
-           return task.responses.map((r) => ({
-             responseId: `resp_${participantId}_${blockName}_${r.questionIndex}`,
-             questionId: r.questionId || "",
-             block: blockName,
-             position: r.questionIndex,
-             lettersShown: r.letters,
-             wordLength: r.letters.length,
-             answerTyped: r.userAnswer,
-             isCorrect: r.isCorrect,
-             skipped: r.skipped,
-             attempts: r.attempts,
-             timeTakenMs: r.timeTaken * 1000, 
-             validAnswersSnapshot: "N/A",
-             // Hint tracking
-             hintStage: r.hintStage || 'none',
-             revealedFirstLetter: r.revealedFirstLetter || null,
-             revealedLastLetter: r.revealedLastLetter || null,
-             hintFirstLetterTimeSec: r.hintFirstLetterTime ?? null,
-             hintLastLetterTimeSec: r.hintLastLetterTime ?? null,
-             hintGaveUpTimeSec: r.hintGaveUpTime ?? null,
-           }));
-        };
         const getFlattenedData = () => {
           const flat: Record<string, any> = {
             ParticipantID: participantId,
@@ -405,9 +401,9 @@ export default function App() {
           mapPuzzles(task1Result, "easy");
           mapPuzzles(task2Result, "hard");
 
-          // Post-Survey
-          if (postSurvey) {
-            Object.entries(postSurvey).forEach(([key, val]) => {
+          // Post-Survey (using surveyData from argument, not state)
+          if (surveyData) {
+            Object.entries(surveyData).forEach(([key, val]) => {
               if (key === 'dynamicResponses' && val && typeof val === 'object') {
                 Object.entries(val).forEach(([dk, dv]) => {
                   flat[`survey_dynamic_${dk}`] = dv;
@@ -422,17 +418,16 @@ export default function App() {
         };
 
         const payload = getFlattenedData();
-
-        // Log the flattened payload for verification
-        console.log("Exporting wide-format data:", payload);
-
+        console.log(`[Wide-Export] Data for ${participantId}:`, payload);
         await postRunToGoogleSheet(payload);
+        
       } catch (err) {
         console.error("Failed to log to Google Sheets silently:", err);
       }
     };
+    
     logToSheets();
-  }, [participantId, trialResult, task1Result, task2Result, demographics, groupId, trialDifficulty]);
+  }, [participantId, trialResult, task1Result, task2Result, demographics, groupId, trialDifficulty, pred1, pred2, startTime]);
 
   const handlePreview = useCallback(() => {
     const mapping: Record<string, Phase> = {
@@ -449,7 +444,7 @@ export default function App() {
     };
     setPhase(mapping[activeAdminTab] || "welcome");
   }, [activeAdminTab]);
-
+  
   const nextPhase = useCallback(() => {
     const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "debrief"];
     const currentIndex = phases.indexOf(phase);
@@ -464,18 +459,6 @@ export default function App() {
 
   const targetLabel = groupId === "self" ? "you" : "other students";
 
-  const experimentData: ExperimentData = {
-    participantId,
-    timestamp: new Date().toISOString(),
-    groupId,
-    demographics,
-    demographicsContent: cmsContent.anagram_demographics,
-    trialResult,
-    trialDifficulty: trialDifficulty || undefined,
-    task1Result,
-    task2Result,
-    postSurvey,
-  };
 
   if (!isCmsLoaded && !isAdmin) {
     return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">Initializing Experiment...</div>;
@@ -553,7 +536,16 @@ export default function App() {
         />
       );
 
-      case "predict1":
+    case "trial_difficulty":
+      return (
+        <TrialDifficultyEvaluation
+          onBack={() => setPhase("trial")}
+          onSubmit={handleTrialDifficulty}
+          cmsContent={cmsContent.anagram_trial_difficulty}
+        />
+      );
+
+    case "predict1":
         return (
           <PredictionScreen
              targetLabel={targetLabel}
