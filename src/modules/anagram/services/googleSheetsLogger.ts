@@ -6,7 +6,7 @@ export const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb
 /**
  * Post a Run and its Responses directly to the Google Apps Script Webhook
  */
-export async function postRunToGoogleSheet(payload: RunPayload) {
+export async function postRunToGoogleSheet(payload: any) {
   if (GOOGLE_APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
     console.warn("Google Apps Script URL is not set. Skipping data sync.");
     return { status: "skipped", message: "URL not configured" };
