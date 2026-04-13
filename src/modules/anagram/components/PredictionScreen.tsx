@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../../context/AuthContext";
-import { Edit2 } from "lucide-react";
+import { Edit2, Target, HelpCircle } from "lucide-react";
 
 interface Props {
   taskName?: string;
@@ -21,9 +21,9 @@ export default function PredictionScreen({
   const inputRef = useRef<HTMLInputElement>(null);
   const { isAdmin } = useAuth();
 
-  // Use CMS content if available, prioritize props if explicitly passed, otherwise use fallbacks
-  const finalTaskName = taskName || cmsContent?.task_name || "Anagram Task";
-  const finalTaskDescription = taskDescription || cmsContent?.task_description || "Please predict the time needed.";
+  // Use CMS content if available, prioritize CMS content as it represents the researcher's edits
+  const finalTaskName = cmsContent?.task_name || taskName || "Anagram Task";
+  const finalTaskDescription = cmsContent?.task_description || taskDescription || "Please predict the time needed.";
 
   const numValue = parseInt(value);
   const minVal = cmsContent?.min_val ?? 1;
@@ -67,52 +67,66 @@ export default function PredictionScreen({
         </div>
 
         {/* Section 1: Task Identification - Standalone Card */}
-        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
-          <div className="bg-[#f8f9fa] px-4 py-2 border-b border-[#dadce0] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-[#5f6368] opacity-70 uppercase tracking-widest">Section 1</span>
-              <span className="text-xs font-black text-[#5f6368] uppercase tracking-wider">Task Identification</span>
+        <div className="bg-white rounded-[12px] border overflow-hidden shadow-sm" style={{ borderColor: "#dadce0" }}>
+          <div className="bg-[#f8f9fa] px-5 py-4 border-b border-[#dadce0] flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-indigo-100">
+               <Target size={18} />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tight">Task Identification</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Section 1</p>
             </div>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="p-6">
             <div className="border-2 border-[#e8f0fe] rounded-xl overflow-hidden bg-[#f8f9fa]">
-              <div className="bg-[#e8f0fe] px-4 py-1.5 border-b border-[#d2e3fc]">
-                <span className="text-[10px] font-black text-[#1967d2] uppercase tracking-wider">Upcoming Exercise</span>
+              <div className="bg-[#e8f0fe] px-4 py-2 border-b border-[#d2e3fc] flex items-center justify-between">
+                <span className="text-[10px] font-black text-[#1967d2] uppercase tracking-widest">Upcoming Exercise</span>
+                <div className="w-2 h-2 rounded-full bg-[#1967d2] animate-pulse" />
               </div>
-              <div className="p-5 space-y-2">
+              <div className="p-5 space-y-4">
                 <div 
-                  className="text-xl font-bold text-[#202124] leading-tight" 
+                  className="text-2xl font-black text-[#202124] leading-tight tracking-tight italic" 
                   dangerouslySetInnerHTML={{ __html: finalTaskName }} 
                 />
-                <div 
-                  className="text-sm text-[#5f6368] leading-relaxed" 
-                  dangerouslySetInnerHTML={{ __html: finalTaskDescription }} 
-                />
+                {(finalTaskDescription && finalTaskDescription !== "<p></p>" && finalTaskDescription !== "<p><br></p>") ? (
+                  <div 
+                    className="text-[17px] text-[#4a4a4a] font-semibold leading-relaxed border-t border-slate-200/60 pt-3" 
+                    dangerouslySetInnerHTML={{ __html: finalTaskDescription }} 
+                  />
+                ) : (
+                  <div className="text-[17px] text-slate-400 italic font-medium border-t border-slate-200/60 pt-3">
+                    No task description provided.
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         {/* Question Block (Section 2) */}
-        <div className="bg-white rounded-[8px] border overflow-hidden" style={{ borderColor: "#dadce0" }}>
-          <div className="bg-[#f8f9fa] px-4 py-2 border-b border-[#dadce0] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-[#5f6368] opacity-70 uppercase tracking-widest">Section 2</span>
-              <span className="text-xs font-black text-[#5f6368] uppercase tracking-wider">Prediction Guidance</span>
+        <div className="bg-white rounded-[12px] border overflow-hidden shadow-sm" style={{ borderColor: "#dadce0" }}>
+          <div className="bg-[#f8f9fa] px-5 py-4 border-b border-[#dadce0] flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-indigo-100">
+               <HelpCircle size={18} />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tight">Prediction Guidance</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Section 2</p>
             </div>
           </div>
-          <div className="p-6 space-y-6">
-            <h2 className="text-base font-medium text-[#202124] leading-relaxed">
-            {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-[#673ab7]\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
-              <span key={i}>
-                <span dangerouslySetInnerHTML={{ __html: part.replace(/text-indigo-600/g, "text-[#673ab7]") }} />
-                {i < arr.length - 1 && <strong className="text-[#673ab7]">{targetLabel}</strong>}
-              </span>
-            ))}
-            <span className="text-[#d93025] ml-1">*</span>
-          </h2>
+          <div className="p-6 space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-[#202124] leading-relaxed">
+                {(cmsContent?.question_text || "How many <strong>seconds</strong> do you think <strong class=\"text-[#673ab7]\">[target]</strong> will need to solve <strong>each puzzle</strong>?").split('[target]').map((part: string, i: number, arr: any[]) => (
+                  <span key={i}>
+                    <span dangerouslySetInnerHTML={{ __html: part.replace(/text-indigo-600/g, "text-[#673ab7]") }} />
+                    {i < arr.length - 1 && <strong className="text-[#673ab7]">{targetLabel}</strong>}
+                  </span>
+                ))}
+                <span className="text-[#d93025] ml-1">*</span>
+              </h2>
+            </div>
 
-          <div className="flex flex-col items-start gap-2">
             <div className="flex items-center gap-3 w-full">
               <input
                 ref={inputRef}

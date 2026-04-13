@@ -43,6 +43,7 @@ type Phase =
   | "task2"
   | "complete2"
   | "postsurvey"
+  | "syncing"
   | "debrief"
   | "cms";
 
@@ -336,14 +337,15 @@ export default function App() {
   };
 
   const handlePostSurvey = useCallback((surveyData: PostSurveyData) => {
-    // 1. Update local state for UI/Debrief (Async)
+    // 1. Update local state
     setPostSurvey(surveyData);
-    setPhase("debrief");
+    
+    // 2. Change Phase to "syncing" to show the loading screen and prevent tab closure
+    setPhase("syncing");
 
-    // 2. Trigger immediate logging to Google Sheets using the fresh 'surveyData'
-    const logToSheets = async () => {
+    const syncData = async () => {
       try {
-        const { postRunToGoogleSheet } = await import("./services/googleSheetsLogger");
+        const { processQueue, enqueueRun } = await import("./services/syncQueue");
         
         const getDeviceBrowser = () => {
            if (typeof navigator !== 'undefined') return navigator.userAgent;
@@ -355,6 +357,7 @@ export default function App() {
           (task1Result ? (task1Result.endTime - task1Result.startTime) : 0) + 
           (task2Result ? (task2Result.endTime - task2Result.startTime) : 0);
 
+        // --- Build Google Sheets Payload (Wide Format) ---
         const getFlattenedData = () => {
           const flat: Record<string, any> = {
             ParticipantID: participantId,
@@ -366,20 +369,15 @@ export default function App() {
             Trial_Difficulty_Evaluation: trialDifficulty || "none"
           };
 
-          // Demographics
           if (demographics) {
-            Object.entries(demographics).forEach(([key, val]) => {
-              flat[`demo_${key}`] = val;
-            });
+            Object.entries(demographics).forEach(([key, val]) => flat[`demo_${key}`] = val);
           }
 
-          // Summary performance
           flat.Easy_Prediction_Sec = pred1;
           flat.Hard_Prediction_Sec = pred2;
           flat.Easy_Total_Actual_Sec = (task1Result?.endTime && task1Result?.startTime) ? (task1Result.endTime - task1Result.startTime) / 1000 : 0;
           flat.Hard_Total_Actual_Sec = (task2Result?.endTime && task2Result?.startTime) ? (task2Result.endTime - task2Result.startTime) / 1000 : 0;
 
-          // Helper for puzzles
           const mapPuzzles = (task: TaskResult | null, prefix: string) => {
             if (!task) return;
             task.responses.forEach((r, idx) => {
@@ -401,33 +399,90 @@ export default function App() {
           mapPuzzles(task1Result, "easy");
           mapPuzzles(task2Result, "hard");
 
-          // Post-Survey (using surveyData from argument, not state)
           if (surveyData) {
             Object.entries(surveyData).forEach(([key, val]) => {
               if (key === 'dynamicResponses' && val && typeof val === 'object') {
-                Object.entries(val).forEach(([dk, dv]) => {
-                  flat[`survey_dynamic_${dk}`] = dv;
-                });
+                Object.entries(val).forEach(([dk, dv]) => flat[`survey_dynamic_${dk}`] = dv);
               } else {
                 flat[`survey_${key}`] = val;
               }
             });
           }
-
           return flat;
         };
 
-        const payload = getFlattenedData();
-        console.log(`[Wide-Export] Data for ${participantId}:`, payload);
-        await postRunToGoogleSheet(payload);
+        // --- Build Notion Payload (Relational Format) ---
+        const getNotionPayload = () => {
+          const mapResponses = (task: TaskResult | null, blockName: string): any[] => {
+            if (!task) return [];
+            return task.responses.map((r, idx) => ({
+              responseId: `resp_${participantId}_${blockName.replace(/ /g, '_')}_${idx + 1}`,
+              questionId: r.questionId || "",
+              questionPageUrl: r.questionPageUrl || "",
+              block: blockName,
+              position: idx + 1,
+              lettersShown: r.letters,
+              wordLength: r.letters.length,
+              answerTyped: r.userAnswer || "",
+              isCorrect: r.isCorrect,
+              skipped: r.skipped,
+              attempts: r.attempts,
+              timeTakenMs: Math.round(r.timeTaken * 1000),
+              validAnswersSnapshot: "",
+              hintStage: r.hintStage || "none",
+              revealedFirstLetter: r.hintStage && r.hintStage !== "none" ? r.letters[0] : "",
+              revealedLastLetter: r.hintStage === "last_letter" ? r.letters[r.letters.length - 1] : "",
+              hintFirstLetterTimeSec: r.hintFirstLetterTime,
+              hintLastLetterTimeSec: r.hintLastLetterTime,
+              hintGaveUpTimeSec: r.hintGaveUpTime
+            }));
+          };
+
+          const allResponses = [
+            ...mapResponses(trialResult, "Trial"),
+            ...mapResponses(task1Result, "Task 1 (Easy)"),
+            ...mapResponses(task2Result, "Task 2 (Hard)")
+          ];
+
+          return {
+            runId: `run_${participantId}`,
+            participantId: participantId,
+            taskVersion: "v1.1",
+            startedAt: experimentData.timestamp,
+            finishedAt: new Date().toISOString(),
+            totalDurationMs: totalDurationMs,
+            completed: true,
+            calibrationPredSec: 0,
+            calibrationActualSec: trialResult ? (trialResult.endTime - trialResult.startTime) / 1000 : 0,
+            easyPredSec: pred1,
+            easyActualSec: task1Result ? (task1Result.endTime - task1Result.startTime) / 1000 : 0,
+            hardPredSec: pred2,
+            hardActualSec: task2Result ? (task2Result.endTime - task2Result.startTime) / 1000 : 0,
+            deviceBrowser: getDeviceBrowser(),
+            notes: surveyData?.comments || "",
+            responses: allResponses
+          };
+        };
+
+        const sheetsPayload = getFlattenedData();
+        const notionPayload = getNotionPayload();
         
+        // Push payloads to the Offline-Capable Queue
+        enqueueRun(sheetsPayload, notionPayload);
+        
+        // Attempt to process queue immediately (Dual-Channel Sync)
+        await processQueue();
+
       } catch (err) {
-        console.error("Failed to log to Google Sheets silently:", err);
+        console.error("Critical error during sync setup:", err);
+      } finally {
+        // Always advance to debrief, even if the user goes offline (queue is saved)
+        setPhase("debrief");
       }
     };
     
-    logToSheets();
-  }, [participantId, trialResult, task1Result, task2Result, demographics, groupId, trialDifficulty, pred1, pred2, startTime]);
+    syncData();
+  }, [participantId, trialResult, task1Result, task2Result, demographics, groupId, trialDifficulty, pred1, pred2, startTime, experimentData.timestamp]);
 
   const handlePreview = useCallback(() => {
     const mapping: Record<string, Phase> = {
@@ -440,19 +495,20 @@ export default function App() {
       predict2: "predict2",
       feedback2: "complete2",
       survey: "postsurvey",
+      syncing: "syncing",
       debrief: "debrief",
     };
     setPhase(mapping[activeAdminTab] || "welcome");
   }, [activeAdminTab]);
   
   const nextPhase = useCallback(() => {
-    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "debrief"];
+    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "syncing", "debrief"];
     const currentIndex = phases.indexOf(phase);
     if (currentIndex < phases.length - 1) setPhase(phases[currentIndex + 1]);
   }, [phase]);
 
   const prevPhase = useCallback(() => {
-    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "debrief"];
+    const phases: Phase[] = ["welcome", "demographics", "trial_intro", "trial", "trial_difficulty", "predict1", "task1", "complete1", "predict2", "task2", "complete2", "postsurvey", "syncing", "debrief"];
     const currentIndex = phases.indexOf(phase);
     if (currentIndex > 0) setPhase(phases[currentIndex - 1]);
   }, [phase]);
@@ -549,6 +605,7 @@ export default function App() {
         return (
           <PredictionScreen
              taskName="Task 1 (Easy)"
+             taskDescription="10 anagrams (3 warmup + 7 easy puzzles)"
              targetLabel={targetLabel}
              onConfirm={handlePred1}
              cmsContent={cmsContent.anagram_task1_prediction}
@@ -579,6 +636,7 @@ export default function App() {
         return (
           <PredictionScreen
              taskName="Task 2 (Hard)"
+             taskDescription="10 anagrams (8 6-letter + 2 7-letter puzzles)"
              targetLabel={targetLabel}
              onConfirm={handlePred2}
              cmsContent={cmsContent.anagram_task2_prediction}
@@ -607,6 +665,19 @@ export default function App() {
 
     case "postsurvey":
       return <PostSurvey groupId={groupId} onComplete={handlePostSurvey} />;
+
+    case "syncing":
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 md:p-10 text-center animate-in fade-in zoom-in-95 duration-500">
+             <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6" />
+             <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-3">Saving Your Results...</h2>
+             <p className="text-slate-500 font-medium leading-relaxed">
+               Please do not close or refresh this window. We are securely syncing your experiment data to the cloud.
+             </p>
+          </div>
+        </div>
+      );
 
       case "debrief":
         return (

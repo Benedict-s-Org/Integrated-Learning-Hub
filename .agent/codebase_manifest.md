@@ -39,6 +39,7 @@
 To ensure development remains fast and avoids "infinite loops" or stalled progress, the following standards are enforced (detailed in `safe-development.md#25`):
 - **Direct Edits Over Scripts**: Favor surgical code replacements over temporary data-fetching or infrastructure scripts.
 - **Fail-Fast & Pivot**: If an automated tool chain is interrupted or fails twice, pivot to a manual verification or a simpler editing strategy immediately.
+- **UI Data Priority**: Always follow the "Researcher First" rule (detailed in `safe-development.md#27`): `CMS Content > Props > Constants`.
 - **Documentation First**: Manifest updates prioritize human-readable documentation of architecture over building automated sync tools.
 
 ---
@@ -290,16 +291,9 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 
 ---
 
-### Cognitive Anagram & Notion Logging (L290-L305)
-- **Files**: `src/modules/anagram/AnagramApp.tsx`, `src/modules/anagram/services/notionLogger.ts`, `supabase/functions/anagram-notion/index.ts`
-- **Concept**: A research-oriented anagram experiment platform fully integrated with Notion for dynamic content management and automated data collection.
-- **Mechanism**:
-  - **Notion Question Bank**: Fetched via the `anagram-notion` Edge Function. Supports "Easy" and "Hard" tiers.
-  - **Automated Logging**: `postRun` logic automatically pushes experiment results (Runs) and individual trial data (Responses) to Notion.
-  - **Relational Integrity**: The Edge Function establishes two-way relations between `Responses`, `Runs`, and `Question Bank` items in Notion.
-  - **Robustness**: Uses the `createCORSResponse` pattern and native `fetch` within the Deno Edge Function to ensure reliability across environments.
-- **Admin Tools**:
-  - **Question Bank Editor**: A synced, read-only view in the UI.
-  - **Relation Setup**: Administrative endpoint (`?action=setup-relations`) to idempotently configure Notion database properties.
-- **Gotchas**: Requires `NOTION_TOKEN` secret in Supabase. Deployed with `--no-verify-jwt` to support flexible research-phase CORS and cross-origin development.
+- **Cognitive Anagram & Notion Logging (L290-L305)**
+  - **Files**: `src/modules/anagram/AnagramApp.tsx`, `src/modules/anagram/services/notionLogger.ts`, `src/modules/anagram/components/PredictionScreen.tsx`
+  - **UIReliability**: Enforces Section 1 (Task Identification) and Section 2 (Prediction Guidance) separation with explicit icon-based headers.
+  - **DataPriority**: UI prioritizes `cmsContent` to ensure researcher edits in the Admin Panel are never overridden by hardcoded defaults.
+  - **Logging**: Automated data collection to Notion for both Runs and Responses.
 

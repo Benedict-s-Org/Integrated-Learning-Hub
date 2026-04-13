@@ -506,3 +506,27 @@ Before starting any sub-task, read the `.gemini/antigravity/brain/` directory:
 - **Search First**: Use `grep_search` or `view_file_outline` to locate code rather than scrolling through whole files.
 - **Outline First**: Use `view_file_outline` to understand file structure before reading the content.
 ```
+
+---
+
+### 27. UI Data Priority & Reliability (500 Error Prevention)
+**Problem**: Inconsistent prop-passing and brittle fallback logic led to "Missing Task Description" and "500 Build Errors" during UI restyling. Specifically:
+- **Extra Tags**: Incomplete JSX tag balancing during large code replacements caused Vite to crash.
+- **Hardcoded Priority**: Hardcoding prop values in parent components while providing them as props to children caused them to override researcher edits in the CMS.
+- **Missing Desc Props**: Forgetting to pass all necessary descriptive props resulted in empty UI sections when CMS data was loading or missing.
+
+**Prevention**:
+- **Serious Data Priority**: Always follow the "Researcher First" rule: `CMS Content (Live Edits) > Component Props (Site-specific Fallbacks) > Constants (Global Defaults)`.
+- **Atomic Tag Checks**: After any UI replacement, verify that every `<div` has a corresponding `</div>` and that all conditional blocks `{... && (...)}` are closed.
+- **Description Synchronization**: When a component requires a title/name, it almost always requires a description/subtitle. Ensure both are passed as a pair from the parent (e.g., `AnagramApp.tsx`).
+- **Rich Text Edge Cases**: Explicitly handle empty rich text states (e.g., `<p></p>`, `<p><br></p>`) in rendering logic to prevent "empty-looking" UI cards.
+
+### 28. Anti-Omission & Accidental Deletion Prevention
+**Problem**: AI agents often accidentally truncate existing logic or delete required closing tags/imports when performing large-scale code replacements, leading to syntax errors or feature regression.
+
+**Prevention**:
+- **Surgical Chunks**: Prefer multiple small `ReplacementChunk` calls rather than one giant block. This preserves the surrounding "connective tissue" of the file.
+- **Mandatory Structural Wrap-up**: After ANY edit involving more than 10 lines, perform a `view_file` of the changed area to verify tag balance (e.g., ensuring every `<div>` and `{` is closed).
+- **Symbol Reference Check**: Before submitting, verify that all variables and functions used in the new code still have valid declarations within the file.
+- **Grep for Context**: If unsure about the effect of a deletion, use `grep_search` to see where else that variable or component is used before removing it.
+- **Anchor Identification**: Identify "Do-not-touch" anchors (like critical context providers or logic boundaries) before initiating a replace tool call.

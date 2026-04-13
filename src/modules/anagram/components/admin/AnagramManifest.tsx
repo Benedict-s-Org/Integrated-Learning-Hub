@@ -9,8 +9,10 @@ import {
   FileCheck, 
   Info,
   Database,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
+import { setupNotionRelations } from '../../services/notionLogger';
 
 interface ManifestStepProps {
   icon: React.ElementType;
@@ -41,6 +43,20 @@ function ManifestStep({ icon: Icon, title, description, isLast }: ManifestStepPr
 }
 
 export default function AnagramManifest() {
+  const [isSettingUp, setIsSettingUp] = React.useState(false);
+
+  const handleSetupRelations = async () => {
+    setIsSettingUp(true);
+    try {
+      const res = await setupNotionRelations();
+      alert(`Success: ${res?.message || 'Relations configured.'}`);
+    } catch (err: any) {
+      alert(`Error setting up relations: ${err.message}`);
+    } finally {
+      setIsSettingUp(false);
+    }
+  };
+
   const steps = [
     {
       icon: Database,
@@ -152,9 +168,18 @@ export default function AnagramManifest() {
             Experiment metadata and participant responses are automatically logged to **Notion (Runs & Responses DBs)** via the `anagram-notion` Edge Function. 
             Two-way relations are established between responses and the question bank for granular analysis.
           </p>
-          <div className="flex gap-4">
-             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Sync: ACTIVE</div>
-             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded">Backend: Edge Runtime</div>
+          <div className="flex flex-wrap items-center gap-4">
+             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/10">Sync: ACTIVE</div>
+             <div className="text-xs font-bold text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/10">Backend: Edge Runtime</div>
+             
+             <button 
+               onClick={handleSetupRelations}
+               disabled={isSettingUp}
+               className="ml-auto flex items-center gap-2 text-xs font-bold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded border border-blue-500/30 transition-colors disabled:opacity-50"
+             >
+               <RefreshCw size={14} className={isSettingUp ? "animate-spin" : ""} />
+               {isSettingUp ? "Configuring Databases..." : "Initialize Notion Relations"}
+             </button>
           </div>
         </div>
       </div>
