@@ -209,12 +209,12 @@ function RichTextEditor({
             handleInput();
           }}
           onKeyDown={handleKeyDown}
-          className={`w-full px-5 py-4 bg-transparent outline-none text-slate-700 leading-relaxed min-h-[44px] relative
-            ${multiline ? 'min-h-[120px] resize-y overflow-auto' : 'min-h-[44px] overflow-y-auto whitespace-pre-wrap'}
+          className={`w-full px-5 py-4 bg-transparent outline-none text-slate-700 leading-relaxed relative
+            ${multiline ? 'min-h-[120px] resize-y overflow-auto' : 'min-h-[56px] overflow-y-auto whitespace-pre-wrap'}
             ${!value && 'before:content-[attr(data-placeholder)] before:text-slate-400 before:absolute before:left-5 before:top-4 before:pointer-events-none before:font-medium text-sm'}
           `}
           data-placeholder={placeholder}
-          style={multiline ? { height: rows ? `${rows * 1.5}rem` : 'auto' } : {}}
+          style={multiline ? { minHeight: rows ? `${rows * 1.8}rem` : '120px' } : {}}
         />
       </div>
 

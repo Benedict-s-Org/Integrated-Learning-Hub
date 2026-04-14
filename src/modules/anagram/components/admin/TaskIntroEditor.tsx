@@ -108,6 +108,8 @@ export default function TaskIntroEditor({
           <div className="space-y-6">
             <RichTextEditor
               label="Phase Title"
+              multiline
+              rows={2}
               value={content.title}
               onChange={(v) => setContent({ ...content, title: v })}
             />

@@ -181,6 +181,8 @@ export default function DemographicsEditor({ onPreview }: { onPreview?: () => vo
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
             label="Form Title"
+            multiline
+            rows={2}
             value={content.title}
             onChange={(v) => setContent({ ...content, title: v })}
           />
@@ -251,6 +253,8 @@ export default function DemographicsEditor({ onPreview }: { onPreview?: () => vo
               <div className="space-y-4">
                 <RichTextEditor
                   label="Question Label"
+                  multiline
+                  rows={2}
                   value={field.label}
                   onChange={(v) => updateField(field.id, { label: v })}
                 />

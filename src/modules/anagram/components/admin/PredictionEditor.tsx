@@ -130,6 +130,8 @@ export default function PredictionEditor({ cmsKey, taskLabel, onPreview }: Props
           <div className="space-y-4">
             <RichTextEditor
               label="Task Name (Shown in blue box)"
+              multiline
+              rows={1}
               value={content.task_name}
               onChange={(v) => setContent({ ...content, task_name: v })}
             />
@@ -158,6 +160,8 @@ export default function PredictionEditor({ cmsKey, taskLabel, onPreview }: Props
             <div className="space-y-1">
               <RichTextEditor
                 label="Question Text"
+                multiline
+                rows={2}
                 value={content.question_text}
                 onChange={(v) => setContent({ ...content, question_text: v })}
               />
@@ -226,6 +230,8 @@ export default function PredictionEditor({ cmsKey, taskLabel, onPreview }: Props
              <div className="space-y-1">
                <RichTextEditor
                  label="Validation Error Template"
+                 multiline
+                 rows={2}
                  value={content.validation_error_template}
                  onChange={(v) => setContent({ ...content, validation_error_template: v })}
                />
@@ -236,6 +242,8 @@ export default function PredictionEditor({ cmsKey, taskLabel, onPreview }: Props
              <div className="space-y-1">
                <RichTextEditor
                  label="Result Preview Template (Shown after input)"
+                 multiline
+                 rows={2}
                  value={content.result_preview_template}
                  onChange={(v) => setContent({ ...content, result_preview_template: v })}
                />

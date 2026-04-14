@@ -114,6 +114,8 @@ export default function DifficultyEvaluationEditor({ onPreview }: { onPreview?: 
               <div className="space-y-6">
                 <RichTextEditor
                   label="Page Title"
+                  multiline
+                  rows={2}
                   value={content.title}
                   onChange={(v) => setContent({ ...content, title: v })}
                 />
@@ -126,6 +128,8 @@ export default function DifficultyEvaluationEditor({ onPreview }: { onPreview?: 
                 />
                 <RichTextEditor
                   label="Question Label"
+                  multiline
+                  rows={2}
                   value={content.question_label}
                   onChange={(v) => setContent({ ...content, question_label: v })}
                 />

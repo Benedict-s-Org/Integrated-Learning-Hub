@@ -131,6 +131,8 @@ export default function WelcomeEditor({ onPreview }: { onPreview?: () => void })
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
             label="Page Title"
+            multiline
+            rows={2}
             value={content.title}
             onChange={(v) => setContent({ ...content, title: v })}
           />
@@ -151,6 +153,8 @@ export default function WelcomeEditor({ onPreview }: { onPreview?: () => void })
         <DesignerCard icon={MessageSquare} title="Study Information" sectionId="Section 1" borderColor="border-l-blue-500">
           <RichTextEditor
             label="Header Title"
+            multiline
+            rows={1}
             value={content.study_info_title}
             onChange={(v) => setContent({ ...content, study_info_title: v })}
           />
@@ -168,6 +172,8 @@ export default function WelcomeEditor({ onPreview }: { onPreview?: () => void })
         <DesignerCard icon={AlertCircle} title="Important Notes" sectionId="Section 2" borderColor="border-l-amber-500">
           <RichTextEditor
             label="Header Title"
+            multiline
+            rows={1}
             value={content.notes_title}
             onChange={(v) => setContent({ ...content, notes_title: v })}
           />

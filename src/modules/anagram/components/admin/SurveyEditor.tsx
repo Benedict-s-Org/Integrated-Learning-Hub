@@ -212,6 +212,8 @@ export default function SurveyEditor({ onPreview }: { onPreview?: () => void }) 
         <div className="space-y-6 pt-6 border-t border-slate-100">
           <RichTextEditor
             label="Survey Title"
+            multiline
+            rows={2}
             value={content.title}
             onChange={(v) => setContent({ ...content, title: v })}
           />
@@ -236,6 +238,8 @@ export default function SurveyEditor({ onPreview }: { onPreview?: () => void }) 
           <DesignerCard key={sec.key} icon={sec.icon} title={sec.title} sectionId={`Core Section ${idx + 1}`} borderColor={sec.border}>
              <RichTextEditor
                 label="Section Display Title"
+                multiline
+                rows={1}
                 value={content.sections[sec.key].title}
                 onChange={(v) => setContent({ 
                     ...content, 
@@ -274,11 +278,15 @@ export default function SurveyEditor({ onPreview }: { onPreview?: () => void }) 
                     <>
                       <RichTextEditor 
                         label="Question 1" 
+                        multiline
+                        rows={2}
                         value={content.sections[sec.key].q1} 
                         onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q1: v } }})} 
                       />
                       <RichTextEditor 
                         label="Question 2" 
+                        multiline
+                        rows={2}
                         value={content.sections[sec.key].q2} 
                         onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q2: v } }})} 
                       />
@@ -287,6 +295,8 @@ export default function SurveyEditor({ onPreview }: { onPreview?: () => void }) 
                   {(sec.key === 'optimism' || sec.key === 'thinking') && (
                     <RichTextEditor 
                       label="Question 3" 
+                      multiline
+                      rows={2}
                       value={content.sections[sec.key].q3} 
                       onChange={(v) => setContent({ ...content, sections: { ...content.sections, [sec.key]: { ...content.sections[sec.key], q3: v } }})} 
                     />
