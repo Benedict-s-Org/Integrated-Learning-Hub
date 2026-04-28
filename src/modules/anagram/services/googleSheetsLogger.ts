@@ -18,10 +18,13 @@ export async function postRunToGoogleSheet(payload: any) {
     // This is the most compatible way to hit Google Apps Script's doPost(e.parameter).
     const formData = new URLSearchParams();
     for (const key in payload) {
-      if (typeof payload[key] === 'object') {
-        formData.append(key, JSON.stringify(payload[key]));
+      const val = payload[key];
+      if (val === undefined || val === null) {
+        formData.append(key, "");
+      } else if (typeof val === 'object') {
+        formData.append(key, JSON.stringify(val));
       } else {
-        formData.append(key, payload[key]);
+        formData.append(key, val);
       }
     }
 

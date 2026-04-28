@@ -101,11 +101,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 1. get-cycle-day ──────────────────────────────────────────────
+    // ── 1. get-cycle-day ──────────────────────────────────────────────
     if (action === "get-cycle-day") {
       const dateDbId = "2579baca6fa3806f9c6ef193f7d81213";
+      
+      // Calculate HK Today String robustly
       const now = new Date();
       const hkOffset = 8 * 60 * 60 * 1000;
       const hkDateStr = new Date(now.getTime() + hkOffset).toISOString().split("T")[0];
+      
+      console.log(`[notion-api] Querying Date DB for: ${hkDateStr}`);
 
       const resp = await fetch(`${NOTION_API}/databases/${dateDbId}/query`, {
         method: "POST",
@@ -118,26 +123,63 @@ Deno.serve(async (req: Request) => {
         })
       });
 
-      if (!resp.ok) return createCORSResponse(await resp.json(), resp.status, req);
+      if (!resp.ok) {
+        const errJson = await resp.json();
+        console.error(`[notion-api] Notion Query Failed:`, errJson);
+        return createCORSResponse(errJson, resp.status, req);
+      }
+      
       const data = await resp.json();
       
       if (data.results && data.results.length > 0) {
         const page = data.results[0];
         const props = page.properties;
-        const cycleDay = props["Day of the cycle"]?.select?.name;
+        
+        // Log keys for debugging if something is missing
+        console.log(`[notion-api] Found page props: ${Object.keys(props).join(", ")}`);
+
+        // Helper to get property value regardless of name casing or slight variations
+        const getPropValue = (names: string[]) => {
+          for (const name of names) {
+            const p = props[name];
+            if (p) {
+              if (p.type === 'select') return p.select?.name;
+              if (p.type === 'number') return p.number;
+              if (p.type === 'rich_text') return p.rich_text?.[0]?.plain_text;
+              if (p.type === 'title') return p.title?.[0]?.plain_text;
+              if (p.type === 'date') return p.date?.start;
+              if (p.type === 'formula') {
+                  if (p.formula.type === 'string') return p.formula.string;
+                  if (p.formula.type === 'number') return p.formula.number;
+              }
+            }
+          }
+          return null;
+        };
+
+        const cycleDay = getPropValue(["Day of the cycle", "Day", "Cycle Day"]);
+        const cycleNumber = getPropValue(["Cycle", "Cycle Number"]);
+        const studentOnDuty = getPropValue(["Student on Duty", "Student on duty", "Duty Student"]);
+        const notionDate = getPropValue(["Date"]);
+        
         const isHoliday = cycleDay === "Holiday" || cycleDay === "Holiday Mode";
         
+        console.log(`[notion-api] Resolved: Day=${cycleDay}, Cycle=${cycleNumber}, Student=${studentOnDuty}, Holiday=${isHoliday}`);
+
         return createCORSResponse({
           found: true,
-          cycleDay: cycleDay,
-          cycleNumber: props["Cycle"]?.select?.name,
-          studentOnDuty: props["Student on Duty"]?.number,
-          date: props["Date"]?.date?.start,
+          cycleDay: cycleDay || '-',
+          cycleNumber: cycleNumber || '-',
+          studentOnDuty: studentOnDuty ?? '-',
+          date: notionDate || hkDateStr,
           isHoliday: isHoliday
         }, 200, req);
       }
+      
+      console.warn(`[notion-api] No results found for date: ${hkDateStr}`);
       return createCORSResponse({ found: false, searchDate: hkDateStr }, 200, req);
     }
+
 
     // ── 2. query-mcq-database / list-activities ───────────────────────
     if (action === "query-mcq-database" || action === "list-activities") {

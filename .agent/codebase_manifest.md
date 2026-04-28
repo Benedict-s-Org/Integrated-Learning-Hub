@@ -291,9 +291,16 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 
 ---
 
-- **Cognitive Anagram & Notion Logging (L290-L305)**
-  - **Files**: `src/modules/anagram/AnagramApp.tsx`, `src/modules/anagram/services/notionLogger.ts`, `src/modules/anagram/components/PredictionScreen.tsx`
-  - **UIReliability**: Enforces Section 1 (Task Identification) and Section 2 (Prediction Guidance) separation with explicit icon-based headers.
-  - **DataPriority**: UI prioritizes `cmsContent` to ensure researcher edits in the Admin Panel are never overridden by hardcoded defaults.
-  - **Logging**: Automated data collection to Notion for both Runs and Responses.
-
+### Cognitive Anagram & Psychology Research (L290-L315)
+- **Files**: `src/modules/anagram/AnagramApp.tsx`, `src/modules/anagram/services/notionLogger.ts`, `src/modules/anagram/components/`
+- **Research Components & Necessity**: The module is structured as a complete psychological experiment pipeline measuring metacognitive calibration (e.g., Dunning-Kruger effect, Judgments of Learning):
+  - **Demographics (`Demographics.tsx`)**: Collects participant background variables (age, gender, etc.) crucial for controlling confounding factors and analyzing population differences.
+  - **Welcome & Consent (`Welcome.tsx`)**: Fulfills ethical requirements by providing informed consent, explaining the study's purpose, and giving standardized instructions.
+  - **Prediction (`PredictionScreen.tsx`)**: Core metacognitive measure capturing *a priori* judgments. Measures how well participants think they (or others) will perform before attempting the cognitive task.
+  - **Anagram Task (`AnagramTask.tsx`)**: The primary cognitive behavioral measure recording objective performance metrics (accuracy, reaction time, attempts).
+  - **Difficulty Evaluation (`TrialDifficultyEvaluation.tsx`)**: Captures *a posteriori* metacognitive judgments. Evaluates perceived difficulty after the experience to contrast with initial predictions.
+  - **Post Survey (`PostSurvey.tsx`)**: Gathers covariates, state/trait measures, or self-reported strategies that contextualize the performance and prediction data.
+  - **Debrief (`Debrief.tsx`)**: Standard psychological research protocol to disclose the full intent of the study, debrief the participant, and provide researcher contact info.
+- **UIReliability**: Enforces Section 1 (Task Identification) and Section 2 (Prediction Guidance) separation with explicit icon-based headers in `PredictionScreen.tsx`.
+- **DataPriority**: UI prioritizes `cmsContent` to ensure researcher edits in the Admin Panel are never overridden by hardcoded defaults (Researcher First rule).
+- **Logging**: Automated, structured data collection pushing experimental runs and trial-by-trial responses directly to Notion databases.

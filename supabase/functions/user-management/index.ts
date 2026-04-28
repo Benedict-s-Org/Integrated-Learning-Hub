@@ -244,7 +244,8 @@ Deno.serve(async (req: Request) => {
           virtual_coins: room.virtual_coins || 0,
           toilet_coins: room.toilet_coins ?? 100,
           daily_counts: room.daily_counts || {},
-          morning_status: (room.last_morning_update === today) ? (room.morning_status || 'todo') : 'todo'
+          morning_status: (room.last_morning_update === today) ? (room.morning_status || 'todo') : 'todo',
+          last_morning_update: room.last_morning_update || null
         };
       });
 

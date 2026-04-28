@@ -359,55 +359,72 @@ export default function App() {
 
         // --- Build Google Sheets Payload (Wide Format) ---
         const getFlattenedData = () => {
-          const flat: Record<string, any> = {
-            ParticipantID: participantId,
-            Timestamp_Start: experimentData.timestamp,
-            Timestamp_End: new Date().toISOString(),
-            Total_Duration_Ms: totalDurationMs,
-            GroupID: groupId,
-            Browser: getDeviceBrowser(),
-            Trial_Difficulty_Evaluation: trialDifficulty || "none"
-          };
+          const flat: Record<string, any> = {};
 
+          // 1. Metadata (Always First)
+          flat.ParticipantID = participantId;
+          flat.Timestamp_Start = experimentData.timestamp;
+          flat.Timestamp_End = new Date().toISOString();
+          flat.Total_Duration_Ms = totalDurationMs;
+          flat.GroupID = groupId;
+          flat.Browser = getDeviceBrowser();
+
+          // 2. Demographics (Sorted alphabetically for consistency)
           if (demographics) {
-            Object.entries(demographics).forEach(([key, val]) => flat[`demo_${key}`] = val);
+            Object.keys(demographics).sort().forEach(key => {
+              flat[`demo_${key}`] = (demographics as any)[key] ?? "";
+            });
           }
 
+          // 3. Summaries & Evaluations
+          flat.Trial_Difficulty_Evaluation = trialDifficulty || "none";
           flat.Easy_Prediction_Sec = pred1;
           flat.Hard_Prediction_Sec = pred2;
           flat.Easy_Total_Actual_Sec = (task1Result?.endTime && task1Result?.startTime) ? (task1Result.endTime - task1Result.startTime) / 1000 : 0;
           flat.Hard_Total_Actual_Sec = (task2Result?.endTime && task2Result?.startTime) ? (task2Result.endTime - task2Result.startTime) / 1000 : 0;
 
-          const mapPuzzles = (task: TaskResult | null, prefix: string) => {
-            if (!task) return;
-            task.responses.forEach((r, idx) => {
-              const p = `${prefix}_p${idx + 1}`;
-              flat[`${p}_letters`] = r.letters;
-              flat[`${p}_answer`] = r.userAnswer;
-              flat[`${p}_correct`] = r.isCorrect;
-              flat[`${p}_time_ms`] = r.timeTaken * 1000;
-              flat[`${p}_attempts`] = r.attempts;
-              flat[`${p}_skipped`] = r.skipped;
-              flat[`${p}_hintStage`] = r.hintStage;
-              flat[`${p}_hint1_time`] = r.hintFirstLetterTime;
-              flat[`${p}_hint2_time`] = r.hintLastLetterTime;
-              flat[`${p}_gaveUp_time`] = r.hintGaveUpTime;
+          // 4. Survey Data (Fixed order for core fields, then sorted dynamic fields)
+          if (surveyData) {
+            const coreSurveyKeys = [
+              'optimism1', 'optimism2', 'optimism3',
+              'nfc1', 'nfc2', 'nfc3',
+              'pastAnagramExperience', 'pastPsychExperience',
+              'manipulationCheck', 'task1Difficulty', 'task2Difficulty', 'comments'
+            ];
+            coreSurveyKeys.forEach(key => {
+              flat[`survey_${key}`] = (surveyData as any)[key] ?? "";
             });
+
+            if (surveyData.dynamicResponses) {
+              Object.keys(surveyData.dynamicResponses).sort().forEach(dk => {
+                flat[`survey_dynamic_${dk}`] = surveyData.dynamicResponses![dk] ?? "";
+              });
+            }
+          }
+
+          // 5. Puzzle Data (Strict Padding: ensures columns never shift)
+          const mapPuzzles = (task: TaskResult | null, prefix: string, maxCount: number) => {
+            for (let i = 1; i <= maxCount; i++) {
+              const r = task?.responses[i - 1];
+              const p = `${prefix}_p${i}`;
+              
+              flat[`${p}_letters`] = r?.letters ?? "";
+              flat[`${p}_answer`] = r?.userAnswer ?? "";
+              flat[`${p}_correct`] = r?.isCorrect ?? "";
+              flat[`${p}_time_ms`] = r ? Math.round(r.timeTaken * 1000) : "";
+              flat[`${p}_attempts`] = r?.attempts ?? "";
+              flat[`${p}_skipped`] = r?.skipped ?? "";
+              flat[`${p}_hintStage`] = r?.hintStage ?? "";
+              flat[`${p}_hint1_time`] = r?.hintFirstLetterTime ?? "";
+              flat[`${p}_hint2_time`] = r?.hintLastLetterTime ?? "";
+              flat[`${p}_gaveUp_time`] = r?.hintGaveUpTime ?? "";
+            }
           };
 
-          mapPuzzles(trialResult, "trial");
-          mapPuzzles(task1Result, "easy");
-          mapPuzzles(task2Result, "hard");
+          mapPuzzles(trialResult, "trial", 4);
+          mapPuzzles(task1Result, "easy", 10);
+          mapPuzzles(task2Result, "hard", 10);
 
-          if (surveyData) {
-            Object.entries(surveyData).forEach(([key, val]) => {
-              if (key === 'dynamicResponses' && val && typeof val === 'object') {
-                Object.entries(val).forEach(([dk, dv]) => flat[`survey_dynamic_${dk}`] = dv);
-              } else {
-                flat[`survey_${key}`] = val;
-              }
-            });
-          }
           return flat;
         };
 

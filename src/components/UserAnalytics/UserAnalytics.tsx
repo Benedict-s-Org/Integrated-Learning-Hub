@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { StudentActivityDetail } from './StudentActivityDetail';
 
 type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'activity';
 
@@ -119,6 +120,8 @@ const UserAnalytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentName, setSelectedStudentName] = useState('');
 
   const [classSummary, setClassSummary] = useState<ClassAnalyticsSummary | null>(null);
   const [students, setStudents] = useState<StudentPerformance[]>([]);
@@ -531,7 +534,15 @@ const UserAnalytics: React.FC = () => {
                         <tr key={student.user_id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
+                              <div 
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setSelectedStudentId(student.user_id);
+                                  setSelectedStudentName(student.display_name);
+                                }}
+                              >
+                                {student.display_name}
+                              </div>
                               <div className="text-xs text-gray-500">@{student.username} {student.class ? `(${student.class})` : ''}</div>
                             </div>
                           </td>
@@ -819,6 +830,13 @@ const UserAnalytics: React.FC = () => {
           </div>
         )}
       </div>
+      {selectedStudentId && (
+        <StudentActivityDetail
+          userId={selectedStudentId}
+          studentName={selectedStudentName}
+          onClose={() => setSelectedStudentId(null)}
+        />
+      )}
     </div>
   );
 };

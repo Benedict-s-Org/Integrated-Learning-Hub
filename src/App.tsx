@@ -286,10 +286,12 @@ function AppContent() {
   }
 
   // --- ISOLATED SIDE PROJECT ROUTING ---
-  // If the logged-in user is the dedicated Anagram admin, they get the isolated app layout entirely.
   const userEmail = user?.email?.trim().toLowerCase();
   const userName = user?.username?.trim().toLowerCase();
-  if (userEmail === 'admin@anagram.com' || userName === 'admin@anagram.com') {
+  const isAnagramAdmin = userEmail === 'admin@anagram.com' || userName === 'admin@anagram.com';
+  const isForcedAnagramView = isAnagramAdmin && !new URLSearchParams(window.location.search).get('hub');
+
+  if (isForcedAnagramView) {
     return (
       <AuthProvider>
         <ThemeProvider>

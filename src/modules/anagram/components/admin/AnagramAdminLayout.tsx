@@ -19,7 +19,7 @@ interface Props {
 
 export default function AnagramAdminLayout({ activeTab, setActiveTab, onPreview, children }: Props) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isMobileEmulator } = useAuth();
+  const { isMobileEmulator, signOut } = useAuth();
 
   const categories = [
     {
@@ -94,17 +94,39 @@ export default function AnagramAdminLayout({ activeTab, setActiveTab, onPreview,
         ))}
       </nav>
 
-      <div className="p-8 border-t border-primary/10 bg-white/20">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white text-xl">
-            <Settings size={20} />
-          </div>
-          <div>
-            <p className="text-xs font-black text-primary uppercase tracking-widest">Anagram Admin</p>
-            <p className="text-[10px] text-primary/40 font-bold">Control Center v2.2</p>
+      <div className="p-8 border-t border-primary/10 bg-white/20 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white text-xl">
+              <Settings size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-primary uppercase tracking-widest">Anagram Admin</p>
+              <p className="text-[10px] text-primary/40 font-bold">Control Center v2.2</p>
+            </div>
           </div>
         </div>
+        
+        <div className="pt-4 space-y-2">
+           <button 
+             onClick={() => window.location.href = '/?hub=true'}
+             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-primary/60 hover:bg-white hover:text-primary transition-all border border-primary/5 shadow-sm"
+           >
+             <LayoutDashboard size={14} />
+             Exit to Hub
+           </button>
+
+           
+           <button 
+             onClick={() => signOut()}
+             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all border border-red-100/50 shadow-sm"
+           >
+             <Settings size={14} />
+             Logout System
+           </button>
+        </div>
       </div>
+
     </>
   );
 

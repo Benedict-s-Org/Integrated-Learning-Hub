@@ -679,12 +679,36 @@ export function ClassDashboardPage() {
         }
 
         if (existingRecords && existingRecords.length > 0) {
-            const confirmChange = window.confirm("You already have a homework/handbook record for today. Do you want to overwrite it?");
-            if (!confirmChange) return false;
+            const isMaster = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK;
+            const isHomeworkStatus = reason === REWARD_REASONS.MISSING_HOMEWORK || reason.startsWith('功課:');
+            const isHandbook = reason === REWARD_REASONS.HANDBOOK_ENTRY;
 
-            // Revert all matching records for today via refined RPC
+            // Determine if any existing records conflict with the new one
+            const conflictingRecords = existingRecords.filter(rec => {
+                if (isMaster) {
+                    // '交齊功課' only warns if another '交齊功課' record already exists
+                    return rec.message.includes('交齊功課');
+                }
+                if (isHomeworkStatus) {
+                    // Homework status conflicts with '交齊功課' or other homework status records
+                    return rec.message.includes('交齊功課') || rec.message.includes('欠功課') || rec.message.startsWith('功課:');
+                }
+                if (isHandbook) {
+                    // Handbook conflicts with '交齊功課' or other handbook records
+                    return rec.message.includes('交齊功課') || rec.message.includes('寫手冊');
+                }
+                return false;
+            });
+
+            if (conflictingRecords.length > 0) {
+                const confirmChange = window.confirm("You already have an existing record for today. Do you want to overwrite it?");
+                if (!confirmChange) return false;
+            }
+
+            // Call refined RPC to selectively revert records based on the new reason
             const { error: revertError } = await (supabase as any).rpc('revert_homework_record', {
-                p_student_id: studentId
+                p_student_id: studentId,
+                p_new_reason: reason
             });
 
             if (revertError) {
@@ -710,6 +734,7 @@ export function ClassDashboardPage() {
 
             // Optimistic UI updates for Homework
             setGroupedUsers(prev => {
+                const today = getHKTodayString();
                 const newGrouped = { ...prev };
                 Object.keys(newGrouped).forEach(cls => {
                     const userIdx = newGrouped[cls].findIndex(u => u.id === studentId);
@@ -717,12 +742,24 @@ export function ClassDashboardPage() {
                         const user = newGrouped[cls][userIdx];
                         const isPrimaryHomework = reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason.startsWith('功課:');
 
-                        newGrouped[cls][userIdx] = {
+                        let newStatus = user.morning_status;
+                        if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK || reason === REWARD_REASONS.HANDBOOK_ENTRY) {
+                            newStatus = 'completed';
+                        } else if (reason === REWARD_REASONS.MISSING_HOMEWORK || reason.startsWith('功課:')) {
+                            newStatus = 'review';
+                        }
+
+                        // Create new array for this class to ensure reactivity
+                        const newClassList = [...newGrouped[cls]];
+                        newClassList[userIdx] = {
                             ...user,
                             coins: (user.coins || 0) + (amount > 0 ? amount : 0),
                             daily_reward_count: isPrimaryHomework ? (user.daily_reward_count || 0) + 1 : user.daily_reward_count,
-                            daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0)
+                            daily_real_earned: (user.daily_real_earned || 0) + (amount > 0 ? amount : 0),
+                            morning_status: newStatus as any,
+                            last_morning_update: today
                         };
+                        newGrouped[cls] = newClassList;
                     }
                 });
                 return newGrouped;
@@ -1219,8 +1256,7 @@ export function ClassDashboardPage() {
                             return Array.from(uniqueUsersMap.values());
                         })()}
                         onReviewClick={(id) => {
-                            const student = Object.values(groupedUsers).flat().find(u => u.id === id);
-                            if (student) handleStudentClick(student);
+                            setSelectedHomeworkStudentId(id);
                         }}
                     />
                 )}
@@ -1508,6 +1544,7 @@ export function ClassDashboardPage() {
                 onClose={() => setSelectedHomeworkStudentId(null)}
                 studentName={selectedHomeworkStudent?.display_name || ''}
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
+                isHandbookDisabled={selectedHomeworkStudent?.morning_status !== 'review'}
             />
 
 

@@ -23,6 +23,7 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
   exerciseNumber,
 }) => {
   const { user } = useAuth();
+  const { proofreadingPractices, appendProofreadingPractice, addProofreadingPractice } = useAppContext();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
@@ -151,7 +152,6 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
       return;
     }
 
-    const { proofreadingPractices, appendProofreadingPractice, addProofreadingPractice } = useAppContext();
     const existingPractice = proofreadingPractices.find(p => p.title.trim().toLowerCase() === practiceTitle.trim().toLowerCase());
 
     if (existingPractice && !forceAppend && !showMergeConfirm) {

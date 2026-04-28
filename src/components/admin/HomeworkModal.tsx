@@ -8,13 +8,20 @@ interface HomeworkModalProps {
     onClose: () => void;
     studentName: string;
     onRecord: (reason: string, coins?: number) => void;
+    isHandbookDisabled?: boolean;
 }
 
 type TabType = 'general' | 'specific';
 
 const SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
 
-export function HomeworkModal({ isOpen, onClose, studentName, onRecord }: HomeworkModalProps) {
+export function HomeworkModal({ 
+    isOpen, 
+    onClose, 
+    studentName, 
+    onRecord,
+    isHandbookDisabled = false
+}: HomeworkModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('general');
     const [selectedSubject, setSelectedSubject] = useState<string>(Object.keys(DEFAULT_SUB_OPTIONS)[0]);
     const [selectedItems, setSelectedItems] = useState<Record<string, string[]>>({});
@@ -60,7 +67,14 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord }: Homewo
     const generalOptions = [
         { label: '交齊功課', value: '完成班務（交齊功課）', icon: ClipboardCheck, color: 'text-green-600 bg-green-50 border-green-200' },
         { label: '欠功課', value: '完成班務（欠功課）', icon: AlertCircle, color: 'text-red-600 bg-red-50 border-red-200' },
-        { label: '寫手冊', value: '完成班務（寫手冊）', icon: FileText, color: 'text-blue-600 bg-blue-50 border-blue-200', adminOnly: true },
+        { 
+            label: '寫手冊', 
+            value: '完成班務（寫手冊）', 
+            icon: FileText, 
+            color: 'text-blue-600 bg-blue-50 border-blue-200', 
+            adminOnly: true,
+            disabled: isHandbookDisabled 
+        },
     ];
 
     const handleToggleItem = (item: string) => {
@@ -242,12 +256,21 @@ export function HomeworkModal({ isOpen, onClose, studentName, onRecord }: Homewo
                                 <button
                                     key={opt.value}
                                     onClick={() => handleGeneralOptionClick(opt.value)}
-                                    className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all hover:scale-[1.02] active:scale-95 text-left group ${opt.color}`}
+                                    disabled={isSaving || (opt as any).disabled}
+                                    className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all text-left group
+                                        ${(opt as any).disabled 
+                                            ? 'opacity-40 grayscale cursor-not-allowed border-slate-100 bg-slate-50' 
+                                            : `hover:scale-[1.02] active:scale-95 ${opt.color}`}`}
                                 >
-                                    <div className="p-3 bg-white rounded-xl shadow-sm group-hover:shadow-md transition-shadow">
+                                    <div className={`p-3 rounded-xl shadow-sm transition-shadow ${!(opt as any).disabled ? 'bg-white group-hover:shadow-md' : 'bg-slate-100'}`}>
                                         <opt.icon size={24} />
                                     </div>
-                                    <span className="font-black text-lg">{opt.label}</span>
+                                    <div className="flex flex-col">
+                                        <span className="font-black text-lg">{opt.label}</span>
+                                        {(opt as any).disabled && (
+                                            <span className="text-[10px] font-bold opacity-70 italic">Please select 欠功課 first</span>
+                                        )}
+                                    </div>
                                 </button>
                             ))}
                         </div>
