@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Star, Clock, Trophy, Play, Loader2, Search, Filter } from 'lucide-react';
+import { BookOpen, Star, Clock, Trophy, Play, Loader2, Search, Filter, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { ReadingChallenge } from '@/components/reading/ReadingChallenge';
@@ -10,6 +10,10 @@ interface ReadingPractice {
   passage_image_url: string;
   created_at: string;
   question_count?: number;
+  completed?: boolean;
+  completed_at?: string;
+  type: string;
+  assignmentId: string;
 }
 
 interface ReadingLearningPageProps {
@@ -39,7 +43,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
     try {
       // Use the unified assignments RPC to get correctly filtered practices
       const { data, error } = await supabase.rpc('get_student_assignments_unified' as any, {
-        student_id_param: user.id
+        target_user_id: user.id
       }) as { data: any[], error: any };
 
       if (error) throw error;
@@ -52,6 +56,8 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
           id: a.content_data?.practice_id || a.id,
           assignmentId: a.assignment_id,
           title: a.title,
+          completed: a.completed,
+          completed_at: a.completed_at,
           type: (a.content_data?.interaction_type === 'rearrange' || a.content_data?.interaction_type === 'aplus-coordinates') ? 'reading-unscramble' : 
                 (a.content_data?.interaction_type === 'proofreading') ? 'reading-proof' : 
                 (a.content_data?.interaction_type === 'full-typing') ? 'reading-advanced' : a.type,
@@ -109,6 +115,8 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
     (p as any).displayTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const masteredCount = practices.filter(p => p.completed).length;
+
   if (selectedPracticeId && user) {
     const selectedPractice = practices.find(p => p.id === selectedPracticeId);
     const initialMode = 
@@ -159,7 +167,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
             <div className="flex-shrink-0 grid grid-cols-2 gap-4">
               <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 text-center">
                 <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                <p className="text-white font-black text-2xl">0</p>
+                <p className="text-white font-black text-2xl">{masteredCount}</p>
                 <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-widest">Mastered</p>
               </div>
               <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 text-center">
@@ -228,6 +236,12 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
                     <div className="px-3 py-1 bg-amber-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
                       {practice.level_info}
                     </div>
+                    {practice.completed && (
+                      <div className="px-3 py-1 bg-green-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Done
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="p-8">

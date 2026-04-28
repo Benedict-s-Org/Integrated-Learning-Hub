@@ -6,9 +6,10 @@ interface Props {
   onBack: () => void;
   onSubmit: (difficulty: DifficultyValue) => void;
   cmsContent?: any;
+  isDemoMode?: boolean;
 }
 
-export default function TrialDifficultyEvaluation({ onBack, onSubmit, cmsContent }: Props) {
+export default function TrialDifficultyEvaluation({ onBack, onSubmit, cmsContent, isDemoMode }: Props) {
   const [selected, setSelected] = useState<DifficultyValue | null>(null);
   const [errorVisible, setErrorVisible] = useState(false);
 
@@ -115,20 +116,35 @@ export default function TrialDifficultyEvaluation({ onBack, onSubmit, cmsContent
             Back
           </button>
           
-          <button
-            onClick={handleContinue}
-            disabled={!selected && !errorVisible}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleContinue();
-            }}
-            className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#673ab7] ${
-              selected
-                ? "bg-[#673ab7] text-white hover:bg-[#5b32a3] active:bg-[#4f2b8f]"
-                : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed"
-            }`}
-          >
-            Continue
-          </button>
+          <div className="flex items-center gap-3">
+            {isDemoMode && (
+              <button
+                onClick={() => {
+                  setSelected("moderate");
+                  setTimeout(() => onSubmit("moderate"), 100);
+                }}
+                className="px-4 py-2 rounded-[4px] font-bold text-xs transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Demo Auto-fill
+              </button>
+            )}
+
+            <button
+              onClick={handleContinue}
+              disabled={!selected && !errorVisible}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleContinue();
+              }}
+              className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#673ab7] ${
+                selected
+                  ? "bg-[#673ab7] text-white hover:bg-[#5b32a3] active:bg-[#4f2b8f]"
+                  : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed"
+              }`}
+            >
+              Continue
+            </button>
+          </div>
         </div>
 
         {/* Privacy Note */}

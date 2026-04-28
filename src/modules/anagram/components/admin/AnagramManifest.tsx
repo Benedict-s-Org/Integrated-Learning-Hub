@@ -116,7 +116,7 @@ export default function AnagramManifest() {
     {
       icon: ClipboardCheck,
       title: "Post-Experiment Survey",
-      description: "Collection of psychological traits (Optimism, Need for Cognition) and verification of the manipulation check."
+      description: "Verification of the manipulation check."
     },
     {
       icon: Zap,

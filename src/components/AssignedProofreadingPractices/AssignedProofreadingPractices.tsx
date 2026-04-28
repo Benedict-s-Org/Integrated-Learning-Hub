@@ -163,7 +163,9 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-sm font-medium text-gray-700">Score</span>
                                   <span className="text-sm font-bold text-blue-700">
-                                    {assignment.accuracy_percentage.toFixed(0)}%
+                                    {assignment.accuracy_percentage !== null && assignment.accuracy_percentage !== undefined 
+                                       ? `${assignment.accuracy_percentage.toFixed(0)}%` 
+                                       : 'N/A'}
                                   </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2">

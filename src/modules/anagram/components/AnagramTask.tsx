@@ -12,9 +12,10 @@ interface Props {
   taskName: string;
   onComplete: (responses: QuestionResponse[]) => void;
   enableHints?: boolean; // true for Task 1 & 2, false/omitted for Trial
+  isDemoMode?: boolean;
 }
 
-export default function AnagramTask({ sets, taskName, onComplete, enableHints = false }: Props) {
+export default function AnagramTask({ sets, taskName, onComplete, enableHints = false, isDemoMode = false }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState("");
   const [attempts, setAttempts] = useState(0);
@@ -123,6 +124,32 @@ export default function AnagramTask({ sets, taskName, onComplete, enableHints = 
       onComplete(newResponses);
     }
   }, [pendingResponse, responses, currentIndex, sets.length, onComplete]);
+  
+  // Demo Auto-solve
+  const handleAutoSolve = useCallback(() => {
+    if (waitingForNext) return;
+    const answer = currentSet.validAnswers[0];
+    setInput(answer);
+    // Use a tiny timeout to allow state to catch up before submitting
+    setTimeout(() => {
+      const isCorrect = true;
+      stopTimer();
+      setFeedback({ type: "correct", message: "✅ Demo Solved!" });
+      setWaitingForNext(true);
+      setPendingResponse({
+        questionId: currentSet.id,
+        questionPageUrl: currentSet.notionUrl,
+        questionIndex: currentIndex,
+        letters: currentSet.letters,
+        userAnswer: answer,
+        isCorrect: true,
+        timeTaken: timer,
+        attempts: attempts + 1,
+        skipped: false,
+        ...buildHintData(false),
+      });
+    }, 50);
+  }, [currentSet, currentIndex, timer, attempts, waitingForNext]);
 
   // Handle submit
   const handleSubmit = useCallback(() => {
@@ -393,6 +420,17 @@ export default function AnagramTask({ sets, taskName, onComplete, enableHints = 
                   className="px-5 py-3 rounded-xl font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50"
                 >
                   I don't know the answer
+                </button>
+              )}
+
+              {isDemoMode && (
+                <button
+                  onClick={handleAutoSolve}
+                  disabled={!!feedback}
+                  className="px-4 py-3 rounded-xl font-bold text-xs transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2 whitespace-nowrap"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Auto-solve
                 </button>
               )}
             </div>

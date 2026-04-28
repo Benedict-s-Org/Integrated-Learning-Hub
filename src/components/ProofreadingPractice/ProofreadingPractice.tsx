@@ -256,9 +256,10 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
   };
 
 
-  const isAnswerCorrect = (lineNumber: number): boolean | null => {
-    if (!showResults) return null;
-
+  // Pure checker that does NOT depend on showResults state.
+  // Used by both calculateScore (at save-time, before React flushes state)
+  // and isAnswerCorrect (at render-time).
+  const checkAnswer = (lineNumber: number): boolean | null => {
     const correctAnswer = correctAnswers.get(lineNumber);
     if (!correctAnswer) return null;
 
@@ -274,11 +275,17 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     );
   };
 
+  // UI display helper – returns null when results aren't shown yet
+  const isAnswerCorrect = (lineNumber: number): boolean | null => {
+    if (!showResults) return null;
+    return checkAnswer(lineNumber);
+  };
+
   const calculateScore = () => {
     const totalQuestions = correctAnswers.size;
     let correctCount = 0;
     correctAnswers.forEach((_, lineNumber) => {
-      if (isAnswerCorrect(lineNumber) === true) {
+      if (checkAnswer(lineNumber) === true) {
         correctCount++;
       }
     });

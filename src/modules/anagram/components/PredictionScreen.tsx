@@ -8,6 +8,7 @@ interface Props {
   targetLabel: string;
   onConfirm: (seconds: number) => void;
   cmsContent?: any;
+  isDemoMode?: boolean;
 }
 
 export default function PredictionScreen({
@@ -16,6 +17,7 @@ export default function PredictionScreen({
   targetLabel,
   onConfirm,
   cmsContent,
+  isDemoMode,
 }: Props) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -159,17 +161,32 @@ export default function PredictionScreen({
 
         {/* Submit Block */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-            <button
-              onClick={handleSubmit}
-              disabled={!isValid}
-              className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
-                isValid
-                  ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
-                  : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
-              }`}
-            >
-              <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button ? cmsContent.confirm_button.replace("→", "").trim() : "Submit" }} />
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSubmit}
+                disabled={!isValid}
+                className={`px-6 py-2 rounded-[4px] font-medium text-sm transition-colors ${
+                  isValid
+                    ? "bg-[#673ab7] text-white hover:bg-purple-700 active:bg-purple-800"
+                    : "bg-[#e8eaed] text-[#9aa0a6] cursor-not-allowed border border-transparent"
+                }`}
+              >
+                <span dangerouslySetInnerHTML={{ __html: cmsContent?.confirm_button ? cmsContent.confirm_button.replace("→", "").trim() : "Submit" }} />
+              </button>
+
+              {isDemoMode && (
+                <button
+                  onClick={() => {
+                    setValue("30");
+                    setTimeout(() => onConfirm(30), 100);
+                  }}
+                  className="px-4 py-2 rounded-[4px] font-bold text-xs transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Demo Auto-fill
+                </button>
+              )}
+            </div>
             
             <div className="flex-1 flex justify-end">
                {isValid && (

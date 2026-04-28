@@ -7,6 +7,7 @@ import { Edit2, Loader2 } from "lucide-react";
 interface Props {
   groupId: "self" | "other";
   onComplete: (data: PostSurveyData) => void;
+  isDemoMode?: boolean;
 }
 
 function LikertScale({
@@ -58,9 +59,9 @@ function LikertScale({
   );
 }
 
-export default function PostSurvey({ groupId, onComplete }: Props) {
+export default function PostSurvey({ groupId, onComplete, isDemoMode }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = 3;
+  const totalPages = 2;
   const { getContent, loading: cmsLoading } = useCMS();
   const { isAdmin } = useAuth();
   const [content, setContent] = useState<any>(null);
@@ -98,29 +99,42 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const isPage1Valid =
-    form.optimism1 > 0 &&
-    form.optimism2 > 0 &&
-    form.optimism3 > 0 &&
-    form.nfc1 > 0 &&
-    form.nfc2 > 0 &&
-    form.nfc3 > 0;
+  const handleAutoFill = () => {
+    const mockDynamic: Record<string, number> = {};
+    (content?.customQuestions || []).forEach((q: any) => {
+      if (q.enabled) mockDynamic[q.id] = q.min || 1;
+    });
 
-  const isPage2Valid =
+    setForm({
+      optimism1: 4,
+      optimism2: 4,
+      optimism3: 4,
+      nfc1: 4,
+      nfc2: 4,
+      nfc3: 4,
+      pastAnagramExperience: 3,
+      pastPsychExperience: 3,
+      manipulationCheck: "self",
+      task1Difficulty: 4,
+      task2Difficulty: 4,
+      comments: "Demo comment",
+      dynamicResponses: mockDynamic,
+    });
+  };
+
+  const isPage1Valid =
     form.task1Difficulty > 0 &&
     form.task2Difficulty > 0 &&
     form.pastAnagramExperience > 0 &&
     form.pastPsychExperience > 0;
 
-  const isPage3Valid =
+  const isPage2Valid =
     (content?.customQuestions || []).every((q: any) => 
       !q.enabled || (form.dynamicResponses?.[q.id] > 0)
     );
 
   const canProceed = 
-    currentPage === 1 ? isPage1Valid : 
-    currentPage === 2 ? isPage2Valid : 
-    isPage3Valid;
+    currentPage === 1 ? isPage1Valid : isPage2Valid;
 
   // Fallback content if DB fetch fails or is empty
   const defaultSurveyContent = {
@@ -233,78 +247,6 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
 
         {currentPage === 1 && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
-            {/* Section 1: Optimism */}
-            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
-              <div className="space-y-1 text-left">
-                <h2 className="text-base font-medium text-[#202124]">
-                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.title }} />
-                  <span className="text-[#d93025] ml-1">*</span>
-                </h2>
-                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.optimism?.description }} />
-              </div>
-              <div className="space-y-8 mt-4">
-                <LikertScale
-                  label={displayContent.sections?.optimism?.q1}
-                  value={form.optimism1}
-                  onChange={(v) => update("optimism1", v)}
-                  lowLabel={displayContent.sections?.optimism?.lowLabel}
-                  highLabel={displayContent.sections?.optimism?.highLabel}
-                />
-                <LikertScale
-                  label={displayContent.sections?.optimism?.q2}
-                  value={form.optimism2}
-                  onChange={(v) => update("optimism2", v)}
-                  lowLabel={displayContent.sections?.optimism?.lowLabel}
-                  highLabel={displayContent.sections?.optimism?.highLabel}
-                />
-                <LikertScale
-                  label={displayContent.sections?.optimism?.q3}
-                  value={form.optimism3}
-                  onChange={(v) => update("optimism3", v)}
-                  lowLabel={displayContent.sections?.optimism?.lowLabel}
-                  highLabel={displayContent.sections?.optimism?.highLabel}
-                />
-              </div>
-            </div>
-
-            {/* Section 2: Need for Cognition */}
-            <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
-              <div className="space-y-1 text-left">
-                <h2 className="text-base font-medium text-[#202124]">
-                  <span dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.title }} />
-                  <span className="text-[#d93025] ml-1">*</span>
-                </h2>
-                <p className="text-sm text-[#5f6368]" dangerouslySetInnerHTML={{ __html: displayContent.sections?.thinking?.description }} />
-              </div>
-              <div className="space-y-8 mt-4">
-                <LikertScale
-                  label={displayContent.sections?.thinking?.q1}
-                  value={form.nfc1}
-                  onChange={(v) => update("nfc1", v)}
-                  lowLabel={displayContent.sections?.thinking?.lowLabel}
-                  highLabel={displayContent.sections?.thinking?.highLabel}
-                />
-                <LikertScale
-                  label={displayContent.sections?.thinking?.q2}
-                  value={form.nfc2}
-                  onChange={(v) => update("nfc2", v)}
-                  lowLabel={displayContent.sections?.thinking?.lowLabel}
-                  highLabel={displayContent.sections?.thinking?.highLabel}
-                />
-                <LikertScale
-                  label={displayContent.sections?.thinking?.q3}
-                  value={form.nfc3}
-                  onChange={(v) => update("nfc3", v)}
-                  lowLabel={displayContent.sections?.thinking?.lowLabel}
-                  highLabel={displayContent.sections?.thinking?.highLabel}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentPage === 2 && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
             {/* Section 3: Task Difficulty */}
             <div className="bg-white rounded-[8px] border p-6 space-y-5" style={{ borderColor: "#dadce0" }}>
               <div className="space-y-1 text-left">
@@ -362,7 +304,7 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
           </div>
         )}
 
-        {currentPage === 3 && (
+        {currentPage === 2 && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-3">
 
 
@@ -438,6 +380,16 @@ export default function PostSurvey({ groupId, onComplete }: Props) {
               }`}
             >
               {displayContent.button_text}
+            </button>
+          )}
+
+          {isDemoMode && (
+            <button
+              onClick={handleAutoFill}
+              className="px-4 py-2 rounded-[4px] font-bold text-xs transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Demo Auto-fill
             </button>
           )}
 

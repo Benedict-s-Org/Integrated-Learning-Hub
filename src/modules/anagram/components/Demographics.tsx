@@ -20,6 +20,7 @@ interface Props {
     validation_error?: string;
     fields?: DemoField[] | Record<string, any>;
   };
+  isDemoMode?: boolean;
 }
 
 // Question Block Component - Moved outside to prevent remounting and focus loss
@@ -35,7 +36,7 @@ const QuestionBlock = ({ label, children }: any) => (
   </div>
 );
 
-export default function Demographics({ onComplete, content }: Props) {
+export default function Demographics({ onComplete, content, isDemoMode }: Props) {
 
   const { isAdmin } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
@@ -91,6 +92,20 @@ export default function Demographics({ onComplete, content }: Props) {
   });
 
   const isFinalPage = currentPage === totalPages;
+
+  const handleAutoFill = () => {
+    const mockData: Record<string, string> = {};
+    displayContent.fields.forEach((f: any) => {
+      if (f.type === 'number') mockData[f.id] = "25";
+      else if (f.type === 'multiple_choice' || f.type === 'dropdown') {
+        const opts = parseOptions(f.options || "");
+        mockData[f.id] = opts[0]?.toLowerCase() || "";
+      } else {
+        mockData[f.id] = "Demo Answer";
+      }
+    });
+    setForm(mockData);
+  };
 
   const handleNext = () => {
     if (isFinalPage) {
@@ -230,6 +245,15 @@ export default function Demographics({ onComplete, content }: Props) {
                 className="px-6 py-2 rounded-[4px] font-medium text-sm transition-colors text-[#673ab7] hover:bg-purple-50"
               >
                 Back
+              </button>
+            )}
+            {isDemoMode && (
+              <button
+                onClick={handleAutoFill}
+                className="px-4 py-2 rounded-[4px] font-bold text-xs transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Demo Auto-fill
               </button>
             )}
           </div>

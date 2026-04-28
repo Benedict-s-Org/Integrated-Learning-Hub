@@ -6,6 +6,8 @@ interface Props {
   onNextPhase: () => void;
   onPrevPhase: () => void;
   currentPhase: string;
+  isDemoMode: boolean;
+  onToggleDemoMode: () => void;
 }
 
 export default function AdminQuickNav({ 
@@ -13,7 +15,9 @@ export default function AdminQuickNav({
   onRefreshContent, 
   onNextPhase, 
   onPrevPhase,
-  currentPhase 
+  currentPhase,
+  isDemoMode,
+  onToggleDemoMode
 }: Props) {
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-8 duration-500">
@@ -45,6 +49,19 @@ export default function AdminQuickNav({
         <div className="h-8 w-px bg-slate-700" />
 
         <div className="flex items-center gap-2">
+          <button 
+            onClick={onToggleDemoMode}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-sm font-bold border ${
+              isDemoMode 
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]" 
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-300"
+            }`}
+            title="Toggle Demo Mode (Auto-fill support)"
+          >
+            <div className={`w-2 h-2 rounded-full ${isDemoMode ? "bg-amber-400 animate-pulse" : "bg-slate-600"}`} />
+            <span>Demo Mode</span>
+          </button>
+
           <button 
             onClick={onRefreshContent}
             className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-800 rounded-lg transition-colors text-sm font-bold"

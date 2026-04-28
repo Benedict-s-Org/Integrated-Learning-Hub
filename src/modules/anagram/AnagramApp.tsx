@@ -76,6 +76,7 @@ export default function App() {
   const [cmsContent, setCmsContent] = useState<Record<string, any>>({});
   const [isCmsLoaded, setIsCmsLoaded] = useState(false);
 
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [participantId] = useState(() => generateId());
   const [groupId] = useState<"self" | "other">("self");
   const [startTime] = useState(() => new Date().toISOString());
@@ -576,7 +577,7 @@ export default function App() {
         return <Welcome groupId={groupId} onStart={() => setPhase("demographics")} />;
 
     case "demographics":
-      return <Demographics onComplete={handleDemographics} content={cmsContent.anagram_demographics} />;
+      return <Demographics onComplete={handleDemographics} content={cmsContent.anagram_demographics} isDemoMode={isDemoMode} />;
 
     case "trial_intro":
       return (
@@ -606,6 +607,7 @@ export default function App() {
           sets={activeTrialSets}
           taskName="Trial Part"
           onComplete={handleTrialComplete}
+          isDemoMode={isDemoMode}
         />
       );
 
@@ -615,6 +617,7 @@ export default function App() {
           onBack={() => setPhase("trial")}
           onSubmit={handleTrialDifficulty}
           cmsContent={cmsContent.anagram_trial_difficulty}
+          isDemoMode={isDemoMode}
         />
       );
 
@@ -626,6 +629,7 @@ export default function App() {
              targetLabel={targetLabel}
              onConfirm={handlePred1}
              cmsContent={cmsContent.anagram_task1_prediction}
+             isDemoMode={isDemoMode}
           />
         );
 
@@ -636,18 +640,30 @@ export default function App() {
           taskName="Task 1 (Easy)"
           onComplete={handleTask1Complete}
           enableHints
+          isDemoMode={isDemoMode}
         />
       );
 
     case "complete1":
-      return task1Result ? (
+      return (
         <TaskComplete
-          result={task1Result}
+          result={task1Result || {
+            taskId: "task1",
+            taskName: "Task 1 (Mock Preview)",
+            predictionSeconds: 30,
+            responses: [
+              { questionId: "q1", questionPageUrl: "", letters: "DOG", userAnswer: "DOG", isCorrect: true, timeTaken: 5, attempts: 1, skipped: false, questionIndex: 0 },
+              { questionId: "q2", questionPageUrl: "", letters: "CAT", userAnswer: "CAT", isCorrect: true, timeTaken: 10, attempts: 1, skipped: false, questionIndex: 1 },
+              { questionId: "q3", questionPageUrl: "", letters: "BIRD", userAnswer: "", isCorrect: false, timeTaken: 30, attempts: 5, skipped: true, questionIndex: 2 },
+            ],
+            startTime: Date.now(),
+            endTime: Date.now()
+          }}
           onNext={() => setPhase("predict2")}
           isLast={false}
           cmsContent={cmsContent.anagram_task1_feedback}
         />
-      ) : null;
+      );
 
       case "predict2":
         return (
@@ -657,6 +673,7 @@ export default function App() {
              targetLabel={targetLabel}
              onConfirm={handlePred2}
              cmsContent={cmsContent.anagram_task2_prediction}
+             isDemoMode={isDemoMode}
           />
         );
 
@@ -667,21 +684,32 @@ export default function App() {
           taskName="Task 2 (Hard)"
           onComplete={handleTask2Complete}
           enableHints
+          isDemoMode={isDemoMode}
         />
       );
 
     case "complete2":
-      return task2Result ? (
+      return (
         <TaskComplete
-          result={task2Result}
+          result={task2Result || {
+            taskId: "task2",
+            taskName: "Task 2 (Mock Preview)",
+            predictionSeconds: 45,
+            responses: [
+              { questionId: "q1", questionPageUrl: "", letters: "PYTHON", userAnswer: "PYTHON", isCorrect: true, timeTaken: 15, attempts: 1, skipped: false, questionIndex: 0 },
+              { questionId: "q2", questionPageUrl: "", letters: "REACT", userAnswer: "", isCorrect: false, timeTaken: 45, attempts: 5, skipped: true, questionIndex: 1 },
+            ],
+            startTime: Date.now(),
+            endTime: Date.now()
+          }}
           onNext={() => setPhase("postsurvey")}
           isLast={true}
           cmsContent={cmsContent.anagram_task2_feedback}
         />
-      ) : null;
+      );
 
     case "postsurvey":
-      return <PostSurvey groupId={groupId} onComplete={handlePostSurvey} />;
+      return <PostSurvey groupId={groupId} onComplete={handlePostSurvey} isDemoMode={isDemoMode} />;
 
     case "syncing":
       return (
@@ -725,6 +753,8 @@ export default function App() {
           onNextPhase={nextPhase}
           onPrevPhase={prevPhase}
           currentPhase={phase}
+          isDemoMode={isDemoMode}
+          onToggleDemoMode={() => setIsDemoMode(!isDemoMode)}
         />
       )}
     </div>
