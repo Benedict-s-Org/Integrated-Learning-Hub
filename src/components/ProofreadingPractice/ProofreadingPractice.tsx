@@ -182,8 +182,11 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     }
   };
 
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+
   const saveResults = async () => {
     if (!user) return;
+    setSaveError(null);
 
     const timeSpentSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
     const { correctCount, totalQuestions, percentage } = calculateScore();
@@ -199,31 +202,31 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     });
 
     try {
-      const insertData: any = {
-        user_id: user.id,
-        sentences,
-        correct_answers: answers,
-        user_answers: userAnswersList,
-        correct_count: correctCount,
-        total_count: totalQuestions,
-        accuracy_percentage: percentage,
-        time_spent_seconds: timeSpentSeconds,
-        tips_used: Array.from(revealedTips),
-        completed_at: new Date().toISOString(),
-      };
+      // Use SECURITY DEFINER RPC to guarantee the insert succeeds regardless
+      // of any RLS policy edge cases (RLS blocks return {error:null} silently).
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+        'save_proofreading_result',
+        {
+          p_practice_id:         practiceId   || null,
+          p_assignment_id:       assignmentId || null,
+          p_sentences:           sentences,
+          p_correct_answers:     answers,
+          p_user_answers:        userAnswersList,
+          p_correct_count:       correctCount,
+          p_total_count:         totalQuestions,
+          p_accuracy_percentage: percentage,
+          p_time_spent_seconds:  timeSpentSeconds,
+          p_completed_at:        new Date().toISOString(),
+          p_tips_used:           Array.from(revealedTips),
+        }
+      );
 
-      if (practiceId) {
-        insertData.practice_id = practiceId;
-      }
-
-      if (assignmentId) {
-        insertData.assignment_id = assignmentId;
-      }
-
-      const { error: insertError } = await (supabase.from('proofreading_practice_results' as any) as any).insert(insertData);
-
-      if (insertError) {
-        console.error('Error saving proofreading practice results:', insertError);
+      if (rpcError) {
+        console.error('Error saving proofreading practice results:', rpcError);
+        setSaveError('Your results could not be saved. Please try again or contact your teacher.');
+      } else if (rpcData && rpcData.success === false) {
+        console.error('save_proofreading_result RPC returned failure:', rpcData.error);
+        setSaveError('Your results could not be saved. Please try again or contact your teacher.');
       }
 
       if (assignmentId) {
@@ -238,6 +241,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       }
     } catch (error) {
       console.error('Unexpected error saving proofreading practice results:', error);
+      setSaveError('An unexpected error occurred while saving. Please contact your teacher.');
     }
   };
 
@@ -303,6 +307,13 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
             >
               Find and Correct Mistakes
             </h1>
+
+            {saveError && (
+              <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start space-x-3">
+                <AlertCircle className="text-red-500 mt-0.5 shrink-0" size={20} />
+                <p className="text-red-700 font-medium text-sm">{saveError}</p>
+              </div>
+            )}
 
             {isParsing ? (
               <div className="flex flex-col items-center justify-center py-20 space-y-4">

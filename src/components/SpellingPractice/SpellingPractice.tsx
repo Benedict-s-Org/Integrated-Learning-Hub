@@ -263,8 +263,11 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     }
   };
 
+  const [saveFailed, setSaveFailed] = React.useState(false);
+
   const saveResults = async () => {
     if (!user) return;
+    setSaveFailed(false);
 
     const timeSpentSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
     const correctCount = results.filter(r => r.isCorrect).length + (isCorrect ? 1 : 0);
@@ -279,24 +282,32 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     }];
 
     try {
-      const { error: insertError } = await (supabase as any).from('spelling_practice_results').insert({
-        user_id: user.id,
-        practice_id: practiceId || null,
-        assignment_id: assignmentId || null,
-        title,
-        words: practiceWords,
-        user_answers: allResults,
-        correct_count: correctCount,
-        total_count: totalCount,
-        accuracy_percentage: accuracyPercentage,
-        practice_level: level,
-        time_spent_seconds: timeSpentSeconds,
-        completed_at: new Date().toISOString(),
-        is_srs: isSRSReview || false
-      });
+      // Use SECURITY DEFINER RPC to guarantee the insert succeeds regardless
+      // of RLS policy edge cases (RLS blocks return {error:null} silently).
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+        'save_spelling_result',
+        {
+          p_practice_id:         practiceId   || null,
+          p_assignment_id:       assignmentId || null,
+          p_title:               title,
+          p_words:               practiceWords,
+          p_user_answers:        allResults,
+          p_correct_count:       correctCount,
+          p_total_count:         totalCount,
+          p_accuracy_percentage: accuracyPercentage,
+          p_practice_level:      level,
+          p_time_spent_seconds:  timeSpentSeconds,
+          p_completed_at:        new Date().toISOString(),
+          p_is_srs:              isSRSReview || false,
+        }
+      );
 
-      if (insertError) {
-        console.error('Error saving spelling practice results:', insertError);
+      if (rpcError) {
+        console.error('Error saving spelling practice results:', rpcError);
+        setSaveFailed(true);
+      } else if (rpcData && rpcData.success === false) {
+        console.error('save_spelling_result RPC returned failure:', rpcData.error);
+        setSaveFailed(true);
       }
 
       if (assignmentId) {
@@ -311,6 +322,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       }
     } catch (error) {
       console.error('Unexpected error saving spelling practice results:', error);
+      setSaveFailed(true);
     }
   };
 
@@ -388,6 +400,15 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
               <h1 className="text-4xl font-bold text-foreground mb-2">Practice Complete!</h1>
               <p className="text-muted-foreground text-lg">Great job working through your spelling words</p>
             </div>
+
+            {saveFailed && (
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl flex items-start space-x-3">
+                <XCircle className="text-red-500 mt-0.5 shrink-0" size={20} />
+                <p className="text-red-700 font-medium text-sm">
+                  Your results could not be saved. Please try again or contact your teacher.
+                </p>
+              </div>
+            )}
 
             <div className="bg-blue-50 rounded-xl p-6 mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Results</h2>

@@ -83,19 +83,25 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     const title = originalText.substring(0, 50) + (originalText.length > 50 ? '...' : '');
 
     try {
-      const { error: sessionError } = await (supabase.from('memorization_practice_sessions' as any).insert({
-        user_id: user.id,
-        assignment_id: assignmentId || null,
-        title,
-        original_text: originalText,
-        total_words: words.length,
-        hidden_words_count: selectedIndices.length,
-        session_duration_seconds: sessionDurationSeconds,
-        completed_at: new Date().toISOString(),
-      }) as any);
+      // Use SECURITY DEFINER RPC to guarantee the insert succeeds regardless
+      // of RLS policy edge cases (RLS blocks return {error:null} silently).
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+        'save_memorization_session',
+        {
+          p_assignment_id:            assignmentId || null,
+          p_title:                    title,
+          p_original_text:            originalText,
+          p_total_words:              words.length,
+          p_hidden_words_count:       selectedIndices.length,
+          p_session_duration_seconds: sessionDurationSeconds,
+          p_completed_at:             new Date().toISOString(),
+        }
+      );
 
-      if (sessionError) {
-        console.error('Error saving memorization session:', sessionError);
+      if (rpcError) {
+        console.error('Error saving memorization session:', rpcError);
+      } else if (rpcData && rpcData.success === false) {
+        console.error('save_memorization_session RPC returned failure:', rpcData.error);
       }
 
       if (assignmentId) {
