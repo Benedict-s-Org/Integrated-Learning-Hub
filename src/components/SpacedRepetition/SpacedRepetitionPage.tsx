@@ -1035,7 +1035,7 @@ export const SpacedRepetitionPage: React.FC = () => {
 
       {renderModals()}
       <SpacedRepetitionHub
-        onCreateNew={() => setState({ view: 'hub' })}
+        onCreateNew={() => setState({ view: 'createNew' })}
         onStartLearning={(id, title) => {
           setExcludedQuestionIds([]); // Reset seen questions on manual start
           setPrepSession({ setId: id, setTitle: title });
