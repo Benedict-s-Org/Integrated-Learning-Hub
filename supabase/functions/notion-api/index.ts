@@ -184,12 +184,43 @@ Deno.serve(async (req: Request) => {
     // ── 2. query-mcq-database / list-activities ───────────────────────
     if (action === "query-mcq-database" || action === "list-activities") {
       const targetDbId = dbId || "3239baca6fa380a9b501deceb133946d";
-      const resp = await fetch(`${NOTION_API}/databases/${targetDbId}/query`, {
-        method: "POST",
-        headers: notionHeaders(notionToken),
-        body: JSON.stringify({ page_size: 100 }),
-      });
-      return createCORSResponse(await resp.json(), resp.status, req);
+      
+      let allResults = [];
+      let hasMore = true;
+      let cursor = undefined;
+
+      while (hasMore) {
+        const resp = await fetch(`${NOTION_API}/databases/${targetDbId}/query`, {
+          method: "POST",
+          headers: notionHeaders(notionToken),
+          body: JSON.stringify({ 
+            page_size: 100,
+            start_cursor: cursor
+          }),
+        });
+        
+        if (!resp.ok) {
+          const err = await resp.json();
+          console.error(`[notion-api] Notion Query Failed during pagination:`, err);
+          return createCORSResponse(err, resp.status, req);
+        }
+
+        const data = await resp.json();
+        const results = data.results || [];
+        allResults.push(...results);
+        hasMore = data.has_more;
+        cursor = data.next_cursor;
+
+        console.log(`[notion-api] Fetched page. Current total: ${allResults.length}, Has more: ${hasMore}`);
+
+        // Safety break to prevent infinite loops (e.g. max 2000 items)
+        if (allResults.length > 2000) {
+          console.warn(`[notion-api] Pagination reached safety limit of 2000 items.`);
+          break;
+        }
+      }
+
+      return createCORSResponse({ results: allResults }, 200, req);
     }
 
     // ── 3. list-all-databases (Internal/Debug) ────────────────────────

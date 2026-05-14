@@ -98,10 +98,14 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
         ((supabase as any).from('user_streaks').select('*') as any).eq('user_id', userId).maybeSingle(),
         ((supabase as any).from('user_achievements').select('*') as any).eq('user_id', userId),
         (supabase as any).rpc('get_cards_due_today', { p_user_id: userId }),
-        ((supabase as any).from('set_assignments').select('*, spaced_repetition_sets(*)').eq('user_id', userId) as any),
+        ((supabase as any).from('set_assignments').select('*, set:spaced_repetition_sets(*)').eq('user_id', userId) as any),
         ((supabase as any).from('spaced_repetition_study_plans').select('*').eq('creator_id', userId).eq('is_template', true)),
         ((supabase as any).from('study_plan_assignments').select('*, plan:spaced_repetition_study_plans(*)').eq('user_id', userId).eq('is_active', true).maybeSingle())
       ]);
+
+      if (assignedRes.error) {
+        console.error('DEBUG: Error fetching assigned sets:', assignedRes.error);
+      }
 
       const fetchedSets = (setsRes.data || []) as unknown as SpacedRepetitionSet[];
       setSets(fetchedSets);
@@ -113,9 +117,12 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
 
       // Process assigned sets
       const assignedData = (assignedRes.data || []) as any[];
+      console.log('DEBUG: Raw assigned sets data:', assignedData);
       const mappedAssignedSets = assignedData
-        .map(a => a.spaced_repetition_sets)
-        .filter(Boolean) as SpacedRepetitionSet[];
+        .map(a => a.set)
+        .filter(s => s && !s.deleted_at) as SpacedRepetitionSet[];
+      
+      console.log('DEBUG: Final mapped assigned sets:', mappedAssignedSets);
       setAssignedSets(mappedAssignedSets);
 
       // Fetch assignment info for each set (admin view)
@@ -536,8 +543,9 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
       checkForAchievements();
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to record attempt:', error);
+      alert('Failed to record attempt: ' + (error.message || JSON.stringify(error)));
       return false;
     }
   };

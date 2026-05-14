@@ -57,7 +57,7 @@ export function QuestionCard({
     const timer = setTimeout(() => {
       onAnswer(index, time);
       setAnswerTimer(null);
-    }, isMasterMode ? 100 : 800);
+    }, 100);
     setAnswerTimer(timer);
   };
 

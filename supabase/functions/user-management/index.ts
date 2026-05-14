@@ -450,7 +450,7 @@ Deno.serve(async (req: Request) => {
         authPayload.password = password;
       }
 
-      if (Object.keys(authPayload).length > 0) {
+      if (Object.keys(authPayload).length > 0 && userData.user) {
         console.log(`[user-management] Updating Auth for ${userId} with payload:`, JSON.stringify(authPayload));
         const { error: authUpdateError } = await supabase.auth.admin.updateUserById(userId, authPayload);
         if (authUpdateError) {
@@ -460,7 +460,7 @@ Deno.serve(async (req: Request) => {
             message: authUpdateError.message,
             code: (authUpdateError as any).code || (authUpdateError as any).status,
             userId: userId,
-            payload_sent: authPayload
+            details: authUpdateError
           }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
       }

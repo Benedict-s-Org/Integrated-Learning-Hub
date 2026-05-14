@@ -177,7 +177,7 @@ export function AdminAnalyticsPage() {
               <Activity className="text-blue-500" />
               Foundational Analytics Dashboard
             </h1>
-            <p className="text-slate-500 text-sm mt-1">Metrics for Spelling, Proofreading, and Memorization</p>
+            <p className="text-slate-500 text-sm mt-1">Metrics for Spelling, Proofreading, Memorization, Spaced Repetition, and Reading</p>
           </div>
           
           <div className="flex items-center gap-4">

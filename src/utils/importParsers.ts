@@ -193,6 +193,7 @@ function extractChoicesFromNotion(prop: any): string[] {
 
 export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
   const questions: ImportedQuestion[] = [];
+  let skippedCount = 0;
 
   for (const page of results) {
     const props = page.properties || {};
@@ -207,7 +208,11 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
     const explanation = extractNotionProperty(props, ['Explanation', 'explanation', 'Elaboration', 'elaboration', 'Note', 'note']);
     const difficulty = extractNotionProperty(props, ['Difficulty', 'difficulty', 'Level', 'level']);
 
-    if (!questionText) continue;
+    if (!questionText) {
+      console.warn(`[Notion Parser] Skipping entry (ID: ${page.id}): Missing question text.`);
+      skippedCount++;
+      continue;
+    }
 
     // Build choices array
     const choices: string[] = [];
@@ -216,7 +221,11 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
     if (choiceC) choices.push(choiceC);
     if (choiceD) choices.push(choiceD);
 
-    if (choices.length < 2) continue;
+    if (choices.length < 2) {
+      console.warn(`[Notion Parser] Skipping entry "${questionText.substring(0, 30)}..." (ID: ${page.id}): Fewer than 2 choices found.`);
+      skippedCount++;
+      continue;
+    }
 
     // Determine correct answer index
     let correctIndex = -1;
@@ -239,7 +248,11 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
       }
     }
 
-    if (correctIndex < 0 || correctIndex >= choices.length) continue;
+    if (correctIndex < 0 || correctIndex >= choices.length) {
+      console.warn(`[Notion Parser] Skipping entry "${questionText.substring(0, 30)}..." (ID: ${page.id}): Could not determine correct answer index. Correct Answer value: "${correctAnswer}"`);
+      skippedCount++;
+      continue;
+    }
 
     // Pad to 4 choices if needed
     while (choices.length < 4) {
@@ -255,6 +268,10 @@ export function parseNotionAPIResponse(results: any[]): ImportedQuestion[] {
       tags: [],
       notion_page_id: page.id || undefined,
     });
+  }
+
+  if (skippedCount > 0) {
+    console.log(`[Notion Parser] Finished parsing. Total skipped: ${skippedCount}`);
   }
 
   return questions;

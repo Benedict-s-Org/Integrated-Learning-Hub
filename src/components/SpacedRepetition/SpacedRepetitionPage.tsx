@@ -926,7 +926,7 @@ export const SpacedRepetitionPage: React.FC = () => {
           onNext={handleNext}
           onPrevious={handlePrevious}
           onSaveAndExit={handleSaveAndExit}
-          canGoNext={hasAnsweredCurrent && sessionState.currentQuestionIndex < sessionState.questions.length - 1}
+          canGoNext={hasAnsweredCurrent}
           isMasterMode={sessionState.isMasterMode}
         />
         {renderModals()}

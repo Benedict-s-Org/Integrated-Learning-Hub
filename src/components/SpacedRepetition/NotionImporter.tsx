@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, ArrowLeft, Database, FileText, Search, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import {
     parseCSVQuestions,
     parseNotionAPIResponse,
@@ -11,6 +12,31 @@ interface NotionImporterProps {
     description: string;
     onImport: (questions: any[], title: string, description: string, notionDatabaseId?: string) => void;
     onCancel: () => void;
+}
+
+function extractNotionId(input: string): string {
+    const trimmed = input.trim();
+    // If it matches a 32-char hex string, it's already an ID
+    if (/^[a-f0-9]{32}$/i.test(trimmed)) return trimmed;
+
+    // Try to extract from URL
+    try {
+        // Handle case where user might paste workspace/database_id or just database_id
+        if (trimmed.includes('notion.so/')) {
+            const urlParts = trimmed.split('?')[0].split('/');
+            const idCandidate = urlParts[urlParts.length - 1];
+            const match = idCandidate.match(/[a-f0-9]{32}/i);
+            if (match) return match[0];
+        }
+        
+        // Fallback regex search in the entire string
+        const match = trimmed.match(/[a-f0-9]{32}/i);
+        if (match) return match[0];
+    } catch (e) {
+        console.warn('Failed to parse Notion ID from input:', e);
+    }
+
+    return trimmed;
 }
 
 export function NotionImporter({ title, description, onImport, onCancel }: NotionImporterProps) {
@@ -34,14 +60,15 @@ export function NotionImporter({ title, description, onImport, onCancel }: Notio
         setIsLoading(true);
         setErrors([]);
 
+        const cleanId = extractNotionId(databaseId);
+
         try {
-            console.log('[SpacedRepetition NotionImporter] Debug Info:', {
-                url: (supabase as any).functions.url,
-                functionName: 'notion-api'
+            console.log('[SpacedRepetition NotionImporter] Fetching Notion DB:', {
+                databaseId: cleanId,
+                originalInput: databaseId.trim()
             });
 
             const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            // Need to get session. Since we don't have useAuth here, we can get it from supabase.auth
             const { data: { session } } = await supabase.auth.getSession();
             
             const { data, error } = await supabase.functions.invoke('notion-api', {
@@ -50,29 +77,50 @@ export function NotionImporter({ title, description, onImport, onCancel }: Notio
                     'apikey': anonKey
                 },
                 body: { 
-                    databaseId: databaseId.trim(),
+                    databaseId: cleanId,
                     action: 'query-mcq-database'
                 }
             });
 
-            if (error && (error as any).status === 404) {
-                console.error('[SpacedRepetition NotionImporter] 404 ERROR: Edge Function "notion-api" not found.');
+            if (error) {
+                // If it's a non-2xx error, try to get more details from the body
+                if (error instanceof FunctionsHttpError) {
+                    try {
+                        const errorBody = await error.context.json();
+                        console.error('[SpacedRepetition NotionImporter] Detailed Error Body:', errorBody);
+                        
+                        if (errorBody.code === 'object_not_found') {
+                            throw new Error(`Database not found. Check if the ID is correct and shared with your integration.`);
+                        }
+                        if (errorBody.message) {
+                            throw new Error(`Notion API Error: ${errorBody.message}`);
+                        }
+                    } catch (parseErr) {
+                        // If body isn't JSON or something else fails, fallback to default error
+                    }
+                }
+                throw error;
             }
 
-            if (error) throw error;
             if (data.error) throw new Error(data.error);
             if (!data.results || data.results.length === 0) {
                 throw new Error("No questions found in this database. Please check the property names.");
             }
 
             const questions = parseNotionAPIResponse(data.results);
-            onImport(questions, title, description);
+            console.log(`[SpacedRepetition NotionImporter] Received ${data.results.length} items from Notion, successfully parsed ${questions.length} questions.`);
+            onImport(questions, title, description, cleanId);
         } catch (err: any) {
             console.error("Notion API Error:", err);
-            setErrors([
-                err instanceof Error ? err.message : 'Failed to fetch from Notion',
-                'Make sure the database is shared with the integration and ID is correct.'
-            ]);
+            const errorMessages = [err instanceof Error ? err.message : 'Failed to fetch from Notion'];
+            
+            if (err.message?.includes('non-2xx')) {
+                errorMessages.push('The Notion API returned an error. Check database permissions.');
+            } else {
+                errorMessages.push('Make sure the database is shared with the integration and ID is correct.');
+            }
+            
+            setErrors(errorMessages);
         } finally {
             setIsLoading(false);
         }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, Target, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Loader2, BarChart2, Activity } from 'lucide-react';
+import { X, Trophy, Target, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Loader2, BarChart2, Activity, Zap, BookOpen, Award, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { SpellingPracticeResult, ProofreadingPracticeResult, MemorizationSession } from '../../types';
+import { SpellingPracticeResult, ProofreadingPracticeResult, MemorizationSession, SpacedRepetitionAttempt } from '../../types';
 
 interface StudentActivityDetailProps {
   userId: string;
@@ -9,7 +9,7 @@ interface StudentActivityDetailProps {
   onClose: () => void;
 }
 
-type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization';
+type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition';
 
 export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
   userId,
@@ -22,6 +22,8 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
   const [spellingResults, setSpellingResults] = useState<SpellingPracticeResult[]>([]);
   const [proofreadingResults, setProofreadingResults] = useState<ProofreadingPracticeResult[]>([]);
   const [memorizationSessions, setMemorizationSessions] = useState<MemorizationSession[]>([]);
+  const [srAttempts, setSrAttempts] = useState<any[]>([]);
+  const [srSchedules, setSrSchedules] = useState<any[]>([]);
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -55,6 +57,27 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
         .order('completed_at', { ascending: false });
 
       if (memorizationData) setMemorizationSessions(memorizationData as any);
+      
+      const { data: srData } = await (supabase as any)
+        .from('spaced_repetition_attempts')
+        .select(`
+          *,
+          spaced_repetition_questions ( question_text )
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (srData) setSrAttempts(srData as any);
+
+      const { data: schedData } = await (supabase as any)
+        .from('spaced_repetition_schedules')
+        .select(`
+          *,
+          spaced_repetition_questions ( question_text )
+        `)
+        .eq('user_id', userId);
+
+      if (schedData) setSrSchedules(schedData as any);
       
     } catch (error) {
       console.error('Error loading student activities:', error);
@@ -91,7 +114,8 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
   const totalSpellingTime = spellingResults.reduce((acc, curr) => acc + (curr.time_spent_seconds || 0), 0);
   const totalProofreadingTime = proofreadingResults.reduce((acc, curr) => acc + (curr.time_spent_seconds || 0), 0);
   const totalMemorizationTime = memorizationSessions.reduce((acc, curr) => acc + (curr.session_duration_seconds || 0), 0);
-  const totalTimeSeconds = totalSpellingTime + totalProofreadingTime + totalMemorizationTime;
+  const totalSrTime = srAttempts.reduce((acc, curr) => acc + Math.round((curr.response_time_ms || 0) / 1000), 0);
+  const totalTimeSeconds = totalSpellingTime + totalProofreadingTime + totalMemorizationTime + totalSrTime;
   
   const avgSpellingAccuracy = spellingResults.length > 0 
     ? Math.round(spellingResults.reduce((acc, curr) => acc + (curr.accuracy_percentage || 0), 0) / spellingResults.length)
@@ -99,6 +123,10 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
 
   const avgProofreadingAccuracy = proofreadingResults.length > 0
     ? Math.round(proofreadingResults.reduce((acc, curr) => acc + (curr.accuracy_percentage || 0), 0) / proofreadingResults.length)
+    : 0;
+
+  const avgSrAccuracy = srAttempts.length > 0
+    ? Math.round((srAttempts.filter(a => a.is_correct).length / srAttempts.length) * 100)
     : 0;
 
   const totalWordsMemorized = memorizationSessions.reduce((acc, curr) => acc + (curr.total_words || 0), 0);
@@ -128,7 +156,8 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
             { id: 'overview', label: 'Overview', count: null, icon: Activity },
             { id: 'spelling', label: 'Spelling', count: spellingResults.length, icon: Target },
             { id: 'proofreading', label: 'Proofreading', count: proofreadingResults.length, icon: Trophy },
-            { id: 'memorization', label: 'Memorization', count: memorizationSessions.length, icon: Clock }
+            { id: 'memorization', label: 'Memorization', count: memorizationSessions.length, icon: Clock },
+            { id: 'spaced_repetition', label: 'Spaced Repetition', count: srAttempts.length, icon: Zap }
           ].map(tab => (
             <button
               key={tab.id}
@@ -180,7 +209,7 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
                       </div>
                       <div>
                         <p className="text-sm font-medium text-slate-500">Total Activities</p>
-                        <p className="text-2xl font-bold text-slate-800">{spellingResults.length + proofreadingResults.length + memorizationSessions.length}</p>
+                        <p className="text-2xl font-bold text-slate-800">{spellingResults.length + proofreadingResults.length + memorizationSessions.length + srAttempts.length}</p>
                       </div>
                     </div>
                   </div>
@@ -245,6 +274,27 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
                         <div className="flex justify-between">
                           <span className="text-slate-500">Time:</span>
                           <span className="font-medium">{formatDuration(totalMemorizationTime)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 text-slate-700">
+                        <Zap size={18} className="text-purple-500" />
+                        <h4 className="font-semibold">Spaced Repetition</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Attempts:</span>
+                          <span className="font-medium">{srAttempts.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Avg Accuracy:</span>
+                          <span className={`font-medium ${getScoreColor(avgSrAccuracy).split(' ')[0]}`}>{avgSrAccuracy}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Time:</span>
+                          <span className="font-medium">{formatDuration(totalSrTime)}</span>
                         </div>
                       </div>
                     </div>
@@ -446,6 +496,133 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
                     </div>
                   ))
                 )
+              )}
+
+              {activeTab === 'spaced_repetition' && (
+                <div className="space-y-6">
+                  {/* Mastery Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {(() => {
+                      const mastered = srSchedules.filter(s => (s.ease_factor || 0) >= 3.0 && (s.interval_days || 0) >= 21);
+                      const learning = srSchedules.filter(s => !((s.ease_factor || 0) >= 3.0 && (s.interval_days || 0) >= 21));
+
+                      return (
+                        <>
+                          <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl shadow-sm">
+                            <div className="flex items-center gap-3 mb-2 text-emerald-700">
+                              <Award size={20} />
+                              <h4 className="font-bold">Mastered Words</h4>
+                            </div>
+                            <p className="text-3xl font-black text-emerald-600">{mastered.length}</p>
+                            <p className="text-xs text-emerald-600/70 mt-1">High retention (Ease ≥ 3.0, Interval ≥ 21d)</p>
+                          </div>
+                          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl shadow-sm">
+                            <div className="flex items-center gap-3 mb-2 text-indigo-700">
+                              <BookOpen size={20} />
+                              <h4 className="font-bold">Still Learning</h4>
+                            </div>
+                            <p className="text-3xl font-black text-indigo-600">{learning.length}</p>
+                            <p className="text-xs text-indigo-600/70 mt-1">Recently introduced or reviewing</p>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Word Lists Table */}
+                  {srSchedules.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Search size={18} className="text-slate-400" />
+                          <h4 className="font-bold text-slate-700">Learning Progress Detail</h4>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto scrollbar-hide">
+                        <table className="w-full text-left text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50/50 text-slate-500 font-semibold border-b border-slate-100">
+                              <th className="px-5 py-3 min-w-[200px]">Question / Word</th>
+                              <th className="px-5 py-3">Status</th>
+                              <th className="px-5 py-3">Reps</th>
+                              <th className="px-5 py-3">Interval</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {srSchedules.sort((a, b) => b.repetitions - a.repetitions).map(sched => {
+                              const isMastered = (sched.ease_factor || 0) >= 3.0 && (sched.interval_days || 0) >= 21;
+                              return (
+                                <tr key={sched.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="px-5 py-4 text-slate-700 font-medium truncate max-w-[200px]">
+                                    {sched.spaced_repetition_questions?.question_text || 'Unknown'}
+                                  </td>
+                                  <td className="px-5 py-4">
+                                    {isMastered ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                                        <Award size={10} /> Mastered
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                                        <Clock size={10} /> Learning
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-5 py-4 text-slate-600 font-semibold">{sched.repetitions}</td>
+                                  <td className="px-5 py-4 text-slate-600">{sched.interval_days}d</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Activity Log */}
+                  <div className="mt-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Activity size={18} className="text-slate-500" />
+                      <h4 className="font-bold text-slate-700 uppercase text-xs tracking-widest">Recent Practice History</h4>
+                    </div>
+                    {srAttempts.length === 0 ? (
+                      <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 border-dashed">No practice attempts yet.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {srAttempts.map(attempt => (
+                          <div key={attempt.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <div className="px-5 py-3 flex justify-between items-center group">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-slate-800 truncate pr-4 text-sm">
+                                  {attempt.spaced_repetition_questions?.question_text || 'Unknown Question'}
+                                </h4>
+                                <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 font-medium">
+                                  <span>{formatDate(attempt.created_at)}</span>
+                                  {attempt.response_time_ms && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{Math.round(attempt.response_time_ms / 1000)}s</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4 shrink-0">
+                                {attempt.is_correct ? (
+                                  <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 uppercase">
+                                    Correct
+                                  </div>
+                                ) : (
+                                  <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 uppercase">
+                                    Incorrect
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}

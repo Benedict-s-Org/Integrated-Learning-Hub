@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigationSettings } from '@/context/NavigationSettingsContext';
 
 interface MoreSheetItem {
     icon: LucideIcon;
@@ -78,7 +79,8 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     onOpenHistory,
     onOpenMemory,
 }) => {
-    const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode } = useAuth();
+    const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode, user } = useAuth();
+    const { isItemVisible } = useNavigationSettings();
     // Lock body scroll when sheet is open
     useEffect(() => {
         if (isOpen) {
@@ -93,20 +95,30 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     const sections: MoreSheetSection[] = [];
 
     // ─── Learning Section ───────────────────────────────────────
-    sections.push({
-        title: 'Learning',
-        items: [
-            { icon: Home, label: 'Paragraph Memorization', onClick: () => onPageChange('new'), isActive: currentPage === 'new' },
-            { icon: FileEdit, label: 'Proofreading Exercise', onClick: () => onPageChange('proofreading'), isActive: currentPage === 'proofreading' },
-            { icon: Mic, label: 'Spelling Practice', onClick: () => onPageChange('spelling'), isActive: currentPage === 'spelling' },
-            { icon: Zap, label: 'Spaced Repetition', onClick: () => onPageChange('spacedRepetition'), isActive: currentPage === 'spacedRepetition' },
-            { icon: Tablet, label: 'iPad Interactive Zone', onClick: () => onPageChange('wordSnake'), isActive: currentPage === 'wordSnake' },
-            { icon: Building2, label: 'My Learning Community', onClick: () => onPageChange('learningHub'), isActive: currentPage === 'learningHub' },
-            { icon: BookOpen, label: 'Notion Hub', onClick: () => onPageChange('notionHub'), isActive: currentPage === 'notionHub' },
-            { icon: Users, label: 'Phonics Sound Wall', onClick: () => onPageChange('phonics'), isActive: currentPage === 'phonics' },
-            { icon: BookOpen, label: 'Reading Practice', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
-        ],
+    const learningItems: MoreSheetItem[] = [
+        { id: 'new', icon: Home, label: 'Paragraph Memorization', onClick: () => onPageChange('new'), isActive: currentPage === 'new' },
+        { id: 'proofreading', icon: FileEdit, label: 'Proofreading Exercise', onClick: () => onPageChange('proofreading'), isActive: currentPage === 'proofreading' },
+        { id: 'spelling', icon: Mic, label: 'Spelling Practice', onClick: () => onPageChange('spelling'), isActive: currentPage === 'spelling' },
+        { id: 'spacedRepetition', icon: Zap, label: 'Spaced Repetition', onClick: () => onPageChange('spacedRepetition'), isActive: currentPage === 'spacedRepetition' },
+        { id: 'wordSnake', icon: Tablet, label: 'iPad Interactive Zone', onClick: () => onPageChange('wordSnake'), isActive: currentPage === 'wordSnake' },
+        { id: 'learningHub', icon: Building2, label: 'My Learning Community', onClick: () => onPageChange('learningHub'), isActive: currentPage === 'learningHub' },
+        { id: 'notionHub', icon: BookOpen, label: 'Notion Hub', onClick: () => onPageChange('notionHub'), isActive: currentPage === 'notionHub' },
+        { id: 'phonics', icon: Users, label: 'Phonics Sound Wall', onClick: () => onPageChange('phonics'), isActive: currentPage === 'phonics' },
+        { id: 'readingComprehension', icon: BookOpen, label: 'Reading Practice', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
+    ].filter(item => {
+        // Handle special cases for learning community access
+        if (item.id === 'learningHub' && user) {
+            return (user.can_access_learning_hub || user.role === 'admin') && isItemVisible('learningHub');
+        }
+        return isItemVisible(item.id);
     });
+
+    if (learningItems.length > 0) {
+        sections.push({
+            title: 'Learning',
+            items: learningItems,
+        });
+    }
 
     // ─── Community Section (when in learningHub) ────────────────
     if (currentPage === 'learningHub') {
@@ -124,42 +136,51 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     }
 
     // ─── Progress Section ───────────────────────────────────────
-    const progressItems: MoreSheetItem[] = [
-        { icon: TrendingUp, label: isAdmin ? 'User Analytics' : 'Progress', onClick: () => onPageChange('progress'), isActive: currentPage === 'progress' },
-        { icon: BookMarked, label: 'Saved Content', onClick: () => onPageChange('saved'), isActive: currentPage === 'saved' },
+    const progressItems: (MoreSheetItem & { id: string })[] = [
+        { id: 'progress', icon: TrendingUp, label: isAdmin ? 'User Analytics' : 'Progress', onClick: () => onPageChange('progress'), isActive: currentPage === 'progress' },
+        { id: 'saved', icon: BookMarked, label: 'Saved Content', onClick: () => onPageChange('saved'), isActive: currentPage === 'saved' },
     ];
     if (isAdmin) {
-        progressItems.push({ icon: LayoutGrid, label: 'Class Dashboard', onClick: () => onPageChange('classDashboard'), isActive: currentPage === 'classDashboard' });
+        progressItems.push({ id: 'classDashboard', icon: LayoutGrid, label: 'Class Dashboard', onClick: () => onPageChange('classDashboard'), isActive: currentPage === 'classDashboard' });
     }
     if (!isAdmin) {
-        progressItems.push({ icon: ClipboardList, label: 'Assignments', onClick: () => onPageChange('assignments'), isActive: currentPage === 'assignments' });
+        progressItems.push({ id: 'assignments', icon: ClipboardList, label: 'Assignments', onClick: () => onPageChange('assignments'), isActive: currentPage === 'assignments' });
     }
-    sections.push({ title: 'My Progress', items: progressItems });
+    
+    const filteredProgressItems = progressItems.filter(item => isItemVisible(item.id));
+    if (filteredProgressItems.length > 0) {
+        sections.push({ title: 'My Progress', items: filteredProgressItems });
+    }
 
     // ─── Admin Section ──────────────────────────────────────────
     if (isAdmin && !isUserView) {
-        sections.push({
-            title: 'Admin Tools',
-            items: [
-                { icon: Shield, label: 'Admin Panel', onClick: () => onPageChange('admin'), isActive: currentPage === 'admin' },
-                { icon: BookOpen, label: 'Reading Practice Management', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
-                { icon: Layout, label: 'Timetable Management', onClick: () => (window.location.href = '/admin/timetable') },
-                { icon: ClipboardList, label: 'Homework Record', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
-                { icon: FolderKanban, label: 'Assignment Management', onClick: () => onPageChange('assignmentManagement'), isActive: currentPage === 'assignmentManagement' },
-                { icon: Database, label: 'Database', onClick: () => onPageChange('database'), isActive: currentPage === 'database' },
-                { icon: Sparkles, label: 'AI Illustrator', onClick: () => onPageChange('flowithTest'), isActive: currentPage === 'flowithTest' },
-                { icon: PenTool, label: 'Furniture Studio', onClick: () => onOpenStudio?.() },
-                { icon: Upload, label: 'Asset Uploader', onClick: () => onOpenUploader?.() },
-                { icon: Settings, label: 'Furniture Editor', onClick: () => onOpenEditor?.() },
-                { icon: Building2, label: 'Space Design Center', onClick: () => onOpenSpaceDesign?.() },
-                { icon: Map, label: 'Map Editor', onClick: () => onOpenMapEditor?.() },
-                { icon: FolderUp, label: 'Multi-format Upload', onClick: () => onOpenAssetUpload?.() },
-                { icon: Layout, label: 'UI Builder', onClick: () => (window.location.href = '/admin/ui-builder') },
-                { icon: Palette, label: 'Theme Designer', onClick: () => onOpenThemeDesigner?.() },
-                { icon: Users, label: 'User Management', onClick: () => (window.location.href = '/admin/users') },
-                { icon: Bell, label: 'Notifications', onClick: () => onOpenNotifications?.(), badge: pendingCount },
-            ],
-        });
+        const adminItems: (MoreSheetItem & { id: string })[] = [
+            { id: 'adminUsers', icon: Shield, label: 'Admin Panel', onClick: () => onPageChange('admin'), isActive: currentPage === 'admin' },
+            { id: 'readingManagement', icon: BookOpen, label: 'Reading Practice Management', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
+            { id: 'timetable', icon: Layout, label: 'Timetable Management', onClick: () => (window.location.href = '/admin/timetable') },
+            { id: 'homeworkRecord', icon: ClipboardList, label: 'Homework Record', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
+            { id: 'assignmentManagement', icon: FolderKanban, label: 'Assignment Management', onClick: () => onPageChange('assignmentManagement'), isActive: currentPage === 'assignmentManagement' },
+            { id: 'database', icon: Database, label: 'Database', onClick: () => onPageChange('database'), isActive: currentPage === 'database' },
+            { id: 'aiIllustrator', icon: Sparkles, label: 'AI Illustrator', onClick: () => onPageChange('flowithTest'), isActive: currentPage === 'flowithTest' },
+            { id: 'furnitureStudio', icon: PenTool, label: 'Furniture Studio', onClick: () => onOpenStudio?.() },
+            { id: 'assetUploader', icon: Upload, label: 'Asset Uploader', onClick: () => onOpenUploader?.() },
+            { id: 'furnitureEditor', icon: Settings, label: 'Furniture Editor', onClick: () => onOpenEditor?.() },
+            { id: 'spaceDesign', icon: Building2, label: 'Space Design Center', onClick: () => onOpenSpaceDesign?.() },
+            { id: 'mapEditor', icon: Map, label: 'Map Editor', onClick: () => onOpenMapEditor?.() },
+            { id: 'multiFormatUpload', icon: FolderUp, label: 'Multi-format Upload', onClick: () => onOpenAssetUpload?.() },
+            { id: 'uiBuilder', icon: Layout, label: 'UI Builder', onClick: () => (window.location.href = '/admin/ui-builder') },
+            { id: 'themeDesigner', icon: Palette, label: 'Theme Designer', onClick: () => onOpenThemeDesigner?.() },
+            { id: 'adminUsers', icon: Users, label: 'User Management', onClick: () => (window.location.href = '/admin/users') },
+            { id: 'notifications', icon: Bell, label: 'Notifications', onClick: () => onOpenNotifications?.(), badge: pendingCount },
+        ];
+
+        const filteredAdminItems = adminItems.filter(item => isItemVisible(item.id));
+        if (filteredAdminItems.length > 0) {
+            sections.push({
+                title: 'Admin Tools',
+                items: filteredAdminItems,
+            });
+        }
     }
 
     if (!isOpen) return null;

@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "new", label: "Paragraph Memorization", visible: false},
     {id: "proofreading", label: "Proofreading Exercise", visible: false},
     {id: "spelling", label: "Spelling Practice", visible: false},
-    {id: "spacedRepetition", label: "Spaced Repetition", visible: false},
+    {id: "spacedRepetition", label: "Spaced Repetition", visible: true},
     {id: "readingComprehension", label: "Reading Practice", visible: false},
     {id: "wordSnake", label: "iPad Interactive Zone", visible: false},
     {id: "learningHub", label: "Learning Hub", visible: false},
@@ -102,8 +102,21 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
         if (data && (data as any).value) {
           try {
             const parsed = JSON.parse((data as any).value);
-            // Merge with defaults to ensure new sections/items are included
-            setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+            // Deep merge sections to ensure new items from DEFAULT_SETTINGS are preserved
+            const merged = { ...DEFAULT_SETTINGS };
+            (Object.keys(DEFAULT_SETTINGS) as Array<keyof typeof DEFAULT_SETTINGS>).forEach(sectionKey => {
+              const section = sectionKey as keyof NavigationSettings;
+              if (parsed[section] && Array.isArray(parsed[section])) {
+                // For each item in the default section, see if we have a stored value
+                merged[section] = DEFAULT_SETTINGS[section].map(defaultItem => {
+                  const storedItem = (parsed[section] as any[]).find((i: any) => i.id === defaultItem.id);
+                  // Keep label from code (DEFAULT_SETTINGS) to allow easy renaming, 
+                  // but use visibility from DB if present
+                  return storedItem ? { ...defaultItem, visible: storedItem.visible } : defaultItem;
+                }) as any;
+              }
+            });
+            setSettings(merged);
           } catch (e) {
             console.error('Error parsing navigation settings JSON:', e);
           }
@@ -133,8 +146,19 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
           if (newValue) {
             try {
               const parsed = JSON.parse(newValue);
-              // Merge with defaults to ensure new sections/items are included
-              setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+              // Deep merge sections to ensure new items from DEFAULT_SETTINGS are preserved
+              const merged = { ...DEFAULT_SETTINGS };
+              (Object.keys(DEFAULT_SETTINGS) as Array<keyof typeof DEFAULT_SETTINGS>).forEach(sectionKey => {
+                const section = sectionKey as keyof NavigationSettings;
+                if (parsed[section] && Array.isArray(parsed[section])) {
+                  // For each item in the default section, see if we have a stored value
+                  merged[section] = DEFAULT_SETTINGS[section].map(defaultItem => {
+                    const storedItem = (parsed[section] as any[]).find((i: any) => i.id === defaultItem.id);
+                    return storedItem ? { ...defaultItem, visible: storedItem.visible } : defaultItem;
+                  }) as any;
+                }
+              });
+              setSettings(merged);
             } catch (e) {
               console.error('Error parsing navigation settings update:', e);
             }

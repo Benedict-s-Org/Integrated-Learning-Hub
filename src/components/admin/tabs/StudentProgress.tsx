@@ -12,6 +12,8 @@ interface PerformanceStats {
     proofreading_practices: number;
     proofreading_avg: number;
     memorization_sessions: number;
+    sr_attempts: number;
+    sr_avg: number;
     total_time_minutes: number;
 }
 
@@ -45,8 +47,14 @@ export function StudentProgress({ studentId }: StudentProgressProps) {
 
             // 3. Memorization
             const { count: memorizationCount, error: mErr } = await (supabase
-                .from('memorization_sessions' as any)
+                .from('memorization_practice_sessions' as any)
                 .select('*', { count: 'exact', head: true })
+                .eq('user_id', studentId) as any);
+
+            // 4. Spaced Repetition
+            const { data: srAttempts, error: srErr } = await (supabase
+                .from('spaced_repetition_attempts')
+                .select('is_correct')
                 .eq('user_id', studentId) as any);
 
             // Handle errors or missing tables gracefully
@@ -56,6 +64,7 @@ export function StudentProgress({ studentId }: StudentProgressProps) {
 
             const safeSpelling: any[] = spelling || [];
             const safeProofreading: any[] = proofreading || [];
+            const safeSR: any[] = srAttempts || [];
 
             const spellingCount = safeSpelling.length;
             const spellingSum = safeSpelling.reduce((acc, curr) => acc + (curr.score_percentage || 0), 0);
@@ -63,12 +72,17 @@ export function StudentProgress({ studentId }: StudentProgressProps) {
             const proofreadingCount = safeProofreading.length;
             const proofreadingSum = safeProofreading.reduce((acc, curr) => acc + (curr.score_percentage || 0), 0);
 
+            const srCount = safeSR.length;
+            const srCorrectCount = safeSR.filter(a => a.is_correct).length;
+
             setStats({
                 spelling_practices: spellingCount,
                 spelling_avg: spellingCount ? Math.round(spellingSum / spellingCount) : 0,
                 proofreading_practices: proofreadingCount,
                 proofreading_avg: proofreadingCount ? Math.round(proofreadingSum / proofreadingCount) : 0,
                 memorization_sessions: memorizationCount || 0,
+                sr_attempts: srCount,
+                sr_avg: srCount ? Math.round((srCorrectCount / srCount) * 100) : 0,
                 total_time_minutes: 0 // Would need more complex query for time
             });
 
@@ -113,8 +127,16 @@ export function StudentProgress({ studentId }: StudentProgressProps) {
                 />
                 <StatCard
                     icon={BarChart3}
+                    label="Spaced Repetition"
+                    value={`${stats.sr_avg}%`}
+                    subtext={`${stats.sr_attempts} attempts`}
+                    color="text-pink-500"
+                    bgColor="bg-pink-50"
+                />
+                <StatCard
+                    icon={TrendingUp}
                     label="Total Activities"
-                    value={(stats.spelling_practices + stats.proofreading_practices + stats.memorization_sessions).toString()}
+                    value={(stats.spelling_practices + stats.proofreading_practices + stats.memorization_sessions + stats.sr_attempts).toString()}
                     subtext="Combined learning count"
                     color="text-purple-500"
                     bgColor="bg-purple-50"

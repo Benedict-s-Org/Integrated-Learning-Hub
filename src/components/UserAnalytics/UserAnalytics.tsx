@@ -129,6 +129,7 @@ const UserAnalytics: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [spellingDistribution, setSpellingDistribution] = useState<PerformanceDistribution[]>([]);
   const [proofreadingDistribution, setProofreadingDistribution] = useState<PerformanceDistribution[]>([]);
+  const [srDistribution, setSrDistribution] = useState<PerformanceDistribution[]>([]);
 
   useEffect(() => {
     if (user && user.role === 'admin') {
@@ -139,13 +140,14 @@ const UserAnalytics: React.FC = () => {
   const loadAllAnalytics = async () => {
     setLoading(true);
     try {
-      const [summaryData, studentsData, timelineData, recentData, spellingDist, proofreadingDist] = await Promise.all([
+      const [summaryData, studentsData, timelineData, recentData, spellingDist, proofreadingDist, srDist] = await Promise.all([
         (supabase as any).rpc('get_overall_analytics_summary'),
         (supabase as any).rpc('get_all_students_performance'),
         (supabase as any).rpc('get_practice_activity_timeline', { days_back: 30 }),
         (supabase as any).rpc('get_recent_activity', { limit_count: 20 }),
         (supabase as any).rpc('get_performance_distribution', { practice_type: 'spelling' }),
         (supabase as any).rpc('get_performance_distribution', { practice_type: 'proofreading' }),
+        (supabase as any).rpc('get_performance_distribution', { practice_type: 'spaced_repetition' }),
       ]);
 
       if (summaryData.data) setClassSummary(summaryData.data);
@@ -154,6 +156,7 @@ const UserAnalytics: React.FC = () => {
       if (recentData.data) setRecentActivity(recentData.data);
       if (spellingDist.data) setSpellingDistribution(spellingDist.data);
       if (proofreadingDist.data) setProofreadingDistribution(proofreadingDist.data);
+      if (srDist.data) setSrDistribution(srDist.data);
     } catch (error) {
       console.error('Error loading analytics:', error);
     } finally {
@@ -763,6 +766,42 @@ const UserAnalytics: React.FC = () => {
             <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="text-blue-600" size={24} />
+                <h3 className="text-lg font-semibold text-gray-800">Performance Distribution</h3>
+              </div>
+              <div className="space-y-3">
+                {srDistribution.length === 0 ? (
+                  <div className="text-center py-4 text-gray-400 text-sm italic">Insufficient data for distribution</div>
+                ) : (
+                  srDistribution.map((range) => (
+                    <div key={range.score_range}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-gray-700">{range.score_range}%</span>
+                        <span className="text-gray-600">
+                          {range.student_count} students ({range.percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${range.score_range === '90-100'
+                            ? 'bg-green-500'
+                            : range.score_range === '80-89'
+                              ? 'bg-blue-500'
+                              : range.score_range === '70-79'
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
+                            }`}
+                          style={{ width: `${range.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="text-blue-600" size={24} />
                 <h3 className="text-lg font-semibold text-gray-800">Learning Intensity</h3>
               </div>
               <p className="text-gray-600">

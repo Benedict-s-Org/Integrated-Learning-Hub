@@ -291,6 +291,8 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
       '記憶點': user.memory_count,
       '默寫次數 (Spelling)': user.spelling_practices,
       '校對次數 (Proofing)': user.proofreading_practices,
+      'Spaced Rep. 次數': user.spaced_repetition_sessions,
+      'Spaced Rep. 準確度': `${user.sr_avg_accuracy}%`,
       '最後活躍': user.last_activity ? new Date(user.last_activity).toLocaleString('zh-HK') : '--',
       '註冊時間': user.created_at ? new Date(user.created_at).toLocaleString('zh-HK') : '--',
       '用戶ID': user.id,
@@ -695,7 +697,15 @@ export function AdminProgressPage({ isEmbedded = false, forcedAdminId }: AdminPr
                         <div className="text-sm font-semibold">{user.proofreading_practices}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">總練習 Practices</div>
+                        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">Spaced Rep.</div>
+                        <div className="text-sm font-semibold">{user.spaced_repetition_sessions}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">記憶 Memorization</div>
+                        <div className="text-sm font-semibold">{user.memorization_sessions}</div>
+                      </div>
+                      <div className="col-span-2 mt-1 pt-1 border-t border-[hsl(var(--border))]">
+                        <div className="text-[10px] text-[hsl(var(--muted-foreground))] font-bold">總練習 Practices</div>
                         <div className="text-sm font-bold text-[hsl(var(--primary))]">{user.total_practices}</div>
                       </div>
                     </div>

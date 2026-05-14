@@ -168,12 +168,22 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Tech**: Custom injected dictionary `DICT_4X4_1000`. Analyzes marker rotation to determine the answer (A, B, C, D).
 - **Gotchas**: Modifies `AR` global object. Performance sensitive in `processFrame`.
 
-### Spaced Repetition (L118-L123)
+### Spaced Repetition (L171-L177)
 - **Path**: `src/pages/SpacedRepetitionPage.tsx` & `src/utils/spacedRepetitionAlgorithm.ts`
-- **Concept**: Uses an adaptation of SuperMemo-2 (SM-2) algorithm. 
-- **DB Mapping**: Saves tracking data and computes `next_review_date`, `interval`, and `ease_factor`. Includes `notion_page_id` to link back to source content.
+- **Concept**: Uses a **Modified SuperMemo-2 (SM-2)** algorithm for long-term retention.
+- **Mechanism**:
+  - **Quality Rating (1-5)**: Automatically calculated from correctness and response time.
+    - **5 (Easy)**: Correct + Fast (<5s).
+    - **1 (Blackout)**: Incorrect.
+  - **Interval Adjustment**:
+    - **Incorrect**: Resets interval and repetitions to 0; re-queues card for immediate re-learning in current session.
+    - **Correct**: Repetitions 1 (1 day), Repetitions 2 (3 days), Repetitions 3+ (`interval * ease_factor`).
+    - **Mastery Boost**: 1.3x multiplier for "Good/Easy" cards with 3+ repetitions.
+  - **Ease Factor**: Starts at 2.5. Adjusted by bonuses (+0.15 for Easy) or penalties (-0.2 for Hard, -0.3 for Incorrect). Minimum capped at 1.3.
+- **Session Logic**: Uses a **Tiered Selection System** (typically 12 New : 6 Near-Due : 2 Far-Due) to balance novelty with retention.
+- **Master Mode**: Practice mode that skips database recording of performance metrics.
 - **Notion AI Elaboration**: "Elaborate" button in `QuestionCard.tsx` writes a help prompt directly to the source Notion page's `Explanation` property, triggering Notion AI for the teacher.
-- **State Flow**: `SessionSummary` shows accuracy and metrics after completing a review round.
+- **Persistence**: Active session states (results and progress) are saved to `spaced_repetition_sessions` to allow cross-device resumption.
 
 ### Core Utilities (L113-L116)
 - **Path**: `src/utils/roomGeometry.ts`, `src/utils/importParsers.ts`

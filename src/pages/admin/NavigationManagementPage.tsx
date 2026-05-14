@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Save, 
@@ -27,6 +27,7 @@ export const NavigationManagementPage: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [hideInactiveColumns, setHideInactiveColumns] = useState(false);
+    const initialPermissionsRef = useRef<Record<string, any>>({});
 
 
     useEffect(() => {
@@ -40,7 +41,15 @@ export const NavigationManagementPage: React.FC = () => {
                     .order('class_number', { ascending: true }) as any);
 
                 if (error) throw error;
-                setUsers(data as UserProfile[]);
+                const userData = data as UserProfile[];
+                setUsers(userData);
+                
+                // Track initial permissions to detect changes later
+                const initialPerms: Record<string, any> = {};
+                userData.forEach(u => {
+                    initialPerms[u.id] = u.navigation_permissions ? { ...u.navigation_permissions } : null;
+                });
+                initialPermissionsRef.current = initialPerms;
             } catch (err) {
                 console.error('Error fetching users:', err);
                 setMessage({ text: 'Failed to fetch users', type: 'error' });
@@ -158,21 +167,45 @@ export const NavigationManagementPage: React.FC = () => {
     };
 
     const handleSave = async () => {
+        // Find users with modified permissions
+        const modifiedUsers = users.filter(u => {
+            const original = initialPermissionsRef.current[u.id] || {};
+            const current = u.navigation_permissions || {};
+            
+            const originalKeys = Object.keys(original);
+            const currentKeys = Object.keys(current);
+            
+            if (originalKeys.length !== currentKeys.length) return true;
+            return originalKeys.some(key => original[key] !== current[key]);
+        });
+
+        if (modifiedUsers.length === 0) {
+            setMessage({ text: 'No changes to save.', type: 'success' });
+            setTimeout(() => setMessage(null), 3000);
+            return;
+        }
+
         setIsSaving(true);
         setMessage(null);
         try {
-            console.log('[NavigationManagement] Saving permissions for users:', users.map(u => ({ id: u.id, perms: u.navigation_permissions })));
+            console.log(`[NavigationManagement] Saving permissions for ${modifiedUsers.length} modified users:`, 
+                modifiedUsers.map(u => ({ id: u.id, perms: u.navigation_permissions }))
+            );
             
             // Use allSettled so one failure doesn't block others
             const results = await Promise.allSettled(
-                users.map(u => updateUserPermissions(u.id, u.navigation_permissions || {}))
+                modifiedUsers.map(u => updateUserPermissions(u.id, u.navigation_permissions || {}))
             );
             
             const succeeded = results.filter(r => r.status === 'fulfilled').length;
             const failed = results.filter(r => r.status === 'rejected').length;
             
             if (failed === 0) {
-                setMessage({ text: `Successfully saved permissions for all ${succeeded} users!`, type: 'success' });
+                setMessage({ text: `Successfully updated permissions for ${succeeded} users!`, type: 'success' });
+                // Update initial state after success
+                modifiedUsers.forEach(u => {
+                    initialPermissionsRef.current[u.id] = u.navigation_permissions ? { ...u.navigation_permissions } : null;
+                });
                 setTimeout(() => setMessage(null), 3000);
             } else if (succeeded > 0) {
                 setMessage({ text: `Partially successful: ${succeeded} saved, ${failed} failed. Check console for details.`, type: 'error' });
