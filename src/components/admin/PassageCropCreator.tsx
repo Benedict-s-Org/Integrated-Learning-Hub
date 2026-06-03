@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { 
   Plus, ChevronLeft, ChevronRight, ChevronDown,
   Loader2, X, Check, Trash2, Image as ImageIcon, RefreshCw,
-  Search, FileText
+  Search, FileText, Upload
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -74,6 +74,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   const [isFetchingNotion, setIsFetchingNotion] = useState(false);
   const [pdfSearch, setPdfSearch] = useState('');
   const [showPdfSelector, setShowPdfSelector] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   // Derived unique PDFs list
   const uniquePdfs = React.useMemo(() => {
@@ -178,6 +179,53 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
       alert('Failed to load PDF.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPdf(true);
+    setShowPdfSelector(false);
+    try {
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `uploaded-pdfs/${Date.now()}_${sanitizedName}`;
+      
+      const { data, error } = await supabase.storage
+        .from('reading-passages')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('reading-passages')
+        .getPublicUrl(fileName);
+
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const doc = await loadingTask.promise;
+      setPdfDoc(doc);
+      setNumPages(doc.numPages);
+      setPageNum(1);
+
+      const uploadedPdf: ReadingPdf = {
+        pageId: `upload-${Date.now()}`,
+        name: file.name,
+        fileUrl: publicUrl,
+        day: null
+      };
+
+      setSelectedPdf(uploadedPdf);
+      setPdfs(prev => [uploadedPdf, ...prev]);
+    } catch (err: any) {
+      console.error('Error uploading/loading PDF:', err);
+      alert(`Failed to upload PDF: ${err.message || err}`);
+    } finally {
+      setUploadingPdf(false);
     }
   };
 
@@ -325,7 +373,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   }, [pdfDoc, pageNum, step]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!canvasRef.current || loading) return;
+    if (!canvasRef.current || loading || uploadingPdf) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -556,6 +604,20 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                       className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
                   </div>
+                  
+                  <div className="mb-3">
+                    <label className="flex items-center justify-center gap-2 w-full p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl cursor-pointer transition-all border border-dashed border-indigo-200 text-xs font-black uppercase tracking-wider">
+                      <Upload className="w-4 h-4" />
+                      Upload PDF
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={handlePdfUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+
                   <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
                     {filteredPdfs.map((pdf) => (
                       <button
@@ -684,15 +746,17 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
               ref={containerRef}
               className="bg-white rounded-[3rem] shadow-xl flex-1 overflow-auto relative custom-scrollbar border border-white p-12"
             >
-              {loading ? (
+              {loading || uploadingPdf ? (
                 <div className="flex flex-col items-center justify-center p-20">
                   <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mb-4" />
-                  <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Loading PDF...</p>
+                  <p className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                    {uploadingPdf ? 'Uploading PDF...' : 'Loading PDF...'}
+                  </p>
                 </div>
               ) : (
                 <div className="min-w-fit mx-auto">
                   <div 
-                    className={`relative cursor-crosshair transition-opacity duration-300 ${loading ? 'opacity-30' : 'opacity-100'}`}
+                    className={`relative cursor-crosshair transition-opacity duration-300 ${loading || uploadingPdf ? 'opacity-30' : 'opacity-100'}`}
                     onMouseDown={handleMouseDown}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
