@@ -77,6 +77,11 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       icon: <ClipboardList size={18} className="w-4 h-4" />,
     },
     {
+      path: "/admin/homework-summary",
+      label: "Homework Summary",
+      icon: <ClipboardList size={18} className="w-4 h-4" />,
+    },
+    {
       label: "Map Editor",
       icon: <MapIcon className="w-4 h-4" />,
       onClick: () => setShowMapEditor(true),

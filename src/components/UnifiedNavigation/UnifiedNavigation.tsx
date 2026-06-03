@@ -406,6 +406,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={window.location.pathname === '/admin/navigation'}
                                 onClick={() => navigate('/admin/navigation')}
                             />
+                            {isItemVisible('notionDatabaseConfig') && (
+                                <NavItem
+                                    icon={Database}
+                                    label="Notion Database IDs"
+                                    isActive={window.location.pathname === '/admin/notion-db-config'}
+                                    onClick={() => navigate('/admin/notion-db-config')}
+                                />
+                            )}
                             {isItemVisible('adminAnalytics') && (
                                 <NavItem
                                     icon={TrendingUp}

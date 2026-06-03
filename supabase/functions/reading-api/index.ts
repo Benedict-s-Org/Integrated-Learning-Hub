@@ -54,6 +54,21 @@ Deno.serve(async (req: Request) => {
     const { createClient } = await import("npm:@supabase/supabase-js@2");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch notion_database_ids from system_config
+    let notionDbConfig: any = null;
+    try {
+      const { data: configData } = await supabase
+        .from('system_config')
+        .select('value')
+        .eq('key', 'notion_database_ids')
+        .single();
+      if (configData?.value) {
+        notionDbConfig = JSON.parse(configData.value);
+      }
+    } catch (err) {
+      console.error("[reading-api] Error fetching database IDs from system_config:", err);
+    }
+
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !authUser) {
@@ -82,7 +97,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const dbId = req.headers.get("x-database-id") || body.databaseId || url.searchParams.get("databaseId") || "3239baca6fa380a9b501deceb133946d";
+    const dbId = req.headers.get("x-database-id") || body.databaseId || url.searchParams.get("databaseId") || notionDbConfig?.reading_pdfs_db_id || "3239baca6fa380a9b501deceb133946d";
 
     console.log(`[reading-api] [${VERSION}] Action: ${action}, DB ID: ${dbId}, User: ${authUser.email}`);
 
@@ -204,7 +219,7 @@ Deno.serve(async (req: Request) => {
     }
     // ── 3. Create Reading Question ─────────────────────────────────────
     else if (action === "create-reading-question") {
-      const qDbId = body.questionsDatabaseId || Deno.env.get("NOTION_QUESTIONS_DATABASE_ID") || "3249baca6fa381f18526ca44ce27447c";
+      const qDbId = body.questionsDatabaseId || Deno.env.get("NOTION_QUESTIONS_DATABASE_ID") || notionDbConfig?.reading_comprehension_db_id || "3249baca6fa381f18526ca44ce27447c";
       if (!qDbId) return createCORSResponse({ error: "Missing target database ID" }, 400, req);
 
       const resp = await fetch(`${NOTION_API}/pages`, {
@@ -230,7 +245,7 @@ Deno.serve(async (req: Request) => {
     }
     // ── 4. List Page Questions ─────────────────────────────────────────
     else if (action === "list-page-questions") {
-      const qDbId = body.questionsDatabaseId || Deno.env.get("NOTION_QUESTIONS_DATABASE_ID") || "3249baca6fa381f18526ca44ce27447c";
+      const qDbId = body.questionsDatabaseId || Deno.env.get("NOTION_QUESTIONS_DATABASE_ID") || notionDbConfig?.reading_comprehension_db_id || "3249baca6fa381f18526ca44ce27447c";
       const { sourcePageId, pageNumber, dayNumber } = body;
       
       if (!pageNumber) {

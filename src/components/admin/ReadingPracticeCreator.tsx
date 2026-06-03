@@ -199,6 +199,35 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const questionsDbIdRef = useRef(questionsDbId);
   useEffect(() => { questionsDbIdRef.current = questionsDbId; }, [questionsDbId]);
 
+  // Load Notion database config from system_config on mount
+  useEffect(() => {
+    const loadNotionDbConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('system_config' as any)
+          .select('value')
+          .eq('key', 'notion_database_ids')
+          .single();
+        if (error) {
+          if (error.code !== 'PGRST116') {
+            console.error('Error fetching notion database config:', error);
+          }
+          return;
+        }
+        if (data?.value) {
+          const config = JSON.parse(data.value);
+          if (config.reading_comprehension_db_id) {
+            setQuestionsDbId(config.reading_comprehension_db_id);
+            localStorage.setItem('aplus_questions_db_id', config.reading_comprehension_db_id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load database IDs from system_config:', err);
+      }
+    };
+    loadNotionDbConfig();
+  }, []);
+
   // When bankMode changes: clear stale questions and re-fetch for the new mode
   const bankModeRef = useRef(bankMode);
   useEffect(() => {
@@ -523,7 +552,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   }, [pdfDoc, pageNum, step]);
 
   const fetchQuestionsForPage = async () => {
-    if (!selectedPdf || selectedPdf.pageId === 'local') {
+    if (!selectedPdf) {
       setQuestionsOnPage([]);
       return;
     }
@@ -1311,11 +1340,42 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         {/* LEFT: NOTION BANK SIDEBAR (20% W) */}
         {step === 'workspace' && (
           <div className="w-1/5 border-r bg-white flex flex-col shadow-[4px_0_15px_rgba(0,0,0,0.02)] z-10 transition-all duration-300 overflow-hidden">
-            <div className="px-6 py-4 border-b flex items-center justify-between bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10">
-              <div className="flex flex-col gap-2">
+            <div className="px-5 py-4 border-b flex flex-col gap-3 bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 w-full">
+              <div className="flex flex-col gap-2.5">
                 <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
                   <Database className="w-3.5 h-3.5 text-indigo-600" /> Notion Bank
                 </h3>
+                
+                {/* Questions Database ID Input */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Database ID</span>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={questionsDbId}
+                      onChange={(e) => {
+                        const newId = e.target.value.trim();
+                        setQuestionsDbId(newId);
+                        localStorage.setItem('aplus_questions_db_id', newId);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          fetchQuestionsForPage();
+                        }
+                      }}
+                      placeholder="Questions DB ID..."
+                      className="w-full text-[9px] px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold transition-all focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                    <button
+                      onClick={fetchQuestionsForPage}
+                      disabled={loading || !questionsDbId}
+                      className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:opacity-50 rounded-xl transition-all shrink-0 flex items-center justify-center border border-indigo-100"
+                      title="Fetch Questions"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
                 
                 {/* THE SWITCH TOGGLE (Stacked for sidebar) */}
                 <div className="relative flex flex-col bg-slate-200/50 p-1 rounded-2xl w-full gap-1 border border-slate-100 shadow-inner">
@@ -1440,6 +1500,27 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 {/* Notion Bank PDF Selection */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-black text-slate-800">Notion Bank</h3>
+
+                  {/* Questions Database ID Input */}
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Database className="w-3.5 h-3.5 text-indigo-500" /> Question Bank Database ID
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={questionsDbId}
+                      onChange={(e) => {
+                        const newId = e.target.value.trim();
+                        setQuestionsDbId(newId);
+                        localStorage.setItem('aplus_questions_db_id', newId);
+                      }}
+                      placeholder="Enter Notion Questions Database ID..."
+                      className="w-full text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 font-bold transition-all"
+                    />
+                  </div>
+
                   <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-xl max-h-[400px] flex flex-col">
                     <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{pdfs.length} PDFs Available</span>

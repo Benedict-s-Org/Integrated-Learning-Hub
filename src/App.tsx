@@ -43,6 +43,7 @@ const AssessmentReport = lazy(() => import('./pages/AssessmentReport').then(modu
 const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker').then(module => ({ default: module.VocabImagePicker })));
 const ProgressLogPage = lazy(() => import('./pages/ProgressLogPage').then(module => ({ default: module.ProgressLogPage })));
 const AdminHomeworkHabitPage = lazy(() => import('./pages/AdminHomeworkHabitPage'));
+const AdminHomeworkSummaryPage = lazy(() => import('./pages/admin/AdminHomeworkSummaryPage'));
 const PhonicsDashboard = lazy(() => import('./components/admin/PhonicsDashboard')) as unknown as React.FC<{ onBack: () => void }>;
 const AnagramApp = lazy(() => import('./modules/anagram/AnagramApp'));
 
@@ -1536,6 +1537,7 @@ const BroadcastManagementPage = lazy(() => import('./pages/admin/BroadcastManage
 const ReadingManagementPage = lazy(() => import('./pages/admin/ReadingManagementPage.tsx'));
 const ReadingLearningPage = lazy(() => import('./pages/student/ReadingLearningPage.tsx').then(m => ({ default: m.ReadingLearningPage })));
 const AudioManagementPage = lazy(() => import('./pages/admin/AudioManagementPage.tsx'));
+const NotionDatabaseConfigPage = lazy(() => import('./pages/admin/NotionDatabaseConfigPage'));
 
 const SpacedRepetitionPage = lazy(() => import('./components/SpacedRepetition/SpacedRepetitionPage').then(m => ({ default: m.SpacedRepetitionPage })));
 const NotionHub = lazy(() => import('./components/NotionHub/NotionHub').then(m => ({ default: m.NotionHub })));
@@ -1687,6 +1689,14 @@ function AppRoutes() {
             }
           />
           <Route
+            path="/admin/notion-db-config"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <NotionDatabaseConfigPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="/admin/manifest"
             element={
               <Suspense fallback={<PageLoader />}>
@@ -1731,6 +1741,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminHomeworkRecordPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/homework-summary"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminHomeworkSummaryPage />
               </Suspense>
             }
           />

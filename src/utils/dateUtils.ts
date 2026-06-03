@@ -11,6 +11,11 @@ export const getHKTodayString = (): string => {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
 };
 
+export const getHKTomorrowString = (): string => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    return tomorrow.toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+};
+
 /**
  * Format a DB timestamp (ISO) to a user-friendly HK date string.
  */

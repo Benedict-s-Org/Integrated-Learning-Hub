@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getHKTodayString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
+import { getHKTodayString, getHKTomorrowString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useDashboardTheme } from '@/context/DashboardThemeContext';
@@ -8,7 +8,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen } from 'lucide-react';
 import { holidayService, HolidayConfig } from '@/services/holidayService';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
@@ -143,6 +143,89 @@ export function ClassDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]); // For legacy CoinAwardModal
+    const [dailyHomeworkMap, setDailyHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
+    const [tomorrowHomeworkMap, setTomorrowHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
+
+    const fetchDailyHomework = async () => {
+        const todayDate = getHKTodayString();
+        const tomorrowDate = getHKTomorrowString();
+        try {
+            const { data, error } = await supabase
+                .from('daily_homework')
+                .select('class_name, date, assignments')
+                .in('date', [todayDate, tomorrowDate]);
+            
+            if (error) throw error;
+            
+            const todayMap: Record<string, Record<string, string[]>> = {};
+            const tomorrowMap: Record<string, Record<string, string[]>> = {};
+            data?.forEach((row: any) => {
+                if (row.class_name && row.assignments) {
+                    if (row.date === todayDate) {
+                        todayMap[row.class_name] = row.assignments;
+                    } else if (row.date === tomorrowDate) {
+                        tomorrowMap[row.class_name] = row.assignments;
+                    }
+                }
+            });
+            setDailyHomeworkMap(todayMap);
+            setTomorrowHomeworkMap(tomorrowMap);
+        } catch (err) {
+            console.error('Error fetching daily homework:', err);
+        }
+    };
+
+    const handleSetupDailyHomework = async (className: string, assignments: Record<string, string[]>) => {
+        const todayDate = getHKTodayString();
+        try {
+            const { error } = await supabase
+                .from('daily_homework')
+                .upsert({
+                    date: todayDate,
+                    class_name: className,
+                    assignments: assignments
+                }, {
+                    onConflict: 'date,class_name'
+                });
+
+            if (error) throw error;
+            
+            setDailyHomeworkMap(prev => ({
+                ...prev,
+                [className]: assignments
+            }));
+        } catch (err: any) {
+            console.error('Failed to setup daily homework:', err);
+            alert(`Failed to save today's homework configuration: ${err.message || 'Unknown error'}`);
+            throw err;
+        }
+    };
+
+    const handleSetupTomorrowHomework = async (className: string, assignments: Record<string, string[]>) => {
+        const tomorrowDate = getHKTomorrowString();
+        try {
+            const { error } = await supabase
+                .from('daily_homework')
+                .upsert({
+                    date: tomorrowDate,
+                    class_name: className,
+                    assignments: assignments
+                }, {
+                    onConflict: 'date,class_name'
+                });
+
+            if (error) throw error;
+            
+            setTomorrowHomeworkMap(prev => ({
+                ...prev,
+                [className]: assignments
+            }));
+        } catch (err: any) {
+            console.error('Failed to setup tomorrow\'s homework:', err);
+            alert(`Failed to save tomorrow's homework configuration: ${err.message || 'Unknown error'}`);
+            throw err;
+        }
+    };
 
     // New Selection State
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -515,6 +598,7 @@ export function ClassDashboardPage() {
         if (isStaff && currentUser) {
             fetchUsers();
             fetchCycleData();
+            fetchDailyHomework();
         }
     }, [isStaff, currentUser?.id]);
 
@@ -534,6 +618,9 @@ export function ClassDashboardPage() {
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'student_records' }, () => {
                 fetchUsers({ silent: true, forceRefresh: true });
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_homework' }, () => {
+                fetchDailyHomework();
             })
             .subscribe();
 
@@ -1114,6 +1201,15 @@ export function ClassDashboardPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
+                        {activeClass !== 'all' && (
+                            <button
+                                onClick={() => setSelectedHomeworkStudentId('admin-setup')}
+                                className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                            >
+                                <BookOpen size={18} className="text-blue-500" />
+                                今日功課設定 (Setup Homework)
+                            </button>
+                        )}
                         <button
                             onClick={() => navigate('/admin/progress-log')}
                             className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
@@ -1224,6 +1320,16 @@ export function ClassDashboardPage() {
                                     <RotateCcw size={18} className={`text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
                                     {isSyncing ? 'Syncing...' : 'Sync Users'}
                                 </button>
+
+                                {activeClass !== 'all' && (
+                                    <button
+                                        onClick={() => setSelectedHomeworkStudentId('admin-setup-tomorrow')}
+                                        className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                                    >
+                                        <CalendarDays size={18} className="text-emerald-500" />
+                                        設定明日功課 (Set Tomorrow's Homework)
+                                    </button>
+                                )}
 
                                 <button
                                     onClick={handleSyncBalances}
@@ -1542,9 +1648,45 @@ export function ClassDashboardPage() {
             <HomeworkModal
                 isOpen={!!selectedHomeworkStudentId}
                 onClose={() => setSelectedHomeworkStudentId(null)}
-                studentName={selectedHomeworkStudent?.display_name || ''}
+                studentName={
+                    selectedHomeworkStudentId === 'admin-setup'
+                        ? '今日功課設定'
+                        : selectedHomeworkStudentId === 'admin-setup-tomorrow'
+                        ? '明日功課設定'
+                        : (selectedHomeworkStudent?.display_name || '')
+                }
                 onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
-                isHandbookDisabled={selectedHomeworkStudent?.morning_status !== 'review'}
+                isHandbookDisabled={
+                    selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow'
+                        ? true
+                        : (selectedHomeworkStudent?.morning_status !== 'review')
+                }
+                dailyHomeworkItems={
+                    selectedHomeworkStudentId === 'admin-setup'
+                        ? (dailyHomeworkMap[activeClass] || undefined)
+                        : selectedHomeworkStudentId === 'admin-setup-tomorrow'
+                        ? (tomorrowHomeworkMap[activeClass] || undefined)
+                        : (selectedHomeworkStudent?.class ? dailyHomeworkMap[selectedHomeworkStudent.class] : undefined)
+                }
+                isFirstStudent={
+                    selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow'
+                        ? true
+                        : (selectedHomeworkStudent?.class ? !dailyHomeworkMap[selectedHomeworkStudent.class] : false)
+                }
+                onSetupDailyHomework={async (items) => {
+                    const targetClass = (selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow')
+                        ? activeClass
+                        : (selectedHomeworkStudent?.class || '');
+                    if (!targetClass || targetClass === 'all') {
+                        alert('無法為此班級設定今日功課 (Unable to setup homework for this class)');
+                        return;
+                    }
+                    if (selectedHomeworkStudentId === 'admin-setup-tomorrow') {
+                        await handleSetupTomorrowHomework(targetClass, items);
+                    } else {
+                        await handleSetupDailyHomework(targetClass, items);
+                    }
+                }}
             />
 
 

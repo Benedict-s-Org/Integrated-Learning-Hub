@@ -31,6 +31,7 @@
 | **Cognitive Anagram** | `AnagramApp.tsx` - Notion-synced experiment & logging layer. | L290-L305 |
 | **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L283-L288 |
 | **Reliability** | Development standards to prevent infinite loops and stalls. | L36-L42 |
+| **Dev Ports & Troubleshooting** | Port configurations and troubleshooting common launch errors. | L318-L325 |
 
 ---
 
@@ -314,3 +315,13 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **UIReliability**: Enforces Section 1 (Task Identification) and Section 2 (Prediction Guidance) separation with explicit icon-based headers in `PredictionScreen.tsx`.
 - **DataPriority**: UI prioritizes `cmsContent` to ensure researcher edits in the Admin Panel are never overridden by hardcoded defaults (Researcher First rule).
 - **Logging**: Automated, structured data collection pushing experimental runs and trial-by-trial responses directly to Notion databases.
+
+---
+
+### Dev Server Ports & Troubleshooting (L318-L325)
+- **Supabase Learning Hub (Vite)**: Runs on port `5180` (configured in `vite.config.ts`).
+- **Writing Marking Tool (Next.js)**: Runs on default Next.js port `3000` (starts via `npm run dev` with Next CLI).
+- **Troubleshooting Dynamic Imports**:
+  - **Common Error**: `TypeError: Failed to fetch dynamically imported module: http://localhost:5180/src/components/UserAnalytics/UserAnalytics.tsx`.
+  - **Root Cause**: The Vite dev server for `Supabase_Learning_Hub` is not running.
+  - **Resolution**: Open a terminal in `/Users/mba/Documents/Antigravity/Supabase_Learning_Hub` and run `npm run dev` to start the server. Do not spend time debugging syntax or imports in `UserAnalytics.tsx` before confirming the dev server is active and listening on port `5180`.

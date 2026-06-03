@@ -54,6 +54,21 @@ Deno.serve(async (req: Request) => {
     const { createClient } = await import("npm:@supabase/supabase-js@2");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch notion_database_ids from system_config
+    let notionDbConfig: any = null;
+    try {
+      const { data: configData } = await supabase
+        .from('system_config')
+        .select('value')
+        .eq('key', 'notion_database_ids')
+        .single();
+      if (configData?.value) {
+        notionDbConfig = JSON.parse(configData.value);
+      }
+    } catch (err) {
+      console.error("[notion-api] Error fetching database IDs from system_config:", err);
+    }
+
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !authUser) {
@@ -80,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     // ── 0. save-unknown ───────────────────────────────────────────────
     if (action === "save-unknown") {
-      const helpDbId = Deno.env.get("NOTION_HELP_DATABASE_ID") || "2647f405a5a14e9fa6660dc164a3e502";
+      const helpDbId = notionDbConfig?.help_db_id || Deno.env.get("NOTION_HELP_DATABASE_ID") || "2647f405a5a14e9fa6660dc164a3e502";
       const resp = await fetch(`${NOTION_API}/pages`, {
         method: "POST",
         headers: notionHeaders(notionToken),
@@ -101,9 +116,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 1. get-cycle-day ──────────────────────────────────────────────
-    // ── 1. get-cycle-day ──────────────────────────────────────────────
     if (action === "get-cycle-day") {
-      const dateDbId = "2579baca6fa3806f9c6ef193f7d81213";
+      const dateDbId = notionDbConfig?.cycle_day_db_id || "2579baca6fa3806f9c6ef193f7d81213";
       
       // Calculate HK Today String robustly
       const now = new Date();
@@ -183,7 +197,7 @@ Deno.serve(async (req: Request) => {
 
     // ── 2. query-mcq-database / list-activities ───────────────────────
     if (action === "query-mcq-database" || action === "list-activities") {
-      const targetDbId = dbId || "3239baca6fa380a9b501deceb133946d";
+      const targetDbId = dbId || notionDbConfig?.reading_pdfs_db_id || "3239baca6fa380a9b501deceb133946d";
       
       let allResults = [];
       let hasMore = true;

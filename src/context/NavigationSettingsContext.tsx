@@ -50,7 +50,8 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "groupCompetition", label: "Group Competition (6-Lane)", visible: false},
     {id: "database", label: "Database", visible: false},
     {id: "userProgress", label: "User Progress", visible: false},
-    {id: "mobileTest", label: "Mobile Test", visible: false}
+    {id: "mobileTest", label: "Mobile Test", visible: false},
+    {id: "notionDatabaseConfig", label: "Notion Database IDs", visible: true}
   ],
   teacher: [
     {id: "teacherPlaceholder", label: "(Add new tools here)", visible: true}
