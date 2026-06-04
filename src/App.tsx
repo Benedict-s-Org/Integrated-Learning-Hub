@@ -21,6 +21,7 @@ import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
 import { FurnitureUploader } from './components/furniture/FurnitureUploader';
 import { FurnitureEditor } from './components/editor/FurnitureEditor';
+import { FurnitureStudio } from './components/furniture/FurnitureStudio';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { GlobalUserStatus } from './components/Auth/GlobalUserStatus';
@@ -180,6 +181,7 @@ function AppContent() {
     setCustomWalls,
     setCustomFloors,
     fullModels,
+    setCustomModels,
   } = useMemoryPalaceContext();
   const { buyItem } = useInventory();
   const [showComponentInspector, setShowComponentInspector] = useState(() => {
@@ -1470,6 +1472,28 @@ function AppContent() {
           </div>
         )}
 
+        {uiState.showStudio && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-xl">幾何家具設計室</h3>
+                <button onClick={toggleStudio} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <FurnitureStudio
+                  onClose={toggleStudio}
+                  onSave={(furniture, model) => {
+                    setCustomCatalog((prev) => [...prev, furniture]);
+                    setCustomModels((prev) => ({ ...prev, [furniture.id]: model }));
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {uiState.showUploader && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col">
@@ -1482,7 +1506,9 @@ function AppContent() {
               <div className="flex-1 overflow-hidden">
                 <FurnitureUploader
                   onClose={toggleUploader}
-                  onSave={() => toggleUploader()}
+                  onSave={(newFurniture) => {
+                    setCustomCatalog((prev) => [...prev, newFurniture]);
+                  }}
                 />
               </div>
             </div>
