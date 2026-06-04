@@ -29,7 +29,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
   onComplete,
   onExit
 }) => {
-  console.log('@@LEARNING_MARKER_V1@@ ReadingLearningPage rendered');
+
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [practices, setPractices] = useState<ReadingPractice[]>([]);
@@ -52,7 +52,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
       }) as { data: any[], error: any };
 
       if (error) throw error;
-      console.log('ReadingLearningPage: Unified assignments data:', data);
+
       
       // Filter for reading modes and format
       const readingAssignments = (data || [])
@@ -129,7 +129,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
       (selectedPractice as any)?.type === 'reading-unscramble' ? 'unscramble' : 
       (selectedPractice as any)?.type === 'reading-advanced' ? 'advanced' : 
       'proofreading';
-    console.log('ReadingLearningPage: Rendering ReadingChallenge for practice:', selectedPracticeId, 'initialMode:', initialMode);
+
     return (
       <ReadingChallenge 
         practiceId={selectedPracticeId}
@@ -137,7 +137,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
         assignmentId={activeAssignmentId || (selectedPractice as any)?.assignmentId}
         interactionMode={initialMode as any}
         onComplete={(score, bonus) => {
-          console.log(`Completed with score: ${score}, bonus: ${bonus}`);
+
           setSelectedPracticeId(null);
           setActiveAssignmentId(null);
           if (initialPracticeId && onComplete) {

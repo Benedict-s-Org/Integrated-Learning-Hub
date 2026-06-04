@@ -122,8 +122,7 @@ const SortableWord: React.FC<{
   );
 };
 
-// --- Main Component ---
-console.log('ReadingChallenge.tsx: File loaded');
+
 
 export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   practiceId,
@@ -133,7 +132,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   onComplete,
   onExit
 }) => {
-  console.log('ReadingChallenge: Component rendered with propInteractionMode:', propInteractionMode);
   // State
   const [loading, setLoading] = useState(true);
   const [practice, setPractice] = useState<any>(null);
@@ -148,9 +146,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [selectedProofreadingIndex, setSelectedProofreadingIndex] = useState<number | null>(null);
   const [userSelections, setUserSelections] = useState<Record<string, string>>({}); // For options/dropdowns
   
-  // @@CHALLENGE_MARKER_V2@@
   useEffect(() => {
-    console.log('@@CHALLENGE_MARKER_V2@@ ReadingChallenge mounted');
   }, []);
   const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For prefix inputs
   const [proofreadingCorrection, setProofreadingCorrection] = useState('');
@@ -171,7 +167,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   );
 
   useEffect(() => {
-    console.log('ReadingChallenge: useEffect triggered with practiceId:', practiceId);
     if (practiceId) {
       loadData();
     }
@@ -184,7 +179,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   }, [propInteractionMode]);
 
   const loadData = async () => {
-    console.log('ReadingChallenge: loadData started for practiceId:', practiceId, 'mode:', interactionMode);
     setLoading(true);
     try {
       // 1. Fetch Practice
@@ -218,8 +212,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
       await supabase.from('users').select('*').eq('id', studentId).single();
       
-      console.log('ReadingChallenge: Fetched qData:', qData);
-      console.log('ReadingChallenge: interactionMode:', interactionMode);
+
 
       const filteredQuestions = (qData as unknown as Question[] || []).filter(q => {
         // Repeated words rule for proofreading
@@ -231,7 +224,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
           if (errorLower !== '') {
             const count = words.filter(w => w === errorLower).length;
             if (count > 1) {
-              console.log(`ReadingChallenge: Filtering out proofreading question ${q.id} due to ambiguous error word "${errorLower}"`);
               return false; // Exclude if ambiguous
             }
           }
@@ -239,7 +231,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         return true;
       });
 
-      console.log('ReadingChallenge: filteredQuestions:', filteredQuestions);
+
 
       setQuestions(filteredQuestions);
       
@@ -552,7 +544,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
               <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mt-2 w-fit">
                 <button
                   onClick={() => {
-                    console.log('ReadingChallenge: Switching to unscramble mode');
                     setInteractionMode('unscramble');
                   }}
                   className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -565,7 +556,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
                 </button>
                 <button
                   onClick={() => {
-                    console.log('ReadingChallenge: Switching to advanced mode');
                     setInteractionMode('advanced');
                   }}
                   className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
