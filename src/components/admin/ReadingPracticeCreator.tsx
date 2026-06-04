@@ -183,8 +183,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   
   const [bankMode, setBankMode] = useState<'Unscramble' | 'Proofreading' | 'Advance'>('Unscramble');
-  const [rewardCoins, setRewardCoins] = useState(10);
   const [tempSelectedPdf, setTempSelectedPdf] = useState<ReadingPdf | null>(null);
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string | null>(null);
   // Fix: Initialize questionsDbId synchronously so it's never empty on first render
   const [questionsDbId, setQuestionsDbId] = useState(() => {
     const saved = localStorage.getItem('aplus_questions_db_id');
@@ -417,6 +417,18 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
       if (questionsError) throw questionsError;
 
+      // Restore bankMode
+      const firstQRec = questions[0];
+      if (firstQRec) {
+        if (firstQRec.interaction_type === 'full-typing') {
+          setBankMode('Advance');
+        } else if (firstQRec.interaction_type === 'proofreading') {
+          setBankMode('Proofreading');
+        } else {
+          setBankMode('Unscramble');
+        }
+      }
+
       // 3. Map to localQuestions format
       const mappedQuestions = questions.map((q: any) => ({
         id: q.id,
@@ -438,6 +450,19 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
       setLocalQuestions(mappedQuestions);
 
+      // Select first question by default
+      if (mappedQuestions.length > 0) {
+        const firstQ = mappedQuestions[0];
+        setSelectedQuestion(firstQ.question);
+        setChunks([...firstQ.chunks]);
+        setActivePreviewUrl(firstQ.previewUrl || null);
+        setEditingLocalId(firstQ.id);
+        if (firstQ.coords?.page) {
+          setPageNum(firstQ.coords.page);
+          setPageNumInput(firstQ.coords.page.toString());
+        }
+      }
+
       // Restore selectedDay from the first question if available
       const firstDay = (mappedQuestions[0]?.question as any)?.day || (mappedQuestions[0] as any)?.metadata?.day;
       if (firstDay) {
@@ -454,7 +479,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       if (practice.source_pdf_url) {
         // Try to find full context for Day restoration
         const fullContext = pdfs.find(p => p.fileUrl === practice.source_pdf_url);
-        handleRemotePdf(practice.source_pdf_url, practice.title || 'Untitled', fullContext);
+        const restoredPdf = fullContext || { 
+          pageId: 'remote', 
+          name: practice.title || 'Untitled', 
+          fileUrl: practice.source_pdf_url 
+        };
+        setSelectedPdf(restoredPdf);
+      } else {
+        setSelectedPdf({ pageId: 'inventory', name: 'Passage Crops (Inventory Mode)' });
       }
     } catch (err) {
       console.error('Error fetching practice for editing:', err);
@@ -474,6 +506,25 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       }
     }
   }, [pdfs, selectedPdf]);
+
+  // Restore crop coordinates when canvas is initialized or page/question changes
+  useEffect(() => {
+    if (canvasRef.current && editingLocalId && step === 'workspace') {
+      const lq = localQuestions.find(q => q.id === editingLocalId);
+      if (lq && lq.coords) {
+        const canvas = canvasRef.current;
+        const restoredStart = { x: lq.coords.x * canvas.width, y: lq.coords.y * canvas.height };
+        const restoredEnd = { 
+          x: (lq.coords.x + lq.coords.w) * canvas.width, 
+          y: (lq.coords.y + lq.coords.h) * canvas.height 
+        };
+        setCropStart(restoredStart);
+        setCropEnd(restoredEnd);
+        cropStartRef.current = restoredStart;
+        cropEndRef.current = restoredEnd;
+      }
+    }
+  }, [pdfDoc, pageNum, editingLocalId, step, localQuestions]);
 
   // Sync Preview state and Shuffle Chunks
   useEffect(() => {
@@ -970,6 +1021,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
         // ALWAYS append on Add
         setLocalQuestions(prev => [...prev, newLocalQuestion]);
+        setActivePreviewUrl(autoFetchedCrop.image_url);
         // After adding, detach so the next addition is completely fresh
         setEditingLocalId(null);
         return;
@@ -1027,6 +1079,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
       // ALWAYS append on Add
       setLocalQuestions(prev => [...prev, newLocalQuestion]);
+      setActivePreviewUrl(previewUrl);
       // After adding, detach so the next addition is completely fresh
       setEditingLocalId(null);
 
@@ -1057,6 +1110,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           randomizedIds
         };
         setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? updatedLocalQuestion : lq));
+        setActivePreviewUrl(autoFetchedCrop.image_url);
         return;
       }
     }
@@ -1110,6 +1164,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       };
 
       setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? updatedLocalQuestion : lq));
+      setActivePreviewUrl(previewUrl);
       // Keep attached after update to allow further continuous editing
     } catch (err: any) {
       console.error('[ReadingCreator] Update error:', err);
@@ -1126,6 +1181,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     // 1. Restore question and chunks
     setSelectedQuestion(lq.question);
     setChunks([...lq.chunks]);
+    setActivePreviewUrl(lq.previewUrl || null);
     
     // 2. Restore PDF Page
     if (lq.coords.page !== pageNum) {
@@ -1161,6 +1217,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     setEditingLocalId(null);
     setSelectedQuestion(null);
     setChunks([]);
+    setActivePreviewUrl(null);
     setSelectedChunkIds([]);
     setPreviewSelections({});
     setPreviewPrefixes({});
@@ -1228,7 +1285,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
         passage_image_url: coverUrl,
         created_by: user?.id,
         source_pdf_url: selectedPdf?.fileUrl || null,
-        reward_coins: rewardCoins,
+        reward_coins: 0,
         is_deleted: false // Ensure it's not deleted if we're editing
       };
 
@@ -1393,6 +1450,16 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {step === 'workspace' && (
+            <button
+              onClick={handleSavePractice}
+              disabled={saving || localQuestions.length === 0}
+              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              {editId ? 'Save Changes' : 'Save Practice'}
+            </button>
+          )}
           {onCancel && (
             <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-bold">Exit</button>
           )}
@@ -1416,6 +1483,22 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
             <div className="px-5 py-4 border-b flex flex-col gap-3 bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 w-full">
               <div className="flex flex-col gap-2.5">
                 <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" /> Practice Info
+                </h3>
+                
+                {/* Practice Title Input */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Practice Title</span>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Enter practice title..."
+                    className="w-full text-[9px] px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold transition-all focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
                   <Database className="w-3.5 h-3.5 text-indigo-600" /> Notion Bank
                 </h3>
                 
@@ -1778,22 +1861,6 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
               <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-[450px]">
                 <div className="flex items-center justify-between bg-white px-6 py-4 rounded-[2rem] shadow-xl border border-slate-100 shrink-0">
                   <div className="flex items-center gap-4">
-                    {/* Manual Coin Award Input */}
-                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-2xl border border-amber-100 shadow-inner">
-                      <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-sm">
-                        <Zap className="w-3.5 h-3.5 fill-current" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-amber-600 uppercase tracking-tighter">Reward Coins</span>
-                        <input 
-                          type="number" 
-                          step="10"
-                          value={rewardCoins} 
-                          onChange={(e) => setRewardCoins(parseInt(e.target.value) || 0)}
-                          className="w-16 h-6 bg-transparent font-black text-amber-900 outline-none text-sm"
-                        />
-                      </div>
-                    </div>
                     {selectedPdf?.pageId !== 'inventory' ? (
                       <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
                         <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
@@ -1831,17 +1898,17 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-auto bg-slate-100/50 rounded-[2.5rem] border-4 border-white shadow-2xl relative flex justify-center p-8 backdrop-blur-sm">
-                  {selectedPdf?.pageId === 'inventory' ? (
-                    <div className="flex flex-col items-center justify-center p-8 bg-white rounded-3xl shadow-sm border border-slate-100 max-w-md mx-auto my-auto text-center">
-                      {autoFetchedCrop?.image_url ? (
+                  {selectedPdf?.pageId === 'inventory' || !pdfDoc ? (
+                    <div className="flex flex-col items-center justify-center p-8 bg-white rounded-3xl shadow-sm border border-slate-100 max-w-md mx-auto my-auto text-center animate-in fade-in duration-300">
+                      {activePreviewUrl || autoFetchedCrop?.image_url ? (
                         <div className="flex flex-col items-center gap-4">
                           <img 
-                            src={autoFetchedCrop.image_url} 
+                            src={activePreviewUrl || autoFetchedCrop?.image_url} 
                             className="max-h-[300px] rounded-2xl shadow-lg border border-slate-200 object-contain" 
                             alt="Passage Crop" 
                           />
                           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-wider">
-                            Pre-defined Crop for Day {selectedQuestion?.day || 'N/A'}
+                            {activePreviewUrl ? 'Saved Question Crop' : `Pre-defined Crop for Day ${selectedQuestion?.day || 'N/A'}`}
                           </span>
                         </div>
                       ) : (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil, ChevronDown } from 'lucide-react';
+import { Plus, BookOpen, Trash2, Loader2, RefreshCw, Database, ChevronLeft, ChevronRight, Pencil, ChevronDown, Check, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReadingPracticeCreator } from '@/components/admin/ReadingPracticeCreator';
 import { ReadingNotionImporter } from '@/components/admin/ReadingNotionImporter';
@@ -34,6 +34,9 @@ export const ReadingManagementPage: React.FC = () => {
   const [selectedCropIds, setSelectedCropIds] = useState<string[]>([]);
   const [bulkCategoryValue, setBulkCategoryValue] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [renamingPracticeId, setRenamingPracticeId] = useState<string | null>(null);
+  const [newTitleValue, setNewTitleValue] = useState('');
+  const [isSavingRename, setIsSavingRename] = useState(false);
 
   useEffect(() => {
     if (view === 'list') fetchPractices();
@@ -106,6 +109,27 @@ export const ReadingManagementPage: React.FC = () => {
       console.error('Error fetching passage crops:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRenamePractice = async (id: string) => {
+    if (!newTitleValue.trim()) return;
+    setIsSavingRename(true);
+    try {
+      const { error } = await supabase
+        .from('reading_practices')
+        .update({ title: newTitleValue.trim() })
+        .eq('id', id);
+
+      if (error) throw error;
+      setPractices(prev => prev.map(p => p.id === id ? { ...p, title: newTitleValue.trim() } : p));
+      setRenamingPracticeId(null);
+      setNewTitleValue('');
+    } catch (error) {
+      console.error('Error renaming practice:', error);
+      alert('Failed to rename practice.');
+    } finally {
+      setIsSavingRename(false);
     }
   };
 
@@ -749,7 +773,48 @@ export const ReadingManagementPage: React.FC = () => {
                 </div>
               </div>
               <div className="p-5">
-                <h3 className="font-bold text-slate-800 mb-1 truncate">{practice.title}</h3>
+                {renamingPracticeId === practice.id ? (
+                  <div className="flex items-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newTitleValue}
+                      onChange={(e) => setNewTitleValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenamePractice(practice.id);
+                        if (e.key === 'Escape') setRenamingPracticeId(null);
+                      }}
+                      className="flex-1 px-2.5 py-1.5 border-2 border-indigo-500 rounded-xl text-xs font-bold outline-none"
+                    />
+                    <button 
+                      disabled={isSavingRename}
+                      onClick={() => handleRenamePractice(practice.id)}
+                      className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shrink-0 flex items-center justify-center"
+                    >
+                      {isSavingRename ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    </button>
+                    <button 
+                      onClick={() => setRenamingPracticeId(null)}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-all shrink-0 flex items-center justify-center"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between mb-1 group/title">
+                    <h3 className="font-bold text-slate-800 truncate pr-2 flex-1">{practice.title}</h3>
+                    <button 
+                      onClick={() => {
+                        setRenamingPracticeId(practice.id);
+                        setNewTitleValue(practice.title);
+                      }}
+                      className="p-1 hover:bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-md transition-all opacity-0 group-hover/title:opacity-100 shrink-0"
+                      title="Rename Practice"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <p className="text-xs text-slate-400 flex items-center gap-1">
                   Created {new Date(practice.created_at).toLocaleDateString()}
                 </p>

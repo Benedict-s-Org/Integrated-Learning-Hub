@@ -1177,6 +1177,8 @@ function AppContent() {
                 <ReadingLearningPage 
                   practiceId={appState.page === 'readingComprehension' ? appState.practiceId : undefined}
                   assignmentId={appState.page === 'readingComprehension' ? appState.assignmentId : undefined}
+                  onComplete={() => setAppState({ page: 'assignments' })}
+                  onExit={() => setAppState({ page: 'assignments' })}
                 />
               );
             case 'audioManagement':

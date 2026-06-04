@@ -921,6 +921,9 @@ export type Database = {
           student_id: string
           time_spent_seconds: number | null
           user_answer: string | null
+          answer_status: string
+          hint_used_count: number | null
+          student_input: string | null
         }
         Insert: {
           bonus_evidence_completed?: boolean | null
@@ -935,6 +938,9 @@ export type Database = {
           student_id: string
           time_spent_seconds?: number | null
           user_answer?: string | null
+          answer_status: string
+          hint_used_count?: number | null
+          student_input?: string | null
         }
         Update: {
           bonus_evidence_completed?: boolean | null
@@ -949,6 +955,9 @@ export type Database = {
           student_id?: string
           time_spent_seconds?: number | null
           user_answer?: string | null
+          answer_status?: string
+          hint_used_count?: number | null
+          student_input?: string | null
         }
         Relationships: [
           {

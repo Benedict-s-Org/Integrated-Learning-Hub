@@ -19,11 +19,15 @@ interface ReadingPractice {
 interface ReadingLearningPageProps {
   practiceId?: string;
   assignmentId?: string;
+  onComplete?: () => void;
+  onExit?: () => void;
 }
 
 export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
   practiceId: initialPracticeId,
-  assignmentId: initialAssignmentId
+  assignmentId: initialAssignmentId,
+  onComplete,
+  onExit
 }) => {
   console.log('@@LEARNING_MARKER_V1@@ ReadingLearningPage rendered');
   const { user } = useAuth();
@@ -32,6 +36,7 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(initialPracticeId || null);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(initialAssignmentId || null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
 
   useEffect(() => {
     fetchPractices();
@@ -97,8 +102,9 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
 
         // If we have an initial practice but it wasn't selected yet (due to detail loading)
         // ensure it has proper interaction mode from data
-        if (initialPracticeId && !selectedPracticeId) {
+        if (initialPracticeId && !selectedPracticeId && !hasAutoStarted) {
           setSelectedPracticeId(initialPracticeId);
+          setHasAutoStarted(true);
         }
       } else {
         setPractices([]);
@@ -134,11 +140,18 @@ export const ReadingLearningPage: React.FC<ReadingLearningPageProps> = ({
           console.log(`Completed with score: ${score}, bonus: ${bonus}`);
           setSelectedPracticeId(null);
           setActiveAssignmentId(null);
-          fetchPractices();
+          if (initialPracticeId && onComplete) {
+            onComplete();
+          } else {
+            fetchPractices();
+          }
         }}
         onExit={() => {
           setSelectedPracticeId(null);
           setActiveAssignmentId(null);
+          if (initialPracticeId && onExit) {
+            onExit();
+          }
         }}
       />
     );

@@ -3,7 +3,6 @@ import {
   BookOpen, 
   ChevronRight, 
   ChevronLeft, 
-  Coins, 
   Lightbulb, 
   Target,
   ArrowRight,
@@ -134,7 +133,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   onComplete,
   onExit
 }) => {
-  window.alert('READING CHALLENGE RENDERED');
   console.log('ReadingChallenge: Component rendered with propInteractionMode:', propInteractionMode);
   // State
   const [loading, setLoading] = useState(true);
@@ -142,7 +140,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [bonusCoins, setBonusCoins] = useState(0);
   
   // Interaction State
   const [interactionMode, setInteractionMode] = useState<'unscramble' | 'proofreading' | 'advanced'>(propInteractionMode || 'unscramble');
@@ -286,13 +283,29 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         
         if (options.length > 0) {
           // Include the correct answer in the options if it's not already there
-          // The USER wants the FIRST option (base form) to be the initial selection
-          const optionsWithCorrect = [ ...options, { text: c.text } ];
+          // Put the correct answer first so options (with type properties) overwrite it in Map deduplication
+          const optionsWithCorrect = [ { text: c.text }, ...options ];
           let uniqueOptions = Array.from(new Map(optionsWithCorrect.map(o => [o.text, o])).values());
           
           let defaultOpt = options[0];
           
-          if (c.mode === 'preposition') {
+          if (c.mode === 'verb') {
+            const baseOpt = uniqueOptions.find(o => o.type === 'base');
+            if (baseOpt) {
+              defaultOpt = baseOpt;
+            } else {
+              const correctOpt = uniqueOptions.find(o => o.text === c.text);
+              if (correctOpt) defaultOpt = correctOpt;
+            }
+          } else if (c.mode === 'noun') {
+            const singularOpt = uniqueOptions.find(o => o.type === 'singular');
+            if (singularOpt) {
+              defaultOpt = singularOpt;
+            } else {
+              const correctOpt = uniqueOptions.find(o => o.text === c.text);
+              if (correctOpt) defaultOpt = correctOpt;
+            }
+          } else if (c.mode === 'preposition') {
             uniqueOptions.sort((a, b) => a.text.localeCompare(b.text));
             defaultOpt = uniqueOptions[0];
           }
@@ -430,8 +443,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     setStatus('feedback');
 
     if (isUserCorrect) {
-      const awardAmount = practice?.reward_coins || 10;
-      setScore(prev => prev + awardAmount);
+      setScore(prev => prev + 1);
       confetti({
         particleCount: 150,
         spread: 70,
@@ -443,16 +455,20 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
     // Save response to DB
     try {
+      const answerStatus = isUserCorrect 
+        ? (hintsUsed > 0 ? 'with_hint' : 'perfect') 
+        : 'incorrect';
+
       await supabase.from('reading_student_responses').insert({
         student_id: studentId,
         question_id: q.id,
-        is_correct: isUserCorrect,
-        user_answer: (interactionMode === 'advanced' || q.interaction_type === 'full-typing')
+        answer_status: answerStatus,
+        student_input: (interactionMode === 'advanced' || q.interaction_type === 'full-typing')
           ? typingAnswer
           : interactionMode === 'unscramble' 
           ? unscrambleWords.map(w => userSelections[w.id] || w.text).join(' ') 
           : proofreadingCorrection,
-        hint_usage_count: hintsUsed,
+        hint_used_count: hintsUsed,
         bonus_evidence_completed: false
       });
     } catch (err) {
@@ -461,7 +477,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   };
 
   const handleSkip = () => {
-    if (confirm('Skip this question? You won\'t earn coins for this one.')) {
+    if (confirm('Skip this question?')) {
       nextQuestion();
     }
   };
@@ -470,7 +486,6 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     if (!isCorrect || !showEvidencePrompt) return;
     
     setIsEvidenceLinked(true);
-    setBonusCoins(prev => prev + 5);
     setShowEvidencePrompt(false);
     
     // Update response in DB for bonus
@@ -506,7 +521,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
           console.error('Error calling mark_assignment_complete for reading:', err);
         }
       }
-      onComplete(score, bonusCoins);
+      onComplete(score, 0);
     }
   };
 
@@ -581,18 +596,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
         <div className="flex items-center gap-6">
           <div className="flex flex-col items-end">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Score</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-black text-slate-800">{score}</span>
-              <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center shadow-inner">
-                <Coins className="w-3.5 h-3.5 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-          <div className="h-10 w-[1px] bg-slate-100" />
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Bonus</span>
-            <span className="text-xl font-black text-indigo-600">+{bonusCoins}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Correct</span>
+            <span className="text-xl font-black text-slate-800">{score} / {questions.length}</span>
           </div>
         </div>
       </div>
