@@ -148,3 +148,53 @@ export async function analyzeHandwriting(
 
   throw lastError || new Error('Handwriting analysis failed after multiple retries.');
 }
+
+/**
+ * Compares student's typed sentence with correct reference sentence using Gemini.
+ * Returns true if semantically equivalent and grammatically correct.
+ */
+export async function verifySentenceWithAI(
+  studentAnswer: string,
+  correctAnswer: string
+): Promise<{ isCorrect: boolean; explanation: string }> {
+  try {
+    const model = genAI.getGenerativeModel({
+      model: MODEL_NAME,
+      generationConfig: { responseMimeType: 'application/json' },
+    });
+
+    const prompt = `
+You are an English language assessment expert grading a student's reading practice.
+The student typed a sentence as their answer.
+Compare the student's answer with the reference correct sentence.
+Determine if the student's answer is grammatically correct and semantically equivalent (means the same thing and is a natural, acceptable sentence in English).
+Minor capitalization, spacing, or punctuation mistakes should be tolerated (marked as correct), but the overall sentence meaning and key vocabulary must be correct and make sense.
+Reference sentence: "${correctAnswer}"
+Student's answer: "${studentAnswer}"
+
+Return ONLY a JSON object in this format:
+{
+  "isCorrect": boolean,
+  "explanation": "string describing why it's correct or incorrect"
+}
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const data = JSON.parse(text);
+    return {
+      isCorrect: !!data.isCorrect,
+      explanation: data.explanation || ''
+    };
+  } catch (error) {
+    console.error("AI grading error:", error);
+    // Fallback: strict match if AI fails
+    const clean = (txt: string) => txt.replace(/\s+/g, ' ').trim().toLowerCase();
+    const isStrictMatch = clean(studentAnswer) === clean(correctAnswer);
+    return {
+      isCorrect: isStrictMatch,
+      explanation: 'AI grading fell back to strict matching due to an error.'
+    };
+  }
+}

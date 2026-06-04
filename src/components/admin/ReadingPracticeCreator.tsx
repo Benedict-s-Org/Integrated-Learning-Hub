@@ -179,6 +179,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const [fetchError, setFetchError] = useState<{ message: string; hint?: string; found?: string[] } | null>(null);
   const [selectedQuestion, setSelectedQuestion] = useState<NotionQuestion | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [practiceCategory, setPracticeCategory] = useState(() => localStorage.getItem('aplus_practice_category') || '');
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
   
   const [bankMode, setBankMode] = useState<'Unscramble' | 'Proofreading' | 'Advance'>('Unscramble');
   const [rewardCoins, setRewardCoins] = useState(10);
@@ -227,6 +229,90 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     };
     loadNotionDbConfig();
   }, []);
+
+  // Fetch existing categories from reading_questions table
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('reading_questions')
+          .select('category')
+          .eq('interaction_type', 'passage-crop')
+          .not('category', 'is', null);
+        
+        if (!error && data) {
+          const uniqueCategories = Array.from(new Set(data.map(d => d.category as string)))
+            .filter(Boolean)
+            .sort();
+          setExistingCategories(uniqueCategories);
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Auto-fetch passage crop when selectedDay or category changes
+  useEffect(() => {
+    if (selectedDay) {
+      const checkPassageCrop = async () => {
+        try {
+          console.log('[ReadingCreator] Fetching pre-defined crop for day:', selectedDay, 'and category:', practiceCategory);
+          
+          let query = supabase
+            .from('reading_questions')
+            .select('*')
+            .eq('interaction_type', 'passage-crop')
+            .is('practice_id', null)
+            .eq('metadata->>day', selectedDay);
+
+          if (practiceCategory) {
+            query = query.eq('category', practiceCategory);
+          }
+
+          const { data: crops, error } = await query.limit(1);
+
+          if (error) throw error;
+
+          if (crops && crops.length > 0) {
+            const crop = crops[0];
+            console.log('[ReadingCreator] Found matching passage crop for day:', selectedDay, crop.id);
+            
+            // Apply coordinates
+            if (crop.evidence_coords) {
+              const coords = crop.evidence_coords as any;
+              setCropStart({ x: coords.x, y: coords.y });
+              setCropEnd({ x: coords.x + coords.w, y: coords.y + coords.h });
+              
+              // If it's on a different page than currently showing, jump there
+              if (coords.page && coords.page !== pageNum && selectedPdf?.pageId !== 'inventory') {
+                setPageNum(coords.page);
+                setPageNumInput(coords.page.toString());
+              }
+            }
+            
+            // Apply image preview
+            if ((crop as any).question_image_url) {
+              const cropImgUrl = (crop as any).question_image_url as string;
+              setAutoFetchedCrop({ image_url: cropImgUrl, coords: crop.evidence_coords });
+            }
+          } else {
+            setAutoFetchedCrop(null);
+            setCropStart(null);
+            setCropEnd(null);
+          }
+        } catch (err) {
+          console.error('[ReadingCreator] Error fetching passage crop:', err);
+          setAutoFetchedCrop(null);
+        }
+      };
+      checkPassageCrop();
+    } else {
+      setAutoFetchedCrop(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, practiceCategory]);
 
   // When bankMode changes: clear stale questions and re-fetch for the new mode
   const bankModeRef = useRef(bankMode);
@@ -551,8 +637,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
     };
   }, [pdfDoc, pageNum, step]);
 
-  const fetchQuestionsForPage = async () => {
-    if (!selectedPdf) {
+  const fetchQuestionsForPage = async (forceParam?: boolean | any) => {
+    const force = forceParam === true;
+    if (!selectedPdf && !force) {
       setQuestionsOnPage([]);
       return;
     }
@@ -576,7 +663,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       });
       
       if (error) {
-        console.error('[ReadingPractice] notion-api error:', error);
+        console.error('[ReadingPractice] notion-api invocation error detail:', JSON.stringify(error, null, 2), error);
         setFetchError({
           message: error.message || 'Failed to fetch from Notion',
           hint: 'Make sure the database is shared with the integration and ID is correct.'
@@ -586,12 +673,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       }
 
       if (data?.error) {
+        console.error('[ReadingPractice] notion-api returned error in body:', data.error, data);
         setFetchError({ message: data.error });
         setQuestionsOnPage([]);
         return;
       }
 
       if (!data?.results || data.results.length === 0) {
+        console.warn('[ReadingPractice] No questions found in database results:', data);
         setFetchError({ message: 'No questions found in this Notion database.' });
         setQuestionsOnPage([]);
         return;
@@ -616,9 +705,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       if (uniqueDays.length > 0 && !selectedDay) {
         setSelectedDay(uniqueDays[0]);
       }
-    } catch (err) {
-      console.error('Error fetching questions:', err);
-      setFetchError({ message: 'Connection error. Please check your Notion configuration.' });
+    } catch (err: any) {
+      console.error('[ReadingPractice] Exception in fetchQuestionsForPage:', err);
+      setFetchError({ message: err?.message || 'Connection error. Please check your Notion configuration.' });
       setQuestionsOnPage([]);
     } finally {
       setLoading(false);
@@ -703,52 +792,8 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       fetchQuestionsForPage();
     }
 
-    // NEW: Auto-fetch passage crop for this day if it exists
     if (q.day) {
-      const checkPassageCrop = async () => {
-        try {
-          console.log('[ReadingCreator] Checking for pre-defined crop for day:', q.day);
-          const { data: crops, error } = await supabase
-            .from('reading_questions')
-            .select('*')
-            .eq('interaction_type', 'passage-crop')
-            .is('practice_id', null)
-            .eq('metadata->>day', q.day)
-            .limit(1);
-
-          if (error) throw error;
-
-          if (crops && crops.length > 0) {
-            const crop = crops[0];
-            console.log('[ReadingCreator] Found matching passage crop:', crop.id);
-            
-            // Apply coordinates
-            if (crop.evidence_coords) {
-              const coords = crop.evidence_coords as any;
-              setCropStart({ x: coords.x, y: coords.y });
-              setCropEnd({ x: coords.x + coords.w, y: coords.y + coords.h });
-              
-              // If it's on a different page than currently showing, jump there
-              if (coords.page && coords.page !== (q.page || pageNum)) {
-                setPageNum(coords.page);
-                setPageNumInput(coords.page.toString());
-              }
-            }
-            
-            // Apply image preview
-            if ((crop as any).question_image_url) {
-              const cropImgUrl = (crop as any).question_image_url as string;
-              setAutoFetchedCrop({ image_url: cropImgUrl, coords: crop.evidence_coords });
-            }
-          } else {
-            setAutoFetchedCrop(null);
-          }
-        } catch (err) {
-          console.error('[ReadingCreator] Error fetching passage crop:', err);
-          setAutoFetchedCrop(null);
-        }
-      };
-      checkPassageCrop();
+      setSelectedDay(q.day);
     } else {
       setAutoFetchedCrop(null);
     }
@@ -904,6 +949,33 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
 
   const handleAddQuestion = async (randomizedIds: string[]) => {
+    const isInventoryMode = selectedPdf?.pageId === 'inventory' || !pdfDoc;
+    // Check if we can use an auto-fetched crop (either because we are in inventory mode or because the manual crop matches it)
+    if (autoFetchedCrop && autoFetchedCrop.image_url && selectedQuestion) {
+      const coords = autoFetchedCrop.coords as any;
+      const matched = cropStart ? (Math.abs(cropStart.x - coords.x) < 0.01 && Math.abs(cropStart.y - coords.y) < 0.01) : false;
+      
+      if (isInventoryMode || matched) {
+        console.log('[ReadingCreator] Using auto-fetched crop instead of canvas capture');
+        const newId = crypto.randomUUID(); // ALWAYS generate a new ID for Add
+        const newLocalQuestion = {
+          id: newId,
+          question: selectedQuestion,
+          chunks: [...chunks],
+          coords: { ...coords },
+          imageBlob: new Blob(),
+          previewUrl: autoFetchedCrop.image_url,
+          randomizedIds
+        };
+
+        // ALWAYS append on Add
+        setLocalQuestions(prev => [...prev, newLocalQuestion]);
+        // After adding, detach so the next addition is completely fresh
+        setEditingLocalId(null);
+        return;
+      }
+    }
+
     if (!pdfDoc || !cropStart || !cropEnd || !selectedQuestion) {
       alert('Please select a question and draw a crop selection on the PDF first.');
       return;
@@ -966,21 +1038,17 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
   const handleUpdateQuestion = async (randomizedIds: string[]) => {
     if (!editingLocalId) return;
-    if (!pdfDoc || !cropStart || !cropEnd || !selectedQuestion) {
-      alert('Please select a question and draw a crop selection on the PDF first.');
-      return;
-    }
 
-    // Check if we can use an auto-fetched crop
-    if (autoFetchedCrop && autoFetchedCrop.image_url) {
+    // Check if we can use an auto-fetched crop (either because it matches or because we are in inventory/no-pdf mode)
+    const isInventoryMode = selectedPdf?.pageId === 'inventory' || !pdfDoc;
+    if (autoFetchedCrop && autoFetchedCrop.image_url && selectedQuestion) {
       const coords = autoFetchedCrop.coords as any;
-      // Tolerant check: if cropStart matches the autoFetchedCoords (within small delta)
-      const matched = Math.abs(cropStart.x - coords.x) < 0.01 && Math.abs(cropStart.y - coords.y) < 0.01;
+      const matched = cropStart ? (Math.abs(cropStart.x - coords.x) < 0.01 && Math.abs(cropStart.y - coords.y) < 0.01) : false;
       
-      if (matched) {
+      if (isInventoryMode || matched) {
         console.log('[ReadingCreator] Using auto-fetched crop instead of canvas capture');
-        const newLocalQuestion = {
-          id: crypto.randomUUID(),
+        const updatedLocalQuestion = {
+          id: editingLocalId,
           question: selectedQuestion,
           chunks: [...chunks],
           coords: { ...coords },
@@ -988,10 +1056,14 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           previewUrl: autoFetchedCrop.image_url,
           randomizedIds
         };
-        setLocalQuestions(prev => [...prev, newLocalQuestion]);
-        setEditingLocalId(null);
+        setLocalQuestions(prev => prev.map(lq => lq.id === editingLocalId ? updatedLocalQuestion : lq));
         return;
       }
+    }
+
+    if (!pdfDoc || !cropStart || !cropEnd || !selectedQuestion) {
+      alert('Please select a question and draw a crop selection on the PDF first.');
+      return;
     }
 
     const pxW = Math.abs(cropStart.x - cropEnd.x);
@@ -1212,6 +1284,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
           evidence_coords: lq.coords,
           question_image_url: imageUrl,
           order_index: index,
+          category: practiceCategory || null, // Sync category to saved questions
           metadata: {
             chunks: lq.chunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives, mode: c.mode })),
             randomized_ids: lq.randomizedIds,
@@ -1377,6 +1450,25 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   </div>
                 </div>
                 
+                {/* Category Selector */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Category</span>
+                  <select
+                    value={practiceCategory}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPracticeCategory(val);
+                      localStorage.setItem('aplus_practice_category', val);
+                    }}
+                    className="w-full text-[9px] px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold transition-all cursor-pointer focus:bg-white"
+                  >
+                    <option value="">All Categories</option>
+                    {existingCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                
                 {/* THE SWITCH TOGGLE (Stacked for sidebar) */}
                 <div className="relative flex flex-col bg-slate-200/50 p-1 rounded-2xl w-full gap-1 border border-slate-100 shadow-inner">
                   {[
@@ -1508,17 +1600,88 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         <Database className="w-3.5 h-3.5 text-indigo-500" /> Question Bank Database ID
                       </span>
                     </div>
-                    <input
-                      type="text"
-                      value={questionsDbId}
-                      onChange={(e) => {
-                        const newId = e.target.value.trim();
-                        setQuestionsDbId(newId);
-                        localStorage.setItem('aplus_questions_db_id', newId);
-                      }}
-                      placeholder="Enter Notion Questions Database ID..."
-                      className="w-full text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 font-bold transition-all"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={questionsDbId}
+                        onChange={(e) => {
+                          const newId = e.target.value.trim();
+                          setQuestionsDbId(newId);
+                          localStorage.setItem('aplus_questions_db_id', newId);
+                          setFetchError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            fetchQuestionsForPage(true);
+                          }
+                        }}
+                        placeholder="Enter Notion Questions Database ID..."
+                        className="flex-1 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 font-bold transition-all"
+                      />
+                      <button
+                        onClick={() => fetchQuestionsForPage(true)}
+                        disabled={loading || !questionsDbId}
+                        className="px-4 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 rounded-xl font-bold transition-all flex items-center gap-2 text-xs shadow-md shrink-0"
+                        title="Fetch Database"
+                      >
+                        <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        Fetch
+                      </button>
+                    </div>
+
+                    {/* Category Selector */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-indigo-500" /> Inventory / Level (Category)
+                      </span>
+                      <div className="flex gap-2">
+                        <select
+                          value={existingCategories.includes(practiceCategory) ? practiceCategory : (practiceCategory ? 'custom' : '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              setPracticeCategory('');
+                            } else {
+                              setPracticeCategory(val);
+                              localStorage.setItem('aplus_practice_category', val);
+                            }
+                          }}
+                          className="flex-1 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white font-bold transition-all cursor-pointer"
+                        >
+                          <option value="">All Categories (No Category Filter)</option>
+                          {existingCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                          <option value="custom">+ Input Custom Category...</option>
+                        </select>
+                        
+                        {!existingCategories.includes(practiceCategory) && practiceCategory !== '' && (
+                          <input 
+                            type="text" 
+                            value={practiceCategory}
+                            onChange={(e) => {
+                              const val = e.target.value.trim();
+                              setPracticeCategory(val);
+                              localStorage.setItem('aplus_practice_category', val);
+                            }}
+                            placeholder="Enter Level (e.g. P3)..."
+                            className="w-1/3 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white font-bold transition-all"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {fetchError && (
+                      <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-center text-xs text-red-600 font-medium">
+                        <p className="font-bold uppercase tracking-wider text-[10px] text-red-700 mb-0.5">Fetch Failed</p>
+                        {fetchError.message}
+                      </div>
+                    )}
+                    {questionsOnPage.length > 0 && !fetchError && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center text-xs text-emerald-600 font-medium">
+                        <p className="font-bold uppercase tracking-wider text-[10px] text-emerald-700 mb-0.5">Fetch Successful</p>
+                        Loaded {questionsOnPage.length} questions from Notion database.
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-xl max-h-[400px] flex flex-col">
@@ -1564,10 +1727,16 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                   </div>
                 </div>
 
-                {/* MODES SELECTION (Appears after PDF is selected) */}
-                {(selectedPdf || tempSelectedPdf) && (
+                {/* MODES SELECTION (Appears after PDF is selected or questions are loaded from database ID) */}
+                {(selectedPdf || tempSelectedPdf || questionsOnPage.length > 0) && (
                   <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-500">
-                    <h3 className="text-xl font-black text-slate-800 mb-6 uppercase tracking-widest">Select Practice Mode</h3>
+                    <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-widest">Select Practice Mode</h3>
+                    <p className="text-xs text-slate-400 font-bold mb-6">
+                      {selectedPdf || tempSelectedPdf 
+                        ? 'Using selected PDF library file' 
+                        : 'No PDF selected - Using existing passage crops for each Day'
+                      }
+                    </p>
                     <div className="flex gap-4">
                       {[
                         { id: 'Unscramble', icon: Database, color: 'bg-indigo-600', label: 'Unscramble' },
@@ -1581,6 +1750,9 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                             if (tempSelectedPdf) {
                               setSelectedPdf(tempSelectedPdf);
                               setTempSelectedPdf(null);
+                            } else if (!selectedPdf) {
+                              // Use dummy PDF representing Passage Crops mode
+                              setSelectedPdf({ pageId: 'inventory', name: 'Passage Crops (Inventory Mode)' });
                             }
                             setStep('workspace');
                           }}
@@ -1622,14 +1794,20 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                         />
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
-                      <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
-                      <div className="flex items-center gap-2 px-3">
-                        <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(); } else { setPageNumInput(pageNum.toString()); } }} className="w-10 h-8 text-center font-black border-2 border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none transition-all" />
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">of {numPages}</span>
+                    {selectedPdf?.pageId !== 'inventory' ? (
+                      <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-100">
+                        <button onClick={() => { const p = Math.max(1, pageNum - 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum <= 1 || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4" /></button>
+                        <div className="flex items-center gap-2 px-3">
+                          <input type="text" value={pageNumInput} onChange={(e) => setPageNumInput(e.target.value)} onBlur={() => { const v = parseInt(pageNumInput); if (!isNaN(v) && v >= 1 && v <= numPages) { setPageNum(v); fetchQuestionsForPage(); } else { setPageNumInput(pageNum.toString()); } }} className="w-10 h-8 text-center font-black border-2 border-slate-200 rounded-xl text-sm focus:border-indigo-500 outline-none transition-all" />
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">of {numPages}</span>
+                        </div>
+                        <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum >= numPages || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
                       </div>
-                      <button onClick={() => { const p = Math.min(numPages, pageNum + 1); setPageNum(p); setPageNumInput(p.toString()); fetchQuestionsForPage(); }} disabled={pageNum >= numPages || loading} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4" /></button>
-                    </div>
+                    ) : (
+                      <div className="px-4 py-2 bg-indigo-50 text-indigo-700 font-black text-[10px] uppercase tracking-wider rounded-xl border border-indigo-100 flex items-center gap-1.5 shadow-sm">
+                        <Database className="w-3.5 h-3.5" /> Passage Crop Mode (No PDF)
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-4">
@@ -1653,26 +1831,49 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-auto bg-slate-100/50 rounded-[2.5rem] border-4 border-white shadow-2xl relative flex justify-center p-8 backdrop-blur-sm">
-                  <div 
-                    className="relative bg-white shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] h-fit w-fit transition-transform hover:scale-[1.002]" 
-                    onMouseDown={handleMouseDown} 
-                    onMouseMove={handleMouseMove} 
-                    onMouseUp={handleMouseUp}
-                  >
-                    {loading && <div className="absolute inset-0 bg-white/60 flex flex-col items-center justify-center z-10 backdrop-blur-md"><Loader2 className="w-12 h-12 animate-spin text-indigo-600" /><p className="mt-4 text-xs font-black text-indigo-900 uppercase tracking-widest">Rendering Page...</p></div>}
-                    <canvas ref={canvasRef} className="max-w-full h-auto cursor-crosshair block rounded-sm shadow-sm" />
+                  {selectedPdf?.pageId === 'inventory' ? (
+                    <div className="flex flex-col items-center justify-center p-8 bg-white rounded-3xl shadow-sm border border-slate-100 max-w-md mx-auto my-auto text-center">
+                      {autoFetchedCrop?.image_url ? (
+                        <div className="flex flex-col items-center gap-4">
+                          <img 
+                            src={autoFetchedCrop.image_url} 
+                            className="max-h-[300px] rounded-2xl shadow-lg border border-slate-200 object-contain" 
+                            alt="Passage Crop" 
+                          />
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                            Pre-defined Crop for Day {selectedQuestion?.day || 'N/A'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-center p-8">
+                          <Database className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                          <p className="text-sm font-black text-slate-600">No Pre-defined Passage Crop Found</p>
+                          <p className="text-xs text-slate-400 font-bold mt-1">Please ensure a crop has been saved for Day {selectedQuestion?.day || 'N/A'} in the Passage Bulk Cropper.</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                     <div 
-                      ref={overlayRef}
-                      className="absolute border-[3px] border-indigo-500 bg-indigo-500/10 pointer-events-none shadow-[0_0_25px_rgba(79,70,229,0.4)] ring-2 ring-white/50"
-                      style={{ 
-                        display: cropStart && cropEnd ? 'block' : 'none',
-                        left: cropStart ? Math.min(cropStart.x, cropEnd?.x || cropStart.x) : 0,
-                        top: cropStart ? Math.min(cropStart.y, cropEnd?.y || cropStart.y) : 0,
-                        width: cropStart && cropEnd ? Math.abs(cropStart.x - cropEnd.x) : 0,
-                        height: cropStart && cropEnd ? Math.abs(cropStart.y - cropEnd.y) : 0
-                      }} 
-                    />
-                  </div>
+                      className="relative bg-white shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] h-fit w-fit transition-transform hover:scale-[1.002]" 
+                      onMouseDown={handleMouseDown} 
+                      onMouseMove={handleMouseMove} 
+                      onMouseUp={handleMouseUp}
+                    >
+                      {loading && <div className="absolute inset-0 bg-white/60 flex flex-col items-center justify-center z-10 backdrop-blur-md"><Loader2 className="w-12 h-12 animate-spin text-indigo-600" /><p className="mt-4 text-xs font-black text-indigo-900 uppercase tracking-widest">Rendering Page...</p></div>}
+                      <canvas ref={canvasRef} className="max-w-full h-auto cursor-crosshair block rounded-sm shadow-sm" />
+                      <div 
+                        ref={overlayRef}
+                        className="absolute border-[3px] border-indigo-500 bg-indigo-500/10 pointer-events-none shadow-[0_0_25px_rgba(79,70,229,0.4)] ring-2 ring-white/50"
+                        style={{ 
+                          display: cropStart && cropEnd ? 'block' : 'none',
+                          left: cropStart ? Math.min(cropStart.x, cropEnd?.x || cropStart.x) : 0,
+                          top: cropStart ? Math.min(cropStart.y, cropEnd?.y || cropStart.y) : 0,
+                          width: cropStart && cropEnd ? Math.abs(cropStart.x - cropEnd.x) : 0,
+                          height: cropStart && cropEnd ? Math.abs(cropStart.y - cropEnd.y) : 0
+                        }} 
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

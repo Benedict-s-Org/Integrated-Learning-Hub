@@ -25,6 +25,7 @@ interface StagedCrop {
   pdfUrl: string;
   pdfName: string;
   category: string;
+  isCustomCategory?: boolean;
 }
 
 interface PassageCropCreatorProps {
@@ -51,6 +52,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
   const [dayInput, setDayInput] = useState('1');
   const [stagedCrops, setStagedCrops] = useState<Record<number, StagedCrop>>({});
   const [globalCategory, setGlobalCategory] = useState('');
+  const [isCreatingGlobalCategory, setIsCreatingGlobalCategory] = useState(false);
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -450,7 +452,8 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
               },
               pdfUrl: selectedPdf.fileUrl || '',
               pdfName: selectedPdf.name,
-              category: globalCategory
+              category: globalCategory,
+              isCustomCategory: isCreatingGlobalCategory
             }
           }));
         }
@@ -458,12 +461,13 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
     }
   };
 
-  const handleUpdateStagedCategory = (day: number, category: string) => {
+  const handleUpdateStagedCategory = (day: number, category: string, isCustom = false) => {
     setStagedCrops(prev => ({
       ...prev,
       [day]: {
         ...prev[day],
-        category
+        category,
+        isCustomCategory: isCustom
       }
     }));
   };
@@ -546,11 +550,13 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-500">Category:</span>
               <div className="relative">
                 <select 
-                  value={existingCategories.includes(globalCategory) ? globalCategory : (globalCategory ? 'custom' : '')}
+                  value={isCreatingGlobalCategory ? 'custom' : (existingCategories.includes(globalCategory) && globalCategory ? globalCategory : '')}
                   onChange={(e) => {
                     if (e.target.value === 'custom') {
+                      setIsCreatingGlobalCategory(true);
                       setGlobalCategory('');
                     } else {
+                      setIsCreatingGlobalCategory(false);
                       setGlobalCategory(e.target.value);
                     }
                   }}
@@ -565,7 +571,7 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                 <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
               </div>
               
-              {!existingCategories.includes(globalCategory) && globalCategory !== '' && (
+              {isCreatingGlobalCategory && (
                 <input 
                   autoFocus
                   type="text" 
@@ -840,12 +846,12 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                         <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Label / Category</span>
                         <div className="relative">
                           <select 
-                            value={existingCategories.includes(stagedCrops[activeDay].category) ? stagedCrops[activeDay].category : (stagedCrops[activeDay].category ? 'custom' : '')}
+                            value={stagedCrops[activeDay].isCustomCategory ? 'custom' : (existingCategories.includes(stagedCrops[activeDay].category) && stagedCrops[activeDay].category ? stagedCrops[activeDay].category : '')}
                             onChange={(e) => {
                               if (e.target.value === 'custom') {
-                                handleUpdateStagedCategory(activeDay, '');
+                                handleUpdateStagedCategory(activeDay, '', true);
                               } else {
-                                handleUpdateStagedCategory(activeDay, e.target.value);
+                                handleUpdateStagedCategory(activeDay, e.target.value, false);
                               }
                             }}
                             className="w-full px-3 py-1.5 bg-white border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm appearance-none pr-8 cursor-pointer"
@@ -859,13 +865,13 @@ export const PassageCropCreator: React.FC<PassageCropCreatorProps> = ({
                           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-emerald-400 pointer-events-none" />
                         </div>
 
-                        {!existingCategories.includes(stagedCrops[activeDay].category) && stagedCrops[activeDay].category !== '' && (
+                        {stagedCrops[activeDay].isCustomCategory && (
                           <input 
                             autoFocus
                             type="text"
                             value={stagedCrops[activeDay].category}
-                            onChange={(e) => handleUpdateStagedCategory(activeDay, e.target.value)}
-                            onBlur={(e) => handleUpdateStagedCategory(activeDay, e.target.value.trim())}
+                            onChange={(e) => handleUpdateStagedCategory(activeDay, e.target.value, true)}
+                            onBlur={(e) => handleUpdateStagedCategory(activeDay, e.target.value.trim(), true)}
                             placeholder="New name..."
                             className="w-full mt-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-[10px] font-bold text-emerald-900 outline-none focus:border-emerald-500 transition-all shadow-sm animate-in fade-in slide-in-from-top-1 duration-200"
                           />

@@ -14,6 +14,7 @@ import {
   Type
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { verifySentenceWithAI } from '@/components/assessment/analysis/geminiClient';
 import { 
   DndContext, 
   closestCenter, 
@@ -144,7 +145,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [bonusCoins, setBonusCoins] = useState(0);
   
   // Interaction State
-  const [interactionMode /*, setInteractionMode*/] = useState<'unscramble' | 'proofreading' | 'advanced'>(propInteractionMode || 'unscramble');
+  const [interactionMode, setInteractionMode] = useState<'unscramble' | 'proofreading' | 'advanced'>(propInteractionMode || 'unscramble');
   const [unscrambleWords, setUnscrambleWords] = useState<{id: string, text: string, options?: {text: string, prefix?: string}[]}[]>([]);
   const [proofreadingChunks, setProofreadingChunks] = useState<{id: number, text: string, isError: boolean}[]>([]);
   const [selectedProofreadingIndex, setSelectedProofreadingIndex] = useState<number | null>(null);
@@ -157,6 +158,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const [userPrefixes, setUserPrefixes] = useState<Record<string, string>>({}); // For prefix inputs
   const [proofreadingCorrection, setProofreadingCorrection] = useState('');
   const [typingAnswer, setTypingAnswer] = useState('');
+  const [aiFeedback, setAiFeedback] = useState('');
   
   // Progress State
   const [status, setStatus] = useState<'idle' | 'answering' | 'submitting' | 'feedback' | 'finished'>('answering');
@@ -172,11 +174,17 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   );
 
   useEffect(() => {
-    console.log('ReadingChallenge: useEffect triggered with practiceId:', practiceId, 'interactionMode:', interactionMode);
+    console.log('ReadingChallenge: useEffect triggered with practiceId:', practiceId);
     if (practiceId) {
       loadData();
     }
-  }, [practiceId, interactionMode]);
+  }, [practiceId]);
+
+  useEffect(() => {
+    if (propInteractionMode) {
+      setInteractionMode(propInteractionMode);
+    }
+  }, [propInteractionMode]);
 
   const loadData = async () => {
     console.log('ReadingChallenge: loadData started for practiceId:', practiceId, 'mode:', interactionMode);
@@ -200,7 +208,7 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
       // Filter by interaction mode if provided
       if (interactionMode) { // Use component's interactionMode state
-        if (interactionMode === 'unscramble') {
+        if (interactionMode === 'unscramble' || interactionMode === 'advanced') {
           query = query.in('interaction_type', ['rearrange', 'aplus-coordinates']);
         } else {
           query = query.eq('interaction_type', 'proofreading');
@@ -260,6 +268,9 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
     setIsEvidenceLinked(false);
     setShowEvidencePrompt(false);
     setHintsUsed(0);
+    setTypingAnswer('');
+    setProofreadingCorrection('');
+    setAiFeedback('');
 
     if (q.interaction_type === 'rearrange' || q.interaction_type === 'aplus-coordinates') {
       const metadata = q.metadata || {};
@@ -364,18 +375,33 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
   const handleSubmit = async () => {
     const q = questions[currentIndex];
     let isUserCorrect = false;
+    let feedbackMsg = '';
 
     if (q.interaction_type === 'rearrange' || q.interaction_type === 'aplus-coordinates') {
-      const currentOrder = unscrambleWords.map(w => {
-        const text = userSelections[w.id] || w.text;
-        const prefix = userPrefixes[w.id];
-        return prefix ? `${prefix} ${text}` : text;
-      }).join(' ');
-      
-      // Clean up multiple spaces and check against correct answer
-      const normalizedAnswer = currentOrder.replace(/\s+/g, ' ').trim().toLowerCase();
-      const actualCorrect = q.correct_answer.replace(/\s+/g, ' ').trim().toLowerCase();
-      isUserCorrect = normalizedAnswer === actualCorrect;
+      if (interactionMode === 'advanced') {
+        setStatus('submitting');
+        try {
+          const res = await verifySentenceWithAI(typingAnswer, q.correct_answer);
+          isUserCorrect = res.isCorrect;
+          feedbackMsg = res.explanation;
+        } catch (err) {
+          console.error("Failed to verify with AI:", err);
+          const cleanText = (txt: string) => txt.replace(/\s+/g, ' ').trim().toLowerCase();
+          isUserCorrect = cleanText(typingAnswer) === cleanText(q.correct_answer);
+          feedbackMsg = 'Failed to connect to AI checker. Falling back to strict matching.';
+        }
+      } else {
+        const currentOrder = unscrambleWords.map(w => {
+          const text = userSelections[w.id] || w.text;
+          const prefix = userPrefixes[w.id];
+          return prefix ? `${prefix} ${text}` : text;
+        }).join(' ');
+        
+        // Clean up multiple spaces and check against correct answer
+        const normalizedAnswer = currentOrder.replace(/\s+/g, ' ').trim().toLowerCase();
+        const actualCorrect = q.correct_answer.replace(/\s+/g, ' ').trim().toLowerCase();
+        isUserCorrect = normalizedAnswer === actualCorrect;
+      }
     } else if (q.interaction_type === 'proofreading') {
       const normalizedUser = proofreadingCorrection.trim().toLowerCase();
       const normalizedCorrect = q.correct_answer.trim().toLowerCase();
@@ -385,11 +411,21 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       
       isUserCorrect = isWordCorrect && normalizedUser === normalizedCorrect;
     } else if (q.interaction_type === 'full-typing') {
-      const normalizedUser = typingAnswer.trim().toLowerCase();
-      const normalizedCorrect = q.correct_answer.trim().toLowerCase();
-      isUserCorrect = normalizedUser === normalizedCorrect;
+      setStatus('submitting');
+      try {
+        const res = await verifySentenceWithAI(typingAnswer, q.correct_answer);
+        isUserCorrect = res.isCorrect;
+        feedbackMsg = res.explanation;
+      } catch (err) {
+        console.error("Failed to verify with AI:", err);
+        const normalizedUser = typingAnswer.trim().toLowerCase();
+        const normalizedCorrect = q.correct_answer.trim().toLowerCase();
+        isUserCorrect = normalizedUser === normalizedCorrect;
+        feedbackMsg = 'Failed to connect to AI checker. Falling back to strict matching.';
+      }
     }
 
+    setAiFeedback(feedbackMsg);
     setIsCorrect(isUserCorrect);
     setStatus('feedback');
 
@@ -411,7 +447,9 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         student_id: studentId,
         question_id: q.id,
         is_correct: isUserCorrect,
-        user_answer: interactionMode === 'unscramble' 
+        user_answer: (interactionMode === 'advanced' || q.interaction_type === 'full-typing')
+          ? typingAnswer
+          : interactionMode === 'unscramble' 
           ? unscrambleWords.map(w => userSelections[w.id] || w.text).join(' ') 
           : proofreadingCorrection,
         hint_usage_count: hintsUsed,
@@ -495,38 +533,37 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
               {practice?.title || 'Reading Practice'}
             </h1>
             {/* Mode Switcher */}
-            {/* Hiding mode switcher as it should be dictated by the assignment/practice type
-            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mt-2">
-              <button
-                onClick={() => {
-                  console.log('ReadingChallenge: Switching to unscramble mode');
-                  setInteractionMode('unscramble');
-                  setCurrentIndex(0); // Reset to first question of new mode
-                }}
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-                  interactionMode === 'unscramble' 
-                  ? 'bg-white text-indigo-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Unscramble
-              </button>
-              <button
-                onClick={() => {
-                  console.log('ReadingChallenge: Switching to proofreading mode');
-                  setInteractionMode('proofreading');
-                  setCurrentIndex(0);
-                }}
-                className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-                  interactionMode === 'proofreading' 
-                  ? 'bg-white text-indigo-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Proofreading
-              </button>
-            </div>
-            */}
+            {(propInteractionMode === 'unscramble' || propInteractionMode === 'advanced') && (
+              <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner mt-2 w-fit">
+                <button
+                  onClick={() => {
+                    console.log('ReadingChallenge: Switching to unscramble mode');
+                    setInteractionMode('unscramble');
+                  }}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                    interactionMode === 'unscramble' 
+                    ? 'bg-white text-indigo-600 shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Unscramble
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('ReadingChallenge: Switching to advanced mode');
+                    setInteractionMode('advanced');
+                  }}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                    interactionMode === 'advanced' 
+                    ? 'bg-white text-indigo-600 shadow-sm animate-pulse' 
+                    : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  Advance Mode
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 mt-1">
               <div className="w-32 bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -740,19 +777,27 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
             {/* Hint Message (Animated) */}
             {status === 'feedback' && (
-              <div className={`mt-10 flex items-center gap-3 px-6 py-4 rounded-2xl animate-in slide-in-from-top-4 duration-500 ${
-                isCorrect ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-              }`}>
-                {isCorrect ? (
-                  <>
-                    <CheckCircle2 className="w-6 h-6" />
-                    <p className="font-bold">Fantastic! That's correct.</p>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-6 h-6" />
-                    <p className="font-bold">Not quite. Try checking the tense or order!</p>
-                  </>
+              <div className="mt-10 flex flex-col gap-3 w-full max-w-2xl">
+                <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl animate-in slide-in-from-top-4 duration-500 ${
+                  isCorrect ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  {isCorrect ? (
+                    <>
+                      <CheckCircle2 className="w-6 h-6" />
+                      <p className="font-bold">Fantastic! That's correct.</p>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-6 h-6" />
+                      <p className="font-bold">Not quite. Try checking the tense or order!</p>
+                    </>
+                  )}
+                </div>
+                {aiFeedback && (
+                  <div className="px-6 py-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700 animate-in slide-in-from-top-2 duration-300">
+                    <span className="uppercase tracking-wider text-[10px] text-indigo-400 block mb-1 text-left">AI Feedback:</span>
+                    <p className="text-left leading-relaxed">{aiFeedback}</p>
+                  </div>
                 )}
               </div>
             )}
@@ -765,7 +810,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button 
-              className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all"
+              className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all disabled:opacity-50"
+              disabled={status === 'submitting'}
               onClick={() => {
                 setHintsUsed(prev => prev + 1);
                 // Implementation for hint display
@@ -776,7 +822,8 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
             </button>
             <button 
               onClick={handleSkip}
-              className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all"
+              disabled={status === 'submitting'}
+              className="px-6 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-100 transition-all disabled:opacity-50"
             >
               <SkipForward className="w-5 h-5" />
               Skip
@@ -785,25 +832,32 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
 
           <div className="flex-1 flex justify-center">
              {showEvidencePrompt && (
-               <button 
-                 onClick={handleEvidenceClick}
-                 className="flex items-center gap-3 px-8 py-4 bg-amber-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100 animate-in zoom-in duration-300 hover:scale-105 active:scale-95"
-               >
-                 <Target className="w-5 h-5" />
-                 Link Evidence
-               </button>
+                <button 
+                  onClick={handleEvidenceClick}
+                  disabled={status === 'submitting'}
+                  className="flex items-center gap-3 px-8 py-4 bg-amber-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100 animate-in zoom-in duration-300 hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  <Target className="w-5 h-5" />
+                  Link Evidence
+                </button>
              )}
           </div>
 
           <button 
             onClick={status === 'feedback' ? nextQuestion : handleSubmit}
+            disabled={status === 'submitting'}
             className={`px-10 py-4 ${
               status === 'feedback' 
                 ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' 
                 : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
-            } rounded-2xl font-black text-lg flex items-center gap-3 transition-all active:scale-95`}
+            } rounded-2xl font-black text-lg flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50`}
           >
-            {status === 'feedback' ? (
+            {status === 'submitting' ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Checking...
+              </>
+            ) : status === 'feedback' ? (
               <>
                 Next Challenge
                 <ArrowRight className="w-6 h-6" />
