@@ -119,7 +119,24 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isItemVisible } = useNavigationSettings();
-  const [appState, setAppState] = useState<AppState>({ page: 'classDashboard' });
+  const [appState, setAppState] = useState<AppState>(() => {
+    const saved = localStorage.getItem('hub_app_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && 'page' in parsed) {
+          return parsed as AppState;
+        }
+      } catch (e) {
+        console.error('Failed to parse saved app state:', e);
+      }
+    }
+    return { page: 'classDashboard' };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('hub_app_state', JSON.stringify(appState));
+  }, [appState]);
 
   const [isNavOpen, setIsNavOpen] = useState(true);
   const {
@@ -250,32 +267,56 @@ function AppContent() {
 
   // Handle permissions and conditional state updates
   useEffect(() => {
-    if (!user || user.role === 'admin') return;
+    if (loading || !user) return;
 
-    // Redirect students away from admin-only dashboard (allow isStaff)
-    if (appState.page === 'classDashboard' && !isStaff && !new URLSearchParams(window.location.search).get('token')) {
+    // Admins have access to everything
+    if (user.role === 'admin') return;
+
+    // Redirect staff members away from admin-only pages
+    if (isStaff) {
+      const adminOnlyPages = ['admin', 'database', 'adminAnalytics', 'superAdmin', 'notionDatabaseConfig'];
+      if (adminOnlyPages.includes(appState.page)) {
+        setAppState({ page: 'classDashboard' });
+      }
+      return;
+    }
+
+    // Redirect students away from admin/staff pages
+    const adminOrStaffPages = [
+      'admin', 'database', 'adminAnalytics', 'superAdmin', 'notionDatabaseConfig',
+      'classDashboard', 'assignmentManagement', 'adminHomeworkRecord', 'adminHomeworkHabit',
+      'broadcastManagement', 'adminTimetable', 'progressLog', 'audioManagement',
+      'furnitureStudio', 'furnitureEditor', 'assetUploader', 'multiFormatUpload',
+      'spaceDesign', 'mapEditor', 'themeDesigner', 'avatarAssetManager', 'uiBuilder',
+      'examFormatter', 'vocabImagePicker', 'phonicsDashboard'
+    ];
+    if (adminOrStaffPages.includes(appState.page) && !new URLSearchParams(window.location.search).get('token')) {
       setAppState({ page: 'new', step: 'input' });
       return;
     }
+
     if (appState.page === 'proofreading' && !isItemVisible('proofreading')) {
       setAppState({ page: 'new', step: 'input' });
+      return;
     }
 
     // Check permissions for spelling
     if (appState.page === 'spelling' && !isItemVisible('spelling')) {
       setAppState({ page: 'new', step: 'input' });
+      return;
     }
 
     // Check permissions for learning hub
     if (appState.page === 'learningHub' && !isItemVisible('learningHub')) {
       setAppState({ page: 'new', step: 'input' });
+      return;
     }
 
     // Ensure students land on saved practices view when accessing spelling
     if (appState.page === 'spelling' && (appState as any).step === 'input') {
       setAppState({ page: 'spelling', step: 'saved' });
     }
-  }, [appState, user]);
+  }, [appState, user, loading, isStaff, isItemVisible]);
 
   // Conditional rendering after all hooks
   if (loading) {

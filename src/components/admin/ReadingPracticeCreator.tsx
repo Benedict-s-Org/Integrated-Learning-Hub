@@ -48,6 +48,62 @@ interface ChunkOption {
   selectedFormTypes?: VerbFormType[];
 }
 
+const preprocessLoadedChunks = (loadedChunks: any[]): ChunkOption[] => {
+  const processed: ChunkOption[] = [];
+  const skipped = new Set<number>();
+  
+  for (let i = 0; i < loadedChunks.length; i++) {
+    if (skipped.has(i)) continue;
+    
+    const current = loadedChunks[i];
+    
+    // Normalize string to object
+    const currentObj: ChunkOption = typeof current === 'string' 
+      ? { id: crypto.randomUUID(), text: current, alternatives: [] }
+      : {
+          id: current.id || crypto.randomUUID(),
+          text: current.text || '',
+          alternatives: current.alternatives || [],
+          mode: current.mode,
+          selectedFormTypes: current.selectedFormTypes || []
+        };
+        
+    if (currentObj.text.toLowerCase().trim() === 'will' && i + 1 < loadedChunks.length) {
+      const next = loadedChunks[i + 1];
+      const nextObj: ChunkOption = typeof next === 'string'
+        ? { id: crypto.randomUUID(), text: next, alternatives: [] }
+        : {
+            id: next.id || crypto.randomUUID(),
+            text: next.text || '',
+            alternatives: next.alternatives || [],
+            mode: next.mode,
+            selectedFormTypes: next.selectedFormTypes || []
+          };
+          
+      const cleanNext = nextObj.text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+      if (nextObj.mode === 'verb' || isVerb(cleanNext)) {
+        // Merge
+        const combinedText = `will ${nextObj.text}`;
+        let verbAlts = nextObj.alternatives || [];
+        if (verbAlts.length === 0) {
+          const forms = getVerbForms(cleanNext);
+          verbAlts = forms.map(f => ({ text: f.text, prefix: f.prefix, type: f.type }));
+        }
+        processed.push({
+          ...nextObj,
+          text: combinedText,
+          mode: 'verb',
+          alternatives: verbAlts
+        });
+        skipped.add(i + 1);
+        continue;
+      }
+    }
+    processed.push(currentObj);
+  }
+  return processed;
+};
+
 interface NotionQuestion {
   id: string;
   question: string;
@@ -430,23 +486,29 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
       }
 
       // 3. Map to localQuestions format
-      const mappedQuestions = questions.map((q: any) => ({
-        id: q.id,
-        question: {
-          id: q.metadata?.notion_question_id || q.id,
-          question: q.question_text,
-          answer: q.correct_answer,
-          error_sentence: q.error_sentence,
-          error: q.error,
-          day: q.metadata?.day,
-        },
-        chunks: q.metadata?.chunks || [],
-        coords: q.evidence_coords,
-        imageBlob: new Blob(), // We use the existing URL instead of re-capturing
-        previewUrl: q.question_image_url,
-        randomizedIds: q.metadata?.randomized_ids || [],
-        metadata: q.metadata // Preserve all metadata
-      }));
+      const mappedQuestions = questions.map((q: any) => {
+        const processedChunks = preprocessLoadedChunks(q.metadata?.chunks || []);
+        return {
+          id: q.id,
+          question: {
+            id: q.metadata?.notion_question_id || q.id,
+            question: q.question_text,
+            answer: q.correct_answer,
+            error_sentence: q.error_sentence,
+            error: q.error,
+            day: q.metadata?.day,
+          },
+          chunks: processedChunks,
+          coords: q.evidence_coords,
+          imageBlob: new Blob(), // We use the existing URL instead of re-capturing
+          previewUrl: q.question_image_url,
+          randomizedIds: q.metadata?.randomized_ids || [],
+          metadata: {
+            ...q.metadata,
+            chunks: processedChunks.map(c => ({ id: c.id, text: c.text, alternatives: c.alternatives, mode: c.mode }))
+          }
+        };
+      });
 
       setLocalQuestions(mappedQuestions);
 
@@ -861,7 +923,28 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
 
   const initializeChunks = (text: string) => {
     const words = text.split(/\s+/).filter(w => w.length > 0);
-    const initialChunks: ChunkOption[] = words.map(w => {
+    const processedWords: string[] = [];
+    const skippedIndices = new Set<number>();
+    
+    for (let i = 0; i < words.length; i++) {
+      if (skippedIndices.has(i)) continue;
+      
+      const currentWord = words[i];
+      const cleanCurrent = currentWord.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toLowerCase();
+      
+      if (cleanCurrent === 'will' && i + 1 < words.length) {
+        const nextWord = words[i + 1];
+        const cleanNext = nextWord.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+        if (isVerb(cleanNext)) {
+          processedWords.push(`${currentWord} ${nextWord}`);
+          skippedIndices.add(i + 1);
+          continue;
+        }
+      }
+      processedWords.push(currentWord);
+    }
+
+    const initialChunks: ChunkOption[] = processedWords.map(w => {
       const verbForms = getVerbForms(w);
       const isV = isVerb(w);
       const isPrep = isPreposition(w);
@@ -1180,7 +1263,7 @@ export const ReadingPracticeCreator: React.FC<ReadingPracticeCreatorProps> = ({
   const handleLoadFromQueue = (lq: typeof localQuestions[0]) => {
     // 1. Restore question and chunks
     setSelectedQuestion(lq.question);
-    setChunks([...lq.chunks]);
+    setChunks(preprocessLoadedChunks(lq.chunks));
     setActivePreviewUrl(lq.previewUrl || null);
     
     // 2. Restore PDF Page

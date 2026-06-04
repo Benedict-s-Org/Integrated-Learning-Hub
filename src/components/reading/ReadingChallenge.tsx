@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { verifySentenceWithAI } from '@/components/assessment/analysis/geminiClient';
+import { getVerbForms, isVerb } from '@/utils/verbUtils';
 import { 
   DndContext, 
   closestCenter, 
@@ -265,11 +266,67 @@ export const ReadingChallenge: React.FC<ReadingChallengeProps> = ({
       const metadata = q.metadata || {};
       const rawChunks = (metadata as any).chunks || [];
       
+      // Normalize chunks: convert raw string/object chunks to standard objects
+      const normalizedChunks = rawChunks.map((c: any, idx: number) => {
+        if (typeof c === 'string') {
+          return {
+            id: `chunk-${idx}-${Math.random()}`,
+            text: c,
+            alternatives: [],
+            mode: undefined
+          };
+        }
+        return {
+          id: c.id || `chunk-${idx}-${Math.random()}`,
+          text: c.text || '',
+          alternatives: c.alternatives || [],
+          mode: c.mode
+        };
+      });
+
+      const processedChunks: any[] = [];
+      const skippedIndices = new Set<number>();
+
+      for (let i = 0; i < normalizedChunks.length; i++) {
+        if (skippedIndices.has(i)) continue;
+
+        const current = normalizedChunks[i];
+        
+        // If current is "will" (case-insensitive) and next chunk is a verb
+        if (current.text.toLowerCase().trim() === 'will' && i + 1 < normalizedChunks.length) {
+          const next = normalizedChunks[i + 1];
+          const cleanNextText = next.text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+          
+          if (next.mode === 'verb' || isVerb(cleanNextText)) {
+            // It's simple future tense: merge them and skip "will"
+            const combinedText = `will ${next.text}`;
+            let verbAlts = next.alternatives || [];
+            
+            if (verbAlts.length === 0) {
+              const forms = getVerbForms(cleanNextText);
+              verbAlts = forms.map(f => ({ text: f.text, prefix: f.prefix, type: f.type }));
+            }
+            
+            processedChunks.push({
+              ...next,
+              text: combinedText,
+              mode: 'verb',
+              alternatives: verbAlts
+            });
+            
+            skippedIndices.add(i + 1);
+            continue;
+          }
+        }
+        
+        processedChunks.push(current);
+      }
+
       // Map to interaction format
       const initialSelections: Record<string, string> = {};
       const initialPrefixes: Record<string, string> = {};
 
-      const words = rawChunks.map((c: any, idx: number) => {
+      const words = processedChunks.map((c: any, idx: number) => {
         const chunkId = c.id || `${c.text}-${idx}`;
         const options = c.alternatives || [];
         
