@@ -1226,6 +1226,8 @@ function AppContent() {
               );
             case 'audioManagement':
               return <AudioManagementPage />;
+            case 'morningDuties':
+              return <MorningDutiesPage />;
           }
         })()}
       </Suspense>
@@ -1280,6 +1282,9 @@ function AppContent() {
     }
     if (appState.page === 'audioManagement') {
       return 'audioManagement';
+    }
+    if (appState.page === 'morningDuties') {
+      return 'morningDuties';
     }
     return appState.page;
   };
@@ -1614,6 +1619,7 @@ const MemoryPalacePage = lazy(() => import('./pages/MemoryPalacePage').then(m =>
 const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => ({ default: m.FlowithTestPage })));
 const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').then(m => ({ default: m.IPadInteractiveZone })));
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
+const MorningDutiesPage = lazy(() => import('./components/MorningDuties/MorningDutiesPage').then(m => ({ default: m.MorningDutiesPage })));
 
 const AdminPanel = lazy(() => import('./components/AdminPanel/AdminPanel'));
 const ContentDatabase = lazy(() => import('./components/ContentDatabase/ContentDatabase'));
@@ -1884,6 +1890,14 @@ function AppRoutes() {
             <Route path="quiz" element={<PhonicsQuiz />} />
             <Route path="builder" element={<WordBuilder />} />
           </Route>
+          <Route
+            path="/morning-duties"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <MorningDutiesPage />
+              </Suspense>
+            }
+          />
           <Route path="*" element={<AppProviderWrapper />} />
         </Routes>
       </div>

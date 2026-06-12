@@ -53,7 +53,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard' | 'audioManagement';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard' | 'audioManagement' | 'morningDuties';
 
 export type AppPage = PageType;
 
@@ -103,6 +103,8 @@ export interface UserProfile {
   accent_preference?: string;
   class?: string;
   class_number?: number;
+  group_no?: number | null;
+  is_group_leader?: boolean;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;

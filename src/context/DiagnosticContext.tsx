@@ -24,7 +24,8 @@ export type PageType =
   | 'practice'
   | 'assignedPractice'
   | 'quickReward'
-  | 'scanner';
+  | 'scanner'
+  | 'morningDuties';
 
 interface DiagnosticContextType {
   isEnabled: boolean;

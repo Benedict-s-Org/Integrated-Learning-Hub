@@ -199,6 +199,18 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             />
                         )}
 
+                        {isItemVisible('morningDuties') && (
+                            <NavItem
+                                icon={ClipboardList}
+                                label="Morning Duties"
+                                isActive={window.location.pathname === '/morning-duties' || currentPage === 'morningDuties'}
+                                onClick={() => {
+                                    onPageChange('morningDuties');
+                                    navigate('/morning-duties');
+                                }}
+                            />
+                        )}
+
                         {isItemVisible('spacedRepetition') && (
                             <NavItem
                                 icon={Zap}

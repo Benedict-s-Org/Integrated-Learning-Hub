@@ -8,7 +8,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen, Clock } from 'lucide-react';
 import { holidayService, HolidayConfig } from '@/services/holidayService';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
@@ -1346,25 +1346,37 @@ export function ClassDashboardPage() {
                 </div>
 
                 {showMorningDuties && (
-                    <MorningDutiesBoard
-                        users={(() => {
-                            const rawUsers = activeClass === 'all'
-                                ? Object.values(groupedUsers).flat()
-                                : (groupedUsers[activeClass] || []);
+                    <div className="space-y-4 bg-slate-50/50 p-4 rounded-[2rem] border border-slate-100 shadow-inner">
+                        <div className="flex justify-between items-center px-2">
+                            <span className="text-xs text-slate-500 font-bold">Roster Overview</span>
+                            <button
+                                onClick={() => navigate(`/morning-duties?class=${activeClass === 'all' ? '3A' : activeClass}`)}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg hover:from-blue-600 hover:to-indigo-700 transition-all text-xs"
+                            >
+                                <Clock size={14} />
+                                開啟晨安班務介面 (Open Morning Duties Console)
+                            </button>
+                        </div>
+                        <MorningDutiesBoard
+                            users={(() => {
+                                const rawUsers = activeClass === 'all'
+                                    ? Object.values(groupedUsers).flat()
+                                    : (groupedUsers[activeClass] || []);
 
-                            // Deduplicate by ID to avoid composite key issues in MorningDutiesBoard
-                            const uniqueUsersMap = new Map();
-                            rawUsers.forEach(u => {
-                                if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
-                                    uniqueUsersMap.set(u.id, u);
-                                }
-                            });
-                            return Array.from(uniqueUsersMap.values());
-                        })()}
-                        onReviewClick={(id) => {
-                            setSelectedHomeworkStudentId(id);
-                        }}
-                    />
+                                // Deduplicate by ID to avoid composite key issues in MorningDutiesBoard
+                                const uniqueUsersMap = new Map();
+                                rawUsers.forEach(u => {
+                                    if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
+                                        uniqueUsersMap.set(u.id, u);
+                                    }
+                                });
+                                return Array.from(uniqueUsersMap.values());
+                            })()}
+                            onReviewClick={(id) => {
+                                setSelectedHomeworkStudentId(id);
+                            }}
+                        />
+                    </div>
                 )}
 
                 {showTimetable && activeClass !== 'all' && (
