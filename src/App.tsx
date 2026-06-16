@@ -1620,6 +1620,7 @@ const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => (
 const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').then(m => ({ default: m.IPadInteractiveZone })));
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
 const MorningDutiesPage = lazy(() => import('./components/MorningDuties/MorningDutiesPage').then(m => ({ default: m.MorningDutiesPage })));
+const EnglishHomeworkPage = lazy(() => import('./pages/EnglishHomeworkPage').then(m => ({ default: m.EnglishHomeworkPage })));
 
 const AdminPanel = lazy(() => import('./components/AdminPanel/AdminPanel'));
 const ContentDatabase = lazy(() => import('./components/ContentDatabase/ContentDatabase'));
@@ -1816,6 +1817,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminHomeworkRecordPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/english-homework"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <EnglishHomeworkPage />
               </Suspense>
             }
           />

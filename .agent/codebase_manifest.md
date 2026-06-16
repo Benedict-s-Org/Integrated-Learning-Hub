@@ -21,8 +21,9 @@
 | **Core Utilities** | `roomGeometry.ts`, `importParsers.ts` - Isometric math & data ingestion. | L129-L133 |
 | **Error Logger** | `errorLogger.ts` - Development error logging system. | L134-L138 |
 | **Timetable System** | `AdminTimetablePage.tsx` - Notion cycle sync & grid management. | L139-L147 |
-| **DB & RPCs** | Core tables and atomic Postgres RPCs. | L148-L154 |
-| **Spelling Practice**| `SpellingPractice.tsx` - Level-based word practice & SRS. | L155-L167 |
+| **Morning Duties** | `MorningDutiesBoard.tsx` - Daily checks & 2-step coin logic. | L148-L157 |
+| **DB & RPCs** | Core tables and atomic Postgres RPCs. | L158-L164 |
+| **Spelling Practice**| `SpellingPractice.tsx` - Level-based word practice & SRS. | L165-L177 |
 | **Reading / Notion** | `ReadingPracticeCreator.tsx` - Passage bulk cropping & Notion sync. | L168-L189 |
 | **Google TTS** | `google-tts/index.ts` - Drive proxy architecture for reliable audio. | L190-L201 |
 | **iPad Interactive** | `IPadInteractiveZone.tsx` - Pressure-sensitive handwriting training. | L218-L229 |
@@ -205,14 +206,27 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - **Dashboard Board**: Interactive board on the class dashboard that displays the current day's routine (English Reading, Recess, Lunch) and lesson subjects.
 - **Database**: `class_timetables` stores subjects by `(class_name, lesson_number, day_index)`.
 
-### DB & RPCs (L130-L135)
+### Morning Duties System (L148-L157)
+- **Files**: `src/components/admin/MorningDutiesBoard.tsx`, `fix_morning_duty_logic_v4.sql`
+- **Concept**: A daily checklist system tracking students' morning routine (Missing Homework, Handbooks, Absent, Submitted).
+- **Architecture**: 
+  - Uses `morning_duty_logs` as the absolute source of truth for the daily status.
+  - **Two-Step Coin Revert Mechanism**: Because `morning_duty_logs` is separate from `student_records`, the RPC `upsert_morning_duty_log` is designed to be self-healing. When a status changes, it first **reverts** the previous coin reward stored in `morning_duty_logs.coins_awarded` (pushing a negative `student_record`), and then **adds** the new coin reward.
+- **Gotcha / Danger Zone**: The "Revert" button in the general Progress Log (`AdminUsersPage` / `AdminProgressPage`) ONLY deletes `student_records`. It does NOT update `morning_duty_logs`. Therefore, admins must ONLY change morning duty status via the Morning Duties Console. Reverting them via the Progress Log creates orphaned statuses and desyncs `daily_counts`.
+- **Class PIN System**: `set_class_duty_pin` and `verify_class_duty_pin` use `pgcrypto` to allow students/prefects to independently mark their handbooks without admin override.
+
+### DB & RPCs (L158-L164)
 - **coin_transactions / student_records**: Unifies all point changes. 
 - **`increment_room_coins(user_id, amount, reason, ...)`**: High-availability Postgres RPC that ensures atomicity when adding coins and logging. Overcomes concurrent request race conditions.
 - **`rebuild_user_balances(p_user_id)`**: Completely reconstructs a user's balance by summing all manual records AND practice results (Spelling, Reading, Proofreading). Resolves desynchronization between display coins and progress.
 - **`mark_assignment_complete(assignment_id, type)`**: Unified completion RPC that updates status AND awards appropriate `reward_coins` to the student, creating an auditable `student_record`.
 - **`revert_student_record(record_id)`**: Backs out a previous transaction exactly. Supports bulk via `revert_student_records_batch`.
 - **`award_dictation_bonus`**: Complex server-side logic assigning scale-based coins depending on dictation accuracy percentages.
-- **Gotcha**: Auth search_path `pgcrypto` is in the `extensions` schema. Any auth-related DB function *must* have `search_path = public, extensions, pg_temp`.
+
+#### Supabase & Postgres Gotchas (Critical)
+- **PostgREST Schema Caching**: Supabase's API layer (PostgREST) caches database schemas. If you modify an RPC function's signature (e.g., adding a parameter) via the SQL Editor, the frontend will STILL hit the old cached signature and throw errors. **Always append `NOTIFY pgrst, 'reload schema';` at the end of RPC migration scripts** to force an instant cache refresh.
+- **Postgres Function Overloading**: Postgres allows multiple functions with the same name but different parameters. If you run `CREATE OR REPLACE FUNCTION` with new parameters, it does NOT replace the old one; it creates a duplicate. This causes "ambiguous function call" errors on the frontend. **Always explicitly `DROP FUNCTION IF EXISTS func_name(exact, param, types)` before creating the new version.**
+- **Extension Scoping (`pgcrypto`)**: Supabase installs extensions in the `extensions` schema, not `public`. If an RPC uses encryption (like `gen_salt` or `crypt`), it will throw a "function does not exist" error unless you explicitly set the search path: `SET search_path = public, extensions, pg_temp;`.
 
 ### Spelling Practice (L151-L161)
 - **Path**: `src/components/SpellingPractice/SpellingPractice.tsx`

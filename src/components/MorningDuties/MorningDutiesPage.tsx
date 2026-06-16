@@ -351,6 +351,7 @@ export function MorningDutiesPage() {
                 p_made_up: student.made_up,
                 p_made_up_at: student.made_up_at,
                 p_notes: student.notes,
+                p_missing_items: null,
                 p_event_type: 'student_click'
             });
 

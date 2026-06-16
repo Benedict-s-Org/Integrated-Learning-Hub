@@ -68,12 +68,17 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
     },
     {
       path: "/admin/groups",
-      label: "Groups Management",
+      label: "Class Dashboard Management",
       icon: <Layers className="w-4 h-4" />,
     },
     {
       path: "/admin/homework-record",
       label: "Homework Record",
+      icon: <ClipboardList size={18} className="w-4 h-4" />,
+    },
+    {
+      path: "/admin/english-homework",
+      label: "English Homework Tracker",
       icon: <ClipboardList size={18} className="w-4 h-4" />,
     },
     {

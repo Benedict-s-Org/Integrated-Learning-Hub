@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette, Volume2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -46,6 +47,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onNavigateToPhonicsDashboard,
   onNavigateToAudioManagement
 }) => {
+  const navigate = useNavigate();
   const { user: currentUser, isAdmin, session, realIsSuperAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -574,6 +576,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <span>地圖編輯器</span>
               </button>
             )}
+            <button
+              onClick={() => navigate('/admin/groups')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm animate-in fade-in"
+            >
+              <Users size={20} />
+              <span>Class Dashboard Management</span>
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2 shadow-sm"
