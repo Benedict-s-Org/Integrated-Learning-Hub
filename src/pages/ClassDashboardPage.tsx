@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getHKTodayString, getHKTomorrowString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,7 +8,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen, Clock, Play } from 'lucide-react';
 import { holidayService, HolidayConfig } from '@/services/holidayService';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
@@ -23,6 +23,7 @@ import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDash
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
+import { useMorningDutyScheduler, MorningDutySettings } from '@/hooks/useMorningDutyScheduler';
 import { PipWindow } from '@/components/common/PipWindow';
 import { BroadcastBoard } from '@/components/admin/BroadcastBoard';
 import { NotificationTemplateModal } from '@/components/admin/notifications/NotificationTemplateModal';
@@ -251,6 +252,19 @@ export function ClassDashboardPage() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncingBalances, setIsSyncingBalances] = useState(false);
     const [showMorningDuties, setShowMorningDuties] = useState(() => isHKMorningTime());
+    
+    // Auto-scroll to morning duties when it opens
+    useEffect(() => {
+        if (showMorningDuties) {
+            setTimeout(() => {
+                const element = document.getElementById('morning-duties-bottom');
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 300); // Wait for animation
+        }
+    }, [showMorningDuties]);
+
     const [showNameSidebar, setShowNameSidebar] = useState(false);
     const [showQuizBoard, setShowQuizBoard] = useState(false);
     const [showBroadcastBoard, setShowBroadcastBoard] = useState(false);
@@ -403,14 +417,82 @@ export function ClassDashboardPage() {
     const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
     const [orderedActivities, setOrderedActivities] = useState<{ id: string, name: string }[]>([]);
 
-    // PiP State
-    const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
-    const isSidebarPoppedOut = !!pipWindow;
-
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
     const [isEditMode, setIsEditMode] = useState(false);
     const [activeClass, setActiveClass] = useState<string>('3A');
+
+    // PiP State
+    const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
+    const [pipContent, setPipContent] = useState<'sidebar' | 'morning-duties' | null>(null);
+    
+    // Morning Duty Scheduler State
+    const [morningDutySettings, setMorningDutySettings] = useState<MorningDutySettings | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [currentStageText, setCurrentStageText] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchMDSettings = async () => {
+            if (activeClass && activeClass !== 'all') {
+                const { data, error } = await supabase.from('morning_duty_settings').select('*').eq('class', activeClass).maybeSingle();
+                if (error) console.error('[MorningDuty] fetch error:', error);
+                console.log('[MorningDuty] settings for', activeClass, ':', data);
+                setMorningDutySettings(data || null);
+            } else {
+                setMorningDutySettings(null);
+                setCurrentStageText(null);
+            }
+        };
+        fetchMDSettings();
+    }, [activeClass]);
+
+    const handleMorningDutyTrigger = (timeKey: 'alarm1' | 'alarm2' | 'alarm3' | 'deadline') => {
+        console.log('[MorningDuty] trigger fired:', timeKey, 'settings:', morningDutySettings);
+        if (!morningDutySettings) return;
+
+        if (morningDutySettings.alarm_url) {
+            // Create audio element on demand if not yet initialized
+            if (!audioRef.current) {
+                audioRef.current = new Audio(morningDutySettings.alarm_url);
+            } else {
+                audioRef.current.src = morningDutySettings.alarm_url;
+                audioRef.current.load();
+            }
+            audioRef.current.play()
+                .then(() => console.log('[MorningDuty] audio playing!'))
+                .catch(e => console.error('[MorningDuty] Audio playback failed:', e));
+        } else {
+            console.warn('[MorningDuty] No alarm_url set in settings');
+        }
+
+        const messages = morningDutySettings.messages || {};
+        
+        if (timeKey === 'alarm1') {
+            if (messages.alarm1) setCurrentStageText(messages.alarm1);
+        } else if (timeKey === 'alarm2') {
+            if (messages.alarm2) setCurrentStageText(messages.alarm2);
+        } else if (timeKey === 'alarm3') {
+            if (messages.alarm3) setCurrentStageText(messages.alarm3);
+        } else if (timeKey === 'deadline') {
+            if (messages.deadline) setCurrentStageText(messages.deadline);
+            if (closePip) closePip();
+        }
+    };
+
+    const { isTestClass, testState } = useMorningDutyScheduler({
+        activeClass: activeClass,
+        settings: morningDutySettings,
+        isAdmin: !!isAdmin,
+        onTrigger: handleMorningDutyTrigger
+    });
+
+    useEffect(() => {
+        if (!pipWindow) {
+            setPipContent(null);
+        }
+    }, [pipWindow]);
+
+    const isSidebarPoppedOut = pipContent === 'sidebar';
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -1238,11 +1320,32 @@ export function ClassDashboardPage() {
                                 ? 'bg-blue-100 text-blue-700 border-blue-200'
                                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
                         `}
-                            title="Toggle Morning Duties Board"
+                            title="Toggle Morning Duties Board inline"
                         >
                             <UserCheck size={18} className={showMorningDuties ? 'text-blue-600' : 'text-slate-400'} />
-                            {showMorningDuties ? 'Hide Morning Duties' : 'Morning Duties'}
+                            {showMorningDuties ? 'Hide Morning Duties' : 'Morning Duties Inline'}
                         </button>
+                        {isPipSupported && (
+                            <button
+                                onClick={async () => {
+                                    if (pipContent === 'morning-duties') {
+                                        closePip();
+                                    } else {
+                                        const win = await requestPip({ width: window.screen.availWidth, height: 600 });
+                                        if (win) setPipContent('morning-duties');
+                                    }
+                                }}
+                                className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
+                                ${pipContent === 'morning-duties'
+                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}
+                                `}
+                                title="Pop Out Morning Duties to PiP"
+                            >
+                                <BookOpen size={18} className={pipContent === 'morning-duties' ? 'text-blue-600' : 'text-slate-400'} />
+                                {pipContent === 'morning-duties' ? 'Close PiP Duties' : 'Pop Out Morning Duties'}
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowTimetable(!showTimetable)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
@@ -1257,7 +1360,7 @@ export function ClassDashboardPage() {
                         </button>
                         <button
                             onClick={() => {
-                                if (isSidebarPoppedOut) {
+                                if (pipContent === 'sidebar') {
                                     closePip();
                                 } else {
                                     setShowNameSidebar(!showNameSidebar);
@@ -1346,25 +1449,20 @@ export function ClassDashboardPage() {
                 </div>
 
                 {showMorningDuties && (
-                    <MorningDutiesBoard
-                        users={(() => {
-                            const rawUsers = activeClass === 'all'
-                                ? Object.values(groupedUsers).flat()
-                                : (groupedUsers[activeClass] || []);
-
-                            // Deduplicate by ID to avoid composite key issues in MorningDutiesBoard
-                            const uniqueUsersMap = new Map();
-                            rawUsers.forEach(u => {
-                                if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
-                                    uniqueUsersMap.set(u.id, u);
-                                }
-                            });
-                            return Array.from(uniqueUsersMap.values());
-                        })()}
-                        onReviewClick={(id) => {
-                            setSelectedHomeworkStudentId(id);
-                        }}
-                    />
+                    <div className="space-y-4 bg-slate-50/50 p-4 rounded-[2rem] border border-slate-100 shadow-inner flex justify-between items-center">
+                        <div className="px-2">
+                            <span className="text-sm text-slate-500 font-bold">Morning Duties Board has been moved to the bottom of the screen.</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                document.getElementById('morning-duties-bottom')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold shadow-md hover:shadow-lg hover:from-blue-600 hover:to-indigo-700 transition-all text-xs"
+                        >
+                            <UserCheck size={14} />
+                            Scroll to Morning Duties
+                        </button>
+                    </div>
                 )}
 
                 {showTimetable && activeClass !== 'all' && (
@@ -1568,6 +1666,73 @@ export function ClassDashboardPage() {
                         </>
                     )}
                 </div>
+
+                {showMorningDuties && pipContent !== 'morning-duties' && (
+                    <div id="morning-duties-bottom" className="mt-8 space-y-4 bg-slate-50/50 p-4 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+                        <div className="flex justify-between items-center px-2 mb-4">
+                            <h2 className="text-xl font-bold text-slate-800">Morning Duties Console</h2>
+                            <div className="flex gap-2">
+                                {isAdmin && isTestClass && !testState.isTestMode && (
+                                    <button onClick={testState.startTestMode} className="px-4 py-1.5 bg-orange-100 text-orange-700 font-bold rounded-lg border border-orange-200 hover:bg-orange-200 text-sm">
+                                        Start Test Mode
+                                    </button>
+                                )}
+                                {isAdmin && isTestClass && testState.isTestMode && (
+                                    <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg p-2 animate-in fade-in flex-wrap">
+                                        <span className="text-orange-800 font-bold text-sm flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block"></span>
+                                            TEST MODE
+                                        </span>
+                                        <span className="text-orange-700 text-sm font-mono font-semibold whitespace-nowrap">{testState.formattedSimTime}</span>
+                                        {testState.lastTriggeredStage && (
+                                            <span className="text-green-700 text-xs font-bold bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">✓ {testState.lastTriggeredStage}</span>
+                                        )}
+                                        <button onClick={testState.jumpToNextTrigger} className="px-3 py-1 bg-white text-orange-700 border border-orange-300 rounded font-bold text-xs hover:bg-orange-50">Skip to Next Event</button>
+                                        <button onClick={testState.exitTestMode} className="px-3 py-1 bg-red-100 text-red-700 rounded font-bold text-xs hover:bg-red-200 ml-auto">Exit Test</button>
+                                    </div>
+                                )}
+                                {isPipSupported && (
+                                    <button onClick={async () => {
+                                        const win = await requestPip({ width: window.screen.availWidth, height: window.screen.availHeight });
+                                        if (win) {
+                                            setPipContent('morning-duties');
+                                            if (audioRef.current) {
+                                                audioRef.current.play().then(() => audioRef.current?.pause()).catch(e => console.log('pip audio unlock', e));
+                                            }
+                                        }
+                                    }} className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-xl hover:bg-blue-200 flex items-center gap-2">
+                                        Pop Out Morning Duties
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <MorningDutiesBoard
+                            activeClass={activeClass === 'all' ? '3A' : activeClass}
+                            users={(() => {
+                                const targetClass = activeClass === 'all' ? '3A' : activeClass;
+                                const rawUsers = groupedUsers[targetClass] || [];
+                                const uniqueUsersMap = new Map();
+                                rawUsers.forEach(u => {
+                                    if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
+                                        uniqueUsersMap.set(u.id, u);
+                                    }
+                                });
+                                return Array.from(uniqueUsersMap.values());
+                            })()}
+                            dailyHomeworkMap={dailyHomeworkMap}
+                            onSetupDailyHomework={handleSetupDailyHomework}
+                            onStatusChange={fetchUsers}
+                            displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
+                            stageTextOverride={currentStageText}
+                            onConfirmStage={() => {
+                                if (audioRef.current) {
+                                    audioRef.current.pause();
+                                    audioRef.current.currentTime = 0;
+                                }
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             <CoinAwardModal
@@ -1618,12 +1783,15 @@ export function ClassDashboardPage() {
                     onClose={() => setShowNameSidebar(false)}
                     onPopOut={isPipSupported ? async () => {
                         const win = await requestPip({ width: 120, height: window.screen.availHeight });
-                        if (win) setShowNameSidebar(false); // Only hide if pop out succeeded
+                        if (win) {
+                            setShowNameSidebar(false);
+                            setPipContent('sidebar');
+                        }
                     } : undefined}
                 />
             )}
 
-            {isSidebarPoppedOut && (
+            {pipContent === 'sidebar' && (
                 <PipWindow pipWindow={pipWindow}>
                     <StudentNameSidebar
                         users={
@@ -1634,6 +1802,33 @@ export function ClassDashboardPage() {
                         onQuickAward={handleQuickAward}
                         isPoppedOut={true}
                     />
+                </PipWindow>
+            )}
+
+            {pipContent === 'morning-duties' && (
+                <PipWindow pipWindow={pipWindow}>
+                    <div className="w-full h-screen bg-slate-50 overflow-hidden">
+                        <MorningDutiesBoard
+                            activeClass={activeClass === 'all' ? '3A' : activeClass}
+                            users={(() => {
+                                const targetClass = activeClass === 'all' ? '3A' : activeClass;
+                                const rawUsers = groupedUsers[targetClass] || [];
+                                const uniqueUsersMap = new Map();
+                                rawUsers.forEach(u => {
+                                    if (u.class && u.class !== 'Unassigned' && !uniqueUsersMap.has(u.id)) {
+                                        uniqueUsersMap.set(u.id, u);
+                                    }
+                                });
+                                return Array.from(uniqueUsersMap.values());
+                            })()}
+                            dailyHomeworkMap={dailyHomeworkMap}
+                            onSetupDailyHomework={handleSetupDailyHomework}
+                            onStatusChange={fetchUsers}
+                            isPipView={true}
+                            displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
+                            stageTextOverride={currentStageText}
+                        />
+                    </div>
                 </PipWindow>
             )}
 

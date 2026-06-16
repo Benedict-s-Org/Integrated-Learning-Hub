@@ -43,21 +43,24 @@ export const useDocumentPiP = () => {
                 height: options.height || 600,
             });
 
-            // Copy all styles from the main window to the PiP window so Tailwind works
+            // 1. Clone all existing style and link tags for robust Vite dev and production support
+            Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]')).forEach((node) => {
+                pip.document.head.appendChild(node.cloneNode(true));
+            });
+
+            // 2. Also copy CSS rules for any dynamic stylesheets
             [...document.styleSheets].forEach((styleSheet) => {
+                // If it has an href, it's a <link> and was already cloned above
+                if (styleSheet.href) return;
                 try {
                     const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
                     const style = document.createElement('style');
                     style.textContent = cssRules;
                     pip.document.head.appendChild(style);
                 } catch (e) {
-                    // This can happen for cross-origin stylesheets
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.type = styleSheet.type;
-                    link.media = styleSheet.media.mediaText;
-                    link.href = styleSheet.href || '';
-                    pip.document.head.appendChild(link);
+                    if (e instanceof DOMException && e.name === 'SecurityError') {
+                        console.warn('Document PiP: Could not access cross-origin stylesheet rules', styleSheet.href);
+                    }
                 }
             });
 

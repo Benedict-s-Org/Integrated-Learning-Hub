@@ -15,7 +15,8 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "learningHub", label: "Learning Hub", visible: false},
     {id: "notionHub", label: "Notion Hub", visible: false},
     {id: "phonics", label: "Sound Wall", visible: false},
-    {id: "interactiveScanner", label: "QR Up!", visible: false}
+    {id: "interactiveScanner", label: "QR Up!", visible: false},
+    {id: "morningDuties", label: "Morning Duties", visible: true}
   ],
   progress: [
     {id: "progress", label: "Progress", visible: false},
