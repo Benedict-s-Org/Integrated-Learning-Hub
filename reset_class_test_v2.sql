@@ -1,18 +1,8 @@
--- RESET ENTIRE "TEST" CLASS FOR TODAY TO ORIGINAL TODO STATE
+-- RESET ENTIRE "TEST" CLASS TO ORIGINAL TODO STATE (NUKES ALL HISTORY)
 
 DO $$
-DECLARE
-    v_today date := (now() AT TIME ZONE 'Asia/Hong_Kong')::date;
 BEGIN
-    -- 1. Reset all total coins, virtual coins, and daily counts for the entire class
-    UPDATE public.user_room_data
-    SET coins = 0,
-        virtual_coins = 0,
-        daily_counts = '{}'::jsonb,
-        morning_status = 'todo'
-    WHERE user_id IN (
-        SELECT id FROM public.users WHERE class ILIKE 'Test'
-    );
+
 
     -- 2. Delete ALL morning duty logs for the class
     DELETE FROM public.morning_duty_logs
@@ -39,6 +29,18 @@ BEGIN
     -- 6. Delete ALL English homework tracker records for the class
     DELETE FROM public.english_submissions
     WHERE student_id IN (
+        SELECT id FROM public.users WHERE class ILIKE 'Test'
+    );
+
+    -- 7. Reset all total coins, virtual coins, and daily counts AT THE VERY END
+    -- This ensures any triggers (like on_student_record_deleted) that subtract coins
+    -- run before we forcefully set the balance back to 0.
+    UPDATE public.user_room_data
+    SET coins = 0,
+        virtual_coins = 0,
+        daily_counts = '{}'::jsonb,
+        morning_status = 'todo'
+    WHERE user_id IN (
         SELECT id FROM public.users WHERE class ILIKE 'Test'
     );
 

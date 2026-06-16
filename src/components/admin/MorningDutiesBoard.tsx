@@ -200,13 +200,16 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                 if (!confirm("你正在設定的是「今日要交嘅功課」，不是你欠交的功課。確定嗎？\n(You are configuring today's homework for the whole class, not what you are missing. Confirm?)")) return;
             }
             await onSetupDailyHomework(activeClass, missingItems);
-            // Now proceed to selection
+            // Close modal after setup to prevent accidentally giving coins to the student clicked
+            setShowMissingFlow(false);
             setIsSetupMode(false);
             setMissingItems({});
+            setSelectedStudent(null);
         } else {
             // Saving student's missing items
             await saveLogStatus('missing', missingItems);
             setShowMissingFlow(false);
+            setSelectedStudent(null);
         }
     };
 

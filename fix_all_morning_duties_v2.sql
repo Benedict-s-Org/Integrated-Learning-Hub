@@ -30,6 +30,10 @@ DECLARE
     v_target_coins      integer := 0;
     v_delta             integer;
     v_reason            text;
+    v_final_missing_items jsonb;
+    v_current_english_items text[] := '{}';
+    v_item_name         text;
+    v_material_id       uuid;
 BEGIN
     SELECT class INTO v_class FROM public.users WHERE id = p_student_id;
     IF NOT FOUND THEN RAISE EXCEPTION 'Student not found'; END IF;
