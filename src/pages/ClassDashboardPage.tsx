@@ -146,6 +146,7 @@ export function ClassDashboardPage() {
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]); // For legacy CoinAwardModal
     const [dailyHomeworkMap, setDailyHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
     const [tomorrowHomeworkMap, setTomorrowHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
+    const [morningDutyRefreshCounter, setMorningDutyRefreshCounter] = useState(0);
 
     const fetchDailyHomework = async () => {
         const todayDate = getHKTodayString();
@@ -890,7 +891,7 @@ export function ClassDashboardPage() {
         return true;
     };
 
-    const handleHomeworkRecord = async (studentId: string, reason: string) => {
+    const handleHomeworkRecord = async (studentId: string, reason: string, customCoins?: number, items?: Record<string, string[]>) => {
         try {
             const canProceed = await ensureOneHomeworkRecordPerDay(studentId, reason);
             if (!canProceed) return;
@@ -934,15 +935,62 @@ export function ClassDashboardPage() {
                 return newGrouped;
             });
 
-            const result = await coinService.awardCoins({
-                userId: studentId,
-                amount: amount,
-                reason: reason,
-                type: amount >= 0 ? 'reward' : 'consequence',
-                batchId: crypto.randomUUID()
-            });
-            if (!result.success) throw result.error;
+            const today = getHKTodayString();
+            let isMorningDutyAction = false;
+            let mdStatus: 'submitted' | 'missing' | null = null;
+            
+            if (reason === REWARD_REASONS.COMPLETE_ALL_HOMEWORK) {
+                isMorningDutyAction = true;
+                mdStatus = 'submitted';
+            } else if (reason === REWARD_REASONS.MISSING_HOMEWORK || reason.startsWith('功課:')) {
+                isMorningDutyAction = true;
+                mdStatus = 'missing';
+            }
 
+            if (isMorningDutyAction && mdStatus) {
+                // Use upsert_morning_duty_log which internally handles coins based on the current state
+                const { error } = await supabase.rpc('upsert_morning_duty_log', {
+                    p_log_date: today,
+                    p_student_id: studentId,
+                    p_status: mdStatus,
+                    p_set_by: 'teacher',
+                    p_missing_items: items || null,
+                    p_event_type: 'status_change'
+                });
+                if (error) throw error;
+            } else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) {
+                // Standard coin award
+                const result = await coinService.awardCoins({
+                    userId: studentId,
+                    amount: amount,
+                    reason: reason,
+                    type: amount >= 0 ? 'reward' : 'consequence',
+                    batchId: crypto.randomUUID()
+                });
+                if (!result.success) throw result.error;
+
+                // Directly update morning_duty_logs handbook status to keep the console in sync
+                await supabase.from('morning_duty_logs')
+                    .update({ 
+                        handbook_written: true, 
+                        handbook_written_at: new Date().toISOString(),
+                        coins_awarded: 20 // 10 from missing + 10 from handbook
+                    })
+                    .eq('student_id', studentId)
+                    .eq('log_date', today);
+            } else {
+                // Standard coin award for anything else
+                const result = await coinService.awardCoins({
+                    userId: studentId,
+                    amount: amount,
+                    reason: reason,
+                    type: amount >= 0 ? 'reward' : 'consequence',
+                    batchId: crypto.randomUUID()
+                });
+                if (!result.success) throw result.error;
+            }
+
+            setMorningDutyRefreshCounter(c => c + 1);
             await fetchUsers({ silent: true, forceRefresh: true }); // Ensure synchronization
             playSuccessSound();
         } catch (err: any) {
@@ -1730,6 +1778,7 @@ export function ClassDashboardPage() {
                                     audioRef.current.currentTime = 0;
                                 }
                             }}
+                            refreshTrigger={morningDutyRefreshCounter}
                         />
                     </div>
                 )}
@@ -1827,6 +1876,7 @@ export function ClassDashboardPage() {
                             isPipView={true}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}
+                            refreshTrigger={morningDutyRefreshCounter}
                         />
                     </div>
                 </PipWindow>

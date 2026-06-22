@@ -32,10 +32,11 @@ interface MorningDutiesBoardProps {
     displayTimeOverride?: string | null;
     stageTextOverride?: string | null;
     onConfirmStage?: () => void;
+    refreshTrigger?: number;
 }
 
 export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ 
-    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage
+    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage, refreshTrigger
 }) => {
     const today = getHKTodayString();
     
@@ -88,7 +89,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
     useEffect(() => {
         fetchLogs();
         fetchHomeworkOptions();
-    }, [activeClass]);
+    }, [activeClass, refreshTrigger]);
 
     const fetchLogs = async () => {
         if (!activeClass || activeClass === 'all') return;

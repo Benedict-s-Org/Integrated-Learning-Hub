@@ -7,7 +7,7 @@ interface HomeworkModalProps {
     isOpen: boolean;
     onClose: () => void;
     studentName: string;
-    onRecord: (reason: string, coins?: number) => void;
+    onRecord: (reason: string, coins?: number, items?: Record<string, string[]>) => void;
     isHandbookDisabled?: boolean;
     dailyHomeworkItems?: Record<string, string[]>;
     onSetupDailyHomework?: (items: Record<string, string[]>) => Promise<void>;
@@ -233,7 +233,7 @@ export function HomeworkModal({
                     .map(([subject, items]: [string, string[]]) => `${subject} (${items.join(', ')})`);
 
                 const reason = `功課: ${parts.join(', ')}`;
-                await onRecord(reason);
+                await onRecord(reason, undefined, selectedItems);
             }
 
             setSelectedItems({});
