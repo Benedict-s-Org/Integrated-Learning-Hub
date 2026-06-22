@@ -370,7 +370,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                             <span>Todo</span>
                             <span className="text-slate-400">{todoCount}</span>
                         </h3>
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 overflow-y-auto max-h-[360px] pr-2">
                             {users.filter(u => (logs[u.id]?.status || 'todo') === 'todo').map(renderCard)}
                         </div>
                     </div>
@@ -380,7 +380,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                             <span>Review</span>
                             <span className="text-red-400">{missingCount}</span>
                         </h3>
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 overflow-y-auto max-h-[360px] pr-2">
                             {/* Only show missing students who have NOT yet confirmed handbook */}
                             {users.filter(u => logs[u.id]?.status === 'missing' && !logs[u.id]?.handbook_written).map(renderCard)}
                         </div>
@@ -391,7 +391,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                             <span>Done</span>
                             <span className="text-green-400">{doneCount}</span>
                         </h3>
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 overflow-y-auto max-h-[360px] pr-2">
                             {/* submitted, absent, AND missing+handbook_written all count as Done */}
                             {users.filter(u =>
                                 logs[u.id]?.status === 'submitted' ||
