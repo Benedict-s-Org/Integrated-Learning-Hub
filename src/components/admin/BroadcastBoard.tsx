@@ -5,6 +5,20 @@ import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
 
+const formatHKDate = (dateStr: string) => {
+    try {
+        if (!dateStr) return '';
+        return new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Hong_Kong",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+        }).format(new Date(dateStr));
+    } catch (e) {
+        return '';
+    }
+};
+
 interface BroadcastBoardProps {
     onClose: () => void;
     className: string;
@@ -17,6 +31,7 @@ interface ActiveDisplayElement {
     type: 'homework_record' | 'custom';
     isWholeClass: boolean;
     wholeClassRecordId?: string;
+    createdAt?: string;
 }
 
 export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, className }) => {
@@ -165,7 +180,8 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 students: { name: string, recordId: string }[], 
                 type: any,
                 isWholeClass: boolean,
-                wholeClassRecordId?: string
+                wholeClassRecordId?: string,
+                createdAt?: string
             }> = {};
             
             recordData.forEach((r: any) => {
@@ -199,7 +215,8 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                         students: [], 
                         type: r.type === 'negative' ? 'homework_record' : 'custom',
                         isWholeClass: !r.student_id,
-                        wholeClassRecordId: !r.student_id ? r.id : undefined
+                        wholeClassRecordId: !r.student_id ? r.id : undefined,
+                        createdAt: r.created_at
                     };
 
                     // Add legacy tagged names if any (they won't have record IDs)
@@ -236,7 +253,8 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 students: group.students,
                 type: group.type as 'homework_record' | 'custom',
                 isWholeClass: group.isWholeClass,
-                wholeClassRecordId: group.wholeClassRecordId
+                wholeClassRecordId: group.wholeClassRecordId,
+                createdAt: group.createdAt
             })));
 
         } catch (err) {
@@ -361,6 +379,11 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                                             </span>
                                             {panel.students.length > 0 && panel.students.some(s => s.name) && (
                                                 <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{panel.students.length} Student{panel.students.length > 1 ? 's' : ''} Tagged</span>
+                                            )}
+                                            {panel.createdAt && (
+                                                <span className="px-3 py-1.5 bg-white/10 text-slate-300 text-[10px] font-black rounded-full uppercase tracking-widest">
+                                                    {formatHKDate(panel.createdAt)}
+                                                </span>
                                             )}
                                         </div>
                                         <h2 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tight leading-tight">{panel.title}</h2>

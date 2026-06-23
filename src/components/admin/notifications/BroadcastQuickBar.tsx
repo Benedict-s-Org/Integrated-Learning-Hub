@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Send, Settings2, X, Zap, Megaphone, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
@@ -14,6 +14,22 @@ interface BroadcastQuickBarProps {
     onRefresh: () => void;
 }
 
+const ITEM_HEIGHT_PX = 48;
+
+const formatHKDate = (dateStr: string) => {
+    try {
+        if (!dateStr) return '';
+        return new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Hong_Kong",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+        }).format(new Date(dateStr));
+    } catch (e) {
+        return '';
+    }
+};
+
 export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
     selectedCount,
     className,
@@ -26,6 +42,106 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
     const { theme } = useDashboardTheme();
     const [messages, setMessages] = useState<any[]>([]);
     const [lastUpdated, setLastUpdated] = useState<string>('');
+
+    const [activeIndex, setActiveIndex] = useState(0);
+    const activeMessageIdRef = useRef<string | null>(null);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [disableTransition, setDisableTransition] = useState(false);
+
+    // Sync activeIndex and activeMessageIdRef when messages change
+    useEffect(() => {
+        if (messages.length === 0) {
+            setActiveIndex(0);
+            activeMessageIdRef.current = null;
+            return;
+        }
+
+        setActiveIndex(prev => {
+            const targetId = activeMessageIdRef.current;
+            let nextIndex = 0;
+            if (targetId) {
+                const foundIndex = messages.findIndex(m => (m.id || m.groupId) === targetId);
+                if (foundIndex !== -1) {
+                    nextIndex = foundIndex;
+                } else {
+                    nextIndex = Math.min(prev, messages.length - 1);
+                }
+            } else {
+                nextIndex = Math.min(prev, messages.length - 1);
+            }
+            if (nextIndex < 0) nextIndex = 0;
+            activeMessageIdRef.current = messages[nextIndex]?.id || messages[nextIndex]?.groupId || null;
+            return nextIndex;
+        });
+    }, [messages]);
+
+    // Reset transition toggle when messages list size changes
+    useEffect(() => {
+        setDisableTransition(false);
+    }, [messages.length]);
+
+    // Safety timeout to reset transition disabled state after instant snap back to index 0
+    useEffect(() => {
+        if (disableTransition) {
+            const timer = setTimeout(() => {
+                setDisableTransition(false);
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [disableTransition]);
+
+    // Timer and visibility management
+    useEffect(() => {
+        const stopTimer = () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+
+        const startTimer = () => {
+            stopTimer(); // Always stop before starting to prevent stacking
+            if (messages.length >= 2 && document.visibilityState === 'visible') {
+                intervalRef.current = setInterval(() => {
+                    setActiveIndex(prev => {
+                        let current = prev;
+                        if (current >= messages.length) {
+                            current = 0; // Safety fallback
+                        }
+                        const next = current + 1;
+                        const msg = messages[next % messages.length];
+                        activeMessageIdRef.current = msg?.id || msg?.groupId || null;
+                        return next;
+                    });
+                }, 6000);
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                startTimer();
+            } else {
+                stopTimer();
+            }
+        };
+
+        startTimer();
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            stopTimer();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [messages.length]);
+
+    // Handle transition end to instantly reset activeIndex back to 0 when clone index is reached
+    const handleTransitionEnd = (e: React.TransitionEvent) => {
+        if (e.propertyName === 'transform' && activeIndex === messages.length) {
+            setDisableTransition(true);
+            setActiveIndex(0);
+        }
+    };
 
     const currentClassUpper = className.trim().toUpperCase();
     const isAllClasses = currentClassUpper === 'ALL';
@@ -167,6 +283,8 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
         };
     }, [className]);
 
+    const displayMessages = messages.length >= 2 ? [...messages, { ...messages[0], groupId: `${messages[0].groupId}-clone` }] : messages;
+
     if (messages.length === 0 && selectedCount === 0) return null;
 
     return (
@@ -198,50 +316,69 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-1">
+                        <div className="relative h-12 overflow-hidden w-full">
                             {messages.length > 0 ? (
-                                messages.slice(0, 1).map((group) => (
-                                    <div key={group.groupId} className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
-                                        <div className={`p-1.5 rounded-lg ${
-                                            group.type === 'negative' ? 'bg-red-100 text-red-600' : 
-                                            group.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                                        }`}>
-                                            <Zap size={14} fill="currentColor" />
-                                        </div>
-                                        <p 
-                                            className="font-black text-slate-900 tracking-tight"
-                                            style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
-                                            data-theme-key="broadcastFontSize"
+                                <div 
+                                    className={`flex flex-col w-full ${disableTransition ? '' : 'transition-transform duration-500 ease-in-out'}`}
+                                    style={{ transform: `translateY(-${activeIndex * ITEM_HEIGHT_PX}px)` }}
+                                    onTransitionEnd={handleTransitionEnd}
+                                >
+                                    {displayMessages.map((group) => (
+                                        <div 
+                                            key={group.groupId} 
+                                            className="h-12 shrink-0 flex items-center gap-3 w-full animate-in fade-in duration-300"
                                         >
-                                            {group.title}
-                                        </p>
+                                            <div className={`p-1.5 rounded-lg shrink-0 ${
+                                                group.type === 'negative' ? 'bg-red-100 text-red-600' : 
+                                                group.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                                            }`}>
+                                                <Zap size={14} fill="currentColor" />
+                                            </div>
+                                            
+                                            <p 
+                                                className="font-black text-slate-900 tracking-tight truncate whitespace-nowrap overflow-hidden min-w-0 flex-1"
+                                                style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
+                                                data-theme-key="broadcastFontSize"
+                                                title={group.title}
+                                            >
+                                                {group.title}
+                                            </p>
 
-                                        {/* Student Tags */}
-                                        <div className="flex flex-wrap gap-1.5 ml-2">
-                                            {group.isWholeClass && (
-                                                <button 
-                                                    onClick={() => group.wholeClassRecordId && handleRemoveStudent(group.wholeClassRecordId, 'Whole Class', group.groupId)}
-                                                    className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all shadow-sm"
-                                                >
-                                                    Mark as Completed
-                                                </button>
+                                            {group.createdAt && (
+                                                <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
+                                                    {formatHKDate(group.createdAt)}
+                                                </span>
                                             )}
-                                            {group.students.map((s: any, si: number) => (
-                                                <button 
-                                                    key={si} 
-                                                    onClick={() => handleRemoveStudent(s.recordId, s.name, group.groupId)}
-                                                    className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all shadow-sm"
-                                                >
-                                                    {s.name}
-                                                </button>
-                                            ))}
+
+                                            {/* Student Tags */}
+                                            <div className="flex flex-nowrap gap-1.5 ml-2 overflow-x-auto scrollbar-none shrink-0 max-w-[50%] md:max-w-[60%] lg:max-w-[70%]">
+                                                {group.isWholeClass && (
+                                                    <button 
+                                                        onClick={() => group.wholeClassRecordId && handleRemoveStudent(group.wholeClassRecordId, 'Whole Class', group.groupId.replace('-clone', ''))}
+                                                        className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all shadow-sm shrink-0"
+                                                    >
+                                                        Mark as Completed
+                                                    </button>
+                                                )}
+                                                {group.students.map((s: any, si: number) => (
+                                                    <button 
+                                                        key={si} 
+                                                        onClick={() => handleRemoveStudent(s.recordId, s.name, group.groupId.replace('-clone', ''))}
+                                                        className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all shadow-sm shrink-0"
+                                                    >
+                                                        {s.name}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
                             ) : (
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic ml-1">
-                                    No active announcements
-                                </p>
+                                <div className="h-12 flex items-center">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic ml-1">
+                                        No active announcements
+                                    </p>
+                                </div>
                             )}
                         </div>
                     </div>
