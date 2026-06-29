@@ -3,6 +3,7 @@
 -- column names conflict with CTE column references.
 -- Fix: Qualify all column references in the ORDER BY with the CTE alias.
 
+DROP FUNCTION IF EXISTS get_student_assignments_unified(uuid);
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
   assignment_id uuid,

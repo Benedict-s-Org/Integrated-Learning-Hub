@@ -44,6 +44,7 @@ const AssessmentReport = lazy(() => import('./pages/AssessmentReport').then(modu
 const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker').then(module => ({ default: module.VocabImagePicker })));
 const ProgressLogPage = lazy(() => import('./pages/ProgressLogPage').then(module => ({ default: module.ProgressLogPage })));
 const AdminHomeworkHabitPage = lazy(() => import('./pages/AdminHomeworkHabitPage'));
+const AdminHomeworkMakeupPage = lazy(() => import('./pages/admin/AdminHomeworkMakeupPage').then(module => ({ default: module.AdminHomeworkMakeupPage })));
 const AdminHomeworkSummaryPage = lazy(() => import('./pages/admin/AdminHomeworkSummaryPage'));
 const PhonicsDashboard = lazy(() => import('./components/admin/PhonicsDashboard')) as unknown as React.FC<{ onBack: () => void }>;
 const AnagramApp = lazy(() => import('./modules/anagram/AnagramApp'));
@@ -114,7 +115,8 @@ type AppState =
   | { page: 'examFormatter' }
   | { page: 'vocabImagePicker' }
   | { page: 'progressLog' }
-  | { page: 'phonicsDashboard' };
+  | { page: 'phonicsDashboard' }
+  | { page: 'adminHomeworkMakeup' };
 
 function AppContent() {
   const navigate = useNavigate();
@@ -290,7 +292,7 @@ function AppContent() {
       'broadcastManagement', 'adminTimetable', 'progressLog', 'audioManagement',
       'furnitureStudio', 'furnitureEditor', 'assetUploader', 'multiFormatUpload',
       'spaceDesign', 'mapEditor', 'themeDesigner', 'avatarAssetManager', 'uiBuilder',
-      'examFormatter', 'vocabImagePicker', 'phonicsDashboard'
+      'examFormatter', 'vocabImagePicker', 'phonicsDashboard', 'adminHomeworkMakeup'
     ];
     if (adminOrStaffPages.includes(appState.page) && !new URLSearchParams(window.location.search).get('token')) {
       setAppState({ page: 'new', step: 'input' });
@@ -380,7 +382,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard' || page === 'adminHomeworkMakeup')) {
       alert('Please log in with an administrator account to access this page.');
       return;
     }
@@ -493,6 +495,8 @@ function AppContent() {
       setAppState({ page: 'progressLog' });
     } else if (page === 'phonicsDashboard') {
       setAppState({ page: 'phonicsDashboard' });
+    } else if (page === 'adminHomeworkMakeup') {
+      setAppState({ page: 'adminHomeworkMakeup' });
     }
   };
 
@@ -1849,6 +1853,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <AdminHomeworkHabitPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/homework-makeup"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminHomeworkMakeupPage />
               </Suspense>
             }
           />

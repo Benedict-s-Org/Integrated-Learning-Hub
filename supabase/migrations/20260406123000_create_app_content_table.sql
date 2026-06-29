@@ -39,14 +39,14 @@ BEGIN
         TO authenticated
         USING (
             EXISTS (
-                SELECT 1 FROM public.user_profiles 
+                SELECT 1 FROM public.users 
                 WHERE id = auth.uid() 
                 AND role = 'admin'
             )
         )
         WITH CHECK (
             EXISTS (
-                SELECT 1 FROM public.user_profiles 
+                SELECT 1 FROM public.users 
                 WHERE id = auth.uid() 
                 AND role = 'admin'
             )

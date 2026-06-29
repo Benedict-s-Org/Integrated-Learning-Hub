@@ -2,6 +2,17 @@
 -- Adds voice_name and speaking_rate columns so that different voice/speed
 -- combinations produce separate cache entries.
 
+-- 0. Ensure base table exists (was never committed as a CREATE TABLE migration)
+CREATE TABLE IF NOT EXISTS public.tts_cache (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    text          TEXT        NOT NULL,
+    accent        TEXT        NOT NULL DEFAULT 'en-GB',
+    drive_file_id TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.tts_cache ENABLE ROW LEVEL SECURITY;
+
 -- 1. Add new nullable columns
 ALTER TABLE tts_cache
   ADD COLUMN IF NOT EXISTS voice_name TEXT,

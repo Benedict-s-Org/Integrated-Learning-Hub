@@ -30,7 +30,7 @@ interface RosterStudent {
     is_group_leader: boolean;
     // Log fields
     log_id?: string;
-    status: 'todo' | 'submitted' | 'missing' | 'absent' | 'late';
+    status: 'todo' | 'submitted' | 'missing' | 'absent' | 'late' | 'exempted';
     set_by: 'self' | 'leader' | 'teacher' | 'system';
     snapshot_0830: string | null;
     snapshot_0835: string | null;
@@ -583,7 +583,7 @@ export function MorningDutiesPage() {
                                 </p>
                             </div>
                             <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-wider">未交/缺席</p>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-wider">未交/缺席/豁免</p>
                                 <p className="text-2xl font-black text-slate-700 mt-1">
                                     {roster.filter(r => r.status !== 'submitted').length}
                                 </p>
@@ -606,8 +606,9 @@ export function MorningDutiesPage() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {sortedRoster.map(student => {
-                            const isSubmitted = student.status === 'submitted';
+                            const isSubmitted = student.status === 'submitted' || student.status === 'exempted';
                             const isMissing = student.status === 'missing';
+                            const isExempted = student.status === 'exempted';
                             
                             return (
                                 <button
@@ -615,7 +616,9 @@ export function MorningDutiesPage() {
                                     onClick={() => handleStudentCardClick(student)}
                                     className={`
                                         relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center text-center gap-2 h-24 transition-all duration-200 active:scale-95 group shadow-sm
-                                        ${isSubmitted 
+                                        ${isExempted 
+                                            ? 'bg-blue-50 border-blue-300 text-blue-800 hover:bg-blue-100/70 shadow-blue-100'
+                                            : isSubmitted 
                                             ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100/70 shadow-emerald-100' 
                                             : isMissing 
                                             ? 'bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100/70 shadow-rose-100'
@@ -638,7 +641,9 @@ export function MorningDutiesPage() {
                                     {/* Class seat number */}
                                     <div className={`
                                         w-6 h-6 rounded-lg font-black text-[10px] flex items-center justify-center transition-all
-                                        ${isSubmitted 
+                                        ${isExempted 
+                                            ? 'bg-blue-200/50 text-blue-700'
+                                            : isSubmitted 
                                             ? 'bg-emerald-200/50 text-emerald-700'
                                             : isMissing
                                             ? 'bg-rose-200/50 text-rose-700'
@@ -652,6 +657,12 @@ export function MorningDutiesPage() {
                                     <p className="font-bold text-sm truncate w-full max-w-[120px] tracking-tight">
                                         {student.display_name || '未命名'}
                                     </p>
+
+                                    {isExempted && (
+                                       <div className="absolute -top-2 -right-2 bg-blue-400 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
+                                           豁免
+                                       </div>
+                                    )}
                                 </button>
                             );
                         })}

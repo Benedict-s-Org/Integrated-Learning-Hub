@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Send, Settings2, X, Zap, Megaphone, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
 import { useDashboardTheme } from '@/context/DashboardThemeContext';
+import { getHKTodayString } from '@/utils/dateUtils';
+import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 
 interface BroadcastQuickBarProps {
     selectedCount: number;
@@ -14,7 +17,7 @@ interface BroadcastQuickBarProps {
     onRefresh: () => void;
 }
 
-const ITEM_HEIGHT_PX = 48;
+const ITEM_HEIGHT_PX = 80;
 
 const formatHKDate = (dateStr: string) => {
     try {
@@ -39,46 +42,146 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
     onOpenBroadcast,
     onRefresh
 }) => {
+    const navigate = useNavigate();
     const { theme } = useDashboardTheme();
     const [messages, setMessages] = useState<any[]>([]);
+    const [pages, setPages] = useState<any[]>([]);
     const [lastUpdated, setLastUpdated] = useState<string>('');
+    const [containerWidth, setContainerWidth] = useState(0);
 
     const [activeIndex, setActiveIndex] = useState(0);
-    const activeMessageIdRef = useRef<string | null>(null);
+    const activePageKeyRef = useRef<string | null>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const [disableTransition, setDisableTransition] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // Sync activeIndex and activeMessageIdRef when messages change
+    // Track container width for pagination
     useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            if (entries[0]) {
+                setContainerWidth(entries[0].contentRect.width);
+            }
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Pagination logic
+    useLayoutEffect(() => {
         if (messages.length === 0) {
+            setPages([]);
+            return;
+        }
+
+        const newPages: any[] = [];
+        messages.forEach(msg => {
+            const textEl = document.getElementById(`measure-text-${msg.groupId}`);
+            if (!textEl) {
+                newPages.push({ ...msg, titleChunk: msg.title, pageIndex: 0, totalPages: 1, pageKey: `${(msg.id ?? msg.groupId)}:0` });
+                return;
+            }
+
+            const computedStyle = window.getComputedStyle(textEl);
+            let lineHeight = parseInt(computedStyle.lineHeight);
+            if (isNaN(lineHeight)) {
+                const fontSize = parseInt(computedStyle.fontSize) || 16;
+                lineHeight = Math.round(fontSize * 1.5);
+            }
+            // Max height is now 2 lines because Date takes up Line 1
+            const maxHeight = lineHeight * 2;
+
+            let remaining = (msg.title || '').trim();
+            const chunks: string[] = [];
+            
+            if (remaining.length === 0) {
+                chunks.push('');
+            } else {
+                while (remaining.length > 0) {
+                    textEl.textContent = remaining;
+                    if (textEl.offsetHeight <= maxHeight) {
+                        chunks.push(remaining);
+                        break;
+                    }
+                    
+                    let low = 0;
+                    let high = remaining.length;
+                    let best = 0;
+                    while (low <= high) {
+                        const mid = Math.floor((low + high) / 2);
+                        textEl.textContent = remaining.substring(0, mid) + '...';
+                        if (textEl.offsetHeight <= maxHeight) {
+                            best = mid;
+                            low = mid + 1;
+                        } else {
+                            high = mid - 1;
+                        }
+                    }
+                    
+                    let breakIdx = best;
+                    const chunk = remaining.substring(0, best);
+                    const lastNewline = chunk.lastIndexOf('\n');
+                    const lastSpace = chunk.lastIndexOf(' ');
+                    
+                    if (lastNewline > 0) breakIdx = lastNewline;
+                    else if (lastSpace > 0) breakIdx = lastSpace;
+                    
+                    if (breakIdx === 0) breakIdx = best;
+                    if (breakIdx < 10 && remaining.length > 10) {
+                        breakIdx = 10;
+                    }
+                    
+                    chunks.push(remaining.substring(0, breakIdx).trim());
+                    remaining = remaining.substring(breakIdx).trim();
+                }
+            }
+
+            chunks.forEach((chunk, i) => {
+                newPages.push({
+                    ...msg,
+                    titleChunk: chunk,
+                    pageIndex: i,
+                    totalPages: chunks.length,
+                    pageKey: `${(msg.id ?? msg.groupId)}:${i}`
+                });
+            });
+        });
+        
+        console.log('[DEBUG-MissingHW] Final Pagination - Pages Count:', newPages.length);
+        setPages(newPages);
+    }, [messages, containerWidth, theme.broadcastFontSize]);
+
+    // Sync activeIndex and activePageKeyRef when pages change
+    useEffect(() => {
+        if (pages.length === 0) {
             setActiveIndex(0);
-            activeMessageIdRef.current = null;
+            activePageKeyRef.current = null;
             return;
         }
 
         setActiveIndex(prev => {
-            const targetId = activeMessageIdRef.current;
+            const targetKey = activePageKeyRef.current;
             let nextIndex = 0;
-            if (targetId) {
-                const foundIndex = messages.findIndex(m => (m.id || m.groupId) === targetId);
+            if (targetKey) {
+                const foundIndex = pages.findIndex(p => p.pageKey === targetKey);
                 if (foundIndex !== -1) {
                     nextIndex = foundIndex;
                 } else {
-                    nextIndex = Math.min(prev, messages.length - 1);
+                    nextIndex = Math.min(prev, pages.length - 1);
                 }
             } else {
-                nextIndex = Math.min(prev, messages.length - 1);
+                nextIndex = Math.min(prev, pages.length - 1);
             }
             if (nextIndex < 0) nextIndex = 0;
-            activeMessageIdRef.current = messages[nextIndex]?.id || messages[nextIndex]?.groupId || null;
+            activePageKeyRef.current = pages[nextIndex]?.pageKey || null;
             return nextIndex;
         });
-    }, [messages]);
+    }, [pages]);
 
-    // Reset transition toggle when messages list size changes
+    // Reset transition toggle when pages list size changes
     useEffect(() => {
         setDisableTransition(false);
-    }, [messages.length]);
+    }, [pages.length]);
 
     // Safety timeout to reset transition disabled state after instant snap back to index 0
     useEffect(() => {
@@ -101,16 +204,16 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
 
         const startTimer = () => {
             stopTimer(); // Always stop before starting to prevent stacking
-            if (messages.length >= 2 && document.visibilityState === 'visible') {
+            if (pages.length >= 2 && document.visibilityState === 'visible') {
                 intervalRef.current = setInterval(() => {
                     setActiveIndex(prev => {
                         let current = prev;
-                        if (current >= messages.length) {
+                        if (current >= pages.length) {
                             current = 0; // Safety fallback
                         }
                         const next = current + 1;
-                        const msg = messages[next % messages.length];
-                        activeMessageIdRef.current = msg?.id || msg?.groupId || null;
+                        const page = pages[next % pages.length];
+                        activePageKeyRef.current = page?.pageKey || null;
                         return next;
                     });
                 }, 6000);
@@ -133,11 +236,11 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
             stopTimer();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [messages.length]);
+    }, [pages.length]);
 
     // Handle transition end to instantly reset activeIndex back to 0 when clone index is reached
     const handleTransitionEnd = (e: React.TransitionEvent) => {
-        if (e.propertyName === 'transform' && activeIndex === messages.length) {
+        if (e.propertyName === 'transform' && activeIndex === pages.length) {
             setDisableTransition(true);
             setActiveIndex(0);
         }
@@ -193,7 +296,7 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                     displayTitle = displayTitle.trim();
                 }
 
-                if (displayTitle.startsWith('功課:')) return;
+                if (displayTitle.startsWith('功課:') || MISSING_HOMEWORK_TITLES.includes(displayTitle)) return;
                 
                 const gId = r.broadcast_group_id || displayTitle;
                 
@@ -219,11 +322,77 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                 }
             });
 
+            // Fetch morning_duty_logs for all dates to build Missing Homework summary
+            console.log('[DEBUG-MissingHW] Inputs - Class:', currentClassUpper, 'isAllClasses:', isAllClasses);
+
+            let homeworkQuery = supabase
+                .from('morning_duty_logs')
+                .select('log_date, student_id, missing_items, student:users(display_name, class)')
+                .not('missing_items', 'is', null)
+                .order('log_date', { ascending: false });
+            
+            const { data: homeworkData, error: hwError } = await homeworkQuery;
+            
+            console.log('[DEBUG-MissingHW] Result - Error:', hwError, 'Data Length:', homeworkData?.length);
+
+            if (homeworkData && homeworkData.length > 0) {
+                // Filter by class manually since student is an inner relationship
+                let filteredHomework = homeworkData;
+                if (!isAllClasses) {
+                    filteredHomework = homeworkData.filter((log: any) => 
+                        log.student && log.student.class && log.student.class.toUpperCase() === currentClassUpper
+                    );
+                }
+                
+                // Filter out empty objects
+                filteredHomework = filteredHomework.filter((log: any) => 
+                    log.missing_items && Object.keys(log.missing_items).length > 0
+                );
+
+                if (filteredHomework.length > 0) {
+                    // Group by date
+                    const logsByDate: Record<string, any[]> = {};
+                    filteredHomework.forEach((log: any) => {
+                        if (!logsByDate[log.log_date]) logsByDate[log.log_date] = [];
+                        logsByDate[log.log_date].push(log);
+                    });
+
+                    Object.entries(logsByDate).forEach(([dateStr, logsForDate]) => {
+                        const lines = logsForDate.map((log: any) => {
+                            const name = log.student?.display_name || 'Unknown';
+                            const subjectParts = Object.entries(log.missing_items).map(([sub, items]) => {
+                                return `${sub}—${(items as string[]).join(', ')}`;
+                            });
+                            return `• ${name}: ${subjectParts.join('; ')}`;
+                        });
+                        
+                        const titleText = `Missing Homework (${dateStr})\n${lines.join('\n')}`;
+                        
+                        // We set createdAt to now but slightly offset so newer dates are sorted higher
+                        const sortDate = new Date();
+                        // Add some milliseconds to make newer dates sort slightly higher than older dates
+                        sortDate.setMilliseconds(sortDate.getMilliseconds() + new Date(dateStr).getTime() % 100000);
+
+                        groups[`synthetic_missing_homework_${dateStr}`] = {
+                            groupId: `synthetic_missing_homework_${dateStr}`,
+                            title: titleText,
+                            students: [], // No action buttons
+                            type: 'negative',
+                            isWholeClass: false,
+                            isMissingHomeworkSummary: true,
+                            targetDate: dateStr,
+                            createdAt: sortDate.toISOString()
+                        };
+                    });
+                }
+            }
+
             // Convert to array and sort by latest activity
             const sortedGroups = Object.values(groups).sort((a: any, b: any) => 
                 new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
 
+            console.log('[DEBUG-MissingHW] Final Messages Count for Render:', sortedGroups.length);
             setMessages(sortedGroups);
             setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         } catch (err) {
@@ -283,7 +452,7 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
         };
     }, [className]);
 
-    const displayMessages = messages.length >= 2 ? [...messages, { ...messages[0], groupId: `${messages[0].groupId}-clone` }] : messages;
+    const displayPages = pages.length >= 2 ? [...pages, { ...pages[0], pageKey: `${pages[0].pageKey}-clone` }] : pages;
 
     if (messages.length === 0 && selectedCount === 0) return null;
 
@@ -316,65 +485,99 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                             </div>
                         </div>
 
-                        <div className="relative h-12 overflow-hidden w-full">
-                            {messages.length > 0 ? (
+                        <div ref={containerRef} className="relative h-20 overflow-hidden w-full">
+                            {/* Hidden Measurement DOM (No line clamping) */}
+                            <div className="absolute top-0 left-0 w-full invisible pointer-events-none opacity-0 z-[-1]" aria-hidden="true">
+                                {messages.map((group) => (
+                                    <div key={group.groupId} className="h-20 shrink-0 flex items-center gap-3 w-full">
+                                        <div className={`p-1.5 rounded-lg shrink-0 w-[26px]`}></div>
+                                        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                                            {group.createdAt && (
+                                                <span className="text-[10px] leading-none shrink-0">Date</span>
+                                            )}
+                                            <p 
+                                                id={`measure-text-${group.groupId}`}
+                                                className="font-black text-slate-900 tracking-tight whitespace-pre-wrap min-w-0 w-full"
+                                                style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
+                                            ></p>
+                                            <div className="flex flex-nowrap gap-1.5 w-full shrink-0">
+                                                {group.isWholeClass && (
+                                                    <button className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shrink-0">Mark as Completed</button>
+                                                )}
+                                                {group.students.map((s: any, si: number) => (
+                                                    <button key={si} className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shrink-0">{s.name}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {pages.length > 0 ? (
                                 <div 
                                     className={`flex flex-col w-full ${disableTransition ? '' : 'transition-transform duration-500 ease-in-out'}`}
                                     style={{ transform: `translateY(-${activeIndex * ITEM_HEIGHT_PX}px)` }}
                                     onTransitionEnd={handleTransitionEnd}
                                 >
-                                    {displayMessages.map((group) => (
+                                    {displayPages.map((page) => (
                                         <div 
-                                            key={group.groupId} 
-                                            className="h-12 shrink-0 flex items-center gap-3 w-full animate-in fade-in duration-300"
+                                            key={page.pageKey} 
+                                            className="h-20 shrink-0 flex items-center gap-3 w-full animate-in fade-in duration-300"
                                         >
                                             <div className={`p-1.5 rounded-lg shrink-0 ${
-                                                group.type === 'negative' ? 'bg-red-100 text-red-600' : 
-                                                group.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                                                page.type === 'negative' ? 'bg-red-100 text-red-600' : 
+                                                page.type === 'positive' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
                                             }`}>
                                                 <Zap size={14} fill="currentColor" />
                                             </div>
                                             
-                                            <p 
-                                                className="font-black text-slate-900 tracking-tight truncate whitespace-nowrap overflow-hidden min-w-0 flex-1"
-                                                style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
-                                                data-theme-key="broadcastFontSize"
-                                                title={group.title}
-                                            >
-                                                {group.title}
-                                            </p>
-
-                                            {group.createdAt && (
-                                                <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
-                                                    {formatHKDate(group.createdAt)}
-                                                </span>
-                                            )}
-
-                                            {/* Student Tags */}
-                                            <div className="flex flex-nowrap gap-1.5 ml-2 overflow-x-auto scrollbar-none shrink-0 max-w-[50%] md:max-w-[60%] lg:max-w-[70%]">
-                                                {group.isWholeClass && (
-                                                    <button 
-                                                        onClick={() => group.wholeClassRecordId && handleRemoveStudent(group.wholeClassRecordId, 'Whole Class', group.groupId.replace('-clone', ''))}
-                                                        className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all shadow-sm shrink-0"
-                                                    >
-                                                        Mark as Completed
-                                                    </button>
+                                            <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                                                {page.createdAt && (
+                                                    <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 leading-none">
+                                                        {formatHKDate(page.createdAt)}
+                                                    </span>
                                                 )}
-                                                {group.students.map((s: any, si: number) => (
-                                                    <button 
-                                                        key={si} 
-                                                        onClick={() => handleRemoveStudent(s.recordId, s.name, group.groupId.replace('-clone', ''))}
-                                                        className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all shadow-sm shrink-0"
-                                                    >
-                                                        {s.name}
-                                                    </button>
-                                                ))}
+                                                
+                                                <p 
+                                                    className={`font-black text-slate-900 tracking-tight whitespace-pre-wrap line-clamp-2 min-w-0 w-full ${page.isMissingHomeworkSummary ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                                                    style={{ fontSize: `${theme.broadcastFontSize || 16}px` }}
+                                                    data-theme-key="broadcastFontSize"
+                                                    title={page.title}
+                                                    onClick={() => {
+                                                        if (page.isMissingHomeworkSummary) {
+                                                            navigate(`/admin/homework-makeup?class=${className}&focusDate=${page.targetDate || getHKTodayString()}`);
+                                                        }
+                                                    }}
+                                                >
+                                                    {page.titleChunk}
+                                                </p>
+
+                                                {/* Student Tags After Message */}
+                                                <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-none w-full shrink-0">
+                                                    {page.isWholeClass && (
+                                                        <button 
+                                                            onClick={() => page.wholeClassRecordId && handleRemoveStudent(page.wholeClassRecordId, 'Whole Class', page.groupId.replace('-clone', ''))}
+                                                            className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all shadow-sm shrink-0"
+                                                        >
+                                                            Mark as Completed
+                                                        </button>
+                                                    )}
+                                                    {page.students.map((s: any, si: number) => (
+                                                        <button 
+                                                            key={si} 
+                                                            onClick={() => handleRemoveStudent(s.recordId, s.name, page.groupId.replace('-clone', ''))}
+                                                            className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-200 transition-all shadow-sm shrink-0"
+                                                        >
+                                                            {s.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            ) : (
-                                <div className="h-12 flex items-center">
+                            ) : messages.length > 0 ? null : (
+                                <div className="h-20 flex items-center">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic ml-1">
                                         No active announcements
                                     </p>
@@ -385,14 +588,6 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
 
                     {/* Right: Actions & Status */}
                     <div className="flex items-center gap-2 relative">
-                        {/* Status for Large Screens */}
-                        {selectedCount === 0 && (
-                            <div className="hidden lg:flex flex-col items-end px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-r border-slate-200 mr-2">
-                                <span>Systems Online</span>
-                                <span className="text-[8px] opacity-50">Broadcast v2.5</span>
-                            </div>
-                        )}
-
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={onOpenLiveBoard}

@@ -2,7 +2,7 @@
 -- This column tracks which admin manages each user for multi-admin isolation.
 
 ALTER TABLE public.users
-ADD COLUMN IF NOT EXISTS managed_by_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS managed_by_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- Backfill: Tag ALL existing users with the Super Admin (first admin created)
 DO $$

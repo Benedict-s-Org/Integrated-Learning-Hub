@@ -22,8 +22,8 @@ CREATE POLICY "Allow public read access to system styles"
 CREATE POLICY "Allow admins to manage system styles"
     ON public.shop_system_styles FOR ALL
     USING (EXISTS (
-        SELECT 1 FROM public.user_roles
-        WHERE user_id = auth.uid() AND role = 'admin'
+        SELECT 1 FROM public.users
+        WHERE id = auth.uid() AND role = 'admin'
     ));
 
 -- Seed with some initial colors (representative of the 7 series)

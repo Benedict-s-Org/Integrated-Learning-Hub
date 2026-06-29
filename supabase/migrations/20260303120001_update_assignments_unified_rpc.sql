@@ -1,4 +1,5 @@
 -- Update get_student_assignments_unified to include practice_mode in content_data for memorization assignments
+DROP FUNCTION IF EXISTS get_student_assignments_unified(uuid);
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
   assignment_id uuid,

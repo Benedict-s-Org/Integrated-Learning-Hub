@@ -41,6 +41,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 4. Update get_student_assignments_unified to enforce level-based visibility rules
 -- Rule: Students in level 1 can see everything (advanced levels).
 -- Students in advanced levels (2+) cannot see easier levels (1).
+DROP FUNCTION IF EXISTS get_student_assignments_unified(uuid);
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
   assignment_id uuid,

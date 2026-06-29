@@ -15,6 +15,7 @@ END $$;
 UPDATE users SET can_access_spaced_repetition = true WHERE can_access_spaced_repetition = false OR can_access_spaced_repetition IS NULL;
 
 -- Update get_student_assignments_unified to include spaced repetition assignments
+DROP FUNCTION IF EXISTS get_student_assignments_unified(uuid);
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
   assignment_id uuid,

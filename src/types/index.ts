@@ -53,7 +53,7 @@ export type PageType =
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
   | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
-  | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard' | 'audioManagement' | 'morningDuties';
+  | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'adminHomeworkMakeup' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard' | 'audioManagement' | 'morningDuties';
 
 export type AppPage = PageType;
 

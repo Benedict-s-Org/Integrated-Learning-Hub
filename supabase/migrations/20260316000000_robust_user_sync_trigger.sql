@@ -59,10 +59,11 @@ BEGIN
 END;
 $function$;
 
--- 2. Update the trigger to fire on INSERT or metadata update
+-- 2. Update the trigger to fire on INSERT or any UPDATE
+-- NOTE: Cannot use WHEN (OLD.xxx ...) on an INSERT trigger -- OLD is undefined for INSERT events.
+-- The function uses ON CONFLICT safely, so firing on all INSERT/UPDATE is correct.
 DROP TRIGGER IF EXISTS on_auth_user_sync ON auth.users;
 CREATE TRIGGER on_auth_user_sync
   AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW
-  WHEN (OLD.raw_user_meta_data IS DISTINCT FROM NEW.raw_user_meta_data)
   EXECUTE FUNCTION handle_new_auth_user();

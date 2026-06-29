@@ -77,6 +77,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp, extensions;
 
 -- 3. Update get_student_assignments_unified to support level filtering
+DROP FUNCTION IF EXISTS get_student_assignments_unified(uuid);
 CREATE OR REPLACE FUNCTION get_student_assignments_unified(target_user_id uuid)
 RETURNS TABLE (
   assignment_id uuid,
