@@ -652,6 +652,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 isActive={window.location.pathname === '/admin/manifest'}
                                 onClick={() => navigate('/admin/manifest')}
                             />
+                            <NavItem
+                                icon={FileText}
+                                label="Local Markdown Pipeline"
+                                isActive={window.location.pathname === '/admin/local-markdown-pipeline'}
+                                onClick={() => navigate('/admin/local-markdown-pipeline')}
+                            />
                         </NavSection>
                     )}
                 </div>

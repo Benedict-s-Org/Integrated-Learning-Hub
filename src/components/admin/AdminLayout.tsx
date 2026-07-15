@@ -140,6 +140,10 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       path: "/admin/manifest",
       label: "Codebase Manifest",
       icon: <Layers className="w-4 h-4" />,
+    }, {
+      path: "/admin/local-markdown-pipeline",
+      label: "Local Markdown Pipeline",
+      icon: <Layers className="w-4 h-4" />,
     }] : []),
   ];
 

@@ -1611,6 +1611,7 @@ const PhonicsGameHub = lazy(() => import('./components/phonics/PhonicsGameHub.ts
 const PhonicsQuiz = lazy(() => import('./components/phonics/PhonicsQuiz.tsx').then(m => ({ default: m.PhonicsQuiz })));
 const WordBuilder = lazy(() => import('./components/phonics/WordBuilder.tsx').then(m => ({ default: m.WordBuilder })));
 const CodebaseManifestPage = lazy(() => import('./pages/CodebaseManifestPage.tsx'));
+const AdminLocalMarkdownPipelinePage = lazy(() => import('./pages/AdminLocalMarkdownPipelinePage.tsx'));
 const BroadcastManagementPage = lazy(() => import('./pages/admin/BroadcastManagementPage.tsx'));
 const ReadingManagementPage = lazy(() => import('./pages/admin/ReadingManagementPage.tsx'));
 const ReadingLearningPage = lazy(() => import('./pages/student/ReadingLearningPage.tsx').then(m => ({ default: m.ReadingLearningPage })));
@@ -1781,6 +1782,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <CodebaseManifestPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/local-markdown-pipeline"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AdminLocalMarkdownPipelinePage />
               </Suspense>
             }
           />
