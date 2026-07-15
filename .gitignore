@@ -37,3 +37,6 @@ Google text-to-speech API key.json
 # Python virtual environments
 .venv/
 venv/
+
+# Local standalone pipeline workspace
+local-markdown-pipeline/
