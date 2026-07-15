@@ -13,15 +13,27 @@ import { useNavigate } from 'react-router-dom';
 
 const AdminLocalMarkdownPipelinePage: React.FC = () => {
   const navigate = useNavigate();
-  const [healthStatus, setHealthStatus] = useState<'unknown' | 'checking' | 'healthy' | 'offline'>('unknown');
+  const [healthStatus, setHealthStatus] = useState<'unknown' | 'checking' | 'running' | 'not_running' | 'cors_or_offline'>('unknown');
 
-  const checkHealth = () => {
-    // Mock health check for now since CORS isn't set up on the pipeline
+  const checkHealth = async () => {
     setHealthStatus('checking');
-    setTimeout(() => {
-      setHealthStatus('offline');
-      // Could change this when CORS is ready
-    }, 1000);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('http://127.0.0.1:8000/health', {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        setHealthStatus('running');
+      } else {
+        setHealthStatus('not_running');
+      }
+    } catch (err) {
+      // Fetch fails if offline or CORS blocked
+      setHealthStatus('cors_or_offline');
+    }
   };
 
   return (
@@ -150,60 +162,65 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
             </ul>
           </div>
 
-          {/* Future Integration */}
+          {/* Phase L2: Health Check Bridge */}
           <div className="bg-blue-50/50 border border-blue-200 rounded-xl p-6 flex flex-col">
             <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-4">
               <FileCode2 size={20} className="text-blue-600" />
-              Future Integration (未來整合計畫)
+              Phase L2: Health Check Bridge
             </h3>
             <ul className="space-y-3 text-sm text-blue-800 mb-6 flex-1">
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
-                <span><strong>CORS Configuration:</strong> Strict localhost-only CORS to allow API calls from Learning Hub.</span>
+                <span><strong>Health Check Only:</strong> This phase checks server availability only. (僅確認伺服器狀態)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
-                <span><strong>Live Job Status Bridge:</strong> Display pipeline progress directly within Learning Hub UI.</span>
+                <span><strong>No Processing:</strong> No file processing is triggered, no documents uploaded, and no AI/OCR job is started. (不觸發文件處理)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5" />
-                <span><strong>Import Approval Flow:</strong> Selectively ingest formatted Markdown into the Content Database.</span>
+                <span><strong>Standalone Operation:</strong> Heavy processing still remains inside the standalone pipeline. (繁重處理保留在獨立管線)</span>
               </li>
             </ul>
 
-            {/* Optional Health Check Placeholder */}
             <div className="bg-white border border-blue-100 rounded-lg p-4 mt-auto">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
                   <RefreshCw size={14} className={healthStatus === 'checking' ? 'animate-spin' : ''} />
-                  Connection Test (Mock)
+                  Connection Test
                 </h4>
                 <button 
                   onClick={checkHealth}
                   disabled={healthStatus === 'checking'}
-                  className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded font-medium transition-colors disabled:opacity-50"
+                  className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded font-medium transition-colors disabled:opacity-50"
                 >
-                  Check Status
+                  Check Local Pipeline
                 </button>
               </div>
               
+              <div className="text-xs text-slate-500 font-mono mb-3 bg-slate-50 p-2 rounded">
+                GET http://127.0.0.1:8000/health
+              </div>
+              
               <div className="flex items-center gap-2">
-                {healthStatus === 'unknown' && <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">Not Checked</span>}
-                {healthStatus === 'checking' && <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">Pinging 127.0.0.1:8000...</span>}
-                {healthStatus === 'offline' && (
+                {healthStatus === 'unknown' && <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">Unknown</span>}
+                {healthStatus === 'checking' && <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">Checking...</span>}
+                {healthStatus === 'not_running' && (
                   <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 rounded flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Offline (Needs CORS/Start)
+                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Not running
                   </span>
                 )}
-                {healthStatus === 'healthy' && (
+                {healthStatus === 'cors_or_offline' && (
+                  <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" /> CORS blocked / setup needed
+                  </span>
+                )}
+                {healthStatus === 'running' && (
                   <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Online
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Running
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2">
-                * Note: Real API calls are blocked until CORS is configured in backend/main.py.
-              </p>
             </div>
           </div>
         </div>
