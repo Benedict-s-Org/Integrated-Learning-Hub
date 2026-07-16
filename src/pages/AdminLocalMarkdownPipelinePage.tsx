@@ -8,12 +8,15 @@
  * - Future integration may add strict localhost health check and job status polling.
  */
 import React, { useState } from 'react';
-import { ArrowLeft, Server, Shield, Terminal, Play, CheckCircle2, Lock, FileCode2, Link as LinkIcon, RefreshCw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Server, Shield, Terminal, Play, CheckCircle2, Lock, FileCode2, Link as LinkIcon, RefreshCw, ExternalLink, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminLocalMarkdownPipelinePage: React.FC = () => {
   const navigate = useNavigate();
   const [healthStatus, setHealthStatus] = useState<'unknown' | 'checking' | 'running' | 'not_running' | 'cors_or_offline'>('unknown');
+  const [pipelineStatus, setPipelineStatus] = useState<{is_busy: boolean, active_jobs: Record<string, number>} | null>(null);
+  const [statusCheckTime, setStatusCheckTime] = useState<Date | null>(null);
+  const [statusChecking, setStatusChecking] = useState(false);
 
   const checkHealth = async () => {
     setHealthStatus('checking');
@@ -33,6 +36,28 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
     } catch (err) {
       // Fetch fails if offline or CORS blocked
       setHealthStatus('cors_or_offline');
+    }
+  };
+
+  const checkActivity = async () => {
+    setStatusChecking(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('http://127.0.0.1:8000/api/status', {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        setPipelineStatus(data);
+        setStatusCheckTime(new Date());
+      }
+    } catch (err) {
+      console.error("Failed to check activity", err);
+    } finally {
+      setStatusChecking(false);
     }
   };
 
@@ -135,7 +160,7 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
         </div>
 
         {/* Safety & Future Panels */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           {/* Safety Panel */}
           <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-6">
             <h3 className="font-bold text-amber-900 flex items-center gap-2 mb-4">
@@ -220,6 +245,65 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-emerald-500" /> Running
                   </span>
                 )}
+              </div>
+            </div>
+          </div>
+          {/* Phase L3A: Pipeline Activity */}
+          <div className="bg-purple-50/50 border border-purple-200 rounded-xl p-6 flex flex-col">
+            <h3 className="font-bold text-purple-900 flex items-center gap-2 mb-4">
+              <Activity size={20} className="text-purple-600" />
+              Pipeline Activity (活動狀態)
+            </h3>
+            <p className="text-sm text-purple-800 mb-6 flex-1">
+              This panel is read-only. It only shows whether the local pipeline is idle or busy. It does not reveal file paths, document names, or document contents.
+            </p>
+
+            <div className="bg-white border border-purple-100 rounded-lg p-4 mt-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <RefreshCw size={14} className={statusChecking ? 'animate-spin' : ''} />
+                  Status
+                </h4>
+                <button 
+                  onClick={checkActivity}
+                  disabled={statusChecking}
+                  className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded font-medium transition-colors disabled:opacity-50"
+                >
+                  Refresh Activity
+                </button>
+              </div>
+
+              <div className="space-y-2 mb-3 text-sm">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-slate-600">State</span>
+                  {pipelineStatus ? (
+                    <span className={`font-medium ${pipelineStatus.is_busy ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {pipelineStatus.is_busy ? 'Busy' : 'Idle'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Unknown</span>
+                  )}
+                </div>
+                {pipelineStatus && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Active Total</span>
+                      <span className="font-medium text-slate-700">
+                        {Object.values(pipelineStatus.active_jobs).reduce((a, b) => a + b, 0)}
+                      </span>
+                    </div>
+                    {Object.entries(pipelineStatus.active_jobs).map(([jobType, count]) => (
+                      <div key={jobType} className="flex justify-between text-xs pl-2">
+                        <span className="text-slate-400 capitalize">{jobType}</span>
+                        <span className="text-slate-600">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="text-[10px] text-slate-400 text-right">
+                {statusCheckTime ? `Last checked: ${statusCheckTime.toLocaleTimeString()}` : 'Never checked'}
               </div>
             </div>
           </div>
