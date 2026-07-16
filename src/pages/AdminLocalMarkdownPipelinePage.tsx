@@ -8,8 +8,33 @@
  * - Future integration may add strict localhost health check and job status polling.
  */
 import React, { useState } from 'react';
-import { ArrowLeft, Server, Shield, Terminal, Play, CheckCircle2, Lock, FileCode2, Link as LinkIcon, RefreshCw, ExternalLink, Activity } from 'lucide-react';
+import { ArrowLeft, Server, Shield, Terminal, Play, CheckCircle2, Lock, FileCode2, Link as LinkIcon, RefreshCw, ExternalLink, Activity, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface SummaryResponse {
+  status: string;
+  code?: string;
+  has_manifest?: boolean;
+  summary?: {
+    total_files_found: number;
+    supported_files_count: number;
+    skipped_files_count: number;
+    failed_files_count: number;
+  };
+  progress?: {
+    pending: number;
+    success: number;
+    failed: number;
+    pending_ocr: number;
+    converted_with_warning: number;
+    ai_review_success: number;
+  };
+  quality?: {
+    average_quality_score: number | null;
+    files_with_warnings: number;
+  };
+  last_updated?: string | null;
+}
 
 const AdminLocalMarkdownPipelinePage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +42,40 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
   const [pipelineStatus, setPipelineStatus] = useState<{is_busy: boolean, active_jobs: Record<string, number>} | null>(null);
   const [statusCheckTime, setStatusCheckTime] = useState<Date | null>(null);
   const [statusChecking, setStatusChecking] = useState(false);
+
+  const [outputPath, setOutputPath] = useState<string>('');
+  const [summaryState, setSummaryState] = useState<'unknown' | 'loading' | 'available' | 'invalid_folder' | 'manifest_not_found' | 'manifest_invalid' | 'summary_unavailable' | 'cors_or_offline'>('unknown');
+  const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
+
+  const fetchSummary = async () => {
+    if (!outputPath.trim()) return;
+    setSummaryState('loading');
+    setSummaryData(null);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('http://127.0.0.1:8000/api/summary/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ output_path: outputPath }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      const data = await res.json();
+      if (res.ok) {
+        setSummaryData(data);
+        setSummaryState('available');
+      } else {
+        if (data.code === 'invalid_output_directory') setSummaryState('invalid_folder');
+        else if (data.code === 'manifest_not_found') setSummaryState('manifest_not_found');
+        else if (data.code === 'manifest_invalid' || data.code === 'manifest_unreadable') setSummaryState('manifest_invalid');
+        else setSummaryState('summary_unavailable');
+      }
+    } catch (err) {
+      setSummaryState('cors_or_offline');
+    }
+  };
 
   const checkHealth = async () => {
     setHealthStatus('checking');
@@ -306,6 +365,101 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
                 {statusCheckTime ? `Last checked: ${statusCheckTime.toLocaleTimeString()}` : 'Never checked'}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Phase L4A: Sanitized Output Summary */}
+        <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-6 mt-6">
+          <h3 className="font-bold text-emerald-900 flex items-center gap-2 mb-4">
+            <FileText size={20} className="text-emerald-600" />
+            Phase L4A: Sanitized Output Summary (管線輸出摘要)
+          </h3>
+          <p className="text-sm text-emerald-800 mb-4 bg-emerald-100/50 p-3 rounded-lg border border-emerald-200/50">
+            <strong>Safety Notice:</strong> This summary is sanitized. The output folder path is sent only to the local pipeline backend at 127.0.0.1 and is not saved in Learning Hub. Only numeric aggregates are returned. Filenames, paths, document contents, OCR text, and AI review comments are never displayed.
+          </p>
+          
+          <div className="flex flex-col md:flex-row gap-4 items-end mb-6">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Pipeline output folder path</label>
+              <input 
+                type="text" 
+                value={outputPath}
+                onChange={(e) => setOutputPath(e.target.value)}
+                placeholder="Paste local output folder path"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+            <button 
+              onClick={fetchSummary}
+              disabled={summaryState === 'loading' || !outputPath.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors disabled:opacity-50 shrink-0 h-[38px] flex items-center"
+            >
+              {summaryState === 'loading' ? <RefreshCw size={16} className="animate-spin mr-2" /> : null}
+              View Sanitized Summary
+            </button>
+          </div>
+
+          <div className="bg-white border border-emerald-100 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm font-bold text-slate-700">Status:</span>
+              {summaryState === 'unknown' && <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">Unknown</span>}
+              {summaryState === 'loading' && <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded">Loading...</span>}
+              {summaryState === 'available' && <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded">Summary available</span>}
+              {summaryState === 'invalid_folder' && <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 rounded">Invalid folder</span>}
+              {summaryState === 'manifest_not_found' && <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded">Manifest not found</span>}
+              {summaryState === 'manifest_invalid' && <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 rounded">Manifest invalid</span>}
+              {summaryState === 'summary_unavailable' && <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 rounded">Summary unavailable</span>}
+              {summaryState === 'cors_or_offline' && <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded">CORS / offline</span>}
+            </div>
+
+            {summaryData && summaryData.summary && summaryData.progress && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                  <span className="text-xs text-slate-500 mb-1">Total files</span>
+                  <span className="text-lg font-semibold text-slate-800">{summaryData.summary.total_files_found}</span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                  <span className="text-xs text-slate-500 mb-1">Supported files</span>
+                  <span className="text-lg font-semibold text-slate-800">{summaryData.summary.supported_files_count}</span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                  <span className="text-xs text-slate-500 mb-1">Skipped files</span>
+                  <span className="text-lg font-semibold text-slate-800">{summaryData.summary.skipped_files_count}</span>
+                </div>
+                <div className="bg-rose-50 p-3 rounded border border-rose-100 flex flex-col">
+                  <span className="text-xs text-rose-500 mb-1">Failed files</span>
+                  <span className="text-lg font-semibold text-rose-700">{summaryData.summary.failed_files_count}</span>
+                </div>
+                <div className="bg-amber-50 p-3 rounded border border-amber-100 flex flex-col">
+                  <span className="text-xs text-amber-600 mb-1">Pending</span>
+                  <span className="text-lg font-semibold text-amber-700">{summaryData.progress.pending}</span>
+                </div>
+                <div className="bg-emerald-50 p-3 rounded border border-emerald-100 flex flex-col">
+                  <span className="text-xs text-emerald-600 mb-1">Success</span>
+                  <span className="text-lg font-semibold text-emerald-700">{summaryData.progress.success}</span>
+                </div>
+                <div className="bg-purple-50 p-3 rounded border border-purple-100 flex flex-col">
+                  <span className="text-xs text-purple-600 mb-1">Pending OCR</span>
+                  <span className="text-lg font-semibold text-purple-700">{summaryData.progress.pending_ocr}</span>
+                </div>
+                <div className="bg-orange-50 p-3 rounded border border-orange-100 flex flex-col">
+                  <span className="text-xs text-orange-600 mb-1">Converted w/ warning</span>
+                  <span className="text-lg font-semibold text-orange-700">{summaryData.progress.converted_with_warning}</span>
+                </div>
+                <div className="bg-indigo-50 p-3 rounded border border-indigo-100 flex flex-col">
+                  <span className="text-xs text-indigo-600 mb-1">AI review success</span>
+                  <span className="text-lg font-semibold text-indigo-700">{summaryData.progress.ai_review_success}</span>
+                </div>
+                <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                  <span className="text-xs text-slate-500 mb-1">Avg quality score</span>
+                  <span className="text-lg font-semibold text-slate-800">{summaryData.quality?.average_quality_score !== null ? summaryData.quality?.average_quality_score : 'N/A'}</span>
+                </div>
+                <div className="bg-orange-50 p-3 rounded border border-orange-100 flex flex-col">
+                  <span className="text-xs text-orange-600 mb-1">Files w/ warnings</span>
+                  <span className="text-lg font-semibold text-orange-700">{summaryData.quality?.files_with_warnings || 0}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
