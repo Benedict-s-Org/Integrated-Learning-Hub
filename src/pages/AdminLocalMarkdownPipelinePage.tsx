@@ -47,6 +47,14 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
   const [summaryState, setSummaryState] = useState<'unknown' | 'loading' | 'available' | 'invalid_folder' | 'manifest_not_found' | 'manifest_invalid' | 'summary_unavailable' | 'cors_or_offline'>('unknown');
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
 
+  // Phase L5B state
+  const [scanInputPath, setScanInputPath] = useState('');
+  const [scanOutputPath, setScanOutputPath] = useState('');
+  const [scanConfirm, setScanConfirm] = useState(false);
+  const [scanState, setScanState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [scanResult, setScanResult] = useState<{total_files_found: number; supported_files_count: number; skipped_files_count: number} | null>(null);
+  const [scanError, setScanError] = useState<string>('');
+
   const fetchSummary = async () => {
     if (!outputPath.trim()) return;
     setSummaryState('loading');
@@ -74,6 +82,42 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
       }
     } catch (err) {
       setSummaryState('cors_or_offline');
+    }
+  };
+
+  const runScanPreview = async () => {
+    if (!scanConfirm || !scanInputPath.trim() || !scanOutputPath.trim()) return;
+    
+    setScanState('running');
+    setScanError('');
+    setScanResult(null);
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // Scans can take a bit longer
+      const res = await fetch('http://127.0.0.1:8000/api/controlled/scan-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          job_type: 'scan_preview',
+          input_path: scanInputPath,
+          output_path: scanOutputPath
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      const data = await res.json();
+      if (res.ok && data.status === 'ok') {
+        setScanState('success');
+        setScanResult(data.summary);
+      } else {
+        setScanState('error');
+        setScanError(data.code || 'unknown_error');
+      }
+    } catch (err) {
+      setScanState('error');
+      setScanError('cors_or_offline');
     }
   };
 
@@ -460,6 +504,95 @@ const AdminLocalMarkdownPipelinePage: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Phase L5B: Controlled Scan-Only Wrapper */}
+        <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-6 mt-6">
+          <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-4">
+            <Shield size={20} className="text-indigo-600" />
+            Phase L5B: Controlled Scan Preview (安全掃描預覽)
+          </h3>
+          <p className="text-sm text-indigo-800 mb-4 bg-indigo-100/50 p-3 rounded-lg border border-indigo-200/50">
+            <strong>Safety Notice:</strong> This action triggers a local-only file scan. It does NOT upload files or modify them. Only aggregate numbers are returned to Learning Hub.
+          </p>
+          
+          <div className="flex flex-col gap-4 mb-6">
+            <div className="w-full">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Input folder path (to scan)</label>
+              <input 
+                type="text" 
+                value={scanInputPath}
+                onChange={(e) => setScanInputPath(e.target.value)}
+                placeholder="Local directory to scan"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Output folder path (for local manifest)</label>
+              <input 
+                type="text" 
+                value={scanOutputPath}
+                onChange={(e) => setScanOutputPath(e.target.value)}
+                placeholder="Local directory for manifest"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            
+            <label className="flex items-start gap-2 mt-2 cursor-pointer group w-fit">
+              <div className="relative flex items-center mt-0.5 shrink-0">
+                <input 
+                  type="checkbox" 
+                  checked={scanConfirm}
+                  onChange={(e) => setScanConfirm(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <div className="w-4 h-4 border-2 border-slate-300 rounded bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all flex items-center justify-center">
+                  <CheckCircle2 size={12} className="text-white opacity-0 peer-checked:opacity-100" strokeWidth={3} />
+                </div>
+              </div>
+              <span className="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">
+                <strong>I confirm</strong> that I want to trigger a local scan. No files will be uploaded or modified.
+              </span>
+            </label>
+            
+            <div className="mt-2">
+              <button 
+                onClick={runScanPreview}
+                disabled={!scanConfirm || !scanInputPath.trim() || !scanOutputPath.trim() || scanState === 'running'}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors disabled:opacity-50 h-[38px] flex items-center w-fit"
+              >
+                {scanState === 'running' ? <RefreshCw size={16} className="animate-spin mr-2" /> : null}
+                Run Scan Preview
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-white border border-indigo-100 rounded-lg p-4">
+             <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm font-bold text-slate-700">Scan Status:</span>
+              {scanState === 'idle' && <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">Ready</span>}
+              {scanState === 'running' && <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded">Scanning locally...</span>}
+              {scanState === 'success' && <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded">Scan successful</span>}
+              {scanState === 'error' && <span className="text-xs px-2 py-1 bg-rose-100 text-rose-700 rounded">Error: {scanError}</span>}
+             </div>
+             
+             {scanState === 'success' && scanResult && (
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                 <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                   <span className="text-xs text-slate-500 mb-1">Total found</span>
+                   <span className="text-lg font-semibold text-slate-800">{scanResult.total_files_found}</span>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                   <span className="text-xs text-slate-500 mb-1">Supported</span>
+                   <span className="text-lg font-semibold text-slate-800">{scanResult.supported_files_count}</span>
+                 </div>
+                 <div className="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col">
+                   <span className="text-xs text-slate-500 mb-1">Skipped</span>
+                   <span className="text-lg font-semibold text-slate-800">{scanResult.skipped_files_count}</span>
+                 </div>
+               </div>
+             )}
           </div>
         </div>
 
