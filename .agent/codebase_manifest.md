@@ -33,6 +33,7 @@
 | **Token Optimization** | AI Agent efficiency rules (Targeted Edit, Lean Artifacts). | L283-L288 |
 | **Reliability** | Development standards to prevent infinite loops and stalls. | L36-L42 |
 | **Dev Ports & Troubleshooting** | Port configurations and troubleshooting common launch errors. | L318-L325 |
+| **Class Archiving** | `ArchiveClassModal.tsx`, `archiveClassExporter.ts` - Double-confirm class archiving, Excel backup & coin reset. | L344-L360 |
 
 ---
 
@@ -339,3 +340,16 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - **Common Error**: `TypeError: Failed to fetch dynamically imported module: http://localhost:5180/src/components/UserAnalytics/UserAnalytics.tsx`.
   - **Root Cause**: The Vite dev server for `Supabase_Learning_Hub` is not running.
   - **Resolution**: Open a terminal in `/Users/mba/Documents/Antigravity/Supabase_Learning_Hub` and run `npm run dev` to start the server. Do not spend time debugging syntax or imports in `UserAnalytics.tsx` before confirming the dev server is active and listening on port `5180`.
+
+---
+
+### Class Archiving System (L344-L365)
+- **Path**: `src/components/admin/ArchiveClassModal.tsx`, `src/utils/archiveClassExporter.ts`, `src/pages/AdminGroupsPage.tsx`
+- **Migration**: `20260923000000_add_archive_class_feature.sql`
+- **Concept**: End-of-year class lifecycle tool ensuring safe data preservation and coin reset.
+- **Workflow**:
+  - **Double Confirmation**: Step 1 previews student count, coin totals, and academic year filter. Step 2 requires typing the exact class name (`3A`) to execute.
+  - **Dual-Sheet Excel Export**: `exportClassArchiveToExcel` generates a workbook with `學生名冊與結餘 (Summary)` and `學年獎懲與歷程明細 (Records)`. Automatically triggers download. An optional companion JSON backup is also provided.
+  - **Ledger-Consistent Coin Reset**: `archive_class` RPC sets `is_archived = true` on `classes`, logs balancing offset transactions in `student_records` (ensuring `rebuild_user_balances` correctly sums to 0), and resets `user_room_data.coins` & `virtual_coins` to 0.
+  - **Restoration (Un-archive)**: `unarchive_class` RPC reactivates the class from the "已封存班別" accordion without data loss.
+

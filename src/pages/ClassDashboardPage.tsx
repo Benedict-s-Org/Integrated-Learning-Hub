@@ -546,8 +546,8 @@ export function ClassDashboardPage() {
             if (globalClassesCache && !options?.forceRefresh) {
                 phase1Promises.push(Promise.resolve({ type: 'classes', data: globalClassesCache }));
             } else {
-                phase1Promises.push((supabase as any).from('classes').select('id, name').order('order_index')
-                    .then((res: any) => ({ type: 'classes', data: res.data || [] })));
+                phase1Promises.push((supabase as any).from('classes').select('id, name, is_archived').order('order_index')
+                    .then((res: any) => ({ type: 'classes', data: (res.data || []).filter((c: any) => !c.is_archived) })));
             }
 
             // Activities (with global cache)
@@ -626,23 +626,28 @@ export function ClassDashboardPage() {
             }
 
             // 3. Grouping Logic
-            // Auto-populate classes table from distinct user class names
-            const existingClassNames = new Set(classData.map(c => c.name));
+            // Auto-populate classes table from distinct user class names, checking all existing/archived classes
+            const { data: allDbClasses } = await (supabase as any).from('classes').select('name, is_archived');
+            const allKnownNames = new Set((allDbClasses || []).map((c: any) => c.name));
             const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
-            const missingClasses = userClassNames.filter(name => !existingClassNames.has(name));
+            const missingClasses = userClassNames.filter(name => !allKnownNames.has(name));
 
             if (missingClasses.length > 0) {
                 const inserts = missingClasses.map((name, i) => ({ name, order_index: classData.length + i }));
                 const { error: insertError } = await (supabase as any).from('classes').insert(inserts);
                 if (!insertError) {
-                    const { data: refreshed } = await (supabase as any).from('classes').select('id, name').order('order_index');
-                    classData = (refreshed || []) as { id: string, name: string }[];
+                    const { data: refreshed } = await (supabase as any).from('classes').select('id, name, is_archived').order('order_index');
+                    classData = ((refreshed || []).filter((c: any) => !c.is_archived)) as { id: string, name: string }[];
                     globalClassesCache = classData;
                 }
             }
 
             setOrderedClasses(classData);
             setOrderedActivities(activityData);
+
+            if (classData.length > 0 && !classData.some(c => c.name === activeClass)) {
+                setActiveClass(classData[0].name);
+            }
 
             const grouped: Record<string, UserWithCoins[]> = {};
             const classNames = classData.map(c => c.name);

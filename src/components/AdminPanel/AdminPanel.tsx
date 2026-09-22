@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette, Volume2 } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2, TrendingUp, Users, CheckSquare, Square, X, Map, QrCode, Palette, Volume2, Archive } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { StudentQRCodeModal } from '../admin/StudentQRCodeModal';
 import { ShopStyleManager } from '../admin/ShopStyleManager';
 import { CMSManager } from '../admin/CMSManager';
+import { ArchiveClassModal } from '../admin/ArchiveClassModal';
 import { Globe } from 'lucide-react';
 
 interface User {
@@ -59,6 +60,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showResetModal, setShowResetModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedClassForArchive, setSelectedClassForArchive] = useState<string | null>(null);
 
   // Create User States
   const [bulkUserText, setBulkUserText] = useState('');
@@ -711,6 +713,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <option key={cls} value={cls}>{cls}</option>
               ))}
             </select>
+            {filterClass !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setSelectedClassForArchive(filterClass)}
+                className="ml-2 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                title={`封存班別 (${filterClass})`}
+              >
+                <Archive size={14} className="text-amber-600" />
+                <span>封存班別 ({filterClass})</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -1347,6 +1360,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {selectedClassForArchive && (
+        <ArchiveClassModal
+          isOpen={!!selectedClassForArchive}
+          className={selectedClassForArchive}
+          onClose={() => setSelectedClassForArchive(null)}
+          onArchiveSuccess={() => {
+            setSelectedClassForArchive(null);
+            fetchUsers();
+          }}
+        />
       )}
     </div>
   );

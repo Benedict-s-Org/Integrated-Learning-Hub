@@ -1,18 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/admin/AdminLayout';
-import { Layers, Plus, Pencil, Trash2, Save, X, Users } from 'lucide-react';
+import {
+    Layers,
+    Plus,
+    Pencil,
+    Trash2,
+    Save,
+    X,
+    Users,
+    Archive,
+    RotateCcw,
+    FileSpreadsheet,
+    ChevronDown,
+    ChevronUp,
+    Loader2
+} from 'lucide-react';
 import { GroupMemberModal } from '@/components/admin/GroupMemberModal';
+import { ArchiveClassModal } from '@/components/admin/ArchiveClassModal';
+import { fetchClassArchiveData, exportClassArchiveToExcel } from '@/utils/archiveClassExporter';
 
 interface GroupItem {
     id: string;
     name: string;
+    is_archived?: boolean;
+    archived_at?: string | null;
+    academic_year?: string | null;
 }
 
 export function AdminGroupsPage() {
     const [classes, setClasses] = useState<GroupItem[]>([]);
     const [activities, setActivities] = useState<GroupItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Archive Class States
+    const [selectedClassForArchive, setSelectedClassForArchive] = useState<string | null>(null);
+    const [showArchivedClasses, setShowArchivedClasses] = useState(false);
+    const [downloadingExcelForClass, setDownloadingExcelForClass] = useState<string | null>(null);
 
     // Edit states for classes
     const [editingClassId, setEditingClassId] = useState<string | null>(null);
@@ -139,6 +163,30 @@ export function AdminGroupsPage() {
             fetchData();
         } catch (err: any) {
             alert(`Error deleting class: ${err.message}`);
+        }
+    };
+
+    const handleUnarchiveClass = async (className: string) => {
+        if (!window.confirm(`確定要解除封存班別「${className}」嗎？\n解除後該班別將重新顯示在主儀表板與日常選單中。`)) return;
+        try {
+            const { error } = await (supabase as any).rpc('unarchive_class', { p_class_name: className });
+            if (error) throw error;
+            alert(`已成功解除封存班別「${className}」！`);
+            fetchData();
+        } catch (err: any) {
+            alert(`解除封存失敗: ${err.message}`);
+        }
+    };
+
+    const handleDownloadArchivedExcel = async (className: string) => {
+        setDownloadingExcelForClass(className);
+        try {
+            const payload = await fetchClassArchiveData(className);
+            exportClassArchiveToExcel(payload);
+        } catch (err: any) {
+            alert(`下載備份失敗: ${err.message}`);
+        } finally {
+            setDownloadingExcelForClass(null);
         }
     };
 
@@ -325,7 +373,8 @@ export function AdminGroupsPage() {
         setEditName: (val: string) => void,
         onUpdate: (id: string) => void,
         onDelete: (id: string, name: string) => void,
-        onManageMembers?: (name: string) => void
+        onManageMembers?: (name: string) => void,
+        onArchive?: (name: string) => void
     ) => (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[350px] md:h-[450px]">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800">
@@ -394,6 +443,17 @@ export function AdminGroupsPage() {
                                                     Members
                                                 </button>
                                             )}
+                                            {onArchive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onArchive(item.name)}
+                                                    className="px-2.5 py-1 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 rounded-lg flex items-center gap-1 text-xs font-bold transition-all shadow-sm"
+                                                    title={`封存班別 (${item.name})`}
+                                                >
+                                                    <Archive size={14} className="text-amber-600" />
+                                                    <span>封存</span>
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => {
                                                     setEditingId(item.id);
@@ -420,13 +480,16 @@ export function AdminGroupsPage() {
         </div>
     );
 
+    const activeClasses = classes.filter(c => !c.is_archived);
+    const archivedClasses = classes.filter(c => !!c.is_archived);
+
     return (
         <AdminLayout title="Class Dashboard Management" icon={<Layers className="w-6 h-6" />}>
             <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col gap-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {renderTable(
                         "Classes",
-                        classes,
+                        activeClasses,
                         newClassName,
                         setNewClassName,
                         handleAddClass,
@@ -435,7 +498,9 @@ export function AdminGroupsPage() {
                         editClassName,
                         setEditClassName,
                         handleUpdateClass,
-                        handleDeleteClass
+                        handleDeleteClass,
+                        undefined,
+                        (name: string) => setSelectedClassForArchive(name)
                     )}
                     {renderTable(
                         "Extracurricular Activities",
@@ -453,23 +518,155 @@ export function AdminGroupsPage() {
                     )}
                 </div>
 
+                {/* Archived Classes Accordion Section */}
+                {archivedClasses.length > 0 && (
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm transition-all">
+                        <button
+                            type="button"
+                            onClick={() => setShowArchivedClasses(prev => !prev)}
+                            className="w-full flex items-center justify-between text-left text-slate-800"
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-amber-50 text-amber-700 rounded-xl">
+                                    <Archive size={18} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-base text-slate-800">
+                                        已封存班別 ({archivedClasses.length})
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        這些班別已被封存並從主教學儀表板中隱藏，學生金幣已結算歸零。
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
+                                    {showArchivedClasses ? '收合' : '展開檢視'}
+                                </span>
+                                {showArchivedClasses ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                            </div>
+                        </button>
+
+                        {showArchivedClasses && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 animate-in fade-in">
+                                {archivedClasses.map(ac => (
+                                    <div
+                                        key={ac.id}
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-slate-50 transition-colors gap-3"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-bold text-slate-700">{ac.name}</span>
+                                            <span className="text-[11px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-medium">
+                                                已封存 {ac.archived_at ? new Date(ac.archived_at).toLocaleDateString('zh-HK') : ''}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDownloadArchivedExcel(ac.name)}
+                                                disabled={downloadingExcelForClass === ac.name}
+                                                className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
+                                                title="重新下載該學年學生紀錄 Excel 備份"
+                                            >
+                                                {downloadingExcelForClass === ac.name ? (
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                ) : (
+                                                    <FileSpreadsheet size={14} className="text-green-600" />
+                                                )}
+                                                <span>下載 Excel 備份</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleUnarchiveClass(ac.name)}
+                                                className="px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 text-blue-600 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+                                                title="解除封存並重新放回常用班級"
+                                            >
+                                                <RotateCcw size={14} />
+                                                <span>解除封存</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteClass(ac.id, ac.name)}
+                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="永久刪除此班別紀錄"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Dashboard Management */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm shrink-0">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800">
                         <Layers className="text-indigo-500" />
                         Class Dashboard Management
                     </h2>
+
+                    {/* Dedicated Class Archive Banner & Quick Action */}
+                    <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm shrink-0">
+                                <Archive size={22} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                                    學年結算與班別封存 (Archive Class & Year-End Reset)
+                                </h3>
+                                <p className="text-xs text-slate-600 mt-0.5">
+                                    Double Confirm 後自動匯出雙工作表 Excel 學生紀錄備份、重設學生金幣為 0 並將班級封存隱藏。
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <select
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        setSelectedClassForArchive(e.target.value);
+                                        e.target.value = '';
+                                    }
+                                }}
+                                defaultValue=""
+                                className="px-3 py-2 bg-white border border-amber-300 text-slate-700 text-xs font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer hover:border-amber-400"
+                            >
+                                <option value="" disabled>📦 選擇班別進行封存...</option>
+                                {activeClasses.map(c => (
+                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col md:flex-row gap-4 items-start">
                             <div className="flex-1 w-full">
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Class</label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm font-bold text-slate-700">Class</label>
+                                    {selectedClassForPin && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedClassForArchive(selectedClassForPin)}
+                                            className="text-xs font-bold px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+                                            title={`封存班別 (${selectedClassForPin})`}
+                                        >
+                                            <Archive size={14} className="text-amber-600" />
+                                            <span>封存此班別 ({selectedClassForPin})</span>
+                                        </button>
+                                    )}
+                                </div>
                                 <select
                                     value={selectedClassForPin}
                                     onChange={(e) => setSelectedClassForPin(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
                                 >
                                     <option value="">Select a class...</option>
-                                    {classes.map(c => (
+                                    {activeClasses.map(c => (
                                         <option key={c.id} value={c.name}>{c.name}</option>
                                     ))}
                                 </select>
@@ -636,6 +833,17 @@ export function AdminGroupsPage() {
                 activityName={selectedActivityForMembers || ""}
                 onUpdate={fetchData}
             />
+
+            {selectedClassForArchive && (
+                <ArchiveClassModal
+                    isOpen={!!selectedClassForArchive}
+                    className={selectedClassForArchive}
+                    onClose={() => setSelectedClassForArchive(null)}
+                    onSuccess={() => {
+                        fetchData();
+                    }}
+                />
+            )}
         </AdminLayout>
     );
 }
