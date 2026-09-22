@@ -15,6 +15,13 @@ import {
   Trash2,
   Search,
   Mic,
+  Save,
+  X,
+  FileSpreadsheet,
+  Hash,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -89,6 +96,15 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Table Edit Mode State (Spreadsheet Inline Editing)
+  const [isTableEditMode, setIsTableEditMode] = useState(false);
+  const [editBuffer, setEditBuffer] = useState<Record<string, { display_name: string; class_name: string; class_number: string }>>({});
+  const [isSavingTableEdits, setIsSavingTableEdits] = useState(false);
+  const [tableEditSuccessMessage, setTableEditSuccessMessage] = useState<string | null>(null);
+  const [tableEditErrorMessage, setTableEditErrorMessage] = useState<string | null>(null);
+  const [globalClassToApply, setGlobalClassToApply] = useState('');
+  const [dbClasses, setDbClasses] = useState<string[]>([]);
+
   useEffect(() => {
     // Sync showAllStudents if admin or super admin
     if ((isSuperAdmin || isAdmin) && !forcedAdminId) {
@@ -151,6 +167,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         }
       } catch (err) {
         console.warn('Failed to fetch auth emails:', err);
+      }
+
+      // Fetch classes for dropdown and autocomplete
+      try {
+        const { data: classRows } = await (supabase.from('classes').select('name') as any);
+        if (classRows) {
+          setDbClasses(classRows.map((c: any) => c.name).filter(Boolean));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch classes in AdminUsersPage:', err);
       }
 
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
@@ -276,7 +302,166 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       // Then sort by class number
       return (a.class_number || 999) - (b.class_number || 999);
     });
-  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents, filterClass]);
+  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents, filterClass, searchQuery]);
+
+  // Computed all available classes
+  const allAvailableClasses = useMemo(() => {
+    const set = new Set<string>();
+    dbClasses.forEach(c => set.add(c));
+    users.forEach(u => {
+      if (u.class_name) set.add(u.class_name);
+    });
+    return Array.from(set).sort();
+  }, [dbClasses, users]);
+
+  // Enter Table Edit Mode
+  const handleEnterTableEditMode = () => {
+    const buffer: Record<string, { display_name: string; class_name: string; class_number: string }> = {};
+    visibleUsers.forEach(u => {
+      buffer[u.id] = {
+        display_name: u.display_name || '',
+        class_name: u.class_name || '',
+        class_number: u.class_number != null ? u.class_number.toString() : '',
+      };
+    });
+    setEditBuffer(buffer);
+    setIsTableEditMode(true);
+    setViewMode('list');
+    setTableEditErrorMessage(null);
+    setTableEditSuccessMessage(null);
+  };
+
+  // Buffer change
+  const handleBufferChange = (userId: string, field: 'display_name' | 'class_name' | 'class_number', value: string) => {
+    setEditBuffer(prev => ({
+      ...prev,
+      [userId]: {
+        ...(prev[userId] || { display_name: '', class_name: '', class_number: '' }),
+        [field]: value
+      }
+    }));
+  };
+
+  // Changed users list
+  const changedUsersList = useMemo(() => {
+    if (!isTableEditMode) return [];
+    return visibleUsers.filter(u => {
+      const edit = editBuffer[u.id];
+      if (!edit) return false;
+      const originalDisplayName = (u.display_name || '').trim();
+      const originalClass = (u.class_name || '').trim();
+      const originalNumber = u.class_number != null ? u.class_number.toString().trim() : '';
+      return (
+        edit.display_name.trim() !== originalDisplayName ||
+        edit.class_name.trim() !== originalClass ||
+        edit.class_number.trim() !== originalNumber
+      );
+    });
+  }, [isTableEditMode, visibleUsers, editBuffer]);
+
+  const hasUnsavedChanges = changedUsersList.length > 0;
+
+  // Exit Table Edit Mode
+  const handleExitTableEditMode = (force = false) => {
+    if (!force && hasUnsavedChanges) {
+      if (!window.confirm('您有尚未儲存的修改，確定要放棄這些變更並離開全部編輯模式嗎？')) {
+        return;
+      }
+    }
+    setIsTableEditMode(false);
+    setEditBuffer({});
+    setTableEditErrorMessage(null);
+    setTableEditSuccessMessage(null);
+  };
+
+  // Quick Action: Apply class to all currently visible students
+  const handleApplyGlobalClass = () => {
+    if (!globalClassToApply.trim()) return;
+    const target = globalClassToApply.trim();
+    setEditBuffer(prev => {
+      const next = { ...prev };
+      visibleUsers.forEach(u => {
+        if (next[u.id]) {
+          next[u.id] = { ...next[u.id], class_name: target };
+        }
+      });
+      return next;
+    });
+    setGlobalClassToApply('');
+  };
+
+  // Quick Action: Auto sequence numbers (1, 2, 3...)
+  const handleAutoSequenceNumbers = () => {
+    setEditBuffer(prev => {
+      const next = { ...prev };
+      visibleUsers.forEach((u, index) => {
+        if (next[u.id]) {
+          next[u.id] = { ...next[u.id], class_number: (index + 1).toString() };
+        }
+      });
+      return next;
+    });
+  };
+
+  // Save batch table edits
+  const handleSaveTableEdits = async () => {
+    if (changedUsersList.length === 0) {
+      setIsTableEditMode(false);
+      return;
+    }
+
+    setIsSavingTableEdits(true);
+    setTableEditErrorMessage(null);
+    setTableEditSuccessMessage(null);
+
+    try {
+      const updates = changedUsersList.map(u => {
+        const edit = editBuffer[u.id];
+        const rawNum = edit.class_number.trim();
+        const parsedNum = rawNum === '' ? null : parseInt(rawNum, 10);
+        return {
+          id: u.id,
+          display_name: edit.display_name.trim(),
+          class: edit.class_name.trim() === '' ? null : edit.class_name.trim(),
+          classNumber: isNaN(parsedNum as any) ? null : parsedNum,
+        };
+      });
+
+      const chunkSize = 30;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const adminUserId = forcedAdminId || currentUser?.id;
+
+      for (let i = 0; i < updates.length; i += chunkSize) {
+        const chunk = updates.slice(i, i + chunkSize);
+        const { data, error } = await supabase.functions.invoke('user-management/bulk-update-users', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey
+          },
+          body: {
+            adminUserId,
+            updates: chunk
+          }
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+      }
+
+      setTableEditSuccessMessage(`成功更新 ${updates.length} 位學生的資料！`);
+      await fetchUsers();
+      setTimeout(() => {
+        setIsTableEditMode(false);
+        setEditBuffer({});
+        setTableEditSuccessMessage(null);
+      }, 1200);
+    } catch (err: any) {
+      console.error('Failed to save bulk user edits:', err);
+      setTableEditErrorMessage(err.message || '儲存變更失敗，請重試');
+    } finally {
+      setIsSavingTableEdits(false);
+    }
+  };
 
   const editingUser = useMemo(() => {
     if (!editingUserId) return null;
@@ -529,6 +714,28 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                 <RotateCcw size={18} className="text-blue-500" />
                 同步用戶
               </button>
+
+              {!isTableEditMode ? (
+                <button
+                  type="button"
+                  onClick={handleEnterTableEditMode}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                  title="進入表格編輯模式，一頁過批次修改學生姓名、班別與學號"
+                >
+                  <FileSpreadsheet size={18} />
+                  <span>全部編輯 (Edit All)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleExitTableEditMode()}
+                  disabled={isSavingTableEdits}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                >
+                  <X size={16} />
+                  <span>退出編輯模式</span>
+                </button>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -551,85 +758,89 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <UserPlus className="text-blue-500" />
-                    建立新用戶
-                  </span>
-                  <button
-                    onClick={() => setShowBulkCreate(true)}
-                    className="text-xs bg-slate-50 text-slate-500 px-2 py-1 rounded-lg hover:bg-slate-100 hover:text-blue-600 transition-colors font-bold border border-slate-200"
-                    title="批量建立用戶"
-                  >
-                    批量建立
-                  </button>
-                </h2>
-                <form onSubmit={handleCreateUser} className="space-y-4">
-                  <input
-                    type="email"
-                    placeholder="電郵地址"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
-                    required
-                  />
-                  <input
-                    type="password"
-                    placeholder="密碼"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="顯示名稱"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
-                    required
-                  />
-                  <select
-                    value={gender}
-                    onChange={(e: any) => setGender(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
-                  >
-                    <option value="unspecified">性別 (不詳)</option>
-                    <option value="male">男</option>
-                    <option value="female">女</option>
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={isCreating}
-                    className="w-full py-2 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
-                  >
-                    {isCreating ? '處理中...' : '建立用戶'}
-                  </button>
-                </form>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <button
-                  onClick={() => setShowDefaultSettings(true)}
-                  className="w-full py-2 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold border border-slate-200 flex items-center justify-center gap-2"
-                >
-                  <Settings size={20} />
-                  默認權限
-                </button>
-                <button
-                  onClick={handleResetAllCoins}
-                  className="w-full py-2 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold border border-red-100 flex items-center justify-center gap-2"
-                >
-                  <RotateCcw size={20} />
-                  重置金幣
-                </button>
-              </div>
-              <BulkQRCodeExport students={visibleUsers} />
-            </div>
+            {!isTableEditMode && (
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <UserPlus className="text-blue-500" />
+                      建立新用戶
+                    </span>
+                    <button
+                      onClick={() => setShowBulkCreate(true)}
+                      className="text-xs bg-slate-50 text-slate-500 px-2 py-1 rounded-lg hover:bg-slate-100 hover:text-blue-600 transition-colors font-bold border border-slate-200"
+                      title="批量建立用戶"
+                    >
+                      批量建立
+                    </button>
+                  </h2>
+                  <form onSubmit={handleCreateUser} className="space-y-4">
+                    <input
+                      type="email"
+                      placeholder="電郵地址"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      required
+                    />
+                    <input
+                      type="password"
+                      placeholder="密碼"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="顯示名稱"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      required
+                    />
+                    <select
+                      value={gender}
+                      onChange={(e: any) => setGender(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    >
+                      <option value="unspecified">性別 (不詳)</option>
+                      <option value="male">男</option>
+                      <option value="female">女</option>
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={isCreating}
+                      className="w-full bg-blue-600 text-white py-2 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                      {isCreating ? '建立中...' : '建立用戶'}
+                    </button>
+                  </form>
+                </div>
 
-            <div className="lg:col-span-3">
-              {viewMode === 'classroom' ? (
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="font-bold text-slate-700">其他設定</h3>
+                  <button
+                    onClick={() => setShowDefaultSettings(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition"
+                  >
+                    <Settings size={20} />
+                    新用戶預設功能
+                  </button>
+                  <button
+                    onClick={handleResetAllCoins}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold transition"
+                  >
+                    <RotateCcw size={20} />
+                    重置金幣
+                  </button>
+                </div>
+                <BulkQRCodeExport students={visibleUsers} />
+              </div>
+            )}
+
+            <div className={isTableEditMode ? "col-span-1 lg:col-span-4" : "lg:col-span-3"}>
+              {viewMode === 'classroom' && !isTableEditMode ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[600px]">
                   <ClassDistributor
                     users={visibleUsers}
@@ -667,77 +878,253 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                   />
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+                  {/* Table Edit Mode Header & Actions Toolbar */}
+                  {isTableEditMode && (
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm shrink-0">
+                          <FileSpreadsheet size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-800 text-sm">表格全部編輯模式 (Spreadsheet Edit Mode)</h3>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                              共 {visibleUsers.length} 位學生
+                            </span>
+                            {hasUnsavedChanges && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                已修改 {changedUsersList.length} 位
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            直接在表格內輸入修改顯示名稱、班別與學號，按 Tab 鍵即可流暢切換下一格。
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Quick Apply Class to All */}
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                          <input
+                            type="text"
+                            list="available-classes-list"
+                            value={globalClassToApply}
+                            onChange={(e) => setGlobalClassToApply(e.target.value)}
+                            placeholder="班別 (如 4A)"
+                            className="w-24 px-2 py-1 text-xs rounded-lg border-0 outline-none font-bold text-slate-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyGlobalClass}
+                            disabled={!globalClassToApply.trim()}
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                            title="將輸入的班別一次性套用至當前列表所有學生"
+                          >
+                            套用班別
+                          </button>
+                        </div>
+
+                        {/* Auto sequence numbers */}
+                        <button
+                          type="button"
+                          onClick={handleAutoSequenceNumbers}
+                          className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm whitespace-nowrap"
+                          title="依目前由上而下順序，自動將全體學號填入 1, 2, 3..."
+                        >
+                          <Hash size={14} className="text-indigo-600" />
+                          <span>自動重編學號 (1, 2, 3...)</span>
+                        </button>
+
+                        {/* Save button */}
+                        <button
+                          type="button"
+                          onClick={handleSaveTableEdits}
+                          disabled={isSavingTableEdits || !hasUnsavedChanges}
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 whitespace-nowrap"
+                        >
+                          {isSavingTableEdits ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                          <span>儲存全部變更 ({changedUsersList.length})</span>
+                        </button>
+
+                        {/* Cancel button */}
+                        <button
+                          type="button"
+                          onClick={() => handleExitTableEditMode()}
+                          disabled={isSavingTableEdits}
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap"
+                        >
+                          退出編輯
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notification alerts */}
+                  {tableEditSuccessMessage && (
+                    <div className="p-3 bg-emerald-50 border-b border-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <span>{tableEditSuccessMessage}</span>
+                    </div>
+                  )}
+                  {tableEditErrorMessage && (
+                    <div className="p-3 bg-red-50 border-b border-red-100 text-red-700 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                      <AlertCircle size={16} className="text-red-600 shrink-0" />
+                      <span>{tableEditErrorMessage}</span>
+                    </div>
+                  )}
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                          <th className="px-6 py-4 w-10">
-                            <button
-                              onClick={() => {
-                                selectAllUsers(visibleUsers.map(u => u.id));
-                              }}
-                              className="text-slate-400 hover:text-blue-600 transition-colors"
-                            >
-                              {selectedUserIds.length > 0 && selectedUserIds.length === visibleUsers.length ? (
-                                <CheckSquare size={20} className="text-blue-600" />
-                              ) : (
-                                <Square size={20} />
-                              )}
-                            </button>
-                          </th>
-                          <th className="px-6 py-4 font-bold text-slate-600">學生</th>
-                          <th className="px-6 py-4 font-bold text-slate-600">班別/學號</th>
-                          <th className="px-6 py-4 font-bold text-slate-600">金幣</th>
-                          <th className="px-6 py-4 font-bold text-slate-600 text-right">操作</th>
-                        </tr>
-                      </thead>
+                      {isTableEditMode ? (
+                        /* Spreadsheet Table Header */
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-500 w-12 text-center">#</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-44">帳號 (User / Email)</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 min-w-[180px]">顯示名稱 (Display Name)</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-36">班別 (Class)</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-28 text-center">學號 (Number)</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-20 text-center">金幣</th>
+                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-24 text-center">狀態</th>
+                          </tr>
+                        </thead>
+                      ) : (
+                        /* Regular Table Header */
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-6 py-4 w-10">
+                              <button
+                                onClick={() => {
+                                  selectAllUsers(visibleUsers.map(u => u.id));
+                                }}
+                                className="text-slate-400 hover:text-blue-600 transition-colors"
+                              >
+                                {selectedUserIds.length > 0 && selectedUserIds.length === visibleUsers.length ? (
+                                  <CheckSquare size={20} className="text-blue-600" />
+                                ) : (
+                                  <Square size={20} />
+                                )}
+                              </button>
+                            </th>
+                            <th className="px-6 py-4 font-bold text-slate-600">學生</th>
+                            <th className="px-6 py-4 font-bold text-slate-600">班別/學號</th>
+                            <th className="px-6 py-4 font-bold text-slate-600">金幣</th>
+                            <th className="px-6 py-4 font-bold text-slate-600 text-right">操作</th>
+                          </tr>
+                        </thead>
+                      )}
+
                       <tbody>
                         {isLoadingUsers ? (
-                          <tr><td colSpan={4} className="text-center py-20 text-slate-400">Loading...</td></tr>
+                          <tr><td colSpan={isTableEditMode ? 7 : 5} className="text-center py-20 text-slate-400">Loading...</td></tr>
                         ) : visibleUsers.length === 0 ? (
-                          <tr><td colSpan={4} className="text-center py-20 text-slate-400">沒有學生數據</td></tr>
-                        ) : (
-                          visibleUsers
-                            .map(user => (
-                              <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                <td className="px-6 py-4">
-                                  <button
-                                    onClick={() => toggleUserSelection(user.id)}
-                                    className={`transition-colors ${selectedUserIds.includes(user.id) ? 'text-blue-600' : 'text-slate-300 hover:text-blue-400'}`}
-                                  >
-                                    {selectedUserIds.includes(user.id) ? (
-                                      <CheckSquare size={20} />
-                                    ) : (
-                                      <Square size={20} />
-                                    )}
-                                  </button>
+                          <tr><td colSpan={isTableEditMode ? 7 : 5} className="text-center py-20 text-slate-400">沒有學生數據</td></tr>
+                        ) : isTableEditMode ? (
+                          /* Spreadsheet Table Rows */
+                          visibleUsers.map((user, idx) => {
+                            const edit = editBuffer[user.id] || { display_name: '', class_name: '', class_number: '' };
+                            const isRowChanged = changedUsersList.some(u => u.id === user.id);
+                            return (
+                              <tr
+                                key={user.id}
+                                className={`border-b border-slate-100 transition-colors ${
+                                  isRowChanged ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-slate-50/70'
+                                }`}
+                              >
+                                <td className="px-4 py-2.5 text-xs text-slate-400 font-mono text-center">{idx + 1}</td>
+                                <td className="px-4 py-2.5">
+                                  <div className="font-medium text-slate-600 text-xs truncate max-w-[170px]" title={user.auth_email || user.email}>
+                                    {user.email}
+                                  </div>
                                 </td>
-                                <td className="px-6 py-4">
-                                  <div className="font-bold text-slate-800">{user.display_name}</div>
-                                  <div className="text-sm text-gray-500 block mt-1 font-normal">{user.auth_email || user.email}</div>
+                                <td className="px-4 py-2">
+                                  <input
+                                    type="text"
+                                    value={edit.display_name}
+                                    onChange={(e) => handleBufferChange(user.id, 'display_name', e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                                    placeholder="學生顯示名稱"
+                                  />
                                 </td>
-                                <td className="px-6 py-4">
-                                  <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
-                                  <span className="text-slate-400 font-medium">#{user.class_number || '-'}</span>
+                                <td className="px-4 py-2">
+                                  <input
+                                    type="text"
+                                    list="available-classes-list"
+                                    value={edit.class_name}
+                                    onChange={(e) => handleBufferChange(user.id, 'class_name', e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                                    placeholder="例如: 4A"
+                                  />
                                 </td>
-                                <td className="px-6 py-4 font-black text-blue-600">{user.coins || 0}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button
-                                    onClick={() => setQrUser({ id: user.id, name: user.display_name || user.email, qrToken: user.qr_token || '' })}
-                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                                  >
-                                    <QrCode size={18} />
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingUserId(user.id)}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                                  >
-                                    <Pencil size={18} />
-                                  </button>
+                                <td className="px-4 py-2 text-center">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="99"
+                                    value={edit.class_number}
+                                    onChange={(e) => handleBufferChange(user.id, 'class_number', e.target.value)}
+                                    className="w-20 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-mono text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow mx-auto block"
+                                    placeholder="學號"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5 text-center text-xs font-bold text-blue-600">
+                                  {user.coins || 0}
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  {isRowChanged ? (
+                                    <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[11px] shadow-sm">
+                                      已修改
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 text-[11px]">未變更</span>
+                                  )}
                                 </td>
                               </tr>
-                            ))
+                            );
+                          })
+                        ) : (
+                          /* Regular Table Rows */
+                          visibleUsers.map((user) => (
+                            <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => toggleUserSelection(user.id)}
+                                  className={`transition-colors ${selectedUserIds.includes(user.id) ? 'text-blue-600' : 'text-slate-300 hover:text-blue-400'}`}
+                                >
+                                  {selectedUserIds.includes(user.id) ? (
+                                    <CheckSquare size={20} />
+                                  ) : (
+                                    <Square size={20} />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="font-bold text-slate-800">{user.display_name}</div>
+                                <div className="text-sm text-gray-500 block mt-1 font-normal">{user.auth_email || user.email}</div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
+                                <span className="text-slate-400 font-medium">#{user.class_number || '-'}</span>
+                              </td>
+                              <td className="px-6 py-4 font-black text-blue-600">{user.coins || 0}</td>
+                              <td className="px-6 py-4 text-right space-x-2">
+                                <button
+                                  onClick={() => setQrUser({ id: user.id, name: user.display_name || user.email, qrToken: user.qr_token || '' })}
+                                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                >
+                                  <QrCode size={18} />
+                                </button>
+                                <button
+                                  onClick={() => setEditingUserId(user.id)}
+                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                >
+                                  <Pencil size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>
