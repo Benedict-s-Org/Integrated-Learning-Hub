@@ -8,7 +8,7 @@ import { ClassDistributor } from '@/components/admin/ClassDistributor';
 import { REWARD_REASONS } from '@/constants/rewardConfig';
 import { CoinAwardModal } from '@/components/admin/CoinAwardModal';
 import { StudentProfileModal } from '@/components/admin/StudentProfileModal';
-import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen, Clock, Play } from 'lucide-react';
+import { History, Settings2, LayoutGrid, Users, Activity, Layers, Save, Zap, UserCheck, CalendarDays, Sparkles, RotateCcw, Sun, BookOpen, Clock, Play, Trash2 } from 'lucide-react';
 import { holidayService, HolidayConfig } from '@/services/holidayService';
 import { playSuccessSound } from '@/utils/audio';
 import { BroadcastQuickBar } from '@/components/admin/notifications/BroadcastQuickBar';
@@ -1718,8 +1718,32 @@ export function ClassDashboardPage() {
                                                 data-theme-key="headerFontSize"
                                             >
                                                 <span>{activeClass === 'Unassigned' ? 'No Class Assigned' : activeClass}</span>
-                                                <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length} Students</span>
+                                                <span className="text-sm font-normal text-slate-400">{groupedUsers[activeClass]?.length || 0} Students</span>
                                             </h2>
+                                            {isAdmin && activeClass !== 'Unassigned' && (groupedUsers[activeClass]?.length || 0) === 0 && (
+                                                <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-amber-800">💡 提示：</span>
+                                                        <span>此班別「{activeClass}」目前沒有任何學生。若您在新學年已不需要此班別，可直接將其從班別列表中刪除。</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!window.confirm(`確定要刪除空白班別「${activeClass}」嗎？此操作會將它從班別列表中徹底移除。`)) return;
+                                                            try {
+                                                                await (supabase as any).from('classes').delete().eq('name', activeClass);
+                                                                await fetchUsers({ forceRefresh: true });
+                                                            } catch (err: any) {
+                                                                alert(`刪除班別失敗: ${err.message}`);
+                                                            }
+                                                        }}
+                                                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-sm transition-all whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        刪除空白班別「{activeClass}」
+                                                    </button>
+                                                </div>
+                                            )}
                                             <ClassDistributor
                                                 users={groupedUsers[activeClass] || []}
                                                 avatarCatalog={avatarCatalog}
