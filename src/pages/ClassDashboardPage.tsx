@@ -74,6 +74,14 @@ export interface UserWithCoins {
     consequence_count?: number;
 }
 
+export const isArchivedClassName = (name?: string | null, archivedList?: string[]): boolean => {
+    if (!name) return false;
+    const trimmed = name.trim().toLowerCase();
+    if (archivedList && archivedList.some(a => a.trim().toLowerCase() === trimmed)) return true;
+    if (trimmed.includes('(2526)') || trimmed.includes('(2025-2026)') || trimmed.includes('2526')) return true;
+    return false;
+};
+
 interface SortableTabProps {
     id: string;
     label: string;
@@ -417,6 +425,7 @@ export function ClassDashboardPage() {
     // Predefined Groups
     const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
     const [orderedActivities, setOrderedActivities] = useState<{ id: string, name: string }[]>([]);
+    const [archivedClasses, setArchivedClasses] = useState<string[]>([]);
 
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
@@ -546,8 +555,8 @@ export function ClassDashboardPage() {
             if (globalClassesCache && !options?.forceRefresh) {
                 phase1Promises.push(Promise.resolve({ type: 'classes', data: globalClassesCache }));
             } else {
-                phase1Promises.push((supabase as any).from('classes').select('id, name, is_archived').order('order_index')
-                    .then((res: any) => ({ type: 'classes', data: (res.data || []).filter((c: any) => !c.is_archived) })));
+                phase1Promises.push((supabase as any).from('classes').select('id, name, is_archived, order_index').order('order_index')
+                    .then((res: any) => ({ type: 'classes', data: res.data || [] })));
             }
 
             // Activities (with global cache)
@@ -568,16 +577,25 @@ export function ClassDashboardPage() {
 
             const phase1Results = await Promise.all(phase1Promises);
 
+            let rawClassesList: any[] = [];
             phase1Results.forEach(res => {
                 if (res.type === 'users') usersData = res.data;
-                if (res.type === 'classes') classData = res.data;
+                if (res.type === 'classes') rawClassesList = res.data;
                 if (res.type === 'activities') activityData = res.data;
                 if (res.type === 'catalog') catalogData = res.data;
             });
 
+            // Extract archived classes list and active classes
+            const currentArchivedList = rawClassesList
+                .filter((c: any) => c.is_archived || isArchivedClassName(c.name))
+                .map((c: any) => c.name.trim());
+            setArchivedClasses(currentArchivedList);
+
+            classData = rawClassesList.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name, currentArchivedList));
+
             // Refresh global caches
             if (usersData.length > 0 && !useAuthCache) globalAuthUserCache = { users: usersData, lastFetch: now };
-            globalClassesCache = classData;
+            globalClassesCache = rawClassesList;
             globalActivitiesCache = activityData;
             globalAvatarCatalog = catalogData;
 
@@ -589,10 +607,13 @@ export function ClassDashboardPage() {
             }
 
             // 2. Map and Group (Optimization: All data aggregated in Edge Function)
+            // Filter out archived students so they never clutter the active dashboard
+            const activeUsersData = usersData.filter((u: any) => !isArchivedClassName(u.class, currentArchivedList));
+
             const today = getHKTodayString();
             const counts: Record<string, number> = {};
 
-            const finalUsers: UserWithCoins[] = usersData.map((u: any) => {
+            const finalUsers: UserWithCoins[] = activeUsersData.map((u: any) => {
                 if (u.consequence_count) counts[u.id] = u.consequence_count;
 
                 const dc = u.daily_counts || {};
@@ -628,24 +649,25 @@ export function ClassDashboardPage() {
             // 3. Grouping Logic
             // Auto-populate classes table from distinct user class names, checking all existing/archived classes
             const { data: allDbClasses } = await (supabase as any).from('classes').select('name, is_archived');
-            const allKnownNames = new Set((allDbClasses || []).map((c: any) => c.name));
+            const allKnownNames = new Set((allDbClasses || []).map((c: any) => c.name.trim().toLowerCase()));
             const userClassNames = [...new Set(finalUsers.map(u => u.class).filter((c): c is string => !!c && c !== 'Unassigned'))];
-            const missingClasses = userClassNames.filter(name => !allKnownNames.has(name));
+            const missingClasses = userClassNames.filter(name => !allKnownNames.has(name.trim().toLowerCase()) && !isArchivedClassName(name, currentArchivedList));
 
             if (missingClasses.length > 0) {
                 const inserts = missingClasses.map((name, i) => ({ name, order_index: classData.length + i }));
                 const { error: insertError } = await (supabase as any).from('classes').insert(inserts);
                 if (!insertError) {
-                    const { data: refreshed } = await (supabase as any).from('classes').select('id, name, is_archived').order('order_index');
-                    classData = ((refreshed || []).filter((c: any) => !c.is_archived)) as { id: string, name: string }[];
-                    globalClassesCache = classData;
+                    const { data: refreshed } = await (supabase as any).from('classes').select('id, name, is_archived, order_index').order('order_index');
+                    rawClassesList = refreshed || [];
+                    classData = rawClassesList.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name, currentArchivedList));
+                    globalClassesCache = rawClassesList;
                 }
             }
 
             setOrderedClasses(classData);
             setOrderedActivities(activityData);
 
-            if (classData.length > 0 && !classData.some(c => c.name === activeClass)) {
+            if (classData.length > 0 && (!classData.some(c => c.name === activeClass) || isArchivedClassName(activeClass, currentArchivedList))) {
                 setActiveClass(classData[0].name);
             }
 
@@ -690,12 +712,14 @@ export function ClassDashboardPage() {
         }
     }, [isStaff, currentUser?.id]);
 
-    // Initial class selection for class_staff
+    // Initial class selection for class_staff or if activeClass is archived
     useEffect(() => {
-        if (isStaff && !isAdmin && orderedClasses.length > 0 && activeClass === '3A') {
-            setActiveClass(orderedClasses[0].name);
+        if (isStaff && orderedClasses.length > 0 && (activeClass === '3A' || isArchivedClassName(activeClass, archivedClasses))) {
+            if (!isAdmin || isArchivedClassName(activeClass, archivedClasses)) {
+                setActiveClass(orderedClasses[0].name);
+            }
         }
-    }, [isStaff, isAdmin, orderedClasses, activeClass]);
+    }, [isStaff, isAdmin, orderedClasses, activeClass, archivedClasses]);
 
     // Real-time updates for counts and status
     useEffect(() => {
@@ -1147,14 +1171,17 @@ export function ClassDashboardPage() {
 
         if (isStaff) {
             // Priority 1: Current ordered items (from state, allows DND to work)
-            const baseOrder = currentOrderedItems.map(item => item.name);
+            const baseOrder = currentOrderedItems
+                .map(item => item.name)
+                .filter(name => !isArchivedClassName(name, archivedClasses));
 
             // Priority 2: Extra keys found in groupedUsers but not in any predefined state
             const extras = allKeys.filter(k => {
                 const kLower = k.toLowerCase();
                 const isInBase = baseOrder.some(b => b.toLowerCase() === kLower);
                 const isInOther = otherPredefinedNames.includes(kLower);
-                return !isInBase && !isInOther && k !== 'Unassigned';
+                const isArchived = isArchivedClassName(k, archivedClasses);
+                return !isInBase && !isInOther && !isArchived && k !== 'Unassigned';
             });
 
             // Combine based on view mode
@@ -1166,7 +1193,7 @@ export function ClassDashboardPage() {
         }
 
         return [];
-    }, [groupedUsers, orderedClasses, orderedActivities, isStaff, viewMode, activeClass]);
+    }, [groupedUsers, orderedClasses, orderedActivities, isStaff, viewMode, activeClass, archivedClasses]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -1760,9 +1787,9 @@ export function ClassDashboardPage() {
                             </div>
                         </div>
                         <MorningDutiesBoard
-                            activeClass={activeClass === 'all' ? '3A' : activeClass}
+                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass}
                             users={(() => {
-                                const targetClass = activeClass === 'all' ? '3A' : activeClass;
+                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass;
                                 const rawUsers = groupedUsers[targetClass] || [];
                                 const uniqueUsersMap = new Map();
                                 rawUsers.forEach(u => {
@@ -1863,9 +1890,9 @@ export function ClassDashboardPage() {
                 <PipWindow pipWindow={pipWindow}>
                     <div className="w-full h-screen bg-slate-50 overflow-hidden">
                         <MorningDutiesBoard
-                            activeClass={activeClass === 'all' ? '3A' : activeClass}
+                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass}
                             users={(() => {
-                                const targetClass = activeClass === 'all' ? '3A' : activeClass;
+                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass;
                                 const rawUsers = groupedUsers[targetClass] || [];
                                 const uniqueUsersMap = new Map();
                                 rawUsers.forEach(u => {

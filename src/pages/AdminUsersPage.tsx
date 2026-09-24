@@ -171,9 +171,9 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
       // Fetch classes for dropdown and autocomplete
       try {
-        const { data: classRows } = await (supabase.from('classes').select('name') as any);
+        const { data: classRows } = await (supabase.from('classes').select('name, is_archived') as any);
         if (classRows) {
-          setDbClasses(classRows.map((c: any) => c.name).filter(Boolean));
+          setDbClasses(classRows.filter((c: any) => !c.is_archived && !c.name?.includes('(2526)')).map((c: any) => c.name).filter(Boolean));
         }
       } catch (err) {
         console.warn('Failed to fetch classes in AdminUsersPage:', err);

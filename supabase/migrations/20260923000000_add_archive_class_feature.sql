@@ -2,10 +2,11 @@
 -- Purpose: Support class archiving, student academic year records backup, and resetting coins to 0 with balancing audit records
 -- Path: supabase/migrations/20260923000000_add_archive_class_feature.sql
 
--- 1. Alter classes table to add archive columns
+-- 1. Alter classes table to add columns (in case table already existed previously without them)
 ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE NULL;
 ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS academic_year TEXT NULL;
+ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS order_index INT DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_classes_is_archived ON public.classes(is_archived);
 
@@ -28,13 +29,22 @@ DECLARE
     v_student RECORD;
     v_archive_time TIMESTAMPTZ := NOW();
     v_year_clean TEXT;
+    v_base_name TEXT;
     v_archived_name TEXT;
 BEGIN
     v_operator_id := COALESCE(p_archived_by, auth.uid());
     
     -- Clean academic year label (e.g. "2025-2026" or "2526")
     v_year_clean := TRIM(COALESCE(NULLIF(p_academic_year, ''), TO_CHAR(v_archive_time, 'YYYY') || '-' || TO_CHAR(v_archive_time + INTERVAL '1 year', 'YYYY')));
-    v_archived_name := TRIM(p_class_name) || ' (' || v_year_clean || ')';
+    
+    -- Extract base class name without pre-existing year tags (e.g. "3A(2526)" or "3A (2025-2026)" -> "3A")
+    v_base_name := TRIM(REGEXP_REPLACE(p_class_name, '\s*\(\d{2,4}(?:[-/]?\d{2,4})?[^)]*\)$', ''));
+    IF v_base_name = '' THEN
+        v_base_name := TRIM(p_class_name);
+    END IF;
+
+    -- Form the standard archived name: e.g. "3A (2526)" or "3A (2025-2026)"
+    v_archived_name := v_base_name || ' (' || v_year_clean || ')';
 
     -- Authorization check: caller must be admin
     IF v_operator_id IS NOT NULL AND NOT EXISTS (
@@ -45,7 +55,7 @@ BEGIN
         RAISE EXCEPTION 'Unauthorized: Only administrators can archive a class';
     END IF;
 
-    -- 1. Reset coins and insert balancing records for all students currently in this class
+    -- 1. Reset coins and insert balancing records for all students currently in this class (or its variants)
     FOR v_student IN (
         SELECT 
             u.id, 
@@ -54,7 +64,7 @@ BEGIN
             COALESCE(urd.virtual_coins, 0) AS current_virtual_coins
         FROM public.users u
         LEFT JOIN public.user_room_data urd ON urd.user_id = u.id
-        WHERE u.class = p_class_name
+        WHERE u.class = p_class_name OR u.class = v_archived_name
     ) LOOP
         v_user_count := v_user_count + 1;
 
@@ -110,31 +120,33 @@ BEGIN
         WHERE user_id = v_student.id;
     END LOOP;
 
-    -- 2. Update students' class to the archived year name so they don't collide with the new clean class
+    -- 2. Update students' class to the clean archived year name
     UPDATE public.users
     SET class = v_archived_name
-    WHERE class = p_class_name;
+    WHERE class = p_class_name OR class = v_archived_name;
 
-    -- 3. Archive the class in public.classes table (rename to archived name to free up clean name)
-    -- Remove any pre-existing duplicate with the target archived name
+    -- 3. In classes table:
     DELETE FROM public.classes WHERE name = v_archived_name;
+    IF p_class_name <> v_base_name THEN
+        DELETE FROM public.classes WHERE name = p_class_name;
+    END IF;
 
     UPDATE public.classes
     SET name = v_archived_name,
         is_archived = TRUE,
         archived_at = v_archive_time,
         academic_year = v_year_clean
-    WHERE name = p_class_name;
+    WHERE name = p_class_name OR name = v_archived_name;
 
     IF NOT FOUND THEN
         INSERT INTO public.classes (name, is_archived, archived_at, academic_year)
         VALUES (v_archived_name, TRUE, v_archive_time, v_year_clean);
     END IF;
 
-    -- 4. Recreate the fresh clean class if requested
+    -- 4. Recreate the fresh clean base class if requested (e.g. "3A", never with old year)
     IF p_auto_recreate THEN
         INSERT INTO public.classes (name, is_archived, academic_year)
-        VALUES (p_class_name, FALSE, NULL)
+        VALUES (v_base_name, FALSE, NULL)
         ON CONFLICT (name) DO UPDATE 
         SET is_archived = FALSE, archived_at = NULL;
     END IF;
@@ -144,7 +156,7 @@ BEGIN
 
     RETURN jsonb_build_object(
         'success', TRUE,
-        'original_class', p_class_name,
+        'base_class', v_base_name,
         'archived_class', v_archived_name,
         'academic_year', v_year_clean,
         'archived_students_count', v_user_count,
@@ -176,3 +188,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 5. Grant execute permissions
 GRANT EXECUTE ON FUNCTION public.archive_class(TEXT, UUID, TEXT, BOOLEAN) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.unarchive_class(TEXT) TO authenticated;
+
+-- 6. Immediate cleanup for existing redundant classes (e.g. "3A(2526)")
+UPDATE public.users 
+SET class = '3A (2526)' 
+WHERE class = '3A(2526) (2025-2026)' OR class = '3A(2526)';
+
+DELETE FROM public.classes WHERE name = '3A(2526) (2025-2026)';
+DELETE FROM public.classes WHERE name = '3A(2526)';
+
+INSERT INTO public.classes (name, is_archived, archived_at, academic_year)
+VALUES ('3A (2526)', TRUE, NOW(), '2025-2026')
+ON CONFLICT (name) DO UPDATE 
+SET is_archived = TRUE, archived_at = NOW(), academic_year = '2025-2026';
