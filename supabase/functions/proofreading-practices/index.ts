@@ -403,6 +403,70 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (path.endsWith("/student-results")) {
+      const { studentUserId, requesterUserId } = await req.json();
+
+      if (!studentUserId) {
+        return new Response(
+          JSON.stringify({ error: "Missing studentUserId" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check requester permissions if provided
+      if (requesterUserId && requesterUserId !== studentUserId) {
+        const { data: user, error: userError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", requesterUserId)
+          .maybeSingle();
+
+        if (userError || !user || (user.role !== "admin" && user.role !== "class_staff")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized to view student results" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const { data: results, error: resultsError } = await supabase
+        .from("proofreading_practice_results")
+        .select("*")
+        .eq("user_id", studentUserId)
+        .order("completed_at", { ascending: false });
+
+      if (resultsError) {
+        console.error("Error fetching student proofreading results:", resultsError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch student results", details: resultsError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Fetch practice titles
+      const practiceIds = [...new Set((results || []).map((r: any) => r.practice_id).filter(Boolean))];
+      if (practiceIds.length > 0) {
+        const { data: practices } = await supabase
+          .from("proofreading_practices")
+          .select("id, title")
+          .in("id", practiceIds);
+
+        if (practices) {
+          const titleMap = new Map(practices.map((p: any) => [p.id, p.title]));
+          (results || []).forEach((r: any) => {
+            if (r.practice_id && titleMap.has(r.practice_id)) {
+              r.proofreading_practices = { title: titleMap.get(r.practice_id) };
+            }
+          });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, results: results || [] }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Not found" }),
       {

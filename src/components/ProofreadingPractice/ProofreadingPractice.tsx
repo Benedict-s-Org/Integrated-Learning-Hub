@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Check, X, Lightbulb, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, X, Lightbulb, AlertCircle, MinusCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -37,6 +37,8 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
   const [revealedTips, setRevealedTips] = useState<Set<number>>(new Set());
   const [notSureLines, setNotSureLines] = useState<Set<number>>(new Set());
   const [isParsing, setIsParsing] = useState(true);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!Array.isArray(sentences)) {
@@ -175,7 +177,51 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     });
   };
 
-  const handleCheckAnswers = async () => {
+  const getQuestionStatus = (lineNumber: number): 'correct' | 'incorrect' | 'notSure' | 'incomplete' => {
+    if (notSureLines.has(lineNumber)) return 'notSure';
+
+    const userSelectedWord = selectedWords.get(lineNumber);
+    const userCorrection = corrections.get(lineNumber);
+
+    const hasSelection = userSelectedWord !== undefined;
+    const hasCorrection = userCorrection !== undefined && userCorrection.trim() !== '';
+
+    // If user has not provided both a word selection and a correction, it is counted as incomplete (漏空未完成)
+    if (!hasSelection || !hasCorrection) {
+      return 'incomplete';
+    }
+
+    const correctAnswer = correctAnswers.get(lineNumber);
+    if (!correctAnswer) return 'incorrect';
+
+    const isCorrect =
+      userSelectedWord === correctAnswer.wordIndex &&
+      userCorrection?.trim().toLowerCase() === correctAnswer.correction.trim().toLowerCase();
+
+    return isCorrect ? 'correct' : 'incorrect';
+  };
+
+  const getIncompleteCount = (): number => {
+    let count = 0;
+    parsedSentences.forEach((sentence) => {
+      if (getQuestionStatus(sentence.lineNumber) === 'incomplete') {
+        count++;
+      }
+    });
+    return count;
+  };
+
+  const handleCheckAnswers = () => {
+    const incompleteCount = getIncompleteCount();
+    if (incompleteCount > 0 && !isPreview) {
+      setShowConfirmModal(true);
+    } else {
+      executeSubmission();
+    }
+  };
+
+  const executeSubmission = async () => {
+    setShowConfirmModal(false);
     setShowResults(true);
     if (!isPreview) {
       await saveResults();
@@ -187,17 +233,20 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
   const saveResults = async () => {
     if (!user) return;
     setSaveError(null);
+    setIsSaving(true);
 
     const timeSpentSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
     const { correctCount, totalQuestions, percentage } = calculateScore();
 
     const userAnswersList = parsedSentences.map((sentence) => {
       const lineNumber = sentence.lineNumber;
+      const status = getQuestionStatus(lineNumber);
       return {
         lineNumber,
         wordIndex: selectedWords.get(lineNumber),
         correction: corrections.get(lineNumber) || '',
         isNotSure: notSureLines.has(lineNumber),
+        isIncomplete: status === 'incomplete',
       };
     });
 
@@ -242,6 +291,8 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     } catch (error) {
       console.error('Unexpected error saving proofreading practice results:', error);
       setSaveError('An unexpected error occurred while saving. Please contact your teacher.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -251,46 +302,54 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       setCorrections(new Map());
       setShowResults(false);
       setRevealedTips(new Set());
+      setShowConfirmModal(false);
       startTimeRef.current = Date.now();
     }
   };
 
-
-  // Pure checker that does NOT depend on showResults state.
-  // Used by both calculateScore (at save-time, before React flushes state)
-  // and isAnswerCorrect (at render-time).
   const checkAnswer = (lineNumber: number): boolean | null => {
-    const correctAnswer = correctAnswers.get(lineNumber);
-    if (!correctAnswer) return null;
-
-    const userSelectedWord = selectedWords.get(lineNumber);
-    const userCorrection = corrections.get(lineNumber);
-    const isNotSure = notSureLines.has(lineNumber);
-
-    if (isNotSure) return false;
-
-    return (
-      userSelectedWord === correctAnswer.wordIndex &&
-      userCorrection?.trim().toLowerCase() === correctAnswer.correction.trim().toLowerCase()
-    );
+    return getQuestionStatus(lineNumber) === 'correct';
   };
 
-  // UI display helper – returns null when results aren't shown yet
   const isAnswerCorrect = (lineNumber: number): boolean | null => {
     if (!showResults) return null;
-    return checkAnswer(lineNumber);
+    return getQuestionStatus(lineNumber) === 'correct';
+  };
+
+  const getDisplayStatus = (lineNumber: number): 'correct' | 'incorrect' | 'notSure' | 'incomplete' | null => {
+    if (!showResults) return null;
+    return getQuestionStatus(lineNumber);
   };
 
   const calculateScore = () => {
     const totalQuestions = correctAnswers.size;
     let correctCount = 0;
+    let incorrectCount = 0;
+    let incompleteCount = 0;
+    let notSureCount = 0;
+
     correctAnswers.forEach((_, lineNumber) => {
-      if (checkAnswer(lineNumber) === true) {
+      const status = getQuestionStatus(lineNumber);
+      if (status === 'correct') {
         correctCount++;
+      } else if (status === 'incomplete') {
+        incompleteCount++;
+      } else if (status === 'notSure') {
+        notSureCount++;
+      } else {
+        incorrectCount++;
       }
     });
+
     const percentage = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
-    return { correctCount, totalQuestions, percentage };
+    return {
+      correctCount,
+      incorrectCount,
+      incompleteCount,
+      notSureCount,
+      totalQuestions,
+      percentage,
+    };
   };
 
   return (
@@ -363,17 +422,22 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                         const selectedWordIndex = selectedWords.get(sentence.lineNumber);
                         const correction = corrections.get(sentence.lineNumber) || '';
                         const correctAnswer = correctAnswers.get(sentence.lineNumber);
-                        const isCorrect = isAnswerCorrect(sentence.lineNumber);
+                        const status = getDisplayStatus(sentence.lineNumber);
 
                         return (
                           <tr
                             key={sentence.lineNumber}
-                            className={`hover:bg-gray-50 ${showResults && isCorrect === true
-                              ? 'bg-green-50'
-                              : showResults && isCorrect === false
-                                ? 'bg-red-50'
-                                : ''
-                              }`}
+                            className={`transition-colors hover:bg-gray-50/80 ${
+                              showResults && status === 'correct'
+                                ? 'bg-green-50/70'
+                                : showResults && status === 'incomplete'
+                                  ? 'bg-slate-50'
+                                  : showResults && status === 'notSure'
+                                    ? 'bg-yellow-50/60'
+                                    : showResults && status === 'incorrect'
+                                      ? 'bg-red-50/70'
+                                      : ''
+                            }`}
                             data-source-tsx="ProofreadingPractice Table Row|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
                           >
                             <td className="border border-gray-300 px-4 py-3 text-center font-medium text-gray-700 relative group">
@@ -435,11 +499,23 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                               <div className="flex items-center space-x-2">
                                 <Input
                                   type="text"
-                                  value={notSureLines.has(sentence.lineNumber) ? '不知道 (Not Sure)' : correction}
+                                  value={
+                                    notSureLines.has(sentence.lineNumber)
+                                      ? '不知道 (Not Sure)'
+                                      : showResults && status === 'incomplete'
+                                        ? (correction ? `${correction}（未選取錯誤單詞）` : '（未作答 / 漏空）')
+                                        : correction
+                                  }
                                   onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
                                   disabled={showResults || isPreview || notSureLines.has(sentence.lineNumber)}
                                   placeholder={notSureLines.has(sentence.lineNumber) ? '' : "Type correction"}
-                                  className={`flex-1 ${notSureLines.has(sentence.lineNumber) ? 'bg-gray-100 italic text-gray-500' : ''}`}
+                                  className={`flex-1 ${
+                                    notSureLines.has(sentence.lineNumber)
+                                      ? 'bg-gray-100 italic text-gray-500'
+                                      : showResults && status === 'incomplete'
+                                        ? 'bg-slate-100 italic text-slate-500'
+                                        : ''
+                                  }`}
                                   data-source-tsx="ProofreadingPractice Answer Input|src/components/ProofreadingPractice/ProofreadingPractice.tsx"
                                 />
                                 {!showResults && !isPreview && (
@@ -455,15 +531,22 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                                   </button>
                                 )}
                                 {showResults && (
-                                  <div className="flex-shrink-0 flex items-center space-x-1">
-                                    {notSureLines.has(sentence.lineNumber) && (
-                                      <span className="text-xs font-medium text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-100">
+                                  <div className="flex-shrink-0 flex items-center space-x-1.5">
+                                    {status === 'notSure' && (
+                                      <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded border border-yellow-200">
                                         Not Sure
                                       </span>
                                     )}
+                                    {status === 'incomplete' && (
+                                      <span className="text-xs font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded border border-slate-300">
+                                        未完成
+                                      </span>
+                                    )}
                                     {correctAnswer && (
-                                      isCorrect === true ? (
+                                      status === 'correct' ? (
                                         <Check className="text-green-600" size={24} />
+                                      ) : status === 'incomplete' ? (
+                                        <MinusCircle className="text-slate-400" size={22} />
                                       ) : (
                                         <X className="text-red-600" size={24} />
                                       )
@@ -494,17 +577,22 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                     const selectedWordIndex = selectedWords.get(sentence.lineNumber);
                     const correction = corrections.get(sentence.lineNumber) || '';
                     const correctAnswer = correctAnswers.get(sentence.lineNumber);
-                    const isCorrect = isAnswerCorrect(sentence.lineNumber);
+                    const status = getDisplayStatus(sentence.lineNumber);
 
                     return (
                       <div
                         key={sentence.lineNumber}
-                        className={`bg-white border rounded-lg p-4 shadow-sm ${showResults && isCorrect === true
-                          ? 'border-green-200 bg-green-50/30'
-                          : showResults && isCorrect === false
-                            ? 'border-red-200 bg-red-50/30'
-                            : 'border-gray-200'
-                          }`}
+                        className={`bg-white border rounded-lg p-4 shadow-sm transition-colors ${
+                          showResults && status === 'correct'
+                            ? 'border-green-200 bg-green-50/40'
+                            : showResults && status === 'incomplete'
+                              ? 'border-slate-300 bg-slate-50/60'
+                              : showResults && status === 'notSure'
+                                ? 'border-yellow-200 bg-yellow-50/40'
+                                : showResults && status === 'incorrect'
+                                  ? 'border-red-200 bg-red-50/40'
+                                  : 'border-gray-200'
+                        }`}
                       >
                         <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
                           <span className="font-semibold text-gray-500 text-sm">Question {sentence.lineNumber + 1}</span>
@@ -570,11 +658,23 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                             <div className="flex gap-2">
                               <Input
                                 type="text"
-                                value={notSureLines.has(sentence.lineNumber) ? '不知道 (Not Sure)' : correction}
+                                value={
+                                  notSureLines.has(sentence.lineNumber)
+                                    ? '不知道 (Not Sure)'
+                                    : showResults && status === 'incomplete'
+                                      ? (correction ? `${correction}（未選取錯誤單詞）` : '（未作答 / 漏空）')
+                                      : correction
+                                }
                                 onChange={(e) => handleCorrectionChange(sentence.lineNumber, e.target.value)}
                                 disabled={showResults || isPreview || notSureLines.has(sentence.lineNumber)}
                                 placeholder={notSureLines.has(sentence.lineNumber) ? '' : "Type correction..."}
-                                className={`flex-1 bg-white ${notSureLines.has(sentence.lineNumber) ? 'bg-gray-100 italic text-gray-500' : ''}`}
+                                className={`flex-1 bg-white ${
+                                  notSureLines.has(sentence.lineNumber)
+                                    ? 'bg-gray-100 italic text-gray-500'
+                                    : showResults && status === 'incomplete'
+                                      ? 'bg-slate-100 italic text-slate-500 border-slate-300'
+                                      : ''
+                                }`}
                               />
                               {!showResults && !isPreview && (
                                 <button
@@ -588,15 +688,22 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                                 </button>
                               )}
                               {showResults && (
-                                <div className="flex-shrink-0 flex items-center justify-center w-10 gap-1">
-                                  {notSureLines.has(sentence.lineNumber) && (
-                                    <span className="text-[10px] font-medium text-yellow-600 bg-yellow-50 px-1 py-0.5 rounded border border-yellow-100">
-                                      ?
+                                <div className="flex-shrink-0 flex items-center justify-center gap-1.5">
+                                  {status === 'notSure' && (
+                                    <span className="text-[10px] font-medium text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded border border-yellow-200">
+                                      不知道
+                                    </span>
+                                  )}
+                                  {status === 'incomplete' && (
+                                    <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded border border-slate-300">
+                                      未完成
                                     </span>
                                   )}
                                   {correctAnswer && (
-                                    isCorrect === true ? (
+                                    status === 'correct' ? (
                                       <Check className="text-green-600" size={24} />
+                                    ) : status === 'incomplete' ? (
+                                      <MinusCircle className="text-slate-400" size={20} />
                                     ) : (
                                       <X className="text-red-600" size={24} />
                                     )
@@ -646,27 +753,76 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                         onClick={handleCheckAnswers}
                         variant="success"
                         icon={Check}
+                        disabled={isSaving}
                         className="w-full sm:w-auto"
                       >
-                        Check Answers
+                        {isSaving ? 'Submitting...' : 'Check Answers'}
                       </Button>
                     )}
                   </div>
                 </div>
 
                 {showResults && (() => {
-                  const { correctCount, totalQuestions, percentage } = calculateScore();
+                  const { correctCount, incorrectCount, incompleteCount, notSureCount, totalQuestions, percentage } = calculateScore();
 
                   return (
-                    <div className={`mt-6 p-4 border rounded-lg ${percentage >= 70 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                    <div className={`mt-6 p-5 border rounded-xl ${
+                      percentage >= 70 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <p className={`text-center font-bold text-xl mb-3 ${
+                        percentage >= 70 ? 'text-green-800' : 'text-yellow-800'
                       }`}>
-                      <p className={`text-center font-medium text-lg ${percentage >= 70 ? 'text-green-800' : 'text-yellow-800'
-                        }`}>
                         Score: {correctCount} / {totalQuestions} ({percentage}%)
                       </p>
+                      <div className="flex flex-wrap justify-center items-center gap-3 text-sm font-medium">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-800">
+                          <Check size={16} /> 正確: {correctCount}
+                        </span>
+                        {(incorrectCount + notSureCount) > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800">
+                            <X size={16} /> 錯誤: {incorrectCount + notSureCount}
+                          </span>
+                        )}
+                        {incompleteCount > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700">
+                            <MinusCircle size={16} /> 未完成 (漏空): {incompleteCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
+
+                {/* Confirm Early Submission Modal */}
+                {showConfirmModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+                      <div className="flex items-center space-x-3 text-amber-600">
+                        <AlertCircle size={28} className="shrink-0" />
+                        <h3 className="text-lg font-bold text-gray-900">尚有題目未完成</h3>
+                      </div>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        目前還有 <span className="font-bold text-amber-600">{getIncompleteCount()}</span> 題未填寫完成。
+                        確定要現在提交嗎？<br />
+                        <span className="text-xs text-gray-500 mt-1 block">（漏空的題目將計為「未完成」，不予計分）</span>
+                      </p>
+                      <div className="flex justify-end space-x-3 pt-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setShowConfirmModal(false)}
+                        >
+                          繼續作答
+                        </Button>
+                        <Button
+                          variant="success"
+                          onClick={executeSubmission}
+                        >
+                          確認提交
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </Card>

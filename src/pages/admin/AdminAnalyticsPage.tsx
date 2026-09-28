@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Trophy, Activity, Users, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface ClassSummary {
   class_name: string;
@@ -187,9 +188,22 @@ export function AdminAnalyticsPage() {
               className="bg-white border border-slate-300 rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Classes</option>
-              {classSummaries.map(c => (
-                <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
-              ))}
+              <optgroup label="現有在讀班別">
+                {classSummaries
+                  .filter(c => !isArchivedClassName(c.class_name))
+                  .map(c => (
+                    <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
+                  ))}
+              </optgroup>
+              {classSummaries.some(c => isArchivedClassName(c.class_name)) && (
+                <optgroup label="已封存班別">
+                  {classSummaries
+                    .filter(c => isArchivedClassName(c.class_name))
+                    .map(c => (
+                      <option key={c.class_name} value={c.class_name}>{c.class_name} (已封存)</option>
+                    ))}
+                </optgroup>
+              )}
             </select>
             <button 
               onClick={() => fetchAnalytics(false)}
@@ -333,6 +347,9 @@ export function AdminAnalyticsPage() {
                                   <span className="text-slate-400 font-normal w-4">{idx + 1}.</span>
                                   {student.display_name} 
                                   <span className="text-xs text-slate-400">({student.class})</span>
+                                  {student.class && isArchivedClassName(student.class) && (
+                                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">已封存</span>
+                                  )}
                                 </div>
                               </td>
                                <td className="px-4 py-3 text-center">

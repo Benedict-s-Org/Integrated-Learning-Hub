@@ -203,8 +203,10 @@ export interface ProofreadingPracticeResult {
   correct_answers: ProofreadingAnswer[];
   user_answers: {
     lineNumber: number;
-    wordIndex: number;
-    correction: string;
+    wordIndex?: number;
+    correction?: string;
+    isNotSure?: boolean;
+    isIncomplete?: boolean;
   }[];
   correct_count: number;
   total_count: number;

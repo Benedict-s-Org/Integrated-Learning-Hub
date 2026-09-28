@@ -560,72 +560,172 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
 
           {/* Learning Levels Section */}
           <div className="space-y-4 p-4 border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--muted)/0.2)]">
-            <label className="flex items-center gap-2 text-sm font-bold text-[hsl(var(--foreground))]">
-              <Shield className="w-4 h-4" />
-              學習等級 (Learning Levels)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm font-bold text-[hsl(var(--foreground))]">
+                <Shield className="w-4 h-4 text-indigo-600" />
+                學習等級 (Learning Levels)
+              </label>
+              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                每項單選 (CHECK BOX)
+              </span>
+            </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Spelling</label>
-                <select 
-                  value={spellingLevel} 
-                  onChange={(e) => setSpellingLevel(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
-                >
-                  <option value={1}>Level 1 (Basic)</option>
-                  <option value={2}>Level 2 (Advanced)</option>
-                </select>
-              </div>
-              
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unscramble</label>
-                <select 
-                  value={readingRearrangingLevel} 
-                  onChange={(e) => setReadingRearrangingLevel(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
-                >
-                  <option value={1}>Level 1</option>
-                  <option value={2}>Level 2</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Read-Proof</label>
-                <select 
-                  value={readingProofreadingLevel} 
-                  onChange={(e) => setReadingProofreadingLevel(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
-                >
-                  <option value={1}>Level 1</option>
-                  <option value={2}>Level 2</option>
-                  <option value={3}>Level 3</option>
-                </select>
+            <div className="space-y-3">
+              {/* Spelling */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Spelling (拼寫)</span>
+                  <span className="text-[10px] text-slate-400 font-medium">目前: Level {spellingLevel}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { lv: 1, label: 'Level 1 (Basic)' },
+                    { lv: 2, label: 'Level 2 (Advanced)' }
+                  ].map(({ lv, label }) => (
+                    <label
+                      key={lv}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        spellingLevel === lv
+                          ? 'bg-indigo-50 border-indigo-600 text-indigo-700 font-bold shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={spellingLevel === lv}
+                        onChange={() => setSpellingLevel(lv)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Memorize</label>
-                <select 
-                  value={memorizationLevel} 
-                  onChange={(e) => setMemorizationLevel(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
-                >
-                  <option value={1}>Level 1</option>
-                  <option value={2}>Level 2</option>
-                  <option value={3}>Level 3</option>
-                </select>
+              {/* Unscramble */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Unscramble (重組)</span>
+                  <span className="text-[10px] text-slate-400 font-medium">目前: Level {readingRearrangingLevel}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { lv: 1, label: 'Level 1' },
+                    { lv: 2, label: 'Level 2' }
+                  ].map(({ lv, label }) => (
+                    <label
+                      key={lv}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        readingRearrangingLevel === lv
+                          ? 'bg-purple-50 border-purple-600 text-purple-700 font-bold shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={readingRearrangingLevel === lv}
+                        onChange={() => setReadingRearrangingLevel(lv)}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proofread</label>
-                <select 
-                  value={proofreadingLevel} 
-                  onChange={(e) => setProofreadingLevel(parseInt(e.target.value))}
-                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))]"
-                >
-                  <option value={1}>Level 1</option>
-                  <option value={2}>Level 2</option>
-                </select>
+              {/* Read-Proof */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Read-Proof (閱讀糾錯)</span>
+                  <span className="text-[10px] text-slate-400 font-medium">目前: Level {readingProofreadingLevel}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { lv: 1, label: 'Level 1' },
+                    { lv: 2, label: 'Level 2' },
+                    { lv: 3, label: 'Level 3' }
+                  ].map(({ lv, label }) => (
+                    <label
+                      key={lv}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        readingProofreadingLevel === lv
+                          ? 'bg-pink-50 border-pink-600 text-pink-700 font-bold shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={readingProofreadingLevel === lv}
+                        onChange={() => setReadingProofreadingLevel(lv)}
+                        className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Memorize */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Memorize (默寫/背誦)</span>
+                  <span className="text-[10px] text-slate-400 font-medium">目前: Level {memorizationLevel}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { lv: 1, label: 'Level 1' },
+                    { lv: 2, label: 'Level 2' },
+                    { lv: 3, label: 'Level 3' }
+                  ].map(({ lv, label }) => (
+                    <label
+                      key={lv}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        memorizationLevel === lv
+                          ? 'bg-emerald-50 border-emerald-600 text-emerald-700 font-bold shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={memorizationLevel === lv}
+                        onChange={() => setMemorizationLevel(lv)}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Proofread */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Proofread (語法糾錯)</span>
+                  <span className="text-[10px] text-slate-400 font-medium">目前: Level {proofreadingLevel}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { lv: 1, label: 'Level 1' },
+                    { lv: 2, label: 'Level 2' }
+                  ].map(({ lv, label }) => (
+                    <label
+                      key={lv}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                        proofreadingLevel === lv
+                          ? 'bg-amber-50 border-amber-600 text-amber-700 font-bold shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={proofreadingLevel === lv}
+                        onChange={() => setProofreadingLevel(lv)}
+                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

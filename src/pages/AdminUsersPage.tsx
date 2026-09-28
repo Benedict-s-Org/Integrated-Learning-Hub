@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Shield,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -90,7 +91,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [showAwardModal, setShowAwardModal] = useState(false);
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
-  const [filterClass, setFilterClass] = useState<string>('3A');
+  const [filterClass, setFilterClass] = useState<string>('all');
   const [showAllStudents, setShowAllStudents] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
@@ -98,12 +99,23 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   // Table Edit Mode State (Spreadsheet Inline Editing)
   const [isTableEditMode, setIsTableEditMode] = useState(false);
-  const [editBuffer, setEditBuffer] = useState<Record<string, { display_name: string; class_name: string; class_number: string }>>({});
+  const [editBuffer, setEditBuffer] = useState<Record<string, {
+    display_name: string;
+    class_name: string;
+    class_number: string;
+    spelling_level: number;
+    reading_rearranging_level: number;
+    reading_proofreading_level: number;
+    memorization_level: number;
+    proofreading_level: number;
+    ecas: string[];
+  }>>({});
   const [isSavingTableEdits, setIsSavingTableEdits] = useState(false);
   const [tableEditSuccessMessage, setTableEditSuccessMessage] = useState<string | null>(null);
   const [tableEditErrorMessage, setTableEditErrorMessage] = useState<string | null>(null);
   const [globalClassToApply, setGlobalClassToApply] = useState('');
   const [dbClasses, setDbClasses] = useState<string[]>([]);
+  const [availableActivities, setAvailableActivities] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     // Sync showAllStudents if admin or super admin
@@ -179,6 +191,16 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         console.warn('Failed to fetch classes in AdminUsersPage:', err);
       }
 
+      // Fetch activities
+      try {
+        const { data: actRows } = await (supabase.from('activities').select('id, name').order('name') as any);
+        if (actRows) {
+          setAvailableActivities(actRows);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch activities in AdminUsersPage:', err);
+      }
+
       const mergedUsers: UserWithProfile[] = (publicUsers || []).map((u: any) => {
         const avatar = avatarMap.get(u.id) as any;
         const roomData = roomDataMap.get(u.id) as any;
@@ -241,68 +263,72 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const visibleUsers = useMemo(() => {
     const activeAdminId = forcedAdminId || currentUser?.id;
-    const adminEmail = currentUser?.email;
 
-    console.log('visibleUsers memo:', {
-      usersCount: users.length,
-      isSuperAdmin,
-      activeAdminId,
-      adminEmail,
-      forcedAdminId
-    });
-
+    let baseUsers: UserWithProfile[] = [];
     if (showAllStudents || (isSuperAdmin && !forcedAdminId)) {
-      console.log('Showing all users (Super Admin or "Show All" enabled)');
-      const filtered = filterClass === 'unassigned'
-        ? users.filter(u => !u.class_name)
-        : filterClass === 'all'
-          ? users
-          : users.filter(u => u.class_name === filterClass);
-      return filtered;
-    }
-
-    if (!activeAdminId) {
-      console.log('No active admin ID, showing zero users');
+      baseUsers = users;
+    } else if (activeAdminId) {
+      baseUsers = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
+    } else {
       return [];
     }
 
-    const filteredByAdmin = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
-    const filtered = filterClass === 'unassigned'
-      ? filteredByAdmin.filter(u => !u.class_name)
-      : filterClass === 'all'
-        ? filteredByAdmin
-        : filteredByAdmin.filter(u => u.class_name === filterClass);
+    // 1. Filter by Class
+    let classFiltered = baseUsers;
+    if (filterClass === 'unassigned') {
+      classFiltered = baseUsers.filter(u => !u.class_name);
+    } else if (filterClass !== 'all') {
+      classFiltered = baseUsers.filter(u => u.class_name === filterClass);
+    }
 
-    console.log('Filtered users for admin:', {
-      adminId: activeAdminId,
-      totalUsers: users.length,
-      visibleCount: filtered.length,
-      showAllStudents,
-      filterClass
-    });
+    // 2. Filter by Search Query (matching name, username/email, auth_email, class, or class_number)
+    const q = searchQuery.trim().toLowerCase();
+    let searchedUsers = classFiltered;
+    if (q !== '') {
+      searchedUsers = classFiltered.filter(u => {
+        const displayName = (u.display_name || '').toLowerCase();
+        const usernameOrEmail = (u.email || '').toLowerCase();
+        const authEmail = (u.auth_email || '').toLowerCase();
+        const className = (u.class_name || '').toLowerCase();
+        const classNumber = u.class_number != null ? u.class_number.toString() : '';
 
-    const finalFiltered = Array.isArray(filtered) ? filtered : [];
-    
-    // Apply search query filter
-    const searchedUsers = searchQuery.trim() === '' 
-      ? finalFiltered 
-      : finalFiltered.filter(u => 
-          (u.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-          (u.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-          (u.auth_email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+        return (
+          displayName.includes(q) ||
+          usernameOrEmail.includes(q) ||
+          authEmail.includes(q) ||
+          className.includes(q) ||
+          classNumber === q
         );
+      });
+    }
 
-    return searchedUsers.sort((a, b) => {
-      // Sort by class first
+    // 3. Sort by class first, then class number (copy array to avoid mutating state)
+    return [...searchedUsers].sort((a, b) => {
       const classA = a.class_name || 'Unassigned';
       const classB = b.class_name || 'Unassigned';
       if (classA !== classB) {
         return classA.localeCompare(classB);
       }
-      // Then sort by class number
       return (a.class_number || 999) - (b.class_number || 999);
     });
-  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, currentUser?.email, showAllStudents, filterClass, searchQuery]);
+  }, [users, isSuperAdmin, currentUser?.id, forcedAdminId, showAllStudents, filterClass, searchQuery]);
+
+  const hasMatchesInOtherClasses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || filterClass === 'all') return 0;
+    const activeAdminId = forcedAdminId || currentUser?.id;
+    const baseUsers = (showAllStudents || (isSuperAdmin && !forcedAdminId))
+      ? users
+      : (activeAdminId ? users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId) : []);
+
+    return baseUsers.filter(u => {
+      if (u.class_name === filterClass) return false;
+      const displayName = (u.display_name || '').toLowerCase();
+      const usernameOrEmail = (u.email || '').toLowerCase();
+      const authEmail = (u.auth_email || '').toLowerCase();
+      return displayName.includes(q) || usernameOrEmail.includes(q) || authEmail.includes(q);
+    }).length;
+  }, [searchQuery, filterClass, users, showAllStudents, isSuperAdmin, forcedAdminId, currentUser?.id]);
 
   // Computed all available classes
   const allAvailableClasses = useMemo(() => {
@@ -314,14 +340,40 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     return Array.from(set).sort();
   }, [dbClasses, users]);
 
+  // Computed all available activities from database + user ecas
+  const allActivitiesList = useMemo(() => {
+    const set = new Set<string>();
+    availableActivities.forEach(a => { if (a.name) set.add(a.name); });
+    users.forEach(u => {
+      (u.ecas || []).forEach(e => { if (e) set.add(e); });
+    });
+    return Array.from(set).sort();
+  }, [availableActivities, users]);
+
   // Enter Table Edit Mode
   const handleEnterTableEditMode = () => {
-    const buffer: Record<string, { display_name: string; class_name: string; class_number: string }> = {};
+    const buffer: Record<string, {
+      display_name: string;
+      class_name: string;
+      class_number: string;
+      spelling_level: number;
+      reading_rearranging_level: number;
+      reading_proofreading_level: number;
+      memorization_level: number;
+      proofreading_level: number;
+      ecas: string[];
+    }> = {};
     visibleUsers.forEach(u => {
       buffer[u.id] = {
         display_name: u.display_name || '',
         class_name: u.class_name || '',
         class_number: u.class_number != null ? u.class_number.toString() : '',
+        spelling_level: u.spelling_level || 1,
+        reading_rearranging_level: u.reading_rearranging_level || 1,
+        reading_proofreading_level: u.reading_proofreading_level || 1,
+        memorization_level: u.memorization_level || 1,
+        proofreading_level: u.proofreading_level || 1,
+        ecas: Array.isArray(u.ecas) ? [...u.ecas] : [],
       };
     });
     setEditBuffer(buffer);
@@ -333,13 +385,78 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   // Buffer change
   const handleBufferChange = (userId: string, field: 'display_name' | 'class_name' | 'class_number', value: string) => {
-    setEditBuffer(prev => ({
-      ...prev,
-      [userId]: {
-        ...(prev[userId] || { display_name: '', class_name: '', class_number: '' }),
-        [field]: value
-      }
-    }));
+    setEditBuffer(prev => {
+      const current = prev[userId] || {
+        display_name: '',
+        class_name: '',
+        class_number: '',
+        spelling_level: 1,
+        reading_rearranging_level: 1,
+        reading_proofreading_level: 1,
+        memorization_level: 1,
+        proofreading_level: 1,
+        ecas: []
+      };
+      return {
+        ...prev,
+        [userId]: {
+          ...current,
+          [field]: value
+        }
+      };
+    });
+  };
+
+  // Buffer single-select level change (single select per aspect)
+  const handleBufferLevelChange = (userId: string, field: 'spelling_level' | 'reading_rearranging_level' | 'reading_proofreading_level' | 'memorization_level' | 'proofreading_level', value: number) => {
+    setEditBuffer(prev => {
+      const current = prev[userId] || {
+        display_name: '',
+        class_name: '',
+        class_number: '',
+        spelling_level: 1,
+        reading_rearranging_level: 1,
+        reading_proofreading_level: 1,
+        memorization_level: 1,
+        proofreading_level: 1,
+        ecas: []
+      };
+      return {
+        ...prev,
+        [userId]: {
+          ...current,
+          [field]: value
+        }
+      };
+    });
+  };
+
+  // Buffer toggle extracurricular activity
+  const handleBufferToggleEca = (userId: string, activityName: string) => {
+    setEditBuffer(prev => {
+      const current = prev[userId] || {
+        display_name: '',
+        class_name: '',
+        class_number: '',
+        spelling_level: 1,
+        reading_rearranging_level: 1,
+        reading_proofreading_level: 1,
+        memorization_level: 1,
+        proofreading_level: 1,
+        ecas: []
+      };
+      const curEcas = current.ecas || [];
+      const nextEcas = curEcas.includes(activityName)
+        ? curEcas.filter(a => a !== activityName)
+        : [...curEcas, activityName];
+      return {
+        ...prev,
+        [userId]: {
+          ...current,
+          ecas: nextEcas
+        }
+      };
+    });
   };
 
   // Changed users list
@@ -351,10 +468,24 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       const originalDisplayName = (u.display_name || '').trim();
       const originalClass = (u.class_name || '').trim();
       const originalNumber = u.class_number != null ? u.class_number.toString().trim() : '';
+      const originalSpelling = u.spelling_level || 1;
+      const originalUnscramble = u.reading_rearranging_level || 1;
+      const originalReadProof = u.reading_proofreading_level || 1;
+      const originalMemorize = u.memorization_level || 1;
+      const originalProofread = u.proofreading_level || 1;
+      const originalEcasStr = (u.ecas || []).slice().sort().join(',');
+      const currentEcasStr = (edit.ecas || []).slice().sort().join(',');
+
       return (
         edit.display_name.trim() !== originalDisplayName ||
         edit.class_name.trim() !== originalClass ||
-        edit.class_number.trim() !== originalNumber
+        edit.class_number.trim() !== originalNumber ||
+        edit.spelling_level !== originalSpelling ||
+        edit.reading_rearranging_level !== originalUnscramble ||
+        edit.reading_proofreading_level !== originalReadProof ||
+        edit.memorization_level !== originalMemorize ||
+        edit.proofreading_level !== originalProofread ||
+        currentEcasStr !== originalEcasStr
       );
     });
   }, [isTableEditMode, visibleUsers, editBuffer]);
@@ -424,6 +555,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           display_name: edit.display_name.trim(),
           class: edit.class_name.trim() === '' ? null : edit.class_name.trim(),
           classNumber: isNaN(parsedNum as any) ? null : parsedNum,
+          spellingLevel: edit.spelling_level,
+          readingRearrangingLevel: edit.reading_rearranging_level,
+          readingProofreadingLevel: edit.reading_proofreading_level,
+          memorizationLevel: edit.memorization_level,
+          proofreadingLevel: edit.proofreading_level,
+          ecas: edit.ecas,
         };
       });
 
@@ -446,6 +583,24 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
+      }
+
+      // Direct DB update safety net
+      for (const update of updates) {
+        await supabase
+          .from('users')
+          .update({
+            display_name: update.display_name || null,
+            class: update.class || null,
+            class_number: update.classNumber,
+            spelling_level: update.spellingLevel,
+            reading_rearranging_level: update.readingRearrangingLevel,
+            reading_proofreading_level: update.readingProofreadingLevel,
+            memorization_level: update.memorizationLevel,
+            proofreading_level: update.proofreadingLevel,
+            ecas: update.ecas,
+          })
+          .eq('id', update.id);
       }
 
       setTableEditSuccessMessage(`成功更新 ${updates.length} 位學生的資料！`);
@@ -640,24 +795,34 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
               <select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
-                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none"
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none cursor-pointer"
               >
                 <option value="all">All Classes</option>
                 <option value="unassigned">Unassigned</option>
-                {Array.from(new Set(users.map(u => u.class_name).filter(Boolean))).sort().map(className => (
-                  <option key={className} value={className!}>{className}</option>
+                {allAvailableClasses.map(className => (
+                  <option key={className} value={className}>{className}</option>
                 ))}
               </select>
 
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="搜尋用戶 (名稱/電郵)"
+                  placeholder="搜尋用戶 (名稱/電郵/學號)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64"
+                  className="pl-9 pr-8 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100 transition-colors"
+                    title="清除搜尋"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               <div className="bg-slate-100 p-1 rounded-lg flex gap-1">
@@ -981,13 +1146,31 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                         /* Spreadsheet Table Header */
                         <thead className="bg-slate-50 border-b border-slate-200">
                           <tr>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-500 w-12 text-center">#</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-44">帳號 (User / Email)</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 min-w-[180px]">顯示名稱 (Display Name)</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-36">班別 (Class)</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-28 text-center">學號 (Number)</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-20 text-center">金幣</th>
-                            <th className="px-4 py-3 text-xs font-bold text-slate-600 w-24 text-center">狀態</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-500 w-10 text-center">#</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 min-w-[130px]">帳號 (User)</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 min-w-[140px]">顯示名稱</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 w-24">班別</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 w-16 text-center">學號</th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-indigo-700 min-w-[110px] text-center bg-indigo-50/50 border-l border-indigo-100">
+                              Spelling<br/><span className="text-[10px] font-normal text-indigo-500">L1 / L2 (單選)</span>
+                            </th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-purple-700 min-w-[110px] text-center bg-purple-50/50 border-l border-purple-100">
+                              Unscramble<br/><span className="text-[10px] font-normal text-purple-500">L1 / L2 (單選)</span>
+                            </th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-pink-700 min-w-[140px] text-center bg-pink-50/50 border-l border-pink-100">
+                              Read-Proof<br/><span className="text-[10px] font-normal text-pink-500">L1 / L2 / L3 (單選)</span>
+                            </th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-emerald-700 min-w-[140px] text-center bg-emerald-50/50 border-l border-emerald-100">
+                              Memorize<br/><span className="text-[10px] font-normal text-emerald-500">L1 / L2 / L3 (單選)</span>
+                            </th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-amber-700 min-w-[110px] text-center bg-amber-50/50 border-l border-amber-100">
+                              Proofread<br/><span className="text-[10px] font-normal text-amber-500">L1 / L2 (單選)</span>
+                            </th>
+                            <th className="px-3 py-2.5 text-xs font-bold text-blue-700 min-w-[180px] bg-blue-50/50 border-l border-blue-100">
+                              課外活動 (ECAs)<br/><span className="text-[10px] font-normal text-blue-500">多選 (CHECK BOX)</span>
+                            </th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 w-16 text-center">金幣</th>
+                            <th className="px-3 py-3 text-xs font-bold text-slate-600 w-20 text-center">狀態</th>
                           </tr>
                         </thead>
                       ) : (
@@ -1009,7 +1192,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                               </button>
                             </th>
                             <th className="px-6 py-4 font-bold text-slate-600">學生</th>
-                            <th className="px-6 py-4 font-bold text-slate-600">班別/學號</th>
+                            <th className="px-6 py-4 font-bold text-slate-600">班別/學號/等級/課外活動</th>
                             <th className="px-6 py-4 font-bold text-slate-600">金幣</th>
                             <th className="px-6 py-4 font-bold text-slate-600 text-right">操作</th>
                           </tr>
@@ -1018,13 +1201,50 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
                       <tbody>
                         {isLoadingUsers ? (
-                          <tr><td colSpan={isTableEditMode ? 7 : 5} className="text-center py-20 text-slate-400">Loading...</td></tr>
+                          <tr><td colSpan={isTableEditMode ? 13 : 5} className="text-center py-20 text-slate-400">Loading...</td></tr>
                         ) : visibleUsers.length === 0 ? (
-                          <tr><td colSpan={isTableEditMode ? 7 : 5} className="text-center py-20 text-slate-400">沒有學生數據</td></tr>
+                          <tr>
+                            <td colSpan={isTableEditMode ? 13 : 5} className="text-center py-16 text-slate-400">
+                              {searchQuery.trim() ? (
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                  <p className="text-slate-500 font-medium">找不到符合「{searchQuery}」的學生數據</p>
+                                  {filterClass !== 'all' && hasMatchesInOtherClasses > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFilterClass('all')}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold transition-colors"
+                                    >
+                                      在其他班級找到 {hasMatchesInOtherClasses} 位符合的學生，點此切換至「All Classes」
+                                    </button>
+                                  ) : filterClass !== 'all' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFilterClass('all')}
+                                      className="text-xs text-blue-500 hover:underline"
+                                    >
+                                      在「全部班級」中搜尋？
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                '沒有學生數據'
+                              )}
+                            </td>
+                          </tr>
                         ) : isTableEditMode ? (
                           /* Spreadsheet Table Rows */
                           visibleUsers.map((user, idx) => {
-                            const edit = editBuffer[user.id] || { display_name: '', class_name: '', class_number: '' };
+                            const edit = editBuffer[user.id] || {
+                              display_name: user.display_name || '',
+                              class_name: user.class_name || '',
+                              class_number: user.class_number != null ? user.class_number.toString() : '',
+                              spelling_level: user.spelling_level || 1,
+                              reading_rearranging_level: user.reading_rearranging_level || 1,
+                              reading_proofreading_level: user.reading_proofreading_level || 1,
+                              memorization_level: user.memorization_level || 1,
+                              proofreading_level: user.proofreading_level || 1,
+                              ecas: user.ecas || []
+                            };
                             const isRowChanged = changedUsersList.some(u => u.id === user.id);
                             return (
                               <tr
@@ -1033,46 +1253,204 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                                   isRowChanged ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-slate-50/70'
                                 }`}
                               >
-                                <td className="px-4 py-2.5 text-xs text-slate-400 font-mono text-center">{idx + 1}</td>
-                                <td className="px-4 py-2.5">
-                                  <div className="font-medium text-slate-600 text-xs truncate max-w-[170px]" title={user.auth_email || user.email}>
+                                <td className="px-3 py-2.5 text-xs text-slate-400 font-mono text-center">{idx + 1}</td>
+                                <td className="px-3 py-2.5">
+                                  <div className="font-medium text-slate-600 text-xs truncate max-w-[140px]" title={user.auth_email || user.email}>
                                     {user.email}
                                   </div>
                                 </td>
-                                <td className="px-4 py-2">
+                                <td className="px-3 py-2">
                                   <input
                                     type="text"
                                     value={edit.display_name}
                                     onChange={(e) => handleBufferChange(user.id, 'display_name', e.target.value)}
-                                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                                    placeholder="學生顯示名稱"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                                    placeholder="學生姓名"
                                   />
                                 </td>
-                                <td className="px-4 py-2">
+                                <td className="px-3 py-2">
                                   <input
                                     type="text"
                                     list="available-classes-list"
                                     value={edit.class_name}
                                     onChange={(e) => handleBufferChange(user.id, 'class_name', e.target.value)}
-                                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                                    placeholder="例如: 4A"
+                                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                                    placeholder="班別"
                                   />
                                 </td>
-                                <td className="px-4 py-2 text-center">
+                                <td className="px-3 py-2 text-center">
                                   <input
                                     type="number"
                                     min="1"
                                     max="99"
                                     value={edit.class_number}
                                     onChange={(e) => handleBufferChange(user.id, 'class_number', e.target.value)}
-                                    className="w-20 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-mono text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow mx-auto block"
+                                    className="w-14 px-1.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-mono text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow mx-auto block"
                                     placeholder="學號"
                                   />
                                 </td>
-                                <td className="px-4 py-2.5 text-center text-xs font-bold text-blue-600">
+
+                                {/* Spelling Level - Single Select Checkbox */}
+                                <td className="px-2 py-2 text-center bg-indigo-50/20 border-l border-indigo-100">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {[1, 2].map(lv => (
+                                      <label
+                                        key={lv}
+                                        title={`Spelling Level ${lv}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          edit.spelling_level === lv
+                                            ? 'bg-indigo-600 border-indigo-600 text-white font-bold shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={edit.spelling_level === lv}
+                                          onChange={() => handleBufferLevelChange(user.id, 'spelling_level', lv)}
+                                          className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                        <span>L{lv}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+
+                                {/* Unscramble Level - Single Select Checkbox */}
+                                <td className="px-2 py-2 text-center bg-purple-50/20 border-l border-purple-100">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {[1, 2].map(lv => (
+                                      <label
+                                        key={lv}
+                                        title={`Unscramble Level ${lv}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          edit.reading_rearranging_level === lv
+                                            ? 'bg-purple-600 border-purple-600 text-white font-bold shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={edit.reading_rearranging_level === lv}
+                                          onChange={() => handleBufferLevelChange(user.id, 'reading_rearranging_level', lv)}
+                                          className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                        />
+                                        <span>L{lv}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+
+                                {/* Read-Proof Level - Single Select Checkbox */}
+                                <td className="px-2 py-2 text-center bg-pink-50/20 border-l border-pink-100">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {[1, 2, 3].map(lv => (
+                                      <label
+                                        key={lv}
+                                        title={`Read-Proof Level ${lv}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          edit.reading_proofreading_level === lv
+                                            ? 'bg-pink-600 border-pink-600 text-white font-bold shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-pink-300'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={edit.reading_proofreading_level === lv}
+                                          onChange={() => handleBufferLevelChange(user.id, 'reading_proofreading_level', lv)}
+                                          className="w-3.5 h-3.5 rounded text-pink-600 focus:ring-pink-500 cursor-pointer"
+                                        />
+                                        <span>L{lv}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+
+                                {/* Memorize Level - Single Select Checkbox */}
+                                <td className="px-2 py-2 text-center bg-emerald-50/20 border-l border-emerald-100">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {[1, 2, 3].map(lv => (
+                                      <label
+                                        key={lv}
+                                        title={`Memorize Level ${lv}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          edit.memorization_level === lv
+                                            ? 'bg-emerald-600 border-emerald-600 text-white font-bold shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={edit.memorization_level === lv}
+                                          onChange={() => handleBufferLevelChange(user.id, 'memorization_level', lv)}
+                                          className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                        />
+                                        <span>L{lv}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+
+                                {/* Proofread Level - Single Select Checkbox */}
+                                <td className="px-2 py-2 text-center bg-amber-50/20 border-l border-amber-100">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {[1, 2].map(lv => (
+                                      <label
+                                        key={lv}
+                                        title={`Proofread Level ${lv}`}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          edit.proofreading_level === lv
+                                            ? 'bg-amber-600 border-amber-600 text-white font-bold shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-amber-300'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={edit.proofreading_level === lv}
+                                          onChange={() => handleBufferLevelChange(user.id, 'proofreading_level', lv)}
+                                          className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                        />
+                                        <span>L{lv}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+
+                                {/* Extracurricular Activities - Checkboxes */}
+                                <td className="px-2 py-2 bg-blue-50/20 border-l border-blue-100">
+                                  <div className="flex flex-wrap gap-1 min-w-[150px] max-w-[280px]">
+                                    {allActivitiesList.length === 0 ? (
+                                      <span className="text-xs text-slate-400 italic">無活動</span>
+                                    ) : (
+                                      allActivitiesList.map(activityName => {
+                                        const isChecked = (edit.ecas || []).includes(activityName);
+                                        return (
+                                          <label
+                                            key={activityName}
+                                            title={activityName}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs cursor-pointer select-none transition-all ${
+                                              isChecked
+                                                ? 'bg-blue-600 border-blue-600 text-white font-bold shadow-xs'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => handleBufferToggleEca(user.id, activityName)}
+                                              className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                            <span className="truncate max-w-[100px]">{activityName}</span>
+                                          </label>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-3 py-2.5 text-center text-xs font-bold text-blue-600">
                                   {user.coins || 0}
                                 </td>
-                                <td className="px-4 py-2.5 text-center">
+                                <td className="px-3 py-2.5 text-center">
                                   {isRowChanged ? (
                                     <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[11px] shadow-sm">
                                       已修改
@@ -1105,8 +1483,32 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                                 <div className="text-sm text-gray-500 block mt-1 font-normal">{user.auth_email || user.email}</div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold mr-2">{user.class_name || 'N/A'}</span>
-                                <span className="text-slate-400 font-medium">#{user.class_number || '-'}</span>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-bold">{user.class_name || 'N/A'}</span>
+                                  <span className="text-slate-400 font-medium">#{user.class_number || '-'}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" title="Spelling">
+                                    SP: L{user.spelling_level || 1}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100" title="Unscramble">
+                                    UN: L{user.reading_rearranging_level || 1}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-50 text-pink-700 border border-pink-100" title="Read-Proof">
+                                    RP: L{user.reading_proofreading_level || 1}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100" title="Memorize">
+                                    ME: L{user.memorization_level || 1}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100" title="Proofread">
+                                    PR: L{user.proofreading_level || 1}
+                                  </span>
+                                  {(user.ecas || []).map((eca) => (
+                                    <span key={eca} className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="課外活動">
+                                      {eca}
+                                    </span>
+                                  ))}
+                                </div>
                               </td>
                               <td className="px-6 py-4 font-black text-blue-600">{user.coins || 0}</td>
                               <td className="px-6 py-4 text-right space-x-2">

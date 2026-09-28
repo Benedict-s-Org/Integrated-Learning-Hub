@@ -47,6 +47,17 @@ export interface AcademicYearOption {
 }
 
 /**
+ * Helper to determine if a class name is archived.
+ */
+export const isArchivedClassName = (name?: string | null, archivedList?: string[]): boolean => {
+  if (!name) return false;
+  const trimmed = name.trim().toLowerCase();
+  if (archivedList && archivedList.some(a => a.trim().toLowerCase() === trimmed)) return true;
+  if (trimmed.includes('(2526)') || trimmed.includes('(2025-2026)') || trimmed.includes('2526')) return true;
+  return false;
+};
+
+/**
  * Generates sensible academic year options based on current date in Hong Kong (starts Sep 1).
  */
 export function getAcademicYearOptions(): AcademicYearOption[] {
