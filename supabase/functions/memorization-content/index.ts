@@ -369,6 +369,79 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (path.endsWith("/update") || path.endsWith("/update-title")) {
+      const { contentId, title, userId } = await req.json();
+
+      if (!contentId || !title || !userId) {
+        return new Response(
+          JSON.stringify({ error: "contentId, title, and userId are required" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Title cannot be empty" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "User not found or unauthorized" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      let updateQuery = supabase
+        .from("saved_contents")
+        .update({
+          title: title.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", contentId);
+
+      if (user.role !== 'admin') {
+        updateQuery = updateQuery.eq("user_id", userId);
+      }
+
+      const { error: updateError } = await updateQuery;
+
+      if (updateError) {
+        console.error("Error updating content title:", updateError);
+        return new Response(
+          JSON.stringify({ error: "Failed to update content title" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Not found" }),
       {

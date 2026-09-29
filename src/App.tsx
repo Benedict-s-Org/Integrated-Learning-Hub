@@ -62,11 +62,11 @@ import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
 
 type AppState =
-  | { page: 'new'; step: 'input'; text?: string }
-  | { page: 'new'; step: 'selection'; text: string; words?: Word[] }
-  | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
-  | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string }
-  | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string }
+  | { page: 'new'; step: 'input'; text?: string; title?: string }
+  | { page: 'new'; step: 'selection'; text: string; words?: Word[]; title?: string }
+  | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
+  | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
+  | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
   | { page: 'saved' }
   | { page: 'admin' }
   | { page: 'assetGenerator' }
@@ -505,9 +505,8 @@ function AppContent() {
     console.log('Admin login required for scanner');
   };
 
-  const handleTextSubmit = (text: string) => {
-    setAppState({ page: 'new', step: 'input', text }); // Initialize with text
-    setAppState({ page: 'new', step: 'selection', text });
+  const handleTextSubmit = (text: string, title?: string) => {
+    setAppState({ page: 'new', step: 'selection', text, title });
   };
 
   const handleWordsSelected = (words: Word[], selectedIndices: number[]) => {
@@ -518,6 +517,7 @@ function AppContent() {
         words,
         selectedIndices,
         text: appState.text,
+        title: appState.title,
       });
     }
   };
@@ -530,6 +530,7 @@ function AppContent() {
         words,
         selectedIndices,
         text: appState.text,
+        title: appState.title,
       });
     }
   };
@@ -542,6 +543,7 @@ function AppContent() {
         words,
         selectedIndices,
         text: appState.text,
+        title: appState.title,
       });
     }
   };
@@ -549,7 +551,8 @@ function AppContent() {
   const handleSaveDictation = async (_words: Word[], selectedIndices: number[]) => {
     if (!isAdmin) return;
 
-    const title = prompt('Enter a title for this Dictation Practice:');
+    const defaultTitle = appState.page === 'new' && 'title' in appState ? (appState.title || '') : '';
+    const title = prompt('Enter a title for this Dictation Practice:', defaultTitle);
     if (!title) return;
 
     try {
@@ -571,7 +574,8 @@ function AppContent() {
   const handleSaveGame = async (_words: Word[], selectedIndices: number[]) => {
     if (!isAdmin) return;
 
-    const title = prompt('Enter a title for this Shuffled Word Game:');
+    const defaultTitle = appState.page === 'new' && 'title' in appState ? (appState.title || '') : '';
+    const title = prompt('Enter a title for this Shuffled Word Game:', defaultTitle);
     if (!title) return;
 
     try {
@@ -592,7 +596,7 @@ function AppContent() {
 
   const handleBackToInput = () => {
     if (appState.page === 'new' && appState.step === 'selection') {
-      setAppState({ page: 'new', step: 'input', text: appState.text });
+      setAppState({ page: 'new', step: 'input', text: appState.text, title: appState.title });
     } else {
       setAppState({ page: 'new', step: 'input' });
     }
@@ -600,7 +604,7 @@ function AppContent() {
 
   const handleBackToSelection = () => {
     if (appState.page === 'new' && (appState.step === 'memorization' || appState.step === 'shuffledGame' || appState.step === 'dictation')) {
-      setAppState({ page: 'new', step: 'selection', text: appState.text, words: appState.words });
+      setAppState({ page: 'new', step: 'selection', text: appState.text, words: appState.words, title: appState.title });
     }
   };
 
@@ -788,11 +792,12 @@ function AppContent() {
             case 'new':
               switch (appState.step) {
                 case 'input':
-                  return <TextInput onNext={handleTextSubmit} initialText={appState.text} onViewSaved={handleViewSavedMemorization} />;
+                  return <TextInput onNext={handleTextSubmit} initialText={appState.text} initialTitle={appState.title} onViewSaved={handleViewSavedMemorization} />;
                 case 'selection':
                   return (
                     <WordSelection
                       text={appState.text}
+                      title={appState.title}
                       initialWords={appState.words}
                       onNext={handleWordsSelected}
                       onBack={handleBackToInput}
@@ -810,6 +815,7 @@ function AppContent() {
                       words={appState.words}
                       selectedIndices={appState.selectedIndices}
                       originalText={appState.text}
+                      title={appState.title}
                       onBack={handleBackToSelection}
                       onSave={handleSave}
                       onViewSaved={handleViewSavedMemorization}
@@ -931,6 +937,7 @@ function AppContent() {
                   words={appState.memorizationState.words}
                   selectedIndices={appState.memorizationState.selectedWordIndices}
                   originalText={appState.memorizationState.originalText}
+                  title={appState.memorizationState.title}
                   onBack={handleBackFromPractice}
                   onSave={() => { }}
                   onViewSaved={handleViewSavedMemorization}
@@ -1152,6 +1159,7 @@ function AppContent() {
                   words={appState.memorizationState.words}
                   selectedIndices={appState.memorizationState.selectedWordIndices}
                   originalText={appState.memorizationState.originalText}
+                  title={appState.memorizationState.title}
                   onBack={handleBackFromAssignedPractice}
                   onSave={() => { }}
                   onViewSaved={() => { }}

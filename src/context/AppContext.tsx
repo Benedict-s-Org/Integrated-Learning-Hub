@@ -228,6 +228,67 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   }, [userId]);
 
+  const updateSavedContentTitle = useCallback(async (id: string, title: string): Promise<boolean> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      console.error('Title cannot be empty');
+      return false;
+    }
+
+    try {
+      let updateQuery = supabase
+        .from('saved_contents')
+        .update({
+          title: trimmedTitle,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (user?.role !== 'admin') {
+        updateQuery = updateQuery.eq('user_id', userId);
+      }
+
+      const { error } = await updateQuery;
+
+      if (error) {
+        console.error('Error updating saved content title directly, trying edge function:', error);
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const { data, error: funcError } = await supabase.functions.invoke('memorization-content/update-title', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || anonKey}`,
+            'apikey': anonKey
+          },
+          body: {
+            contentId: id,
+            title: trimmedTitle,
+            userId: userId,
+          }
+        });
+
+        if (funcError || !data?.success) {
+          console.error('Failed to update saved content title via edge function:', funcError || data);
+          return false;
+        }
+      }
+
+      setSavedContents(prev =>
+        prev.map(content =>
+          content.id === id ? { ...content, title: trimmedTitle } : content
+        )
+      );
+
+      return true;
+    } catch (error) {
+      console.error('Failed to update saved content title:', error);
+      return false;
+    }
+  }, [userId, user?.role, session]);
+
   const publishSavedContent = useCallback(async (id: string): Promise<string | null> => {
     if (!userId) {
       console.error('User not authenticated');
@@ -536,6 +597,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
   const value: AppContextType = useMemo(() => ({
     savedContents,
     addSavedContent,
+    updateSavedContentTitle,
     deleteSavedContent,
     publishSavedContent,
     fetchPublicContent,
@@ -556,6 +618,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
   }), [
     savedContents,
     addSavedContent,
+    updateSavedContentTitle,
     deleteSavedContent,
     publishSavedContent,
     fetchPublicContent,

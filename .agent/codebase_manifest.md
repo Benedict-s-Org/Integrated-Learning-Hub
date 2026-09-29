@@ -150,9 +150,11 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
     - **Gamification**: Uses exact XP thresholds (`LEVEL_THRESHOLDS`) for levels and badges.
 
 ### Memorization / Saved (L90-L93)
-- **Path**: `src/components/SavedContent/SavedContent.tsx`
+- **Path**: `src/components/SavedContent/SavedContent.tsx`, `src/components/TextInput/TextInput.tsx`, `src/components/MemorizationView/MemorizationView.tsx`
 - **Concept**: Allows Admins to create and manage text blocks for students to memorize.
 - **Logic**: 
+  - **Title / Topic Input**: `TextInput.tsx` allows entering an article/topic title for memorization paragraphs, persisting through memorization, dictation, and shuffled game modes.
+  - **Editable Titles**: `SavedContent.tsx` supports inline editing of saved content titles with instant database sync and state update via `updateSavedContentTitle`.
   - **Centralized Difficulty**: `MemorizationView.tsx` and `DictationView.tsx` enforce the student's `memorization_level` and hide selection buttons.
   - **Public Links**: Can generate `public_id` which allow accessing the text without logging in. Uses `appState = { page: 'publicPractice' }` inside `App.tsx` to handle these.
 

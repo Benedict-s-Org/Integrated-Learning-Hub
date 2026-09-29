@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Play, Calendar, Share, Copy, Check, UserPlus } from 'lucide-react';
+import { Trash2, Play, Calendar, Share, Copy, Check, UserPlus, Edit2, X, Loader2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { SavedContent as SavedContentType, MemorizationState } from '../../types';
 import { processText } from '../../utils/textProcessor';
@@ -13,13 +13,45 @@ interface SavedContentProps {
 }
 
 const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew }) => {
-  const { savedContents, deleteSavedContent, publishSavedContent, saveLimit, currentSaveCount } = useAppContext();
+  const { savedContents, updateSavedContentTitle, deleteSavedContent, publishSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user } = useAuth();
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [assignModalContent, setAssignModalContent] = useState<{ id: string; title: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+  const handleStartEdit = (content: SavedContentType) => {
+    setEditingId(content.id);
+    setEditingTitle(content.title);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const handleSaveTitle = async (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (!trimmed) {
+      alert('Title cannot be empty');
+      return;
+    }
+
+    setIsSavingTitle(true);
+    const success = await updateSavedContentTitle(id, trimmed);
+    setIsSavingTitle(false);
+
+    if (success) {
+      setEditingId(null);
+      setEditingTitle('');
+    } else {
+      alert('Failed to update title. Please try again.');
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (deleteConfirm === id) {
@@ -133,19 +165,63 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3
-                            className="text-lg font-semibold text-gray-800 truncate"
-                            data-source-tsx="SavedContent Item Title|src/components/SavedContent/SavedContent.tsx"
-                          >
-                            {content.title}
-                          </h3>
-                          {content.practiceMode === 'dictation' && (
-                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">
-                              Dictation
-                            </span>
-                          )}
-                        </div>
+                        {editingId === content.id ? (
+                          <div className="flex items-center gap-2 mb-2 w-full max-w-md">
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveTitle(content.id);
+                                if (e.key === 'Escape') handleCancelEdit();
+                              }}
+                              className="flex-1 px-3 py-1.5 text-base border-2 border-blue-500 rounded-lg focus:outline-none font-semibold text-gray-800"
+                              autoFocus
+                              disabled={isSavingTitle}
+                              placeholder="Enter title..."
+                            />
+                            <button
+                              onClick={() => handleSaveTitle(content.id)}
+                              disabled={isSavingTitle || !editingTitle.trim()}
+                              className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                              title="Save title"
+                              aria-label="Save title"
+                            >
+                              {isSavingTitle ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              disabled={isSavingTitle}
+                              className="p-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                              title="Cancel"
+                              aria-label="Cancel"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <h3
+                              className="text-lg font-semibold text-gray-800 truncate max-w-xs sm:max-w-md md:max-w-lg"
+                              data-source-tsx="SavedContent Item Title|src/components/SavedContent/SavedContent.tsx"
+                            >
+                              {content.title}
+                            </h3>
+                            <button
+                              onClick={() => handleStartEdit(content)}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit title"
+                              aria-label="Edit title"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            {content.practiceMode === 'dictation' && (
+                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">
+                                Dictation
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <p
                           className="text-gray-600 text-sm mb-3 line-clamp-2"
                           data-source-tsx="SavedContent Item Original Text|src/components/SavedContent/SavedContent.tsx"

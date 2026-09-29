@@ -14,6 +14,7 @@ interface MemorizationViewProps {
   words: Word[];
   selectedIndices: number[];
   originalText: string;
+  title?: string;
   onBack: () => void;
   onSave: () => void;
   onViewSaved: () => void;
@@ -24,7 +25,7 @@ interface MemorizationViewProps {
 type DifficultyLevel = 1 | 2 | 3;
 
 const MemorizationView: React.FC<MemorizationViewProps> = ({
-  words, selectedIndices, originalText, onBack, onSave, onViewSaved, isPublicView = false, assignmentId
+  words, selectedIndices, originalText, title, onBack, onSave, onViewSaved, isPublicView = false, assignmentId
 }) => {
   const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
@@ -80,7 +81,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     sessionSavedRef.current = true;
 
     const sessionDurationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
-    const title = originalText.substring(0, 50) + (originalText.length > 50 ? '...' : '');
+    const sessionTitle = title?.trim() || (originalText.substring(0, 50) + (originalText.length > 50 ? '...' : ''));
 
     try {
       // Use SECURITY DEFINER RPC to guarantee the insert succeeds regardless
@@ -89,7 +90,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         'save_memorization_session',
         {
           p_assignment_id:            assignmentId || null,
-          p_title:                    title,
+          p_title:                    sessionTitle,
           p_original_text:            originalText,
           p_total_words:              words.length,
           p_hidden_words_count:       selectedIndices.length,
@@ -343,10 +344,10 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       setSaveError(null);
       setSaveSuccess(false);
 
-      const title = originalText.substring(0, 50) + (originalText.length > 50 ? '...' : '');
+      const finalTitle = title?.trim() || (originalText.substring(0, 50) + (originalText.length > 50 ? '...' : ''));
 
       const success = await addSavedContent({
-        title,
+        title: finalTitle,
         originalText,
         selectedWordIndices: selectedIndices,
         isPublished: false,
@@ -384,11 +385,16 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4 md:py-8">
           <Card className="p-4 md:p-8">
             <h1
-              className="text-xl md:text-3xl font-bold text-foreground mb-4 md:mb-6 text-center"
+              className="text-xl md:text-3xl font-bold text-foreground mb-2 text-center"
               data-source-tsx="MemorizationView Title|src/components/MemorizationView/MemorizationView.tsx"
             >
               Practice Memorization
             </h1>
+            {title && (
+              <h2 className="text-lg md:text-xl font-semibold text-blue-600 text-center mb-4 md:mb-6">
+                {title}
+              </h2>
+            )}
 
             <div className="mb-6 space-y-4">
 {/* Hiding difficulty selection as it is now managed at student level

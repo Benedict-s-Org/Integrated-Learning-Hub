@@ -4,23 +4,30 @@ import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
 
 interface TextInputProps {
-  onNext: (text: string) => void;
+  onNext: (text: string, title?: string) => void;
   initialText?: string;
+  initialTitle?: string;
   onViewSaved?: () => void;
 }
 
-const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved }) => {
+const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, initialTitle, onViewSaved }) => {
+  const [title, setTitle] = useState(initialTitle || '');
   const [text, setText] = useState(initialText || '');
   const { user } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (text.trim()) {
-      onNext(text.trim());
+      if (title.trim()) {
+        onNext(text.trim(), title.trim());
+      } else {
+        onNext(text.trim());
+      }
     }
   };
 
   const handleCreateNew = () => {
+    setTitle('');
     setText('');
   };
 
@@ -48,6 +55,25 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
+                <label
+                  htmlFor="title-input"
+                  className="block text-lg font-medium text-gray-700 mb-2"
+                  data-source-tsx="TextInput Title Label|src/components/TextInput/TextInput.tsx"
+                >
+                  Title / Topic:
+                </label>
+                <input
+                  id="title-input"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  placeholder="Enter a title or topic for this paragraph..."
+                  data-source-tsx="TextInput Title Input|src/components/TextInput/TextInput.tsx"
+                />
+              </div>
+
+              <div>
                 <div className="flex justify-between items-end mb-2">
                   <label
                     htmlFor="text-input"
@@ -58,7 +84,10 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, onViewSaved 
                   </label>
                   <button
                     type="button"
-                    onClick={() => setText(`Wait—did you say, "All punctuation: commas, periods, semicolons; colons: dashes—parentheses (yes), quotes 'and' "double", plus ellipses…"? I laughed, then wrote: Please stop! \nHowever, if you must, add a question? an exclamation! and a slash/ or backslash\\; finally, end this sixty-word paragraph with numbers (3), symbols & brackets [like these], and a calm period. Right now; okay: done, truly, Benedict.`)}
+                    onClick={() => {
+                      if (!title) setTitle('Punctuation Challenge');
+                      setText(`Wait—did you say, "All punctuation: commas, periods, semicolons; colons: dashes—parentheses (yes), quotes 'and' "double", plus ellipses…"? I laughed, then wrote: Please stop! \nHowever, if you must, add a question? an exclamation! and a slash/ or backslash\\; finally, end this sixty-word paragraph with numbers (3), symbols & brackets [like these], and a calm period. Right now; okay: done, truly, Benedict.`);
+                    }}
                     className="text-sm px-3 py-1 font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 rounded-md transition-colors"
                   >
                     Load Sample

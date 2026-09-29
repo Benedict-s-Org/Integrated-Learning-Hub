@@ -19,6 +19,7 @@ export interface Word {
 }
 
 export interface MemorizationState {
+  title?: string;
   originalText: string;
   words: Word[];
   selectedWordIndices: number[];
@@ -29,6 +30,7 @@ export interface MemorizationState {
 export interface AppContextType {
   savedContents: SavedContent[];
   addSavedContent: (content: Omit<SavedContent, 'id' | 'createdAt'>) => Promise<boolean>;
+  updateSavedContentTitle: (id: string, title: string) => Promise<boolean>;
   deleteSavedContent: (id: string) => Promise<void>;
   publishSavedContent: (id: string) => Promise<string | null>;
   fetchPublicContent: (publicId: string) => Promise<MemorizationState | null>;

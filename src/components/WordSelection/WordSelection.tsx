@@ -9,6 +9,7 @@ const selectablePunctuations = new Set<string>();
 
 interface WordSelectionProps {
   text: string;
+  title?: string;
   initialWords?: Word[];
   onNext: (words: Word[], selectedIndices: number[]) => void;
   onBack: () => void;
@@ -22,6 +23,7 @@ interface WordSelectionProps {
 
 const WordSelection: React.FC<WordSelectionProps> = ({
   text,
+  title,
   initialWords,
   onNext,
   onBack,
@@ -173,7 +175,10 @@ const WordSelection: React.FC<WordSelectionProps> = ({
         <div className="max-w-4xl mx-auto px-4 py-4 md:py-8">
           <div className="bg-white rounded-lg shadow-lg p-4 md:p-8">
             <div className="mb-6">
-              <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-2">Select Words to Memorize</h1>
+              <h1 className="text-xl md:text-3xl font-bold text-gray-800 mb-1">Select Words to Memorize</h1>
+              {title && (
+                <p className="text-base md:text-lg font-semibold text-blue-600 mb-2">{title}</p>
+              )}
               <p className="text-gray-600 mb-4">
                 Click and drag to select multiple words to memorize.
                 <br />
