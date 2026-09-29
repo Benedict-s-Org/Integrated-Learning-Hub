@@ -267,6 +267,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
           p_time_spent_seconds:  timeSpentSeconds,
           p_completed_at:        new Date().toISOString(),
           p_tips_used:           Array.from(revealedTips),
+          p_user_id:             user?.id     || null,
         }
       );
 
@@ -276,6 +277,8 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
       } else if (rpcData && rpcData.success === false) {
         console.error('save_proofreading_result RPC returned failure:', rpcData.error);
         setSaveError('Your results could not be saved. Please try again or contact your teacher.');
+      } else {
+        console.log('[ProofreadingPractice] Successfully saved result:', rpcData, 'for userId:', user?.id);
       }
 
       if (assignmentId) {

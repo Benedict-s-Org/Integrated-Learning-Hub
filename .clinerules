@@ -17,3 +17,8 @@
 1. **Concise Planning**: When updating `implementation_plan.md` or `task.md`, **ONLY include currently discussed matters and unresolved/pending tasks**. 
 2. **Remove Finished Items**: Actively remove or truncate completed items from previous discussions to save tokens and maintain context efficiency. Do not let artifacts grow indefinitely with historical completed tasks.
 3. **Loop Prevention & Error Handling**: If you find yourself repeatedly failing a task or repeating the same summary/thought (e.g., more than 3 times), **STOP IMMEDIATELY**. Do not keep trying. Notify the user with a concise explanation of the error and wait for further instructions.
+
+**🚨 UI LANGUAGE REQUIREMENT: STRICTLY ENGLISH 🚨**
+
+1. **Strictly English UI**: All webpage elements, UI components, text, buttons, labels, headings, placeholders, tooltips, toast notifications, modals, and error messages MUST be written entirely in English.
+2. **Communication vs UI**: Even if communication with the user is conducted in Chinese (Cantonese/Traditional Chinese), NEVER output or inject Chinese text into any webpage, frontend component, or UI code.

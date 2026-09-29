@@ -22,3 +22,8 @@ If the user asks you to fix an error, bug, or issue:
 
 1. **Repetition Limit**: If a system summary, specific thought, or tool call (like `replace_file_content`) fails or repeats more than **3 times** consecutively, **STOP IMMEDIATELY**.
 2. **Threshold Protocol**: After the third attempt, do not retry. Instead, notify the user about the specific roadblock or repetition and wait for input to prevent token wastage.
+
+**🚨 UI LANGUAGE REQUIREMENT: STRICTLY ENGLISH 🚨**
+
+1. **Strictly English UI**: All webpage elements, UI components, text, buttons, labels, headings, placeholders, tooltips, toast notifications, modals, and error messages MUST be written entirely in English.
+2. **Communication vs UI**: Even if communication with the user is conducted in Chinese (Cantonese/Traditional Chinese), NEVER output or inject Chinese text into any webpage, frontend component, or UI code.

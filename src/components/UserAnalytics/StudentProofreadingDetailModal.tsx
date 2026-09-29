@@ -63,11 +63,14 @@ export const StudentProofreadingDetailModal: React.FC<StudentProofreadingDetailM
       try {
         const { data: rpcData, error: rpcError } = await (supabase as any)
           .rpc('get_student_proofreading_results', { target_user_id: userId });
-        if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+        if (rpcError) {
+          console.warn('[ProofreadingDetail] Strategy 1 (RPC) error:', rpcError);
+        } else if (Array.isArray(rpcData) && rpcData.length > 0) {
+          console.log(`[ProofreadingDetail] Strategy 1 (RPC) loaded ${rpcData.length} records for user ${userId}`);
           data = rpcData;
         }
       } catch (err) {
-        console.warn('RPC get_student_proofreading_results error, trying fallback:', err);
+        console.warn('[ProofreadingDetail] Strategy 1 exception:', err);
       }
 
       // Strategy 2: Direct SELECT from proofreading_practice_results
@@ -79,11 +82,14 @@ export const StudentProofreadingDetailModal: React.FC<StudentProofreadingDetailM
             .eq('user_id', userId)
             .order('completed_at', { ascending: false });
 
-          if (!directError && Array.isArray(directData) && directData.length > 0) {
+          if (directError) {
+            console.warn('[ProofreadingDetail] Strategy 2 (Direct SELECT) error:', directError);
+          } else if (Array.isArray(directData) && directData.length > 0) {
+            console.log(`[ProofreadingDetail] Strategy 2 (Direct SELECT) loaded ${directData.length} records for user ${userId}`);
             data = directData;
           }
         } catch (err) {
-          console.warn('Direct query proofreading_practice_results error:', err);
+          console.warn('[ProofreadingDetail] Strategy 2 exception:', err);
         }
       }
 
@@ -94,12 +100,19 @@ export const StudentProofreadingDetailModal: React.FC<StudentProofreadingDetailM
             'proofreading-practices/student-results',
             { body: { studentUserId: userId } }
           );
-          if (!edgeError && edgeData?.results && Array.isArray(edgeData.results) && edgeData.results.length > 0) {
+          if (edgeError) {
+            console.warn('[ProofreadingDetail] Strategy 3 (Edge Function) error:', edgeError);
+          } else if (edgeData?.results && Array.isArray(edgeData.results) && edgeData.results.length > 0) {
+            console.log(`[ProofreadingDetail] Strategy 3 (Edge Function) loaded ${edgeData.results.length} records for user ${userId}`);
             data = edgeData.results;
           }
         } catch (err) {
-          console.warn('Edge function student-results error:', err);
+          console.warn('[ProofreadingDetail] Strategy 3 exception:', err);
         }
+      }
+
+      if (data.length === 0) {
+        console.info(`[ProofreadingDetail] No records found for user ${userId} across all 3 strategies.`);
       }
 
       // Populate practice titles if not already joined
