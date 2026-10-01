@@ -53,7 +53,10 @@ export const isArchivedClassName = (name?: string | null, archivedList?: string[
   if (!name) return false;
   const trimmed = name.trim().toLowerCase();
   if (archivedList && archivedList.some(a => a.trim().toLowerCase() === trimmed)) return true;
-  if (trimmed.includes('(2526)') || trimmed.includes('(2025-2026)') || trimmed.includes('2526')) return true;
+  // Year patterns: (2526), (2025-2026), (2425), 2526, etc.
+  if (/\(\s*\d{2,4}(?:\s*[-/]?\s*\d{2,4})?[^)]*\)/.test(trimmed)) return true;
+  if (/\b\d{4}\b/.test(trimmed) && (trimmed.includes('2526') || trimmed.includes('2425') || trimmed.includes('2627'))) return true;
+  if (trimmed.includes('archive') || trimmed.includes('已封存')) return true;
   return false;
 };
 

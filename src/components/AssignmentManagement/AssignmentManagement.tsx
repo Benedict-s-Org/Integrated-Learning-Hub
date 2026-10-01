@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { isArchivedClassName } from '../../utils/archiveClassExporter';
 import {
   ClipboardList,
   CheckCircle2,
@@ -146,13 +147,22 @@ export const AssignmentManagement: React.FC = () => {
       throw error;
     }
 
-    setAssignments((data as any) || []);
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, class')
+      .eq('role', 'user');
+    const nonArchivedUserIds = new Set(
+      (userData || []).filter((u: any) => !isArchivedClassName(u.class)).map((u: any) => u.id)
+    );
+
+    const validAssignments = ((data as any) || []).filter((a: any) => nonArchivedUserIds.has(a.student_id));
+    setAssignments(validAssignments);
   };
 
   const fetchStudents = async () => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, display_name')
+      .select('id, username, display_name, class')
       .eq('role', 'user')
       .order('display_name');
 
@@ -161,10 +171,12 @@ export const AssignmentManagement: React.FC = () => {
       throw error;
     }
 
-    setStudents((data || []).map((s: any) => ({
-      ...s,
-      display_name: s.display_name || s.username
-    })) as Student[]);
+    setStudents((data || [])
+      .filter((s: any) => !isArchivedClassName(s.class))
+      .map((s: any) => ({
+        ...s,
+        display_name: s.display_name || s.username
+      })) as Student[]);
   };
 
   const getTypeIcon = (type: string) => {

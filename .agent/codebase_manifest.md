@@ -121,6 +121,7 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Path**: `src/components/UnifiedAssignments/UnifiedAssignments.tsx`
 - **Concept**: Interrogates multiple tables (`proofreading_assignments`, `spelling_assignments`, etc.) to build a single "To-Do" list for students.
 - **Mechanism**: Sorts by due date. Overdue items are flagged visually. If clicked, directly routes the `AppState` state machine into that specific module (Spelling, Proofreading, Memorization).
+- **Assignment Distribution Filters**: All teacher assign interfaces (`MemorizationAssignment.tsx`, `ProofreadingAssignment.tsx`, `SavedPractices.tsx`, `PracticeAssignment.tsx`, `ReadingAssignmentModal.tsx`, `SetAssignmentModal.tsx`, `StudyPlanModal.tsx`) feature standardized class and search filters (supporting "All Classes", individual classes, and "Unassigned" users) with filtered selection controls.
 
 ### Memory Palace (L77-L82)
 - **Path**: `src/pages/MemoryPalacePage.tsx`
@@ -354,4 +355,13 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - **Dual-Sheet Excel Export**: `exportClassArchiveToExcel` generates a workbook with `學生名冊與結餘 (Summary)` and `學年獎懲與歷程明細 (Records)`. Automatically triggers download. An optional companion JSON backup is also provided.
   - **Ledger-Consistent Coin Reset**: `archive_class` RPC sets `is_archived = true` on `classes`, logs balancing offset transactions in `student_records` (ensuring `rebuild_user_balances` correctly sums to 0), and resets `user_room_data.coins` & `virtual_coins` to 0.
   - **Restoration (Un-archive)**: `unarchive_class` RPC reactivates the class from the "已封存班別" accordion without data loss.
+  - **Global Archived Class Exclusion**: Archived classes (`is_archived = true`, names ending with `(2526)`, `(2025-2026)`, academic years, or containing `archive`/`已封存`) and their enrolled students are excluded globally from all user-facing views:
+    - Analytics leaderboards, activity tables, and class drop-downs (`AdminAnalyticsPage`, `UserAnalytics`).
+    - User management lists and available class filters (`AdminUsersPage`, `SuperAdminPanel`, `AdminPanel`, `NavigationManagementPage`, `UserEditModal`).
+    - Academic level configuration (`AdminStudentLevelsPage`).
+    - Homework tracking, habits, summaries, and makeup queues (`AdminHomeworkRecordPage`, `AdminHomeworkHabitPage`, `AdminHomeworkSummaryPage`, `AdminHomeworkMakeupPage`, `EnglishHomeworkPage`).
+    - Live displays, broadcasts, and duty boards (`BroadcastManagementPage`, `BroadcastQuickBar`, `NotificationTemplateModal`, `MorningDutiesPage`).
+    - Assignment distribution modals and management tools (`PracticeAssignment`, `ProofreadingAssignment`, `MemorizationAssignment`, `SavedPractices`, `AssignmentManagement`, `ReadingAssignmentModal`, `SetAssignmentModal`, `StudyPlanModal`).
+    - Interactive scan quizzes, marker generators, progress logs, and ECA groups (`InteractiveScanQuizPage`, `AdminTimetablePage`, `MarkerGenerator`, `ProgressLog`, `GroupMemberModal`).
+    - *Only exception*: The "Archived Classes" accordion in `AdminGroupsPage.tsx` retains access for Excel backup re-download and class restoration.
 

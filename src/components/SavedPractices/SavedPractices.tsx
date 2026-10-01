@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, Clock, X } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, Clock, X, Search, Filter } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
+import { isArchivedClassName } from '../../utils/archiveClassExporter';
 
 interface Practice {
   id: string;
@@ -22,6 +23,8 @@ interface User {
   username: string;
   display_name: string | null;
   role: string;
+  class?: string | null;
+  class_number?: number | null;
 }
 
 interface SavedPracticesProps {
@@ -44,6 +47,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null);
   const [assignmentLevel, setAssignmentLevel] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [classFilter, setClassFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const { getWordsDueForReview } = useSpellingSrs();
   const [dueWords, setDueWords] = useState<string[]>([]);
   const [prepSession, setPrepSession] = useState<{
@@ -164,7 +169,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
       const usersData = await usersResponse.json();
 
-      const nonAdminUsers = (usersData.users || []).filter((u: User) => u.role !== 'admin');
+      const nonAdminUsers = (usersData.users || []).filter((u: User) => u.role !== 'admin' && !isArchivedClassName(u.class));
       setUsers(nonAdminUsers);
 
       const assignmentsResponse = await fetch(`${supabaseUrl}/functions/v1/spelling-practices/get-assignments`, {
@@ -247,12 +252,48 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
     }
   };
 
+  const availableClasses = Array.from(
+    new Set(users.map((u) => u.class).filter((c): c is string => Boolean(c) && c !== 'Unassigned' && !isArchivedClassName(c)))
+  ).sort();
+
+  const filteredUsers = users.filter((u) => {
+    if (classFilter === 'unassigned') {
+      if (u.class && u.class !== 'Unassigned') return false;
+    } else if (classFilter !== 'all') {
+      if (u.class !== classFilter) return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const match =
+        (u.display_name || '').toLowerCase().includes(q) ||
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.class || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const allFilteredPending =
+    filteredUsers.length > 0 && filteredUsers.every((u) => pendingAssignments.has(u.id));
+
+  const toggleSelectAllFiltered = () => {
+    const newPending = new Set(pendingAssignments);
+    if (allFilteredPending) {
+      filteredUsers.forEach((u) => newPending.delete(u.id));
+    } else {
+      filteredUsers.forEach((u) => newPending.add(u.id));
+    }
+    setPendingAssignments(newPending);
+  };
+
   const closeAssignModal = () => {
     setShowAssignModal(false);
     setSelectedPractice(null);
     setUsers([]);
     setPendingAssignments(new Set());
     setAssignmentSuccess(null);
+    setClassFilter('all');
+    setSearchQuery('');
   };
 
   if (loading) {
@@ -528,37 +569,90 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                 <p className="text-gray-600">No students found. Create student accounts first.</p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto mb-6">
-                <div className="space-y-2">
-                  {users.map((user) => {
-                    const isPending = pendingAssignments.has(user.id);
-                    return (
-                      <div
-                        key={user.id}
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all cursor-pointer ${isPending
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                          }`}
-                        onClick={() => togglePendingAssignment(user.id)}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={isPending}
-                            onChange={() => togglePendingAssignment(user.id)}
-                            className="w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <div>
-                            <p className="font-semibold text-gray-800">{user.display_name || user.username}</p>
-                            <p className="text-sm text-gray-500 capitalize">{user.role}</p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <>
+                <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="flex-1 min-w-[160px] relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search students..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-gray-400 shrink-0" />
+                    <select
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none cursor-pointer"
+                    >
+                      <option value="all">All Classes</option>
+                      <option value="unassigned">Unassigned</option>
+                      {availableClasses.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {filteredUsers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllFiltered}
+                      className="px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      {allFilteredPending ? 'Deselect Filtered' : 'Select All Filtered'}
+                    </button>
+                  )}
                 </div>
-              </div>
+
+                <div className="max-h-96 overflow-y-auto mb-6">
+                  {filteredUsers.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">
+                      No students match the current filter.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredUsers.map((user) => {
+                        const isPending = pendingAssignments.has(user.id);
+                        return (
+                          <div
+                            key={user.id}
+                            className={`flex items-center justify-between p-3.5 rounded-lg border-2 transition-all cursor-pointer ${isPending
+                              ? 'bg-green-50 border-green-300'
+                              : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                              }`}
+                            onClick={() => togglePendingAssignment(user.id)}
+                          >
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isPending}
+                                onChange={() => togglePendingAssignment(user.id)}
+                                className="w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500 cursor-pointer shrink-0"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  {user.class_number && (
+                                    <span className="text-xs font-bold text-gray-400">#{user.class_number}</span>
+                                  )}
+                                  <p className="font-semibold text-gray-800 truncate">{user.display_name || user.username}</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <span className="truncate">@{user.username}</span>
+                                  <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                  <span className="text-blue-600 font-medium">{user.class || 'Unassigned'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             <div className="flex justify-end space-x-3">

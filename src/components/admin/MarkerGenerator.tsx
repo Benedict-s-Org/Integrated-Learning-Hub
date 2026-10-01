@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../integrations/supabase/client';
 import { ArucoMarker } from './ArucoMarker';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { isArchivedClassName } from '../../utils/archiveClassExporter';
 
 interface Student {
     id: string;
@@ -24,7 +25,9 @@ export function MarkerGenerator({ onBack }: { onBack: () => void }) {
     const fetchClasses = async () => {
         const { data } = await supabase.from('users').select('class').not('class', 'is', null);
         if (data) {
-            const uniqueClasses = Array.from(new Set(data.map((d: any) => d.class))).sort();
+            const uniqueClasses = Array.from(new Set(data.map((d: any) => d.class)))
+                .filter((c: any): c is string => !!c && !isArchivedClassName(c))
+                .sort();
             setClasses(uniqueClasses as string[]);
         }
     };

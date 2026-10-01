@@ -27,6 +27,25 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
     const [students, setStudents] = useState<any[]>([]);
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [isAssigning, setIsAssigning] = useState(false);
+    const [assignClassFilter, setAssignClassFilter] = useState('all');
+
+    const planAvailableClasses = useMemo(() => {
+        return Array.from(
+            new Set(students.map(s => s.class).filter((c): c is string => Boolean(c) && c !== 'Unassigned'))
+        ).sort();
+    }, [students]);
+
+    const planFilteredStudents = useMemo(() => {
+        return students.filter(s => {
+            if (assignClassFilter === 'unassigned') {
+                return !s.class || s.class === 'Unassigned';
+            }
+            if (assignClassFilter !== 'all') {
+                return s.class === assignClassFilter;
+            }
+            return true;
+        });
+    }, [students, assignClassFilter]);
 
     const [isCalculating, setIsCalculating] = useState(false);
     const [masteredCount, setMasteredCount] = useState(0);
@@ -701,22 +720,63 @@ export function StudyPlanModal({ onClose, onStartStudyPlan }: StudyPlanModalProp
                                                             {/* Inline Assignment UI */}
                                                             {assigningPlanId === template.id && (
                                                                 <div className="w-full mt-4 pt-4 border-t border-gray-100 shrink-0">
-                                                                    <h5 className="font-semibold text-sm mb-3">Assign to Students</h5>
-                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto mb-4 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                                                                        {students.map(student => (
-                                                                            <label key={student.id} className="flex items-center gap-2 p-2 hover:bg-white rounded border border-transparent hover:border-gray-200 cursor-pointer transition-colors">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    checked={selectedStudentIds.includes(student.id)}
-                                                                                    onChange={(e) => {
-                                                                                        if (e.target.checked) setSelectedStudentIds(prev => [...prev, student.id]);
-                                                                                        else setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                                                        <h5 className="font-semibold text-sm">Assign to Students</h5>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <select
+                                                                                value={assignClassFilter}
+                                                                                onChange={(e) => setAssignClassFilter(e.target.value)}
+                                                                                className="text-xs px-2.5 py-1 bg-white border border-gray-200 rounded-lg outline-none cursor-pointer"
+                                                                            >
+                                                                                <option value="all">All Classes</option>
+                                                                                <option value="unassigned">Unassigned</option>
+                                                                                {planAvailableClasses.map(c => (
+                                                                                    <option key={c} value={c}>{c}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            {planFilteredStudents.length > 0 && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const allSelected = planFilteredStudents.every(s => selectedStudentIds.includes(s.id));
+                                                                                        if (allSelected) {
+                                                                                            setSelectedStudentIds(prev => prev.filter(id => !planFilteredStudents.some(s => s.id === id)));
+                                                                                        } else {
+                                                                                            const toAdd = planFilteredStudents.map(s => s.id).filter(id => !selectedStudentIds.includes(id));
+                                                                                            setSelectedStudentIds(prev => [...prev, ...toAdd]);
+                                                                                        }
                                                                                     }}
-                                                                                    className="rounded text-blue-600"
-                                                                                />
-                                                                                <span className="text-sm font-medium">{student.display_name || student.username}</span>
-                                                                            </label>
-                                                                        ))}
+                                                                                    className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 bg-blue-50 rounded"
+                                                                                >
+                                                                                    {planFilteredStudents.every(s => selectedStudentIds.includes(s.id)) ? 'Deselect Filtered' : 'Select Filtered'}
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto mb-4 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                                                                        {planFilteredStudents.length === 0 ? (
+                                                                            <div className="col-span-full py-4 text-center text-xs text-gray-500">
+                                                                                No students match the current filter.
+                                                                            </div>
+                                                                        ) : (
+                                                                            planFilteredStudents.map(student => (
+                                                                                <label key={student.id} className="flex items-center gap-2 p-2 hover:bg-white rounded border border-transparent hover:border-gray-200 cursor-pointer transition-colors">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={selectedStudentIds.includes(student.id)}
+                                                                                        onChange={(e) => {
+                                                                                            if (e.target.checked) setSelectedStudentIds(prev => [...prev, student.id]);
+                                                                                            else setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                                                        }}
+                                                                                        className="rounded text-blue-600"
+                                                                                    />
+                                                                                    <div className="flex flex-col min-w-0">
+                                                                                        <span className="text-sm font-medium truncate">{student.display_name || student.username}</span>
+                                                                                        <span className="text-[10px] text-gray-400 font-medium uppercase truncate">{student.class || 'Unassigned'}</span>
+                                                                                    </div>
+                                                                                </label>
+                                                                            ))
+                                                                        )}
                                                                     </div>
                                                                     <div className="flex justify-end gap-2">
                                                                         <button onClick={() => { setAssigningPlanId(null); setSelectedStudentIds([]); }} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded">Cancel</button>

@@ -38,6 +38,7 @@ import { BulkUserCreationModal } from '@/components/admin/BulkUserCreationModal'
 import { BulkUserEditModal } from '@/components/admin/BulkUserEditModal';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface UserWithProfile {
   id: string;
@@ -185,7 +186,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       try {
         const { data: classRows } = await (supabase.from('classes').select('name, is_archived') as any);
         if (classRows) {
-          setDbClasses(classRows.filter((c: any) => !c.is_archived && !c.name?.includes('(2526)')).map((c: any) => c.name).filter(Boolean));
+          setDbClasses(classRows.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name)).map((c: any) => c.name).filter(Boolean));
         }
       } catch (err) {
         console.warn('Failed to fetch classes in AdminUsersPage:', err);
@@ -264,11 +265,13 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const visibleUsers = useMemo(() => {
     const activeAdminId = forcedAdminId || currentUser?.id;
 
+    // Filter out archived students
+    const activeNonArchivedUsers = users.filter(u => u.role === 'admin' || !isArchivedClassName(u.class_name));
     let baseUsers: UserWithProfile[] = [];
     if (showAllStudents || (isSuperAdmin && !forcedAdminId)) {
-      baseUsers = users;
+      baseUsers = activeNonArchivedUsers;
     } else if (activeAdminId) {
-      baseUsers = users.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
+      baseUsers = activeNonArchivedUsers.filter(u => u.managed_by_id === activeAdminId || u.id === activeAdminId);
     } else {
       return [];
     }
@@ -330,12 +333,14 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     }).length;
   }, [searchQuery, filterClass, users, showAllStudents, isSuperAdmin, forcedAdminId, currentUser?.id]);
 
-  // Computed all available classes
+  // Computed all available classes (excluding archived classes)
   const allAvailableClasses = useMemo(() => {
     const set = new Set<string>();
-    dbClasses.forEach(c => set.add(c));
+    dbClasses.forEach(c => {
+      if (!isArchivedClassName(c)) set.add(c);
+    });
     users.forEach(u => {
-      if (u.class_name) set.add(u.class_name);
+      if (u.class_name && !isArchivedClassName(u.class_name)) set.add(u.class_name);
     });
     return Array.from(set).sort();
   }, [dbClasses, users]);

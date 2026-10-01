@@ -16,6 +16,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigationSettings } from '@/context/NavigationSettingsContext';
 import { UserProfile } from '@/types';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 export const NavigationManagementPage: React.FC = () => {
     const navigate = useNavigate();
@@ -41,7 +42,7 @@ export const NavigationManagementPage: React.FC = () => {
                     .order('class_number', { ascending: true }) as any);
 
                 if (error) throw error;
-                const userData = data as UserProfile[];
+                const userData = (data as UserProfile[]).filter(u => u.role === 'admin' || !isArchivedClassName(u.class));
                 setUsers(userData);
                 
                 // Track initial permissions to detect changes later
@@ -242,7 +243,7 @@ export const NavigationManagementPage: React.FC = () => {
     };
 
     const classes = useMemo(() => {
-        const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter(Boolean)));
+        const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter((c): c is string => Boolean(c) && !isArchivedClassName(c))));
         return uniqueClasses.sort();
     }, [users]);
 

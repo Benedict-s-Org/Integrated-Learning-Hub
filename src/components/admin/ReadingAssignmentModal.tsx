@@ -127,11 +127,16 @@ export const ReadingAssignmentModal: React.FC<ReadingAssignmentModalProps> = ({
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = (u.display_name || u.username || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesClass = classFilter === 'all' || u.class === classFilter;
+    const matchesClass = 
+      classFilter === 'all' 
+        ? true 
+        : classFilter === 'unassigned' 
+          ? (!u.class || u.class === 'Unassigned') 
+          : u.class === classFilter;
     return matchesSearch && matchesClass;
   });
 
-  const classes = Array.from(new Set(users.map(u => u.class).filter(Boolean))).sort();
+  const classes = Array.from(new Set(users.map(u => u.class).filter((c): c is string => Boolean(c) && c !== 'Unassigned'))).sort();
 
   if (!isOpen) return null;
 
@@ -169,10 +174,11 @@ export const ReadingAssignmentModal: React.FC<ReadingAssignmentModalProps> = ({
             <select 
               value={classFilter}
               onChange={e => setClassFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none cursor-pointer"
             >
               <option value="all">All Classes</option>
-              {classes.map(c => <option key={c} value={c as string}>{c as string}</option>)}
+              <option value="unassigned">Unassigned</option>
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
@@ -223,7 +229,7 @@ export const ReadingAssignmentModal: React.FC<ReadingAssignmentModalProps> = ({
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-slate-800">{u.display_name || u.username}</div>
-                      <div className="text-xs text-slate-400 font-bold uppercase">{u.class || 'No Class'}</div>
+                      <div className="text-xs text-slate-400 font-bold uppercase">{u.class || 'Unassigned'}</div>
                     </div>
                     {isAssigned && (
                       <span className="text-[10px] font-black bg-green-100 text-green-700 px-2 py-1 rounded-full uppercase">

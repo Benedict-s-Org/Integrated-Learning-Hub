@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { coinService } from '@/services/coinService';
 import * as XLSX from 'xlsx';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 // Simple native date formatter
 const formatDate = (dateStr: string) => {
@@ -139,11 +140,14 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
             try {
                 const { data: classesData } = await supabase
                     .from('classes' as any)
-                    .select('name')
+                    .select('name, is_archived')
                     .order('name');
                 
                 if (classesData && classesData.length > 0) {
-                    const names = classesData.map((c: any) => c.name).filter(Boolean);
+                    const names = classesData
+                        .filter((c: any) => !c.is_archived && !isArchivedClassName(c.name))
+                        .map((c: any) => c.name)
+                        .filter(Boolean);
                     setClassesList(names);
                     if (names.length > 0) {
                         setSelectedClass(names[0]);
@@ -154,7 +158,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
                         .select('class')
                         .eq('role', 'user');
                     if (usersData) {
-                        const names = Array.from(new Set(usersData.map((u: any) => u.class).filter(Boolean))).sort() as string[];
+                        const names = Array.from(new Set(usersData.map((u: any) => u.class).filter((c: any) => Boolean(c) && !isArchivedClassName(c)))).sort() as string[];
                         setClassesList(names);
                         if (names.length > 0) {
                             setSelectedClass(names[0]);
@@ -229,9 +233,11 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
             const { data: studentsData, error: studentsError } = await studentsQuery;
             if (studentsError) throw studentsError;
             
-            const currentStudents = (studentsData || []).sort((a, b) => {
-                return (a.class_number || 0) - (b.class_number || 0);
-            });
+            const currentStudents = (studentsData || [])
+                .filter((s: any) => !isArchivedClassName(s.class))
+                .sort((a, b) => {
+                    return (a.class_number || 0) - (b.class_number || 0);
+                });
             setStudents(currentStudents);
             
             if (currentStudents.length === 0) {

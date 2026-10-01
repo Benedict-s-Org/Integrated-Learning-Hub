@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BackgroundRemovalEditor } from "@/components/common/BackgroundRemovalEditor";
 import { dataUrlToFile } from "@/utils/imageProcessing";
 import { useAuth } from "@/context/AuthContext";
+import { isArchivedClassName } from "@/utils/archiveClassExporter";
 
 interface UserWithProfile {
   id: string;
@@ -72,9 +73,12 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
         const { data: activities } = await (supabase as any).from('activities').select('id, name').order('name');
         if (activities) setAvailableActivities(activities);
 
-        // Fetch all available classes
-        const { data: classes } = await (supabase as any).from('classes').select('id, name').order('name');
-        if (classes) setAvailableClasses(classes as { id: string, name: string }[]);
+        // Fetch all available classes (excluding archived)
+        const { data: classes } = await (supabase as any).from('classes').select('id, name, is_archived').order('name');
+        if (classes) {
+          const activeClasses = (classes as any[]).filter(c => !c.is_archived && !isArchivedClassName(c.name));
+          setAvailableClasses(activeClasses as { id: string, name: string }[]);
+        }
 
         // Fetch staff assignments if they are class_staff
         if (role === 'class_staff') {

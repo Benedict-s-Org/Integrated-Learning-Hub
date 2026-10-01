@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3,
   Users,
@@ -287,12 +287,10 @@ const UserAnalytics: React.FC = () => {
     }
   };
 
-  // Scoped students based on current userScope
+  // Scoped students based on current userScope (Filtered: Hide archived classes and students)
   const scopedStudents = useMemo(() => {
-    if (userScope === 'active') return activeStudents;
-    if (userScope === 'archived') return archivedStudents;
-    return students;
-  }, [userScope, activeStudents, archivedStudents, students]);
+    return activeStudents;
+  }, [activeStudents]);
 
   // Filter students based on class dropdown
   const classFilteredStudents = useMemo(() => {
@@ -581,68 +579,6 @@ const UserAnalytics: React.FC = () => {
         {/* Scope & Class Filter Bar */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Scope Filter Segmented Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap flex items-center gap-1">
-                <Users size={14} />
-                Student Scope:
-              </span>
-              <div className="inline-flex p-1 bg-gray-100 rounded-lg border border-gray-200 gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('active')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                    userScope === 'active'
-                      ? 'bg-white text-blue-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>Active Students</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-xs ${
-                    userScope === 'active' ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {activeStudents.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('archived')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                    userScope === 'archived'
-                      ? 'bg-white text-amber-800 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Archive size={14} className={userScope === 'archived' ? 'text-amber-600' : 'text-gray-400'} />
-                  <span>Archived Classes</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-xs ${
-                    userScope === 'archived' ? 'bg-amber-100 text-amber-900 font-bold' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {archivedStudents.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('all')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                    userScope === 'all'
-                      ? 'bg-white text-indigo-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>All Students</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-xs ${
-                    userScope === 'all' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {students.length}
-                  </span>
-                </button>
-              </div>
-            </div>
-
             {/* Class Dropdown Filter */}
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap flex items-center gap-1">
@@ -654,33 +590,10 @@ const UserAnalytics: React.FC = () => {
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="bg-gray-50 border border-gray-300 text-gray-800 text-sm font-medium rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none min-w-[160px]"
               >
-                <option value="all">
-                  {userScope === 'active' ? 'All Active Classes' : userScope === 'archived' ? 'All Archived Classes' : 'All Classes'}
-                </option>
-                {userScope === 'active' && activeClasses.map(cls => (
+                <option value="all">All Classes</option>
+                {activeClasses.map(cls => (
                   <option key={cls} value={cls}>{cls}</option>
                 ))}
-                {userScope === 'archived' && archivedClassList.map(cls => (
-                  <option key={cls} value={cls}>{cls} (Archived)</option>
-                ))}
-                {userScope === 'all' && (
-                  <>
-                    {activeClasses.length > 0 && (
-                      <optgroup label="Active Classes">
-                        {activeClasses.map(cls => (
-                          <option key={cls} value={cls}>{cls}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {archivedClassList.length > 0 && (
-                      <optgroup label="Archived Classes">
-                        {archivedClassList.map(cls => (
-                          <option key={cls} value={cls}>{cls} (Archived)</option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </>
-                )}
               </select>
             </div>
           </div>

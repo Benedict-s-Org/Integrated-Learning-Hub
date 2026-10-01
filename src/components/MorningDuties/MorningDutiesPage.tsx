@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface RosterStudent {
     id: string;
@@ -165,7 +166,7 @@ export function MorningDutiesPage() {
                     .select('class')
                     .not('class', 'is', null);
                 if (data) {
-                    const unique = Array.from(new Set(data.map(d => d.class))).filter(Boolean) as string[];
+                    const unique = Array.from(new Set(data.map(d => d.class))).filter((c): c is string => !!c && !isArchivedClassName(c));
                     setAllAvailableClasses(unique.sort());
                 }
             } catch (err) {

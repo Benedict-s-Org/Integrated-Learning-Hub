@@ -14,6 +14,7 @@ import { FileImporter } from '../components/SpacedRepetition/FileImporter';
 import { NotionImporter } from '../components/SpacedRepetition/NotionImporter';
 import { ImportedQuestion } from '../utils/importParsers';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 // Inject custom dictionary
 if (AR && AR.DICTIONARIES && !AR.DICTIONARIES.DICT_4X4_1000) {
@@ -100,7 +101,9 @@ export function InteractiveScanQuizPage() {
         if (data) {
             // Standard admins only see classes from their managed students
             const filtered = isSuperAdmin ? data : data.filter((d: any) => d.managed_by_id === user?.id);
-            const uniqueClasses = Array.from(new Set(filtered.map((d: any) => d.class))).sort();
+            const uniqueClasses = Array.from(new Set(filtered.map((d: any) => d.class)))
+                .filter((c: any): c is string => !!c && !isArchivedClassName(c))
+                .sort();
             setClasses(uniqueClasses as string[]);
             if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0] as string);
         }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play, Search, Filter } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import SpellingPreview from '../SpellingPreview/SpellingPreview';
 import SpellingPractice from '../SpellingPractice/SpellingPractice';
+import { isArchivedClassName } from '../../utils/archiveClassExporter';
 
 interface User {
   id: string;
@@ -11,6 +12,8 @@ interface User {
   display_name: string | null;
   role: string | null;
   spelling_level?: number;
+  class?: string | null;
+  class_number?: number | null;
 }
 
 interface Practice {
@@ -36,6 +39,8 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [view, setView] = useState<'assign' | 'preview' | 'practice'>('assign');
+  const [classFilter, setClassFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (isAdmin) {
@@ -69,7 +74,7 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
 
       const data = await response.json();
 
-      const nonAdminUsers = (data.users || []).filter((u: User) => u.role !== 'admin');
+      const nonAdminUsers = (data.users || []).filter((u: User) => u.role !== 'admin' && !isArchivedClassName(u.class));
       setUsers(nonAdminUsers);
 
       const { data: assignmentsData, error: assignmentsError } = await supabase
@@ -101,12 +106,38 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
     });
   };
 
-  const toggleSelectAll = () => {
-    if (selectedUsers.size === users.length) {
-      setSelectedUsers(new Set());
-    } else {
-      setSelectedUsers(new Set(users.map(u => u.id)));
+  const availableClasses = Array.from(
+    new Set(users.map((u) => u.class).filter((c): c is string => Boolean(c) && c !== 'Unassigned' && !isArchivedClassName(c)))
+  ).sort();
+
+  const filteredUsers = users.filter((u) => {
+    if (classFilter === 'unassigned') {
+      if (u.class && u.class !== 'Unassigned') return false;
+    } else if (classFilter !== 'all') {
+      if (u.class !== classFilter) return false;
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const match =
+        (u.display_name || '').toLowerCase().includes(q) ||
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.class || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const allFilteredSelected =
+    filteredUsers.length > 0 && filteredUsers.every((u) => selectedUsers.has(u.id));
+
+  const toggleSelectAll = () => {
+    const newSelected = new Set(selectedUsers);
+    if (allFilteredSelected) {
+      filteredUsers.forEach((u) => newSelected.delete(u.id));
+    } else {
+      filteredUsers.forEach((u) => newSelected.add(u.id));
+    }
+    setSelectedUsers(newSelected);
   };
 
   const handleBulkAssign = async () => {
@@ -252,32 +283,65 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
           </div>
 
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center space-x-2">
                 <Users size={24} />
                 <span>Assign to Students</span>
               </h2>
-              {users.length > 0 && (
+              {filteredUsers.length > 0 && (
                 <label className="flex items-center space-x-2 cursor-pointer text-gray-700 hover:text-gray-900">
                   <input
                     type="checkbox"
-                    checked={selectedUsers.size === users.length && users.length > 0}
+                    checked={allFilteredSelected && filteredUsers.length > 0}
                     onChange={toggleSelectAll}
                     className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
-                  <span className="font-medium">Select All</span>
+                  <span className="font-medium">
+                    {allFilteredSelected ? 'Deselect Filtered' : 'Select All Filtered'}
+                  </span>
                 </label>
               )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex-1 min-w-[200px] relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-gray-400 shrink-0" />
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none cursor-pointer"
+                >
+                  <option value="all">All Classes</option>
+                  <option value="unassigned">Unassigned</option>
+                  {availableClasses.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {users.length === 0 ? (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-600">No students found. Create student accounts first.</p>
               </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">
+                No students match the current filter.
+              </div>
             ) : (
               <>
                 <div className="space-y-2 mb-4">
-                  {users.map((user) => {
+                  {filteredUsers.map((user) => {
                     const isAssigned = assignments.has(user.id);
                     const isSelected = selectedUsers.has(user.id);
                     return (
@@ -298,14 +362,23 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
                           className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <div className="flex items-center flex-1 ml-3 space-x-3">
-                          {isAssigned && <CheckCircle size={20} className="text-green-600" />}
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-800">{user.display_name || user.username}</p>
-                            <p className="text-sm text-gray-500 capitalize">{user.role}</p>
+                        <div className="flex items-center flex-1 ml-3 space-x-3 min-w-0">
+                          {isAssigned && <CheckCircle size={20} className="text-green-600 shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              {user.class_number && (
+                                <span className="text-xs font-bold text-gray-400">#{user.class_number}</span>
+                              )}
+                              <p className="font-semibold text-gray-800 truncate">{user.display_name || user.username}</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span className="truncate">@{user.username}</span>
+                              <span className="w-1 h-1 rounded-full bg-gray-300" />
+                              <span className="text-blue-600 font-medium">{user.class || 'Unassigned'}</span>
+                            </div>
                           </div>
                           {isAssigned && (
-                            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded shrink-0">
                               Already Assigned
                             </span>
                           )}

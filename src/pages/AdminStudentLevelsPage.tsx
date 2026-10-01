@@ -14,6 +14,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface StudentLevelInfo {
   id: string;
@@ -65,7 +66,7 @@ export const AdminStudentLevelsPage: React.FC = () => {
 
       if (error) throw error;
       
-      const studentsOnly = (data.users || []).filter((u: any) => u.role === 'user');
+      const studentsOnly = (data.users || []).filter((u: any) => u.role === 'user' && !isArchivedClassName(u.class));
       setStudents(studentsOnly.map((u: any) => ({
         id: u.id,
         display_name: u.display_name || 'Unnamed',
@@ -102,7 +103,7 @@ export const AdminStudentLevelsPage: React.FC = () => {
   }, [students, filterClass, searchQuery]);
 
   const classes = useMemo(() => {
-    const classSet = new Set(students.map(s => s.class).filter(Boolean));
+    const classSet = new Set(students.map(s => s.class).filter(c => Boolean(c) && !isArchivedClassName(c)));
     return Array.from(classSet).sort() as string[];
   }, [students]);
 

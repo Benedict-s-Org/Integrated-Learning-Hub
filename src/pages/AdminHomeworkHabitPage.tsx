@@ -17,6 +17,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
     id: string;
@@ -73,12 +74,13 @@ export default function AdminHomeworkHabitPage() {
                 .order('class_number', { ascending: true });
 
             if (userError) throw userError;
-            const studentsData = (userData || []) as Student[];
+            const rawStudents = (userData || []) as Student[];
+            const studentsData = rawStudents.filter((u: Student) => !isArchivedClassName(u.class));
             setStudents(studentsData);
 
             const uniqueClasses: string[] = Array.from(new Set(studentsData
                 .map((u: Student) => u.class)
-                .filter((c: string | null): c is string => !!c)))
+                .filter((c: string | null): c is string => !!c && !isArchivedClassName(c))))
                 .sort();
             setClasses(uniqueClasses);
 

@@ -100,32 +100,35 @@ export function AdminAnalyticsPage() {
       })) : [];
       
       const validSummaries = parsedSummaries.filter((c: any) => 
-        c.class_name !== 'Unassigned' || 
+        !isArchivedClassName(c.class_name) &&
+        (c.class_name !== 'Unassigned' || 
         c.spelling.total_practices > 0 || 
         c.proofreading.total_practices > 0 || 
         c.memorization.total_sessions > 0 ||
         c.spaced_repetition.total_attempts > 0 ||
-        c.reading.total_responses > 0
+        c.reading.total_responses > 0)
       );
       setClassSummaries(validSummaries.sort((a: any, b: any) => a.class_name.localeCompare(b.class_name)));
       
-      if (selectedClass !== 'all' && !validSummaries.find((s: any) => s.class_name === selectedClass)) {
+      if (selectedClass !== 'all' && (!validSummaries.find((s: any) => s.class_name === selectedClass) || isArchivedClassName(selectedClass))) {
           setSelectedClass('all');
       }
 
-      // 2. Fetch All Students Performance
+      // 2. Fetch All Students Performance (Filtered: Hide archived students)
       const { data: performanceData, error: performanceError } = await supabase.rpc('get_all_students_performance', { 
         p_class_name: selectedClass === 'all' ? null : selectedClass 
       });
       if (performanceError) throw performanceError;
-      setStudentPerformance(performanceData || []);
+      const activePerformance = (performanceData || []).filter((s: any) => !isArchivedClassName(s.class));
+      setStudentPerformance(activePerformance);
 
-      // 3. Fetch Recent Activity
+      // 3. Fetch Recent Activity (Filtered: Hide archived students)
       const { data: activityData, error: activityError } = await supabase.rpc('get_recent_activity', { 
         limit_count: 50 
       });
       if (activityError) throw activityError;
-      setRecentActivity(activityData || []);
+      const activeActivity = (activityData || []).filter((a: any) => !isArchivedClassName(a.class));
+      setRecentActivity(activeActivity);
 
     } catch (err: any) {
       console.error("Error fetching analytics:", err);
@@ -188,22 +191,11 @@ export function AdminAnalyticsPage() {
               className="bg-white border border-slate-300 rounded-md px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Classes</option>
-              <optgroup label="現有在讀班別">
-                {classSummaries
-                  .filter(c => !isArchivedClassName(c.class_name))
-                  .map(c => (
-                    <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
-                  ))}
-              </optgroup>
-              {classSummaries.some(c => isArchivedClassName(c.class_name)) && (
-                <optgroup label="已封存班別">
-                  {classSummaries
-                    .filter(c => isArchivedClassName(c.class_name))
-                    .map(c => (
-                      <option key={c.class_name} value={c.class_name}>{c.class_name} (已封存)</option>
-                    ))}
-                </optgroup>
-              )}
+              {classSummaries
+                .filter(c => !isArchivedClassName(c.class_name))
+                .map(c => (
+                  <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
+                ))}
             </select>
             <button 
               onClick={() => fetchAnalytics(false)}
@@ -346,10 +338,7 @@ export function AdminAnalyticsPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-slate-400 font-normal w-4">{idx + 1}.</span>
                                   {student.display_name} 
-                                  <span className="text-xs text-slate-400">({student.class})</span>
-                                  {student.class && isArchivedClassName(student.class) && (
-                                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">已封存</span>
-                                  )}
+                                  {student.class && <span className="text-xs text-slate-400">({student.class})</span>}
                                 </div>
                               </td>
                                <td className="px-4 py-3 text-center">

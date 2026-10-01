@@ -6,6 +6,7 @@ import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
 import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface BroadcastQuickBarProps {
     selectedCount: number;
@@ -272,6 +273,9 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                 const targetClasses = (r.target_classes || []).map((c: string) => (c || '').trim().toUpperCase());
                 let isVisible = false;
                 
+                // Exclude archived students
+                if (r.student?.class && isArchivedClassName(r.student.class)) return;
+
                 if (isAllClasses) isVisible = true;
                 else if (targetClasses.includes('ALL')) isVisible = true;
                 else if (targetClasses.length > 0) {
@@ -336,10 +340,12 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
             console.log('[DEBUG-MissingHW] Result - Error:', hwError, 'Data Length:', homeworkData?.length);
 
             if (homeworkData && homeworkData.length > 0) {
-                // Filter by class manually since student is an inner relationship
-                let filteredHomework = homeworkData;
+                // Filter by class manually since student is an inner relationship, and exclude archived classes
+                let filteredHomework = homeworkData.filter((log: any) => 
+                    !log.student?.class || !isArchivedClassName(log.student.class)
+                );
                 if (!isAllClasses) {
-                    filteredHomework = homeworkData.filter((log: any) => 
+                    filteredHomework = filteredHomework.filter((log: any) => 
                         log.student && log.student.class && log.student.class.toUpperCase() === currentClassUpper
                     );
                 }

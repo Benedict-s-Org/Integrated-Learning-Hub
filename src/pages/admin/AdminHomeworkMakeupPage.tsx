@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, BookOpen, Clock, Calendar, CheckCircle2 } from 'lucide-react';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface MissingItemLog {
     id: string;
@@ -47,7 +48,9 @@ export const AdminHomeworkMakeupPage: React.FC = () => {
             if (error) throw error;
 
             // We do class filtering on the client since student is an inner join object and sometimes we want ALL
-            let filteredData = data || [];
+            let filteredData = (data || []).filter((log: any) => 
+                !log.student || !log.student.class || !isArchivedClassName(log.student.class)
+            );
             if (filterClass && filterClass.toUpperCase() !== 'ALL') {
                 filteredData = filteredData.filter((log: any) => 
                     log.student && log.student.class && log.student.class.toUpperCase() === filterClass.toUpperCase()

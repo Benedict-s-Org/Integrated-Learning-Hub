@@ -13,6 +13,7 @@ import {
     Crown,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 export interface ManagedUser {
     id: string;
@@ -78,7 +79,7 @@ export function SuperAdminPanel() {
         if (error) {
             console.error('Error fetching users:', error);
         } else if (data) {
-            const allUsers = data as ManagedUser[];
+            const allUsers = (data as ManagedUser[]).filter(u => u.role === 'admin' || !isArchivedClassName(u.class));
             setUsers(allUsers);
 
             // Build admin summaries

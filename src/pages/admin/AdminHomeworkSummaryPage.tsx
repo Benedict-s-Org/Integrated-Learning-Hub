@@ -15,6 +15,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { getHKTodayString, formatHKDate } from '@/utils/dateUtils';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
   id: string;
@@ -108,7 +109,7 @@ export default function AdminHomeworkSummaryPage() {
           new Set(
             data
               .map((u: any) => u.class)
-              .filter((c: string | null): c is string => !!c && c !== 'Unassigned')
+              .filter((c: string | null): c is string => !!c && c !== 'Unassigned' && !isArchivedClassName(c))
           )
         ).sort();
 

@@ -5,6 +5,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { BookOpen, Check, AlertTriangle, AlertCircle, RefreshCw, X, Plus, Clock, FileText, Bookmark, Calendar } from 'lucide-react';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { playSuccessSound } from '@/utils/audio';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type EnglishMaterial = {
     id: string;
@@ -70,7 +71,7 @@ export function EnglishHomeworkPage() {
     const fetchClasses = async () => {
         const { data } = await supabase.from('users').select('class').not('class', 'is', null);
         if (data) {
-            const unique = Array.from(new Set(data.map(d => d.class))).filter(Boolean) as string[];
+            const unique = Array.from(new Set(data.map(d => d.class))).filter((c): c is string => !!c && !isArchivedClassName(c));
             setAllClasses(unique.sort());
         }
     };

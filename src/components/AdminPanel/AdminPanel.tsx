@@ -8,6 +8,7 @@ import { ShopStyleManager } from '../admin/ShopStyleManager';
 import { CMSManager } from '../admin/CMSManager';
 import { ArchiveClassModal } from '../admin/ArchiveClassModal';
 import { Globe } from 'lucide-react';
+import { isArchivedClassName } from '../../utils/archiveClassExporter';
 
 interface User {
   id: string;
@@ -138,11 +139,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
       });
 
-      setUsers(data.users.map((u: any) => ({
-        ...u,
-        class_number: profileMap[u.id],
-        qr_token: qrTokenMap[u.id]
-      })));
+      setUsers(
+        (data.users || [])
+          .filter((u: any) => u.role === 'admin' || !isArchivedClassName(u.class))
+          .map((u: any) => ({
+            ...u,
+            class_number: profileMap[u.id],
+            qr_token: qrTokenMap[u.id]
+          }))
+      );
     } finally {
       setLoading(false);
     }
@@ -530,7 +535,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
-  const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter(Boolean))) as string[];
+  const uniqueClasses = Array.from(
+    new Set(users.map(u => u.class).filter((c): c is string => Boolean(c) && !isArchivedClassName(c)))
+  ) as string[];
 
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-50 to-slate-100 p-8" data-component-name="AdminPanel" data-source-file="src/components/AdminPanel/AdminPanel.tsx">

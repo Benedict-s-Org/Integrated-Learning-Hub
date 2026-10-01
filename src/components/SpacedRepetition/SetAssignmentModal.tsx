@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, User, Check, Users, Calendar } from 'lucide-react';
+import { X, Search, User, Check, Users, Calendar, Filter } from 'lucide-react';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
 interface SetAssignmentModalProps {
@@ -17,6 +17,7 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
     const [students, setStudents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [classFilter, setClassFilter] = useState('all');
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
     const [dueDate, setDueDate] = useState('');
     const [isAssigning, setIsAssigning] = useState(false);
@@ -70,11 +71,23 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
         }
     };
 
-    const filteredStudents = students.filter(s =>
-        (s.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.class || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const availableClasses = Array.from(
+        new Set(students.map(s => s.class).filter((c): c is string => Boolean(c) && c !== 'Unassigned'))
+    ).sort();
+
+    const filteredStudents = students.filter(s => {
+        const matchesClass = 
+            classFilter === 'all' 
+                ? true 
+                : classFilter === 'unassigned' 
+                    ? (!s.class || s.class === 'Unassigned') 
+                    : s.class === classFilter;
+        const matchesSearch = 
+            (s.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (s.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (s.class || '').toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesClass && matchesSearch;
+    });
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -105,15 +118,31 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
                     <>
                         {/* Search and Selection Controls */}
                         <div className="p-6 pb-2 space-y-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search students by name, username, or class..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                />
+                            <div className="flex flex-wrap sm:flex-nowrap gap-3">
+                                <div className="relative flex-1 min-w-[200px]">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search students..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Filter className="w-4 h-4 text-gray-400 shrink-0" />
+                                    <select
+                                        value={classFilter}
+                                        onChange={(e) => setClassFilter(e.target.value)}
+                                        className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Classes</option>
+                                        <option value="unassigned">Unassigned</option>
+                                        {availableClasses.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="flex items-center justify-between">

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { CalendarDays, Save, RefreshCw, BookOpen, UserCheck, Coffee, Utensils, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type TimetableData = Record<string, string>; // key: "lessonNum_dayIndex"
 
@@ -26,7 +27,9 @@ export default function AdminTimetablePage() {
     const fetchClasses = async () => {
         const { data } = await (supabase.from('users' as any) as any).select('class').not('class', 'is', null);
         if (data) {
-            const uniqueClasses = Array.from(new Set(data.map((d: any) => d.class))).sort();
+            const uniqueClasses = Array.from(new Set(data.map((d: any) => d.class)))
+                .filter((c: any): c is string => !!c && !isArchivedClassName(c))
+                .sort();
             setClasses(uniqueClasses as string[]);
             if (uniqueClasses.includes('3A')) {
                 setSelectedClass('3A');

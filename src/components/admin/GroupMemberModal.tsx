@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { X, Search, Check, Users, Loader2 } from 'lucide-react';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface User {
     id: string;
@@ -46,7 +47,7 @@ export function GroupMemberModal({ isOpen, onClose, activityName, onUpdate }: Gr
 
             if (error) throw error;
 
-            const fetchedUsers = data as User[];
+            const fetchedUsers = (data as User[]).filter(u => !isArchivedClassName(u.class));
             setUsers(fetchedUsers);
 
             // Initialize selections based on existing ecas

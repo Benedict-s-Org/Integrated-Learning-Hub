@@ -3,6 +3,7 @@ import { X, MessageSquare, ListChecks, Send, CheckCircle2, Loader2, Globe } from
 import { supabase } from '@/integrations/supabase/client';
 import { NotificationType } from '@/types/notifications';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface NotificationTemplateModalProps {
     isOpen: boolean;
@@ -57,7 +58,7 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
                 .order('display_name');
 
             if (error) throw error;
-            setAvailableStudents(students || []);
+            setAvailableStudents((students || []).filter((s: any) => !isArchivedClassName(s.class)));
         } catch (err) {
             console.error('Error fetching students:', err);
         }
@@ -66,8 +67,8 @@ export const NotificationTemplateModal: React.FC<NotificationTemplateModalProps>
     const fetchInitialBroadcastData = async () => {
         try {
             // Fetch classes
-            const { data: classData } = await (supabase as any).from('classes').select('name').order('order_index');
-            const classes = classData ? classData.map((c: any) => c.name) : [];
+            const { data: classData } = await (supabase as any).from('classes').select('name, is_archived').order('order_index');
+            const classes = classData ? classData.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name)).map((c: any) => c.name) : [];
             setAvailableClasses(classes);
             if (classes.length > 0 && !selectedClass) setSelectedClass(classes[0]);
 
