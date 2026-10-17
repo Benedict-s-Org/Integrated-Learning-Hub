@@ -34,6 +34,7 @@
 | **Reliability** | Development standards to prevent infinite loops and stalls. | L36-L42 |
 | **Dev Ports & Troubleshooting** | Port configurations and troubleshooting common launch errors. | L318-L325 |
 | **Class Archiving** | `ArchiveClassModal.tsx`, `archiveClassExporter.ts` - Double-confirm class archiving, Excel backup & coin reset. | L344-L360 |
+| **Essay Marking Workbench** | `EssayMarkingPage.tsx` - Production teacher essay marking frontend with 6-stage stepper, local scan intake, student matching, transcript verification, rubric review, and report export. | L370-L395 |
 
 ---
 
@@ -364,4 +365,19 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
     - Assignment distribution modals and management tools (`PracticeAssignment`, `ProofreadingAssignment`, `MemorizationAssignment`, `SavedPractices`, `AssignmentManagement`, `ReadingAssignmentModal`, `SetAssignmentModal`, `StudyPlanModal`).
     - Interactive scan quizzes, marker generators, progress logs, and ECA groups (`InteractiveScanQuizPage`, `AdminTimetablePage`, `MarkerGenerator`, `ProgressLog`, `GroupMemberModal`).
     - *Only exception*: The "Archived Classes" accordion in `AdminGroupsPage.tsx` retains access for Excel backup re-download and class restoration.
+
+---
+
+### Essay Marking Workbench (L370-L395)
+- **Files**: `src/modules/essay-marking/EssayMarkingPage.tsx`, `src/modules/essay-marking/components/*`, `src/modules/essay-marking/services/*`, `src/modules/essay-marking/utils/*`
+- **Navigation**: Integrated as the **first item** under **Teacher Administration Tool** in `src/components/UnifiedNavigation/UnifiedNavigation.tsx`. Active route: `/admin/essay-marking` (renders inside Learning Hub app shell).
+- **Architecture & Workflow**:
+  - **Stage 1 (Preparation)**: Assignment title, original worksheet upload (.docx/.pdf/image), response format selector, writing instructions scope, and 5-dimension rubric configuration with explicit teacher confirmation.
+  - **Stage 2 (Add Scans)**: Genuine local file selection and drag-and-drop for images and multi-page PDFs. Uses local canvas extraction via `pdfjs-dist`. Zero external uploads.
+  - **Stage 3 (Match Students)**: Sequential student-number matching for real authorized Learning Hub classes. Supports header select-all/deselect-all with indeterminate state, bulk page counts, zero-page skipping without consuming scans, Medium-view 2.8x cursor magnification lens, click/keyboard enlargement, and exact page balance validation (`extra === 0 && missing === 0`).
+  - **Stage 4 (Verify Transcript)**: Original scan side-by-side with student transcript editor and sticky right student queue. Clear separation of OCR vs manual teacher transcription. Editing invalidates downstream marking approval.
+  - **Stage 5 (Review Marking)**: Manual and future AI findings review (accept/edit/reject), rubric scoring (0-4 per dimension, total 20), feedback commentary, and explicit teacher approval guard.
+  - **Stage 6 (Report & Export)**: Draft vs approved status distinction, print-ready report layout, local `.txt` export, and disabled publishing guard with honest integration boundary notice.
+- **Service Boundaries**: Decoupled typed interfaces (`EssayOcrService`, `VisualVerificationService`, `EssayMarkingService`, `ServiceAvailabilityService`) in `services/essayServiceRegistry.ts`. Standard adapters return typed `not_configured` without mock successes or simulated endpoints.
+
 

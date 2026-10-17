@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "notionDatabaseConfig", label: "Notion Database IDs", visible: true}
   ],
   teacher: [
+    {id: "essayMarking", label: "Essay Marking", visible: true},
     {id: "teacherPlaceholder", label: "(Add new tools here)", visible: true}
   ]
 };

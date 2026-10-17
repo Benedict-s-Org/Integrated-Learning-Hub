@@ -361,6 +361,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             bgColor="bg-orange-50"
                             isCollapsed={!isNavOpen}
                         >
+                            {isItemVisible('essayMarking') && (
+                                <NavItem
+                                    icon={FileEdit}
+                                    label="Essay Marking"
+                                    isActive={currentPage === 'essayMarking'}
+                                    onClick={() => onPageChange('essayMarking')}
+                                />
+                            )}
                             {isItemVisible('teacherPlaceholder') && (
                                 <NavItem
                                     icon={FileText}

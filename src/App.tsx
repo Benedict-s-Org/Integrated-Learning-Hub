@@ -38,6 +38,7 @@ import {
 } from './types';
 
 const ExamFormatterPage = lazy(() => import('./modules/exam-formatter/ExamFormatterPage'));
+const EssayMarkingPage = lazy(() => import('./modules/essay-marking/EssayMarkingPage'));
 const GripStation = lazy(() => import('./pages/GripStation').then(module => ({ default: module.GripStation })));
 const WritingStation = lazy(() => import('./pages/WritingStation').then(module => ({ default: module.WritingStation })));
 const AssessmentReport = lazy(() => import('./pages/AssessmentReport').then(module => ({ default: module.AssessmentReport })));
@@ -114,6 +115,7 @@ type AppState =
   | { page: 'writingStation' }
   | { page: 'assessmentReport' }
   | { page: 'examFormatter' }
+  | { page: 'essayMarking' }
   | { page: 'vocabImagePicker' }
   | { page: 'progressLog' }
   | { page: 'phonicsDashboard' }
@@ -255,6 +257,12 @@ function AppContent() {
       return;
     }
 
+    const essayMarkingMatch = path.match(/^\/admin\/essay-marking$/);
+    if (essayMarkingMatch) {
+      setAppState({ page: 'essayMarking' });
+      return;
+    }
+
     const handleHashChange = async () => {
       // Unused hash routing removed
     };
@@ -293,7 +301,7 @@ function AppContent() {
       'broadcastManagement', 'adminTimetable', 'progressLog', 'audioManagement',
       'furnitureStudio', 'furnitureEditor', 'assetUploader', 'multiFormatUpload',
       'spaceDesign', 'mapEditor', 'themeDesigner', 'avatarAssetManager', 'uiBuilder',
-      'examFormatter', 'vocabImagePicker', 'phonicsDashboard', 'adminHomeworkMakeup'
+      'examFormatter', 'essayMarking', 'vocabImagePicker', 'phonicsDashboard', 'adminHomeworkMakeup'
     ];
     if (adminOrStaffPages.includes(appState.page) && !new URLSearchParams(window.location.search).get('token')) {
       setAppState({ page: 'new', step: 'input' });
@@ -409,7 +417,7 @@ function AppContent() {
     window.location.hash = '';
 
     // Clear special URL paths when navigating to standard views via state change
-    if (window.location.pathname !== '/' && !['interactiveScanner'].includes(page)) {
+    if (window.location.pathname !== '/' && !['interactiveScanner', 'essayMarking'].includes(page)) {
       navigate('/', { replace: true });
     }
 
@@ -496,6 +504,9 @@ function AppContent() {
       setAppState({ page: 'assessmentReport' });
     } else if (page === 'examFormatter') {
       setAppState({ page: 'examFormatter' });
+    } else if (page === 'essayMarking') {
+      window.history.replaceState(null, '', '/admin/essay-marking');
+      setAppState({ page: 'essayMarking' });
     } else if (page === 'vocabImagePicker') {
       setAppState({ page: 'vocabImagePicker' });
     } else if (page === 'progressLog') {
@@ -923,6 +934,8 @@ function AppContent() {
               return <ContentDatabase />;
             case 'examFormatter':
               return <ExamFormatterPage />;
+            case 'essayMarking':
+              return <EssayMarkingPage />;
             case 'practice':
               if (appState.memorizationState.practiceMode === 'shuffledGame') {
                 return (
@@ -1859,6 +1872,10 @@ function AppRoutes() {
                 <AdminHomeworkRecordPage />
               </Suspense>
             }
+          />
+          <Route
+            path="/admin/essay-marking"
+            element={<AppProviderWrapper />}
           />
           <Route
             path="/admin/english-homework"
