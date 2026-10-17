@@ -9,8 +9,9 @@ import { AssignedMemorizationContent, MemorizationState } from '../../types';
 import { processText } from '../../utils/textProcessor';
 
 interface AssignedMemorizationsProps {
-  onLoadContent: (content: MemorizationState) => void;
+  onLoadContent: (content: any) => void;
 }
+
 
 const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadContent }) => {
   const { user } = useAuth();
@@ -30,26 +31,29 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase.rpc('get_user_assigned_memorizations', {
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_student_assignments_unified', {
         target_user_id: user.id,
       });
 
       if (fetchError) throw fetchError;
 
-      const formattedAssignments = (data || []).map((a: any) => ({
-        id: a.id,
-        content_id: a.content_id,
-        title: a.title,
-        original_text: a.original_text,
-        selected_word_indices: Array.isArray(a.selected_word_indices)
-          ? a.selected_word_indices
-          : JSON.parse(a.selected_word_indices || '[]'),
-        assigned_at: a.assigned_at,
-        due_date: a.due_date,
-        completed: a.completed,
-        completed_at: a.completed_at,
-        assigned_by_username: a.assigned_by_username,
-      }));
+      const formattedAssignments = (data || [])
+        .filter((a: any) => a.assignment_type === 'memorization')
+        .map((a: any) => ({
+          id: a.assignment_id,
+          content_id: a.content_data?.content_id,
+          title: a.title,
+          original_text: a.content_data?.original_text || '',
+          selected_word_indices: Array.isArray(a.content_data?.selected_word_indices)
+            ? a.content_data.selected_word_indices
+            : JSON.parse(a.content_data?.selected_word_indices || '[]'),
+          assigned_at: a.assigned_at,
+          due_date: a.due_date,
+          completed: a.completed,
+          completed_at: a.completed_at,
+          assigned_by_username: a.assigned_by_username,
+          practice_mode: a.content_data?.practice_mode || 'memorization',
+        }));
 
       setAssignments(formattedAssignments);
     } catch (err) {
@@ -59,38 +63,27 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
     }
   };
 
-  const handlePractice = async (assignment: AssignedMemorizationContent) => {
+  const handlePractice = (assignment: any) => {
     const words = processText(assignment.original_text);
     const wordsWithSelection = words.map((word) => ({
       ...word,
       isMemorized: assignment.selected_word_indices.includes(word.index),
     }));
 
-    const memorizationState: MemorizationState = {
+    const memorizationState = {
+      id: assignment.content_id,
       originalText: assignment.original_text,
       words: wordsWithSelection,
       selectedWordIndices: assignment.selected_word_indices,
       hiddenWords: new Set(assignment.selected_word_indices),
+      title: assignment.title,
+      assignmentId: assignment.id,
+      practiceMode: assignment.practice_mode || 'memorization',
     };
-
-    if (!assignment.completed) {
-      try {
-        await supabase
-          .from('memorization_assignments')
-          .update({
-            completed: true,
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', assignment.id);
-
-        await loadAssignments();
-      } catch (error) {
-        console.error('Failed to mark assignment as complete:', error);
-      }
-    }
 
     onLoadContent(memorizationState);
   };
+
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

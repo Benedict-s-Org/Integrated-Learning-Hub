@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { processText } from '../../utils/textProcessor';
+
 
 interface UnifiedAssignment {
   assignment_id: string;
@@ -157,14 +159,25 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
 
   const handleAssignmentClick = (assignment: UnifiedAssignment) => {
     if (assignment.assignment_type === 'memorization') {
+      const originalText = assignment.content_data?.original_text || '';
+      const selectedIndices: number[] = Array.isArray(assignment.content_data?.selected_word_indices)
+        ? assignment.content_data.selected_word_indices
+        : JSON.parse(assignment.content_data?.selected_word_indices || '[]');
+
+      const processedWords = processText(originalText);
+      const wordsWithSelection = processedWords.map((w) => ({
+        ...w,
+        isMemorized: selectedIndices.includes(w.index),
+      }));
+
       const memorizationState = {
-        id: assignment.content_data.content_id,
-        originalText: assignment.content_data.original_text,
-        selectedWordIndices: assignment.content_data.selected_word_indices,
-        words: [],
+        id: assignment.content_data?.content_id,
+        originalText,
+        selectedWordIndices: selectedIndices,
+        words: wordsWithSelection,
         title: assignment.title,
         assignmentId: assignment.assignment_id,
-        practiceMode: assignment.content_data.practice_mode || 'memorization',
+        practiceMode: assignment.content_data?.practice_mode || 'memorization',
       };
       onLoadMemorization(memorizationState);
     } else if (assignment.assignment_type === 'spelling') {

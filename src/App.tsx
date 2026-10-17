@@ -88,7 +88,8 @@ type AppState =
   | { page: 'assignments' }
   | { page: 'assignmentManagement' }
   | { page: 'proofreadingAssignments' }
-  | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string }
+  | { page: 'memorizationAssignments' }
+  | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string; returnTo?: 'assignments' | 'memorizationAssignments' }
   | { page: 'learningHub' }
   | { page: 'spacedRepetition' }
   | { page: 'flowithTest' }
@@ -413,7 +414,13 @@ function AppContent() {
     }
 
     if (page === 'new') {
-      setAppState({ page: 'new', step: 'input' });
+      if (isAdmin) {
+        setAppState({ page: 'new', step: 'input' });
+      } else {
+        setAppState({ page: 'memorizationAssignments' });
+      }
+    } else if (page === 'memorizationAssignments') {
+      setAppState({ page: 'memorizationAssignments' });
     } else if (page === 'saved') {
       setAppState({ page: 'saved' });
     } else if (page === 'admin') {
@@ -616,11 +623,12 @@ function AppContent() {
     setAppState({ page: 'practice', memorizationState });
   };
 
-  const handleLoadAssignedContent = (memorizationState: any) => {
+  const handleLoadAssignedContent = (memorizationState: any, returnTo: 'assignments' | 'memorizationAssignments' = 'assignments') => {
     setAppState({
       page: 'assignedPractice',
       memorizationState,
-      assignmentId: memorizationState.assignmentId
+      assignmentId: memorizationState.assignmentId,
+      returnTo,
     });
   };
 
@@ -629,7 +637,11 @@ function AppContent() {
   };
 
   const handleBackFromAssignedPractice = () => {
-    setAppState({ page: 'assignments' });
+    if (appState.page === 'assignedPractice' && appState.returnTo === 'memorizationAssignments') {
+      setAppState({ page: 'memorizationAssignments' });
+    } else {
+      setAppState({ page: 'assignments' });
+    }
   };
 
   const handleViewSavedMemorization = () => {
@@ -1123,6 +1135,8 @@ function AppContent() {
               return <AssignmentManagement />;
             case 'proofreadingAssignments':
               return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
+            case 'memorizationAssignments':
+              return <AssignedMemorizations onLoadContent={(state: any) => handleLoadAssignedContent(state, 'memorizationAssignments')} />;
             case 'adminAvatarUploader':
               return <AdminAssetUploader />;
             case 'avatarBuilder':
@@ -1283,8 +1297,11 @@ function AppContent() {
     if (appState.page === 'progress') {
       return 'progress';
     }
-    if (appState.page === 'assignments' || appState.page === 'assignedPractice') {
+    if (appState.page === 'assignments' || (appState.page === 'assignedPractice' && appState.returnTo !== 'memorizationAssignments')) {
       return 'assignments';
+    }
+    if (appState.page === 'memorizationAssignments' || (appState.page === 'assignedPractice' && appState.returnTo === 'memorizationAssignments')) {
+      return 'new';
     }
     if (appState.page === 'assignmentManagement') {
       return 'assignmentManagement';
@@ -1304,6 +1321,7 @@ function AppContent() {
   const getDiagnosticPage = (): string => {
     if (appState.page === 'practice') return 'practice';
     if (appState.page === 'assignedPractice') return 'assignedPractice';
+    if (appState.page === 'memorizationAssignments') return 'memorizationAssignments';
     if (appState.page === 'learningHub') return 'learningHub';
 
     if (appState.page === 'proofreading') {
@@ -1644,6 +1662,7 @@ const ProofreadingPracticeComponent = lazy(() => import('./components/Proofreadi
 const SavedProofreadingPractices = lazy(() => import('./components/SavedProofreadingPractices/SavedProofreadingPractices'));
 const ProofreadingAssignment = lazy(() => import('./components/ProofreadingAssignment/ProofreadingAssignment'));
 const AssignedProofreadingPractices = lazy(() => import('./components/AssignedProofreadingPractices/AssignedProofreadingPractices'));
+const AssignedMemorizations = lazy(() => import('./components/AssignedMemorizations/AssignedMemorizations'));
 const SpellingInput = lazy(() => import('./components/SpellingInput/SpellingInput'));
 const SpellingPreview = lazy(() => import('./components/SpellingPreview/SpellingPreview'));
 const SpellingPractice = lazy(() => import('./components/SpellingPractice/SpellingPractice'));
