@@ -42,14 +42,14 @@ describe('Authentication System Integration Tests', () => {
     });
 
     it('should verify all authentication functions are accessible', async () => {
-      const { data, error } = await supabase.rpc('run_system_health_check');
+      const { data, error } = await (supabase.rpc as any)('run_system_health_check');
 
       expect(error).toBeNull();
       expect(data).toBeDefined();
 
-      const functionTests = data.test_results.filter((t: any) =>
+      const functionTests = (data as any)?.test_results?.filter((t: any) =>
         t.test.includes('_function')
-      );
+      ) || [];
 
       functionTests.forEach((test: any) => {
         expect(
@@ -186,24 +186,24 @@ describe('Authentication System Integration Tests', () => {
 
   describe('Critical Security Checks', () => {
     it('should verify pgcrypto is in extensions schema', async () => {
-      const { data, error } = await supabase.rpc('run_system_health_check');
+      const { data, error } = await (supabase.rpc as any)('run_system_health_check');
 
       expect(error).toBeNull();
-      const pgcryptoTest = data.test_results.find(
+      const pgcryptoTest = (data as any)?.test_results?.find(
         (t: any) => t.test === 'pgcrypto_extension_access'
       );
 
-      expect(pgcryptoTest.status).toBe('PASS');
+      expect(pgcryptoTest?.status).toBe('PASS');
     });
 
     it('should verify password functions have correct search_path', async () => {
-      const { data: healthData, error } = await supabase.rpc('run_system_health_check');
+      const { data: healthData, error } = await (supabase.rpc as any)('run_system_health_check');
 
       expect(error).toBeNull();
 
-      const criticalFunctionTests = healthData.test_results.filter((t: any) =>
+      const criticalFunctionTests = (healthData as any)?.test_results?.filter((t: any) =>
         ['verify_password_function', 'verify_system_code_function'].includes(t.test)
-      );
+      ) || [];
 
       criticalFunctionTests.forEach((test: any) => {
         expect(test.status).toBe('PASS');

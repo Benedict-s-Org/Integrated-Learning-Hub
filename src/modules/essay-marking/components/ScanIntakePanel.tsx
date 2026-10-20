@@ -42,7 +42,7 @@ export const ScanIntakePanel: React.FC<ScanIntakePanelProps> = ({
         const fileId = `file-${Date.now()}-${i}`;
 
         if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-          const { pages: pdfPages, error } = await renderPdfPagesLocally(
+          const { pages: pdfPages, totalDocPages, failedPageNumbers: _failedPageNumbers, error } = await renderPdfPagesLocally(
             file,
             fileId,
             currentOrder
@@ -57,7 +57,7 @@ export const ScanIntakePanel: React.FC<ScanIntakePanelProps> = ({
             name: file.name,
             size: file.size,
             type: 'pdf',
-            pageCount: pdfPages.length,
+            pageCount: totalDocPages > 0 ? totalDocPages : pdfPages.length,
             addedAt: Date.now() + i,
           });
 
@@ -81,6 +81,7 @@ export const ScanIntakePanel: React.FC<ScanIntakePanelProps> = ({
             sourcePageNumber: 1,
             previewUrl,
             orderIndex: currentOrder++,
+            imageBlob: file,
           });
         }
       }

@@ -1,18 +1,29 @@
 import React, { useEffect } from 'react';
 import { X, ZoomIn } from 'lucide-react';
 import { ScanPage, StudentMatchMapItem } from '../types';
+import { resolveScanPageImageUrl, getFallbackScanImageUrl } from '../utils/scanImageResolver';
 
 interface ScanPreviewModalProps {
   page: ScanPage | null;
   matchInfo: StudentMatchMapItem | null;
+  imageUrl?: string;
   onClose: () => void;
 }
 
 export const ScanPreviewModal: React.FC<ScanPreviewModalProps> = ({
   page,
   matchInfo,
+  imageUrl,
   onClose,
 }) => {
+  const [currentSrc, setCurrentSrc] = React.useState<string>('');
+
+  useEffect(() => {
+    if (page) {
+      setCurrentSrc(imageUrl || resolveScanPageImageUrl(page, matchInfo?.part));
+    }
+  }, [page, imageUrl, matchInfo?.part]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -49,8 +60,14 @@ export const ScanPreviewModal: React.FC<ScanPreviewModalProps> = ({
 
         <div className="flex-1 overflow-auto bg-slate-100 rounded-md p-2 flex items-center justify-center">
           <img
-            src={page.previewUrl}
+            src={currentSrc}
             alt={`Scan page ${page.orderIndex + 1}`}
+            onError={() => {
+              const fallback = getFallbackScanImageUrl(page, matchInfo?.part);
+              if (fallback && currentSrc !== fallback) {
+                setCurrentSrc(fallback);
+              }
+            }}
             className="max-h-[76vh] w-auto object-contain rounded shadow-xs"
           />
         </div>

@@ -4,11 +4,31 @@ import {
   ScanPage,
   MatchingPreviewResult,
   AppliedMatching,
+  MatchingMode,
+  PageIdentityRecognition,
+  TemplateRegion,
 } from '../types';
 import { isMatchingDirty } from '../utils/matchingLogic';
 import { MagnifierLens, MagnifierState } from './MagnifierLens';
 import { ScanPreviewModal } from './ScanPreviewModal';
-import { AlertCircle } from 'lucide-react';
+import { AdjustScanRegionsModal } from './AdjustScanRegionsModal';
+import {
+  AlertCircle,
+  Sparkles,
+  RotateCcw,
+  Sliders,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  ListOrdered,
+  ScanLine,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Eye,
+} from 'lucide-react';
 
 interface StudentMatchingPanelProps {
   pages: ScanPage[];
@@ -29,6 +49,19 @@ interface StudentMatchingPanelProps {
   onApplyMatching: () => void;
   onPrev: () => void;
   onNext: () => void;
+
+  // Identity Recognition Props
+  matchingMode?: MatchingMode;
+  onChangeMatchingMode?: (mode: MatchingMode) => void;
+  recognitionResults?: Record<string, PageIdentityRecognition>;
+  isRecognizing?: boolean;
+  recognizeProgress?: { current: number; total: number };
+  onStartRecognition?: () => void;
+  onCancelRecognition?: () => void;
+  onRetryRecognition?: () => void;
+  onManualAssignStudent?: (scanPageId: string, studentId: string | null) => void;
+  templateRegions?: TemplateRegion[];
+  onUpdatePageCustomRegions?: (pageId: string, customRegions: TemplateRegion[]) => void;
 }
 
 export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
@@ -50,10 +83,46 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
   onApplyMatching,
   onPrev,
   onNext,
+  matchingMode = 'recognition',
+  onChangeMatchingMode,
+  recognitionResults = {},
+  isRecognizing = false,
+  recognizeProgress = { current: 0, total: 0 },
+  onStartRecognition,
+  onCancelRecognition,
+  onRetryRecognition,
+  onManualAssignStudent,
+  templateRegions = [],
+  onUpdatePageCustomRegions,
 }) => {
   const [bulkInput, setBulkInput] = useState<string>('1');
   const [previewModalPage, setPreviewModalPage] = useState<ScanPage | null>(null);
   const [previewModalMatchIndex, setPreviewModalMatchIndex] = useState<number | null>(null);
+  const [activeAdjustPage, setActiveAdjustPage] = useState<ScanPage | null>(null);
+  const [selectedPageIndex, setSelectedPageIndex] = useState<number>(0);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  const safePageIndex =
+    pages.length > 0 ? Math.min(Math.max(0, selectedPageIndex), pages.length - 1) : 0;
+  const currentPage = pages[safePageIndex] ?? null;
+
+  useEffect(() => {
+    if (viewMode !== 'large') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tagName = (e.target as HTMLElement)?.tagName;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tagName)) return;
+
+      if (e.key === 'ArrowLeft') {
+        setSelectedPageIndex((prev) => Math.max(0, prev - 1));
+        setZoomLevel(1);
+      } else if (e.key === 'ArrowRight') {
+        setSelectedPageIndex((prev) => Math.min(pages.length - 1, prev + 1));
+        setZoomLevel(1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode, pages.length]);
 
   const [magnifier, setMagnifier] = useState<MagnifierState>({
     visible: false,
@@ -126,48 +195,178 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
     setMagnifier((prev) => ({ ...prev, visible: false }));
   };
 
+  // Recognition counts summary
+  const recognizedPagesList = pages.map((p) => recognitionResults[p.id]);
+  const matchedCount = recognizedPagesList.filter(
+    (r) => r?.status === 'matched' || r?.manualConfirmed
+  ).length;
+  const reviewCount = recognizedPagesList.filter(
+    (r) => r?.status === 'needs_review' && !r?.manualConfirmed
+  ).length;
+  const conflictCount = recognizedPagesList.filter(
+    (r) => r?.status === 'conflict' && !r?.manualConfirmed
+  ).length;
+  const unmatchedCount = recognizedPagesList.filter(
+    (r) => (!r || r.status === 'unmatched') && !r?.manualConfirmed
+  ).length;
+
+  const hasFailedPages = recognizedPagesList.some(
+    (r) => r && (r.status === 'unmatched' || r.status === 'conflict' || r.status === 'needs_review')
+  );
+
   const canApplyMatching =
     selectedClassId &&
     pages.length > 0 &&
-    matchingPreview.extra === 0 &&
-    matchingPreview.missing === 0 &&
-    isDirty;
+    (matchingMode === 'recognition'
+      ? matchedCount > 0 && isDirty
+      : matchingPreview.extra === 0 && matchingPreview.missing === 0 && isDirty);
 
   return (
     <div className="space-y-4">
-      {/* Top Banner Status */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 border border-slate-200 rounded-lg shadow-2xs">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span>
-            Scans: <strong>{pages.length}</strong> pages
-          </span>
-          <span className="text-slate-300">•</span>
-          <span>
-            Assigned: <strong>{matchingPreview.assigned}</strong>
-          </span>
-          <span className="text-slate-300">•</span>
-          <span>
-            Unmatched: <strong>{matchingPreview.extra}</strong>
-          </span>
-          {matchingPreview.missing > 0 && (
-            <>
-              <span className="text-slate-300">•</span>
-              <span className="text-rose-600 font-semibold">
-                Missing: {matchingPreview.missing} pages
-              </span>
-            </>
-          )}
+      {/* Top Controls: Mode Switcher & Top Status Banner */}
+      <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-2xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
+          {/* Mode Switcher Tabs */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700">Matching Mode:</span>
+            <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => onChangeMatchingMode?.('recognition')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                  matchingMode === 'recognition'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ScanLine className="w-3.5 h-3.5" />
+                <span>Identity Recognition (Local VL)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeMatchingMode?.('sequential')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                  matchingMode === 'sequential'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ListOrdered className="w-3.5 h-3.5" />
+                <span>Sequential Allocation</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold ${
+                !isDirty
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}
+            >
+              {!isDirty ? '✓ Matching Applied' : 'Preview · Not Applied'}
+            </span>
+          </div>
         </div>
 
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-            !isDirty
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-amber-50 text-amber-700 border border-amber-200'
-          }`}
-        >
-          {!isDirty ? '✓ Matching Applied' : 'Preview · Not Applied'}
-        </span>
+        {/* Action Controls for Identity Recognition Mode */}
+        {matchingMode === 'recognition' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={!selectedClassId || pages.length === 0 || isRecognizing}
+                onClick={onStartRecognition}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold shadow-2xs transition-colors ${
+                  isRecognizing
+                    ? 'bg-blue-100 text-blue-700 cursor-wait'
+                    : !selectedClassId || pages.length === 0
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {isRecognizing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span>
+                      Processing page {recognizeProgress.current} of {recognizeProgress.total}...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>Recognise Student Details</span>
+                  </>
+                )}
+              </button>
+
+              {isRecognizing && (
+                <button
+                  type="button"
+                  onClick={onCancelRecognition}
+                  className="px-3 py-1.5 rounded-md text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100"
+                >
+                  Cancel Recognition
+                </button>
+              )}
+
+              {!isRecognizing && hasFailedPages && onRetryRecognition && (
+                <button
+                  type="button"
+                  onClick={onRetryRecognition}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50"
+                  title="Retry failed or unreadable pages"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Retry Unresolved Pages</span>
+                </button>
+              )}
+            </div>
+
+            {/* Recognition Summary Pills */}
+            <div className="flex items-center gap-2 text-xs flex-wrap">
+              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                Total: {pages.length}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                Matched: {matchedCount}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                Review: {reviewCount}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
+                Conflict: {conflictCount}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                Unmatched: {unmatchedCount}
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Sequential Mode Header Status */
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span>
+              Scans: <strong>{pages.length}</strong> pages
+            </span>
+            <span className="text-slate-300">•</span>
+            <span>
+              Assigned: <strong>{matchingPreview.assigned}</strong>
+            </span>
+            <span className="text-slate-300">•</span>
+            <span>
+              Unmatched: <strong>{matchingPreview.extra}</strong>
+            </span>
+            {matchingPreview.missing > 0 && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="text-rose-600 font-semibold">
+                  Missing: {matchingPreview.missing} pages
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Split Layout: Gallery on Left, Roster on Right */}
@@ -193,7 +392,11 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
             </div>
 
             <span className="text-xs text-slate-500">
-              Hover to magnify (Medium) • Click or Space to enlarge
+              {viewMode === 'large'
+                ? '單頁大圖檢視 • 支援縮放及手動配對'
+                : viewMode === 'medium'
+                ? '懸停局部放大 • 點擊卡片切換至單頁大圖'
+                : '列表檢視 • 點擊預覽圖切換至單頁大圖'}
             </span>
           </div>
 
@@ -201,7 +404,7 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
             <div className="p-8 text-center text-slate-400 bg-slate-50 border border-slate-100 rounded-md">
               <p className="text-sm font-medium text-slate-700">Select a class on the right</p>
               <p className="text-xs text-slate-500 mt-1">
-                Student roster will be assigned in student-number order.
+                Student roster is required to match scan identities.
               </p>
             </div>
           )}
@@ -211,157 +414,670 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
               No previewable scan pages added yet. Return to Add Scans step.
             </div>
           ) : viewMode === 'list' ? (
+            /* List View */
             <div className="overflow-x-auto border border-slate-200 rounded-md">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                     <th className="py-2 px-3 w-16">Preview</th>
-                    <th className="py-2 px-3">Order / Source</th>
-                    <th className="py-2 px-3">Matched Student</th>
-                    <th className="py-2 px-3">Essay Page</th>
+                    <th className="py-2 px-3">Scan Page</th>
+                    {matchingMode === 'recognition' ? (
+                      <>
+                        <th className="py-2 px-3">Recognised Details</th>
+                        <th className="py-2 px-3">Status</th>
+                        <th className="py-2 px-3">Assigned Student</th>
+                        <th className="py-2 px-3 text-right">Actions</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="py-2 px-3">Matched Student</th>
+                        <th className="py-2 px-3 text-right">Part / Total</th>
+                        <th className="py-2 px-3 text-right">Actions</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pages.map((p, idx) => {
-                    const match = matchingPreview.map[idx];
+                  {pages.map((page, index) => {
+                    const match = matchingPreview.map[index];
+                    const rec = recognitionResults[page.id];
+                    const effectiveStudentId =
+                      rec?.manualStudentId ||
+                      (rec?.status === 'matched' ? rec.matchedStudentId : null);
+
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50/70">
-                        <td className="py-1.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewModalPage(p);
-                              setPreviewModalMatchIndex(idx);
+                      <tr
+                        key={page.id}
+                        onClick={() => setSelectedPageIndex(index)}
+                        className={`cursor-pointer transition-colors ${
+                          safePageIndex === index ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="py-2 px-3">
+                          <img
+                            src={page.previewUrl}
+                            alt={`Page ${index + 1}`}
+                            className="w-12 h-16 object-contain rounded border border-slate-200 cursor-pointer shadow-2xs bg-white hover:ring-2 hover:ring-blue-400 transition-all"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPageIndex(index);
+                              onViewModeChange('large');
                             }}
-                            className="w-10 h-14 bg-slate-100 border border-slate-200 rounded overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
-                          >
-                            <img
-                              src={p.previewUrl}
-                              alt={`Scan ${idx + 1}`}
-                              className="w-full h-full object-contain"
-                            />
-                          </button>
+                            title="點擊切換至單頁大圖檢視"
+                          />
                         </td>
-                        <td className="py-1.5 px-3">
-                          <div className="font-semibold text-slate-800">
-                            Scan {idx + 1}
-                          </div>
-                          <div className="text-slate-400 text-[11px] truncate max-w-[180px]">
-                            {p.fileName} (p.{p.sourcePageNumber})
+                        <td className="py-2 px-3 font-medium text-slate-800">
+                          <div>Page #{index + 1}</div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                            {page.fileName}
                           </div>
                         </td>
-                        <td className="py-1.5 px-3">
-                          {match ? (
-                            <span className="font-semibold text-blue-700">
-                              No. {String(match.classNumber).padStart(2, '0')} {match.studentName}
-                            </span>
-                          ) : (
-                            <span className="text-amber-600 font-medium">Unmatched</span>
-                          )}
-                        </td>
-                        <td className="py-1.5 px-3 text-slate-600">
-                          {match ? `${match.part} / ${match.total}` : '—'}
-                        </td>
+
+                        {matchingMode === 'recognition' ? (
+                          <>
+                            <td className="py-2 px-3">
+                              {rec ? (
+                                <div className="space-y-0.5 text-[11px]">
+                                  <div>
+                                    <span className="text-slate-400">Class: </span>
+                                    <strong className="text-slate-700">
+                                      {rec.rawClass || 'unreadable'}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Name: </span>
+                                    <strong className="text-slate-700">
+                                      {rec.rawStudentName || 'unreadable'}
+                                    </strong>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">No: </span>
+                                    <strong className="text-slate-700">
+                                      {rec.rawClassNumber || 'unreadable'}
+                                    </strong>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">Pending recognition</span>
+                              )}
+                            </td>
+
+                            <td className="py-2 px-3">
+                              {rec ? (
+                                <div>
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                                      rec.manualConfirmed
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : rec.status === 'matched'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : rec.status === 'needs_review'
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : rec.status === 'conflict'
+                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                                    }`}
+                                  >
+                                    {rec.manualConfirmed ? (
+                                      '✓ Manually Assigned'
+                                    ) : rec.status === 'matched' ? (
+                                      '✓ Matched'
+                                    ) : rec.status === 'needs_review' ? (
+                                      '⚠️ Needs Review'
+                                    ) : rec.status === 'conflict' ? (
+                                      '🚫 Conflict'
+                                    ) : (
+                                      'Unmatched'
+                                    )}
+                                  </span>
+                                  {rec.statusReason && !rec.manualConfirmed && (
+                                    <div className="text-[10px] text-slate-500 mt-1 max-w-[200px] leading-tight">
+                                      {rec.statusReason}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">—</span>
+                              )}
+                            </td>
+
+                            <td className="py-2 px-3">
+                              <select
+                                value={effectiveStudentId || ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) =>
+                                  onManualAssignStudent?.(page.id, e.target.value || null)
+                                }
+                                className="text-xs p-1 border border-slate-300 rounded bg-white max-w-[160px]"
+                              >
+                                <option value="">— Unassigned —</option>
+                                {students.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    #{s.classNumber} {s.displayName}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="py-2 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPageIndex(index);
+                                    onViewModeChange('large');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                  title="View in Large Mode"
+                                >
+                                  <Eye className="w-3 h-3 text-blue-600" />
+                                  <span>Large</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveAdjustPage(page)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                                  title="Adjust crop regions for this scan"
+                                >
+                                  <Sliders className="w-3 h-3 text-slate-500" />
+                                  <span>Adjust</span>
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          /* Sequential List Cells */
+                          <>
+                            <td className="py-2 px-3">
+                              {match ? (
+                                <span className="font-semibold text-slate-800">
+                                  #{match.classNumber} {match.studentName}
+                                </span>
+                              ) : (
+                                <span className="text-amber-600 font-medium">Unassigned</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-right font-medium text-slate-600">
+                              {match ? `${match.part} / ${match.total}` : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPageIndex(index);
+                                    onViewModeChange('large');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                  title="View in Large Mode"
+                                >
+                                  <Eye className="w-3 h-3 text-blue-600" />
+                                  <span>Large</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveAdjustPage(page)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                                  title="Adjust crop regions for this scan"
+                                >
+                                  <Sliders className="w-3 h-3 text-slate-500" />
+                                  <span>Adjust</span>
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div
-              className={`grid gap-3.5 ${
-                viewMode === 'large'
-                  ? 'grid-cols-1 max-w-xl mx-auto'
-                  : 'grid-cols-2 sm:grid-cols-3'
-              }`}
-            >
-              {pages.map((p, idx) => {
-                const match = matchingPreview.map[idx];
-                return (
-                  <article
-                    key={p.id}
-                    className="border border-slate-200 rounded-md bg-white overflow-hidden shadow-2xs hover:border-blue-400 transition-all flex flex-col"
+          ) : viewMode === 'large' ? (
+            /* Large View: True Single-Page Large View */
+            <div className="flex flex-col space-y-3">
+              {/* Pagination and Zoom Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                {/* Page Navigation Controls */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPageIndex((prev) => Math.max(0, prev - 1));
+                      setZoomLevel(1);
+                    }}
+                    disabled={safePageIndex <= 0}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs"
+                    title="Previous Page (上一頁)"
                   >
-                    <div
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Enlarge scan page ${idx + 1}`}
-                      onClick={() => {
-                        setPreviewModalPage(p);
-                        setPreviewModalMatchIndex(idx);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setPreviewModalPage(p);
-                          setPreviewModalMatchIndex(idx);
-                        }
-                      }}
-                      className="bg-slate-100 p-2 flex items-center justify-center cursor-zoom-in relative min-h-[160px] max-h-[300px] overflow-hidden"
-                    >
-                      <img
-                        src={p.previewUrl}
-                        alt={`Scan ${idx + 1}`}
-                        onPointerMove={
-                          viewMode === 'medium' ? handlePointerMove : undefined
-                        }
-                        onPointerLeave={
-                          viewMode === 'medium' ? handlePointerLeave : undefined
-                        }
-                        className="max-h-[280px] w-auto object-contain rounded shadow-2xs"
-                      />
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>上一頁</span>
+                  </button>
+
+                  <div className="px-3 py-1 font-bold text-slate-800 bg-white border border-slate-200 rounded-md shadow-2xs min-w-[100px] text-center select-none">
+                    第 {safePageIndex + 1} / {pages.length} 頁
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPageIndex((prev) => Math.min(pages.length - 1, prev + 1));
+                      setZoomLevel(1);
+                    }}
+                    disabled={safePageIndex >= pages.length - 1}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs"
+                    title="Next Page (下一頁)"
+                  >
+                    <span>下一頁</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick Page Jump Selector */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 text-[11px]">跳轉：</span>
+                  <select
+                    value={safePageIndex}
+                    onChange={(e) => {
+                      setSelectedPageIndex(Number(e.target.value));
+                      setZoomLevel(1);
+                    }}
+                    className="text-xs p-1 bg-white border border-slate-200 rounded font-medium text-slate-700 max-w-[150px]"
+                  >
+                    {pages.map((p, idx) => (
+                      <option key={p.id} value={idx}>
+                        第 {idx + 1} 頁 {p.fileName ? `(${p.fileName.slice(0, 14)}...)` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                    disabled={zoomLevel <= 0.5}
+                    className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-30 text-slate-700 transition-colors"
+                    title="縮小 (Zoom Out)"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-1.5 py-0.5 font-bold text-slate-700 text-[11px] min-w-[42px] text-center select-none">
+                    {Math.round(zoomLevel * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                    disabled={zoomLevel >= 3}
+                    className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-30 text-slate-700 transition-colors"
+                    title="放大 (Zoom In)"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(1)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-100 text-slate-700 font-medium text-[11px] transition-colors"
+                    title="適合頁面 (Fit Page)"
+                  >
+                    <Maximize2 className="w-3 h-3 text-slate-500" />
+                    <span>適合頁面</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Current Page Identity & Pairing Details Banner */}
+              {currentPage && (() => {
+                const match = matchingPreview.map[safePageIndex];
+                const rec = recognitionResults[currentPage.id];
+                const effectiveStudentId =
+                  rec?.manualStudentId ||
+                  (rec?.status === 'matched' ? rec.matchedStudentId : null);
+
+                return (
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div>
+                        <span className="font-bold text-slate-900 text-sm">
+                          Page #{safePageIndex + 1}
+                        </span>
+                        <span className="text-[11px] text-slate-400 ml-2">
+                          {currentPage.fileName}
+                        </span>
+                      </div>
+
+                      {matchingMode === 'recognition' ? (
+                        <>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                              rec?.manualConfirmed
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : rec?.status === 'matched'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : rec?.status === 'needs_review'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : rec?.status === 'conflict'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}
+                          >
+                            {rec?.manualConfirmed
+                              ? '✓ Manually Assigned'
+                              : rec?.status === 'matched'
+                              ? '✓ Matched'
+                              : rec?.status === 'needs_review'
+                              ? '⚠️ Needs Review'
+                              : rec?.status === 'conflict'
+                              ? '🚫 Conflict'
+                              : 'Unmatched'}
+                          </span>
+
+                          {rec ? (
+                            <div className="flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 text-[11px]">
+                              <div>
+                                <span className="text-slate-400">Class: </span>
+                                <strong className="text-slate-700">{rec.rawClass || 'unreadable'}</strong>
+                              </div>
+                              <span className="text-slate-300">•</span>
+                              <div>
+                                <span className="text-slate-400">Name: </span>
+                                <strong className="text-slate-700">{rec.rawStudentName || 'unreadable'}</strong>
+                              </div>
+                              <span className="text-slate-300">•</span>
+                              <div>
+                                <span className="text-slate-400">No: </span>
+                                <strong className="text-slate-700">{rec.rawClassNumber || 'unreadable'}</strong>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs italic">
+                              Pending recognition
+                            </span>
+                          )}
+
+                          {rec?.statusReason && !rec.manualConfirmed && (
+                            <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-medium max-w-[220px] truncate" title={rec.statusReason}>
+                              {rec.statusReason}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        /* Sequential Mode Info */
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800">
+                            {match ? `#${match.classNumber} ${match.studentName}` : 'Unassigned'}
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="text-slate-600">
+                            {match ? `Part ${match.part} of ${match.total}` : 'No mapping'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="p-2.5 bg-white border-t border-slate-100 flex items-center justify-between text-xs">
-                      <div className="min-w-0 pr-1">
-                        {match ? (
-                          <>
-                            <strong className="block text-blue-700 truncate font-semibold">
-                              No. {String(match.classNumber).padStart(2, '0')} {match.studentName}
-                            </strong>
-                            <span className="text-slate-500 text-[11px]">
-                              Essay page {match.part} / {match.total}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <strong className="block text-amber-600 truncate font-semibold">
-                              Unmatched
-                            </strong>
-                            <span className="text-slate-400 text-[11px]">
-                              Awaiting assignment
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-slate-400 font-medium shrink-0">
-                        Scan {idx + 1}
-                      </span>
+                    {/* Page Actions: Manual Student Assignment & Crop Region Adjustment */}
+                    <div className="flex items-center gap-2">
+                      {matchingMode === 'recognition' && (
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[11px] font-semibold text-slate-600">
+                            Assign:
+                          </label>
+                          <select
+                            value={effectiveStudentId || ''}
+                            onChange={(e) =>
+                              onManualAssignStudent?.(currentPage.id, e.target.value || null)
+                            }
+                            className="text-xs p-1.5 border border-slate-300 rounded bg-white font-medium min-w-[170px]"
+                          >
+                            <option value="">— Unassigned —</option>
+                            {students.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                #{s.classNumber} {s.displayName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveAdjustPage(currentPage)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
+                        title="Adjust crop regions for this scan"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Adjust</span>
+                      </button>
                     </div>
-                  </article>
+                  </div>
+                );
+              })()}
+
+              {/* Large Page Preview Canvas */}
+              {currentPage && (
+                <div
+                  className="w-full h-[620px] lg:h-[700px] bg-slate-900/5 rounded-lg border border-slate-200 overflow-auto p-4 flex items-center justify-center relative select-none"
+                  onWheel={(e) => {
+                    if (e.ctrlKey) {
+                      e.preventDefault();
+                      if (e.deltaY < 0) {
+                        setZoomLevel((z) => Math.min(3, +(z + 0.2).toFixed(2)));
+                      } else {
+                        setZoomLevel((z) => Math.max(0.5, +(z - 0.2).toFixed(2)));
+                      }
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      width: zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+                      height: zoomLevel > 1 ? `${zoomLevel * 100}%` : '100%',
+                      minWidth: '100%',
+                      minHeight: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      src={currentPage.previewUrl}
+                      alt={`Page ${safePageIndex + 1}`}
+                      style={{
+                        width: zoomLevel > 1 ? `${zoomLevel * 100}%` : 'auto',
+                        maxHeight: zoomLevel <= 1 ? `${zoomLevel * 100}%` : 'none',
+                        maxWidth: zoomLevel <= 1 ? '100%' : 'none',
+                        objectFit: 'contain',
+                      }}
+                      className="rounded shadow-md bg-white border border-slate-200 cursor-zoom-in transition-all duration-100"
+                      onDoubleClick={() => setZoomLevel((z) => (z === 1 ? 1.75 : 1))}
+                      title="雙擊放大/還原 (Double click to zoom, Ctrl+Wheel to scale)"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Medium View: Responsive Multi-Page Grid */
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+              {pages.map((page, index) => {
+                const match = matchingPreview.map[index];
+                const rec = recognitionResults[page.id];
+                const effectiveStudentId =
+                  rec?.manualStudentId ||
+                  (rec?.status === 'matched' ? rec.matchedStudentId : null);
+
+                return (
+                  <div
+                    key={page.id}
+                    onClick={() => {
+                      setSelectedPageIndex(index);
+                      onViewModeChange('large');
+                    }}
+                    className={`flex flex-col bg-slate-50 border rounded-lg overflow-hidden shadow-2xs transition-all cursor-pointer group ${
+                      safePageIndex === index
+                        ? 'border-blue-500 ring-2 ring-blue-400/50'
+                        : 'border-slate-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 bg-white border-b border-slate-200 text-xs">
+                      <span className="font-bold text-slate-800">Page #{index + 1}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveAdjustPage(page);
+                        }}
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                        title="Adjust crop regions"
+                      >
+                        Adjust
+                      </button>
+                    </div>
+
+                    {/* Image Preview with Magnifier */}
+                    <div className="h-56 w-full flex items-center justify-center bg-slate-100/70 p-2 relative overflow-hidden">
+                      <img
+                        src={page.previewUrl}
+                        alt={`Page ${index + 1}`}
+                        onPointerMove={handlePointerMove}
+                        onPointerLeave={handlePointerLeave}
+                        className="max-h-full max-w-full w-auto h-auto object-contain rounded shadow-2xs bg-white"
+                      />
+                      <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none flex items-end justify-end p-1.5">
+                        <span className="text-[10px] font-semibold text-blue-700 bg-white/95 backdrop-blur-xs px-1.5 py-0.5 rounded shadow-2xs opacity-0 group-hover:opacity-100 transition-opacity">
+                          點擊單頁大圖
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Identity Details & Manual Assignment */}
+                    <div
+                      className="p-2.5 bg-white border-t border-slate-200 text-xs flex-1 flex flex-col justify-between space-y-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {matchingMode === 'recognition' ? (
+                        <>
+                          <div>
+                            {/* Status Badge */}
+                            <div className="mb-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                                  rec?.manualConfirmed
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : rec?.status === 'matched'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : rec?.status === 'needs_review'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : rec?.status === 'conflict'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                {rec?.manualConfirmed
+                                  ? '✓ Manually Confirmed'
+                                  : rec?.status === 'matched'
+                                  ? '✓ Matched'
+                                  : rec?.status === 'needs_review'
+                                  ? '⚠️ Needs Review'
+                                  : rec?.status === 'conflict'
+                                  ? '🚫 Conflict'
+                                  : 'Unmatched'}
+                              </span>
+                            </div>
+
+                            {/* Recognized Raw Text */}
+                            {rec ? (
+                              <div className="text-[11px] text-slate-600 space-y-0.5 bg-slate-50 p-1.5 rounded border border-slate-100">
+                                <div>
+                                  <span className="text-slate-400">Class: </span>
+                                  <strong>{rec.rawClass || 'null'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Name: </span>
+                                  <strong>{rec.rawStudentName || 'null'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">No: </span>
+                                  <strong>{rec.rawClassNumber || 'null'}</strong>
+                                </div>
+                                {rec.statusReason && !rec.manualConfirmed && (
+                                  <div className="text-[10px] text-rose-600 font-medium mt-1 leading-tight">
+                                    {rec.statusReason}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-400 py-1">
+                                Pending recognition
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Manual Override Select */}
+                          <div className="pt-1 border-t border-slate-100">
+                            <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">
+                              Assign Student:
+                            </label>
+                            <select
+                              value={effectiveStudentId || ''}
+                              onChange={(e) =>
+                                onManualAssignStudent?.(page.id, e.target.value || null)
+                              }
+                              className="w-full text-xs p-1 border border-slate-300 rounded bg-white font-medium"
+                            >
+                              <option value="">— Unassigned —</option>
+                              {students.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  #{s.classNumber} {s.displayName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
+                      ) : (
+                        /* Sequential Mode Grid Body */
+                        <>
+                          <div className="font-semibold text-slate-800">
+                            {match ? (
+                              <>
+                                #{match.classNumber} {match.studentName}
+                              </>
+                            ) : (
+                              <span className="text-amber-600">Unassigned</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {match ? `Part ${match.part} of ${match.total}` : 'No student mapped'}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
         </section>
 
-        {/* Right: Class Selection & Student Roster */}
-        <aside className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs sticky top-14 space-y-3">
+        {/* Right Sidebar: Class Roster & Apply Matching */}
+        <aside className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-4">
           <div>
             <label
-              htmlFor="classSelect"
+              htmlFor="classSelector"
               className="block text-xs font-semibold text-slate-700 mb-1"
             >
-              Select Class
+              Target Class Roster
             </label>
             <select
-              id="classSelect"
+              id="classSelector"
               value={selectedClassId}
               onChange={(e) => onSelectClass(e.target.value)}
-              className="w-full text-xs font-medium px-2.5 py-1.5 border border-slate-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white min-h-[32px]"
+              className="w-full text-sm px-2.5 py-1.5 border border-slate-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="">Choose a class</option>
+              <option value="">— Choose Class —</option>
               {classes.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -372,107 +1088,110 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
 
           {selectedClassId ? (
             <>
-              {/* Roster Controls */}
-              <div className="border border-slate-200 rounded-md overflow-hidden">
-                {/* Header Row */}
-                <div className="bg-slate-50 p-2 border-b border-slate-200 flex items-center justify-between gap-2 text-xs font-semibold text-slate-700">
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={headerCheckboxRef}
-                      type="checkbox"
-                      id="selectAllStudents"
-                      checked={isAllSelected}
-                      onChange={(e) => onToggleSelectAll(e.target.checked)}
-                      className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                      aria-label="Select all students in this class"
-                    />
-                    <span>Student Name</span>
+              {/* Roster Header */}
+              <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
+                <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {matchingMode === 'sequential' && (
+                      <input
+                        ref={headerCheckboxRef}
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={(e) => onToggleSelectAll(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        aria-label="Select all students"
+                      />
+                    )}
+                    <span className="font-bold text-slate-800">Class Roster</span>
+                    <span className="text-[11px] text-slate-500">({students.length} students)</span>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={bulkInput}
-                      onChange={(e) => setBulkInput(e.target.value)}
-                      placeholder="1"
-                      className="w-12 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white"
-                      aria-label="Bulk page count input"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyBulk}
-                      disabled={selectedStudentIndices.size === 0}
-                      className={`px-2 py-0.5 text-xs font-semibold rounded min-h-[26px] transition-colors ${
-                        selectedStudentIndices.size > 0
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      Apply
-                    </button>
-                  </div>
+                  {matchingMode === 'sequential' && (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={bulkInput}
+                        onChange={(e) => setBulkInput(e.target.value)}
+                        className="w-10 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white"
+                        aria-label="Bulk count"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyBulk}
+                        disabled={selectedStudentIndices.size === 0}
+                        className="px-2 py-0.5 text-xs font-semibold rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Student Scroll List */}
-                <div className="divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
+                {/* Students List */}
+                <div className="divide-y divide-slate-100 max-h-[360px] overflow-y-auto">
                   {students.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-400">
                       No active students found in class {selectedClassId}.
                     </div>
                   ) : (
                     students.map((student, i) => {
-                      const count = studentPageCounts[i] ?? 1;
+                      const count = studentPageCounts[i] ?? 0;
                       const isSelected = selectedStudentIndices.has(i);
 
                       return (
                         <div
                           key={student.id}
                           className={`p-2 flex items-center justify-between gap-2 text-xs transition-colors ${
-                            count === 0
-                              ? 'bg-slate-50/80 text-slate-400'
-                              : 'hover:bg-blue-50/30'
+                            count === 0 ? 'bg-slate-50/70 text-slate-400' : 'hover:bg-blue-50/20'
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 pr-1">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => onToggleSelectStudent(i)}
-                              className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
-                              aria-label={`Select ${student.displayName}`}
-                            />
+                            {matchingMode === 'sequential' && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => onToggleSelectStudent(i)}
+                                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
+                              />
+                            )}
                             <div className="truncate">
-                              <span className="font-bold text-slate-700 mr-1">
-                                {String(student.classNumber).padStart(2, '0')}
+                              <span className="font-bold text-slate-700 mr-1.5">
+                                #{String(student.classNumber).padStart(2, '0')}
                               </span>
                               <span className="font-medium text-slate-800">
                                 {student.displayName}
                               </span>
-                              {count === 0 && (
-                                <span className="block text-[10px] text-slate-400 font-normal">
-                                  0 pages · skipped
-                                </span>
-                              )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={count}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (!isNaN(val)) {
-                                  onPageCountChange(i, Math.max(0, Math.min(100, val)));
-                                }
-                              }}
-                              className="w-12 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white font-semibold"
-                              aria-label={`Page count for ${student.displayName}`}
-                            />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {matchingMode === 'recognition' ? (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                  count > 0
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-slate-100 text-slate-400 border-slate-200'
+                                }`}
+                              >
+                                {count} {count === 1 ? 'page' : 'pages'}
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={count}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  if (!isNaN(val)) {
+                                    onPageCountChange(i, Math.max(0, Math.min(100, val)));
+                                  }
+                                }}
+                                className="w-12 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white font-semibold"
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -481,40 +1200,56 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-500 flex justify-between items-center">
-                <span>
-                  <strong>{selectedStudentIndices.size}</strong> of {students.length} selected
-                </span>
-                <span className="text-slate-400">0 skips student</span>
-              </div>
-
-              {/* Matching Status Notice */}
-              {matchingPreview.missing > 0 ? (
-                <div className="p-2 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700 flex items-start gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600" />
-                  <span>
-                    Missing {matchingPreview.missing} pages. Reduce page counts or add more scans.
-                  </span>
-                </div>
-              ) : matchingPreview.extra > 0 ? (
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 flex items-start gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
-                  <span>
-                    {matchingPreview.extra} unmatched scans. Adjust student page counts to match.
-                  </span>
-                </div>
-              ) : pages.length > 0 ? (
-                <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-700">
-                  ✓ Scans match required page count exactly.
-                </div>
-              ) : null}
+              {/* Status and Diagnostics */}
+              {matchingMode === 'recognition' ? (
+                <>
+                  {unmatchedCount > 0 ? (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 space-y-1">
+                      <div className="flex items-center gap-1 font-semibold">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{unmatchedCount + reviewCount + conflictCount} unresolved page(s)</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700 leading-snug">
+                        You can still apply matching for confirmed students. Unresolved pages will remain unassigned.
+                      </p>
+                    </div>
+                  ) : matchedCount === pages.length && pages.length > 0 ? (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-700 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>All {pages.length} pages matched to students!</span>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {matchingPreview.missing > 0 ? (
+                    <div className="p-2 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700 flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600" />
+                      <span>
+                        Missing {matchingPreview.missing} pages. Reduce page counts or add more scans.
+                      </span>
+                    </div>
+                  ) : matchingPreview.extra > 0 ? (
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+                      <span>
+                        {matchingPreview.extra} unmatched scans. Adjust student page counts to match.
+                      </span>
+                    </div>
+                  ) : pages.length > 0 ? (
+                    <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-700">
+                      ✓ Scans match required page count exactly.
+                    </div>
+                  ) : null}
+                </>
+              )}
 
               {/* Apply Matching Button */}
               <button
                 type="button"
                 onClick={onApplyMatching}
                 disabled={!canApplyMatching}
-                className={`w-full py-1.5 px-3 text-xs font-semibold rounded-md transition-colors min-h-[34px] ${
+                className={`w-full py-2 px-3 text-xs font-bold rounded-md transition-colors min-h-[36px] ${
                   canApplyMatching
                     ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-2xs'
                     : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
@@ -527,7 +1262,7 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                 type="button"
                 onClick={onNext}
                 disabled={!appliedMatching || isDirty}
-                className={`w-full py-1.5 px-3 text-xs font-semibold rounded-md transition-colors min-h-[34px] ${
+                className={`w-full py-2 px-3 text-xs font-semibold rounded-md transition-colors min-h-[36px] ${
                   appliedMatching && !isDirty
                     ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                     : 'bg-slate-50 text-slate-300 border border-slate-200 cursor-not-allowed'
@@ -537,8 +1272,8 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
               </button>
             </>
           ) : (
-            <div className="py-6 text-center text-xs text-slate-400">
-              Select a class above to populate students
+            <div className="py-8 text-center text-xs text-slate-400">
+              Select a class above to load students
             </div>
           )}
         </aside>
@@ -584,6 +1319,19 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
           setPreviewModalMatchIndex(null);
         }}
       />
+
+      {/* Adjust Scan Regions Modal */}
+      {activeAdjustPage && (
+        <AdjustScanRegionsModal
+          page={activeAdjustPage}
+          templateRegions={templateRegions}
+          onSaveRegions={(pageId, customRegions) => {
+            onUpdatePageCustomRegions?.(pageId, customRegions);
+            setActiveAdjustPage(null);
+          }}
+          onClose={() => setActiveAdjustPage(null)}
+        />
+      )}
     </div>
   );
 };

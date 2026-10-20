@@ -358,7 +358,7 @@ export function diagnoseQuestion(
 
   const isIncomplete = !!userAns?.isIncomplete || (!isNotSure && (!hasSelectedWord || !hasTypedCorrection));
 
-  let status: QuestionDiagnosticStatus = 'incorrect';
+  let status: QuestionDiagnosticStatus = 'detection_error';
   let statusLabel = 'Incorrect';
   let statusColor = 'text-rose-600 bg-rose-50 border-rose-200';
 

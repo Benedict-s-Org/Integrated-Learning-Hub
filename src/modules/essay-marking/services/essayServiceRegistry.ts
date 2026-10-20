@@ -3,31 +3,47 @@ import {
   VisualVerificationService,
   EssayMarkingService,
   ServiceAvailabilityService,
+  EssayTranscriptionService,
 } from './essayServiceTypes';
 import {
-  UnconfiguredOcrService,
   UnconfiguredVisualVerificationService,
-  UnconfiguredEssayMarkingService,
-  UnconfiguredAvailabilityService,
 } from './unconfiguredServices';
+import {
+  BridgeOcrService,
+  BridgeAvailabilityService,
+} from './bridgeOcrService';
+import { BridgeIdentityService } from './bridgeIdentityService';
+import { BridgeTranscriptionService } from './bridgeTranscriptionService';
+import { BridgeMarkingService } from './bridgeMarkingService';
 
 /**
  * Service Registry for Teacher Essay Marking Workbench.
  * Keeps UI components decoupled from specific OCR or AI model providers.
  *
- * Future integration points:
- * - Mathpix OCR API adapter
- * - Remote Qwen3-VL-32B visual verification adapter
- * - Remote Qwen3-VL-32B rubric marking adapter
- * - Background task worker (e.g. port 18087)
+ * Current Bridges:
+ * - Dedicated Essay Marking Bridge (port 18089) for Mathpix OCR API
+ * - Local Qwen3-VL-32B visual verification adapter (port 18088, future phase)
+ * - Local Qwen3-VL-32B rubric marking adapter (port 18088 via Bridge)
+ * - Local Qwen3-VL-32B student identity recognition adapter (port 18088 via Bridge)
+ * - Local Qwen3-VL-32B full-essay transcription adapter (port 18088 via Bridge)
  */
 class EssayServiceRegistry {
-  private ocrService: EssayOcrService = new UnconfiguredOcrService();
+  private ocrService: EssayOcrService = new BridgeOcrService();
+  private transcriptionService: EssayTranscriptionService = new BridgeTranscriptionService();
   private visualVerificationService: VisualVerificationService =
     new UnconfiguredVisualVerificationService();
-  private markingService: EssayMarkingService = new UnconfiguredEssayMarkingService();
+  private markingService: EssayMarkingService = new BridgeMarkingService();
   private availabilityService: ServiceAvailabilityService =
-    new UnconfiguredAvailabilityService();
+    new BridgeAvailabilityService();
+  private identityService: BridgeIdentityService = new BridgeIdentityService();
+
+  getTranscriptionService(): EssayTranscriptionService {
+    return this.transcriptionService;
+  }
+
+  setTranscriptionService(service: EssayTranscriptionService) {
+    this.transcriptionService = service;
+  }
 
   getOcrService(): EssayOcrService {
     return this.ocrService;
@@ -35,6 +51,14 @@ class EssayServiceRegistry {
 
   setOcrService(service: EssayOcrService) {
     this.ocrService = service;
+  }
+
+  getIdentityService(): BridgeIdentityService {
+    return this.identityService;
+  }
+
+  setIdentityService(service: BridgeIdentityService) {
+    this.identityService = service;
   }
 
   getVisualVerificationService(): VisualVerificationService {

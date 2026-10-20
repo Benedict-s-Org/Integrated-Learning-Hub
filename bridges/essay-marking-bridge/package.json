@@ -1,0 +1,19 @@
+{
+  "name": "essay-marking-bridge",
+  "version": "1.0.0",
+  "description": "Dedicated, isolated local bridge service for Learning Hub Essay Marking (Mathpix OCR & local Qwen3-VL orchestration)",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

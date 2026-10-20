@@ -40,3 +40,20 @@ venv/
 
 # Local standalone pipeline workspace
 local-markdown-pipeline/
+
+# Dedicated Essay Marking Bridge protections
+bridges/**/.env
+bridges/**/.env.*
+!bridges/**/.env.example
+bridges/**/node_modules/
+bridges/**/.debug/
+
+# Local credentials and runtime logs
+.env
+.env.*
+!.env.example
+.env_tmp
+*.jsonl
+
+# Exclude scans from source-code backup
+/public/demo-scans/

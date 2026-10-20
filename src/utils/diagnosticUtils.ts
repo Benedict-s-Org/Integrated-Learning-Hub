@@ -247,8 +247,8 @@ export async function runPreFlightChecks(
       ? 'proofreading_practices'
       : 'spelling_practice_lists';
 
-    const { data: practiceData, error: practiceError } = await supabase
-      .from(practiceTable)
+    const { data: practiceData, error: practiceError } = await (supabase
+      .from(practiceTable as any) as any)
       .select('id, title')
       .eq('id', practiceId)
       .maybeSingle();
@@ -329,8 +329,8 @@ export async function runPreFlightChecks(
 
   updateCheck('rls', { status: 'running' });
   try {
-    const { data: policies, error: policyError } = await supabase
-      .from(tableName)
+    const { data: policies, error: policyError } = await (supabase
+      .from(tableName as any) as any)
       .select('id')
       .limit(1);
 
@@ -549,8 +549,8 @@ export async function checkTableAccess(
   };
 
   try {
-    const { data, error } = await supabase
-      .from(tableName)
+    const { data, error } = await (supabase
+      .from(tableName as any) as any)
       .select('id')
       .limit(1);
 
@@ -609,7 +609,7 @@ export async function checkRpcFunction(
   };
 
   try {
-    const { error } = await supabase.rpc(functionName, testParams || {});
+    const { error } = await (supabase.rpc as any)(functionName, testParams || {});
 
     if (error) {
       if (error.code === '42883') {

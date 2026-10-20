@@ -59,10 +59,10 @@ describe('textProcessor utilities', () => {
 
   describe('getSelectedWordIndices', () => {
     it('returns indices of selected words', () => {
-      const words = [
-        { text: 'hello', index: 0, isSelected: true, isPunctuation: false },
-        { text: 'world', index: 1, isSelected: false, isPunctuation: false },
-        { text: 'test', index: 2, isSelected: true, isPunctuation: false },
+      const words: any = [
+        { text: 'hello', index: 0, isMemorized: true, isPunctuation: false },
+        { text: 'world', index: 1, isMemorized: false, isPunctuation: false },
+        { text: 'test', index: 2, isMemorized: true, isPunctuation: false },
       ];
       
       const result = getSelectedWordIndices(words);

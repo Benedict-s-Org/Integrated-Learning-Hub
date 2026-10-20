@@ -372,12 +372,22 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Files**: `src/modules/essay-marking/EssayMarkingPage.tsx`, `src/modules/essay-marking/components/*`, `src/modules/essay-marking/services/*`, `src/modules/essay-marking/utils/*`
 - **Navigation**: Integrated as the **first item** under **Teacher Administration Tool** in `src/components/UnifiedNavigation/UnifiedNavigation.tsx`. Active route: `/admin/essay-marking` (renders inside Learning Hub app shell).
 - **Architecture & Workflow**:
-  - **Stage 1 (Preparation)**: Assignment title, original worksheet upload (.docx/.pdf/image), response format selector, writing instructions scope, and 5-dimension rubric configuration with explicit teacher confirmation.
-  - **Stage 2 (Add Scans)**: Genuine local file selection and drag-and-drop for images and multi-page PDFs. Uses local canvas extraction via `pdfjs-dist`. Zero external uploads.
-  - **Stage 3 (Match Students)**: Sequential student-number matching for real authorized Learning Hub classes. Supports header select-all/deselect-all with indeterminate state, bulk page counts, zero-page skipping without consuming scans, Medium-view 2.8x cursor magnification lens, click/keyboard enlargement, and exact page balance validation (`extra === 0 && missing === 0`).
+  - **Stage 1 (Preparation)**:
+    - **Assignment Title**: Initialized automatically from worksheet filename (without extension). Preserves manual customizations with confirmation before overwriting on file change.
+    - **Word File Guard**: Prompts teacher to save as PDF ("請先另存為 PDF 再上載。") without faux document conversion.
+    - **PDF Preview & Region Editor (`PdfTemplateRegionEditor.tsx`)**: Genuine multi-page canvas rendering via `pdfjs-dist` with page navigation, zoom in/out/fit. Interactive bounding box creation for 4 types (`Class`, `Student Name`, `Class Number`, `Student Writing Area`). Normalized $(0..1)$ coordinates, resize handles, coverage indicators, and localStorage persistence keyed by file fingerprint (`essay_template_regions_${fingerprint}`).
+    - **Grade & Rubric**: Explicit P.1–P.6 selection or trusted class derivation, fixed dimension scoring (P.1–P.3: Content 60, Language 40; P.4–P.6: Content 40, Language 40, Organisation 20), overall grade display summary.
+  - **Stage 2 (Add Scans)**: Genuine local file selection and drag-and-drop for images and multi-page PDFs. Uses local canvas extraction via `pdfjs-dist`. Preserves original scan order. Zero external uploads.
+  - **Stage 3 (Match Students)**:
+    - **Dual Matching Modes**: 1) Recognition-based matching (Local Qwen3-VL), 2) Sequential class number allocation.
+    - **Identity Recognition Route**: Dedicated Bridge endpoint `POST /api/recognize-identity` calling local Qwen3-VL (`http://127.0.0.1:18088/v1`) with temperature 0.0 and JSON schema. Crops Class/Name/Number regions with labels (`scanRegionCropper.ts`). Zero Mathpix involvement, zero cloud fallback.
+    - **3-Way Cross-Check Logic (`identityMatchingLogic.ts`)**: Cross-checks raw OCR against class roster. Status: `matched` (all 3 match), `needs_review` (2 match + 1 unreadable), `conflict` (conflicting roster matches; strictly no 2-out-of-1 majority voting), `unmatched` (unreadable or not on roster). Never inherits from previous pages; groups non-consecutive pages of same student preserving scan order.
+    - **Per-Scan Alignment (`AdjustScanRegionsModal.tsx`)**: Allows manual bounding box adjustments for scans with margin/printer shifts.
+    - **Stale Context Guard**: Invalidation on assignment, class, or scan change via context fingerprinting (`${title}_${fileName}_${class}_${pages}_${regions}`).
   - **Stage 4 (Verify Transcript)**: Original scan side-by-side with student transcript editor and sticky right student queue. Clear separation of OCR vs manual teacher transcription. Editing invalidates downstream marking approval.
-  - **Stage 5 (Review Marking)**: Manual and future AI findings review (accept/edit/reject), rubric scoring (0-4 per dimension, total 20), feedback commentary, and explicit teacher approval guard.
-  - **Stage 6 (Report & Export)**: Draft vs approved status distinction, print-ready report layout, local `.txt` export, and disabled publishing guard with honest integration boundary notice.
-- **Service Boundaries**: Decoupled typed interfaces (`EssayOcrService`, `VisualVerificationService`, `EssayMarkingService`, `ServiceAvailabilityService`) in `services/essayServiceRegistry.ts`. Standard adapters return typed `not_configured` without mock successes or simulated endpoints.
+  - **Stage 5 (Review Marking)**: Manual and future AI findings review (accept/edit/reject), rubric scoring, feedback commentary, and explicit teacher approval guard.
+  - **Stage 6 (Report & Export)**: Draft vs approved status distinction, print-ready report layout, local `.txt` export, and disabled publishing guard.
+- **Service Boundaries & Local Bridge**: Decoupled typed interfaces (`bridgeIdentityService`, `bridgeOcrService`) in `services/essayServiceRegistry.ts`. Dedicated **Essay Marking Bridge** (`bridges/essay-marking-bridge` on port `18089`) with teacher session auth (`requireTeacherAuth`), serial lock on local 32B model, and Mathpix `DRY_RUN=true` strictly preserved.
+
 
 

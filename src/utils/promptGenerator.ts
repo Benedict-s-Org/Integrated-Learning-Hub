@@ -1,5 +1,3 @@
-import { AssetType } from '@/types/asset';
-
 // The "Soft/Cute Isometric" Design System Parameters
 export const DESIGN_SYSTEM_PARAMETERS = {
     visual_style_analysis_single_asset: {

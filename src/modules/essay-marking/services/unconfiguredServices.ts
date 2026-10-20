@@ -48,7 +48,7 @@ export class UnconfiguredAvailabilityService implements ServiceAvailabilityServi
     return {
       ocr: {
         status: 'not_configured',
-        providerName: 'Mathpix / Vision OCR',
+        providerName: 'Mathpix OCR (Local Bridge)',
         details: 'Endpoint and authentication credentials are not configured.',
       },
       visualVerification: {
@@ -63,9 +63,18 @@ export class UnconfiguredAvailabilityService implements ServiceAvailabilityServi
       },
       backgroundRunner: {
         status: 'not_configured',
-        providerName: 'Background Service (Port 18087)',
-        details: 'Background worker service is not connected.',
+        providerName: 'Essay Marking Bridge (Port 18089)',
+        details: 'Dedicated bridge adapter not initialized. Use BridgeAvailabilityService on port 18089.',
       },
+    };
+  }
+
+  async checkMarkingModelStatus() {
+    return {
+      status: 'unavailable' as const,
+      port: 18086,
+      checkedAt: new Date().toISOString(),
+      details: 'Service availability adapter unconfigured.',
     };
   }
 }

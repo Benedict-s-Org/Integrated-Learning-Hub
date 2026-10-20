@@ -125,11 +125,11 @@ export const processText = (text: string): Word[] => {
   return words;
 };
 
-const getWordAtPosition = (words: Word[], position: number): Word | null => {
+export const getWordAtPosition = (words: Word[], position: number): Word | null => {
   return words.find(word => word.index === position) || null;
 };
 
-const toggleWordSelection = (words: Word[], index: number): Word[] => {
+export const toggleWordSelection = (words: Word[], index: number): Word[] => {
   return words.map(word =>
     word.index === index && !word.isPunctuation && !word.isParagraphBreak
       ? { ...word, isMemorized: !word.isMemorized }
