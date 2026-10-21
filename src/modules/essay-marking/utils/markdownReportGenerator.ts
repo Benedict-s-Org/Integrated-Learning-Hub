@@ -213,15 +213,18 @@ export function generateStudentMarkdownReport(options: MarkdownReportOptions): s
     findings = [],
   } = options;
 
-  // Filter out rejected and stale findings
+  // Filter out rejected findings; collect needs_review items for the review list
+  const needsReviewFindings = findings.filter((f) => f.decision === 'needs_review');
   const activeFindings = findings.filter(
     (f) => f.decision !== 'rejected' && f.decision !== 'needs_review'
   );
 
-  // Eligible inline corrections: required corrections that are accepted or edited
+  // Eligible inline corrections: required corrections that are accepted, edited,
+  // or pending (Review Marking displays pending AI corrections inline; report
+  // approval does not change individual finding decisions).
   const eligibleCorrections = activeFindings.filter((f) => {
     const isCorrection = !f.feedbackType || f.feedbackType === 'correction';
-    return isCorrection && (f.decision === 'accepted' || f.decision === 'edited');
+    return isCorrection && (f.decision === 'accepted' || f.decision === 'edited' || f.decision === 'pending');
   });
 
   // Reference suggestions: optional improvements and clarity/coherence
@@ -238,6 +241,10 @@ export function generateStudentMarkdownReport(options: MarkdownReportOptions): s
     transcriptText,
     eligibleCorrections
   );
+
+  // needs_review items are listed under Unresolved Review Items (requiring
+  // review) rather than being silently dropped or rendered as confirmed.
+  const allReviewItems = [...unresolvedFindings, ...needsReviewFindings];
 
   let md = '';
 
@@ -308,15 +315,15 @@ export function generateStudentMarkdownReport(options: MarkdownReportOptions): s
   }
 
   // Unresolved Review Items
-  if (unresolvedFindings.length > 0) {
+  if (allReviewItems.length > 0) {
     md += `## Unresolved Review Items\n`;
-    md += `The following items could not be unambiguously anchored to the transcript or conflicted with another range. The original student text has been left intact:\n`;
-    unresolvedFindings.forEach((f, idx) => {
+    md += `The following items could not be unambiguously anchored to the transcript, conflicted with another range, or require teacher review. The original student text has been left intact:\n`;
+    allReviewItems.forEach((f, idx) => {
       const locStr = typeof f.lineIndex === 'number' ? `Line ${f.lineIndex + 1}` : 'Unspecified Line';
       const repl = f.teacherCustomText || f.replacementText || '(delete)';
       md += `${idx + 1}. **[${locStr}]** "${f.originalText}" → "${repl}"\n`;
-      if (f.explanation) {
-        md += `   - Reason: ${f.explanation}\n`;
+      if (f.explanation || f.reviewReason) {
+        md += `   - Reason: ${f.reviewReason || f.explanation}\n`;
       }
     });
     md += `\n`;

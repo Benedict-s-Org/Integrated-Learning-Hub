@@ -6,6 +6,7 @@ import { config, validateConfig } from './config.js';
 import { requireTeacherAuth } from './auth.js';
 import { validateOcrRequestPayload } from './imageValidator.js';
 import { jobManager } from './jobManager.js';
+import { recognizeHandwriting } from './mathpixClient.js';
 import {
   checkLocalModelHealth,
   checkMarkingModelHealth,
@@ -23,6 +24,43 @@ const app = express();
 
 let isVlModelBusy = false;
 let isMarkingModelBusy = false;
+
+// 0. Concise structured request logging.
+// Invariant: logs ONLY timestamp, request ID, route, mode, and stage.
+// NEVER logs image content, credentials, tokens, or student text.
+function newRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function logRoute(req, requestId, stage, detail = '') {
+  const parts = [
+    `ts=${new Date().toISOString()}`,
+    `req=${requestId}`,
+    `route=${req.method} ${req.path}`,
+    `stage=${stage}`,
+  ];
+  if (detail) parts.push(detail);
+  console.log(`[Bridge] ${parts.join(' ')}`);
+}
+
+// Assign a request ID to every request; announce the OCR/model-touching routes
+// with their functional mode so Mathpix-only attempts can never be confused
+// with local VL (18088) attempts.
+app.use((req, res, next) => {
+  req.requestId = newRequestId();
+  const modeByRoute = {
+    '/api/ocr': 'mathpix_only (Mathpix, port 18089 -> api.mathpix.com)',
+    '/api/transcribe-page': 'local_qwen_vl (port 18088)',
+    '/api/verify-transcription': 'mathpix_qwen_verify / verify stage (port 18088)',
+    '/api/recognize-identity': 'identity_recognition (port 18088)',
+    '/api/mark-essay': 'text_marking (port 18086)',
+  };
+  if (modeByRoute[req.path]) {
+    logRoute(req, req.requestId, 'received', `mode=${modeByRoute[req.path]}`);
+  }
+  next();
+});
+
 
 // 1. Explicit Allowed-Origin CORS Configuration with Local Loopback & PNA Support
 app.use((req, res, next) => {
@@ -173,10 +211,12 @@ app.post('/api/ocr', requireTeacherAuth, async (req, res) => {
   });
 
   if (!validation.isValid) {
+    logRoute(req, req.requestId, 'validation_failed', `code=${validation.code}`);
     return res.status(validation.status).json({
       status: 'error',
       code: validation.code,
       message: validation.error,
+      requestId: req.requestId,
     });
   }
 
@@ -198,17 +238,21 @@ app.post('/api/ocr', requireTeacherAuth, async (req, res) => {
   if (!slot.allowed) {
     // If reused from recent completion, return the cached result cleanly
     if (slot.isCached) {
+      logRoute(req, req.requestId, 'dedup_cached_reuse');
       return res.status(200).json(slot.result);
     }
+    logRoute(req, req.requestId, 'dedup_rejected', `code=${slot.code} http=${slot.status}`);
     return res.status(slot.status).json({
       status: 'error',
       code: slot.code,
       message: slot.message,
+      requestId: req.requestId,
     });
   }
 
   // C. Execute recognition (single attempt, no auto-retries)
   try {
+    logRoute(req, req.requestId, 'mathpix_dispatch', `upstream=api.mathpix.com dryRun=false fp=${fingerprint.slice(0, 8)}`);
     // For initial live test, process the single validated page
     const primaryImage = validation.pages[0].dataUri;
 
@@ -218,14 +262,16 @@ app.post('/api/ocr', requireTeacherAuth, async (req, res) => {
       scopePrompt,
     });
 
+    logRoute(req, req.requestId, 'mathpix_result', `outcome=${result.status} code=${result.code || 'none'}`);
+
     if (result.status === 'success') {
       jobManager.complete(fingerprint, { outcome: 'success', result });
-      return res.json(result);
+      return res.json({ ...result, requestId: req.requestId });
     }
 
     if (result.status === 'dry_run_ready') {
       jobManager.complete(fingerprint, { outcome: 'dry_run', result });
-      return res.json(result);
+      return res.json({ ...result, requestId: req.requestId });
     }
 
     // Upstream error or timeout
@@ -233,13 +279,20 @@ app.post('/api/ocr', requireTeacherAuth, async (req, res) => {
     jobManager.complete(fingerprint, { outcome, error: result.message });
 
     const httpStatus = result.isTimeoutUncertain ? 504 : 502;
-    return res.status(httpStatus).json(result);
+    return res.status(httpStatus).json({ ...result, requestId: req.requestId });
   } catch (err) {
-    jobManager.complete(fingerprint, { outcome: 'error', error: err.message });
+    // Surface the actual exception: this catch previously swallowed the error
+    // silently, making HTTP 500s undiagnosable from logs.
+    console.error(
+      `[Bridge OCR Error] ts=${new Date().toISOString()} req=${req.requestId} route=POST /api/ocr stage=exception`,
+      err?.stack || err?.message || err
+    );
+    jobManager.complete(fingerprint, { outcome: 'error', error: err?.message });
     return res.status(500).json({
       status: 'error',
       code: 'BRIDGE_INTERNAL_ERROR',
       message: 'Internal error processing OCR request on bridge.',
+      requestId: req.requestId,
     });
   }
 });
@@ -460,7 +513,7 @@ app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
   } catch (err) {
     clearTimeout(timer);
     const isTimeout = err.name === 'AbortError' || err.message?.includes('timeout');
-    console.error(`[Local VL Transcription Error] Page ${scanPageId}:`, err.message);
+    console.error(`[Local VL Transcription Error] ts=${new Date().toISOString()} req=${req.requestId} route=POST /api/transcribe-page stage=exception Page ${scanPageId}:`, err.message);
     const code = err.code || (isTimeout ? 'VL_TRANSCRIPTION_TIMEOUT' : 'VL_TRANSCRIPTION_FAILED');
     const httpStatus = isTimeout ? 504 : (err.code === 'INVALID_MODEL_OUTPUT_FORMAT' ? 422 : 502);
     return res.status(httpStatus).json({
@@ -471,6 +524,7 @@ app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
         : `Local Qwen VL transcription failed: ${err.message}`,
       scanPageId,
       studentId,
+      requestId: req.requestId,
     });
   } finally {
     isVlModelBusy = false;
@@ -718,12 +772,16 @@ app.get('/api/client-errors', (_req, res) => {
 });
 
 // 6. Sanitized Global Error Handler
-app.use((err, _req, res, _next) => {
-  console.error('[Bridge Error]', err.message || err);
-  res.status(500).json({
+app.use((err, req, res, _next) => {
+  console.error(
+    `[Bridge Error] ts=${new Date().toISOString()} req=${req?.requestId || 'n/a'} route=${req?.method || '?'} ${req?.path || '?'} stage=unhandled http=${err?.status || 500}:`,
+    err?.message || err
+  );
+  res.status(err?.status || 500).json({
     status: 'error',
     code: 'UNHANDLED_EXCEPTION',
     message: err.message || 'Internal bridge server error.',
+    requestId: req?.requestId,
   });
 });
 

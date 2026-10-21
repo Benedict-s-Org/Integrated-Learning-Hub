@@ -113,10 +113,18 @@ export function buildAnnotatedWritingSection(
   const sentenceSuggestionsByLine = new Map<number, MarkingFinding[]>();
   const unresolvedFindings: MarkingFinding[] = [];
 
-  // Filter out rejected and needs_review findings from active annotations
-  const activeFindings = (findings || []).filter(
-    (f) => f.decision !== 'rejected' && f.decision !== 'needs_review'
-  );
+  // Review-state filtering (shared rules with the HTML report):
+  // - rejected: excluded. - needs_review: not rendered as confirmed; listed for review.
+  // - pending/accepted/edited: eligible (Review Marking displays pending inline).
+  const needsReviewFindings: MarkingFinding[] = [];
+  const activeFindings = (findings || []).filter((f) => {
+    if (f.decision === 'rejected') return false;
+    if (f.decision === 'needs_review') {
+      needsReviewFindings.push(f);
+      return false;
+    }
+    return true;
+  });
 
   for (const finding of activeFindings) {
     const feedbackType = finding.feedbackType || 'correction';
@@ -124,9 +132,15 @@ export function buildAnnotatedWritingSection(
     // 1. Sentence-level suggestions (clarity / improvement)
     if (feedbackType === 'clarity' || feedbackType === 'improvement') {
       let lineIdx: number | null = null;
-      if (typeof finding.lineIndex === 'number' && rawLines[finding.lineIndex] !== undefined) {
+      const quote = (finding.originalText || '').trim();
+      // Verify the claimed line actually contains the quote (never blind-anchor).
+      if (
+        typeof finding.lineIndex === 'number' &&
+        quote &&
+        rawLines[finding.lineIndex]?.includes(quote)
+      ) {
         lineIdx = finding.lineIndex;
-      } else if (finding.originalText) {
+      } else if (quote) {
         const loc = resolveFindingLocation(finding, rawLines, structure, usedSpansByLine);
         if (loc) lineIdx = loc.rawLineIndex;
       }
@@ -141,8 +155,8 @@ export function buildAnnotatedWritingSection(
       continue;
     }
 
-    // 2. Required word-level corrections (only accepted or edited)
-    if (finding.decision !== 'accepted' && finding.decision !== 'edited') {
+    // 2. Required word-level corrections (accepted, edited, or pending-review AI items)
+    if (finding.decision !== 'accepted' && finding.decision !== 'edited' && finding.decision !== 'pending') {
       continue;
     }
 
@@ -510,7 +524,7 @@ export function buildAnnotatedWritingSection(
     );
   });
 
-  return { elements, unresolvedFindings };
+  return { elements, unresolvedFindings: [...unresolvedFindings, ...needsReviewFindings] };
 }
 
 /**

@@ -5,6 +5,17 @@ import { TranscriptVerificationPanel } from '../../../modules/essay-marking/comp
 import { TranscriptionToolbar } from '../../../modules/essay-marking/components/TranscriptionToolbar';
 import { StagedCandidateBox } from '../../../modules/essay-marking/components/StagedCandidateBox';
 import { essayServices } from '../../../modules/essay-marking/services/essayServiceRegistry';
+import { loadImage, cropRegionFromImage } from '../../../modules/essay-marking/utils/scanRegionCropper';
+
+// IMPORTANT: the regionAwareOcr module connection is NOT mocked — panel tests
+// exercise the real component -> regionAwareOcr import wiring. Only the image
+// operations are mocked (jsdom cannot decode images).
+vi.mock('../../../modules/essay-marking/utils/scanRegionCropper', () => ({
+  loadImage: vi.fn(),
+  cropRegionFromImage: vi.fn(),
+}));
+const loadImageMock = vi.mocked(loadImage);
+const cropMock = vi.mocked(cropRegionFromImage);
 import {
   StudentRosterItem,
   ScanPage,
@@ -162,6 +173,11 @@ describe('Step 4: Verify Script - Mathpix OCR & Mode Selector Requirements', () 
     essayServices.setAvailabilityService({
       checkStatus: mockCheckStatus,
     } as any);
+
+    // Real region-aware prep with mocked image ops. Fixtures have no writing
+    // areas on their pages -> full-page passthrough (existing expectations).
+    loadImageMock.mockResolvedValue({ naturalWidth: 1000, naturalHeight: 800 } as any);
+    cropMock.mockImplementation(() => 'data:image/jpeg;base64,CROPPED_REGION');
   });
 
   describe('1. Mode Selector UI & Explanations', () => {
@@ -304,6 +320,67 @@ describe('Step 4: Verify Script - Mathpix OCR & Mode Selector Requirements', () 
       await waitFor(() => {
         expect(screen.getByText(/Yesterday, I saw a big dog./i)).toBeInTheDocument();
         expect(screen.getByText(/It bark at me./i)).toBeInTheDocument();
+        expect(screen.getByText(/Candidate Ready \(Mathpix Only\)/i)).toBeInTheDocument();
+      });
+    });
+
+    it('sends ONLY the selected-region crop to Mathpix when a page has a saved writing area (never the full page)', async () => {
+      // Page with an explicitly saved writing-area region (per-scan customRegions).
+      const pageWithRegion: ScanPage = {
+        ...mockPages[0],
+        customRegions: [
+          {
+            id: 'custom-writing-1',
+            type: 'writing_area' as any,
+            pageNumber: 1,
+            x: 0.1,
+            y: 0.3,
+            width: 0.6,
+            height: 0.5,
+          },
+        ],
+      };
+      const matchingForRegionPage: AppliedMatching = {
+        ...mockAppliedMatching,
+        map: [{ studentIndex: 0, part: 1, total: 1 }],
+      };
+
+      render(
+        <TranscriptVerificationPanel
+          students={mockStudents}
+          pages={[pageWithRegion]}
+          appliedMatching={matchingForRegionPage}
+          activeStudentIndex={0}
+          transcripts={mockTranscripts}
+          assignment={mockAssignment}
+          onSelectStudent={vi.fn()}
+          onUpdateTranscriptText={vi.fn()}
+          onVerifyTranscript={vi.fn()}
+          onPrev={vi.fn()}
+          onNext={vi.fn()}
+        />
+      );
+
+      const startBtn = screen.getByRole('button', { name: /Start Mathpix OCR/i });
+      fireEvent.click(startBtn);
+
+      await waitFor(() => {
+        expect(mockOcrRecognize).toHaveBeenCalledTimes(1);
+      });
+
+      // Mathpix must receive the CROPPED region image...
+      expect(mockOcrRecognize).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imageUrls: ['data:image/jpeg;base64,CROPPED_REGION'],
+          studentId: 'student-1',
+        })
+      );
+      // ...and never the original full page when a region is selected.
+      expect(mockOcrRecognize.mock.calls[0][0].imageUrls[0]).not.toBe('data:image/png;base64,AAAA');
+      expect(mockVerifyTranscription).not.toHaveBeenCalled();
+
+      // Candidate review box renders the Mathpix transcript.
+      await waitFor(() => {
         expect(screen.getByText(/Candidate Ready \(Mathpix Only\)/i)).toBeInTheDocument();
       });
     });

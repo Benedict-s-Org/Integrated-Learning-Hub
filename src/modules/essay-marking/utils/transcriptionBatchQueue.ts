@@ -13,7 +13,9 @@ import {
 import {
   TranscribePageRequest,
   EssayTranscriptionService,
+  EssayOcrService,
 } from '../services/essayServiceTypes';
+import { prepareOcrImageFromRegions } from './regionAwareOcr';
 
 export interface BatchPageTask {
   taskId: string;
@@ -41,6 +43,14 @@ export interface BatchPageTask {
   promptVersion?: string;
   settingsVersion?: string;
   hasUnreadable?: boolean;
+  ocrMode?: TranscriptionProvider;
+  mathpixRawTranscript?: string;
+  qwenVerifiedTranscript?: string;
+  qwenVerificationStatus?: 'success' | 'incomplete' | 'failed' | 'skipped';
+  qwenChanges?: Array<{ ocrOriginal: string; verified: string; reason: string }>;
+  isDryRun?: boolean;
+  ocrRegionImageUrl?: string;
+  isRegionCrop?: boolean;
 }
 
 export interface SkippedStudentReport {
@@ -314,6 +324,14 @@ export function combineCandidateTranscript(
         promptVersion: t.promptVersion,
         settingsVersion: t.settingsVersion,
         hasUnreadable: t.hasUnreadable,
+        ocrMode: t.ocrMode,
+        mathpixRawTranscript: t.mathpixRawTranscript,
+        qwenVerifiedTranscript: t.qwenVerifiedTranscript,
+        qwenVerificationStatus: t.qwenVerificationStatus,
+        qwenChanges: t.qwenChanges,
+        isDryRun: t.isDryRun,
+        ocrRegionImageUrl: t.ocrRegionImageUrl,
+        isRegionCrop: t.isRegionCrop,
       }));
     }
   }
@@ -505,13 +523,22 @@ export class BatchTranscriptionQueueController {
     appliedMatching,
     pages,
     assignmentId,
+    provider: runProvider,
+    ocrService: runOcrService,
   }: {
     transcriptionService: EssayTranscriptionService;
     appliedMatching: AppliedMatching;
     pages: ScanPage[];
     assignmentId?: string;
+    provider?: TranscriptionProvider;
+    ocrService?: EssayOcrService;
   }): Promise<void> {
     if (this.isExecuting) return; // Prevent duplicate concurrent runs
+
+    // Selected OCR mode frozen for this run. Defaults to legacy local Qwen VL
+    // behavior when no provider is supplied (backward compatibility).
+    const provider: TranscriptionProvider = runProvider || 'local_qwen_vl';
+    const ocrService = runOcrService;
 
     this.isExecuting = true;
     this.progress.status = 'running';
@@ -562,6 +589,152 @@ export class BatchTranscriptionQueueController {
 
         // Execute single-page request
         try {
+          if (provider === 'mathpix_only' || provider === 'mathpix_qwen_verify') {
+            // Mathpix-first flow. NEVER calls local Qwen transcription in
+            // mathpix_only mode; Qwen VL is only used for verification in
+            // combined mode, AFTER Mathpix has produced a transcript.
+            if (!ocrService) {
+              task.status = 'failed';
+              task.error = 'Mathpix OCR service is unavailable for the selected mode.';
+              task.errorCode = 'OCR_SERVICE_UNAVAILABLE';
+              task.isRetryable = false;
+              this.progress.failedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            // Shared region-aware preparation: crop the saved writing-area
+            // region (tasks resolve regions at build time). No region ->
+            // full page; invalid region -> task fails with a clear error
+            // (never a silent full-page fallback).
+            const prepared = await prepareOcrImageFromRegions(
+              task.scanPage.previewUrl,
+              task.regions
+            );
+
+            if (prepared.error) {
+              task.status = 'failed';
+              task.error = prepared.error;
+              task.errorCode = 'INVALID_OCR_REGION';
+              task.isRetryable = false;
+              this.progress.failedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            task.ocrRegionImageUrl = prepared.imageUrl;
+            task.isRegionCrop = prepared.isRegionCrop;
+
+            const ocrRes = await ocrService.recognize({
+              imageUrls: [prepared.imageUrl],
+              studentId: task.studentId,
+              assignmentId,
+            });
+
+            if (ocrRes.status === 'dry_run_ready') {
+              task.status = 'failed';
+              task.error = ocrRes.message || 'Mathpix DRY_RUN active: live billing requests are blocked.';
+              task.errorCode = ocrRes.code || 'DRY_RUN_ACTIVE';
+              task.isRetryable = false;
+              task.isDryRun = true;
+              task.ocrMode = provider;
+              this.progress.failedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            if (ocrRes.status !== 'success') {
+              task.status = 'failed';
+              task.error = ocrRes.message || 'Mathpix OCR recognition failed.';
+              task.errorCode = (ocrRes as any).code || 'OCR_ERROR';
+              task.ocrMode = provider;
+              this.progress.failedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            const mathpixText = ocrRes.transcript.trim();
+            const mathpixLines = mathpixText
+              .replace(/\r\n/g, '\n')
+              .split('\n')
+              .map((l) => ({
+                text: l,
+                bbox: null as [number, number, number, number] | null,
+                scanPageId: task.scanPage.id,
+                pageNumber: task.part,
+              }));
+
+            if (provider === 'mathpix_only') {
+              task.status = 'success';
+              task.transcript = mathpixText;
+              task.mathpixRawTranscript = mathpixText;
+              task.linesWithBboxes = mathpixLines;
+              task.ocrMode = 'mathpix_only';
+              this.progress.completedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            // Combined mode: verify with Qwen VL (Mathpix output is preserved
+            // even if verification fails, enabling verification-only retry).
+            let qwenRes: any = null;
+            if (transcriptionService.verifyTranscription) {
+              try {
+                qwenRes = await transcriptionService.verifyTranscription({
+                  scanPageId: task.scanPage.id,
+                  studentId: task.studentId,
+                  pageNumber: task.part,
+                  // Verify the SAME image Mathpix OCR ran on (selected region crop when applicable).
+                  imageDataUri: prepared.imageUrl,
+                  mathpixTranscript: mathpixText,
+                  settings: this.settingsSnapshot,
+                });
+              } catch (qwenErr: any) {
+                qwenRes = {
+                  status: 'error',
+                  message: qwenErr?.message || 'Qwen verification request failed',
+                };
+              }
+            }
+
+            if (qwenRes && qwenRes.status === 'success' && qwenRes.verifiedTranscript) {
+              const verifiedText = qwenRes.verifiedTranscript.trim();
+              task.status = 'success';
+              task.transcript = verifiedText;
+              task.mathpixRawTranscript = mathpixText;
+              task.qwenVerifiedTranscript = verifiedText;
+              task.qwenVerificationStatus = 'success';
+              task.qwenChanges = qwenRes.changes || [];
+              task.linesWithBboxes = verifiedText
+                .replace(/\r\n/g, '\n')
+                .split('\n')
+                .map((l: string) => ({
+                  text: l,
+                  bbox: null as [number, number, number, number] | null,
+                  scanPageId: task.scanPage.id,
+                  pageNumber: task.part,
+                }));
+              task.modelId = qwenRes.modelId;
+              task.ocrMode = 'mathpix_qwen_verify';
+              this.progress.completedTasks++;
+            } else {
+              // Mathpix succeeded -> RETAIN MATHPIX TRANSCRIPT
+              const qwenErrMsg =
+                qwenRes?.message || 'Qwen VL verification incomplete on port 18088';
+              task.status = 'success';
+              task.transcript = mathpixText;
+              task.mathpixRawTranscript = mathpixText;
+              task.qwenVerificationStatus = 'failed';
+              task.error = `Qwen VL verification incomplete: ${qwenErrMsg}`;
+              task.linesWithBboxes = mathpixLines;
+              task.ocrMode = 'mathpix_qwen_verify';
+              this.progress.completedTasks++;
+            }
+            this.notifyProgress();
+            continue;
+          }
+
+          // Legacy/direct mode: local Qwen VL transcription via bridge.
           const req: TranscribePageRequest = {
             scanPageId: task.scanPage.id,
             studentId: task.studentId,
@@ -619,7 +792,33 @@ export class BatchTranscriptionQueueController {
           pages,
           settings: this.settingsSnapshot,
           assignmentId,
+          provider,
         });
+
+        // Mirror single-page flow: if any page kept its Mathpix transcript
+        // because Qwen verification failed, surface verification_pending
+        // state so the teacher can retry verification without re-billing
+        // Mathpix.
+        const anyQwenIncomplete = studentTasks.some(
+          (t) => t.qwenVerificationStatus === 'failed'
+        );
+
+        if (anyQwenIncomplete) {
+          candidate.status = 'partially_transcribed';
+          candidate.qwenVerificationStatus = 'failed';
+        } else if (provider === 'mathpix_qwen_verify' && candidate.status === 'candidate_ready') {
+          candidate.qwenVerificationStatus = 'success';
+        }
+
+        // Attach Mathpix transcript & Qwen metadata from first successful page
+        const firstSuccess = studentTasks.find((t) => t.status === 'success');
+        if (firstSuccess) {
+          candidate.mathpixTranscript = firstSuccess.mathpixRawTranscript;
+          candidate.qwenVerifiedTranscript = firstSuccess.qwenVerifiedTranscript;
+          candidate.qwenChanges = firstSuccess.qwenChanges;
+          candidate.isDryRun = firstSuccess.isDryRun;
+        }
+        candidate.ocrMode = firstSuccess?.ocrMode || provider;
 
         this.progress.completedEssays++;
         this.onStudentCompletedCallback?.(candidate, studentId);

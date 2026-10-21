@@ -96,6 +96,11 @@ export class BridgeOcrService implements EssayOcrService {
         return {
           status: 'error',
           message: msg,
+          // Preserve the bridge's real error code (e.g. BRIDGE_INTERNAL_ERROR,
+          // PAYLOAD_TOO_LARGE) and request ID so failures are diagnosable in
+          // the UI instead of collapsing into a generic OCR_ERROR.
+          code: data?.code,
+          requestId: data?.requestId,
         };
       }
 

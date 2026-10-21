@@ -71,6 +71,7 @@ export type OcrResponse =
       status: 'error';
       message: string;
       code?: string;
+      requestId?: string;
     }
   | {
       status: 'success';

@@ -30,6 +30,7 @@ import { TranscriptionToolbar } from './TranscriptionToolbar';
 import { StagedCandidateBox } from './StagedCandidateBox';
 import { MagnifierLens, MagnifierState } from './MagnifierLens';
 import { essayServices } from '../services/essayServiceRegistry';
+import { prepareOcrImageFromRegions } from '../utils/regionAwareOcr';
 import {
   BatchQueueProgress,
   BatchTranscriptionQueueController,
@@ -491,13 +492,43 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
 
         // Mode A & B: Run Mathpix OCR via Bridge (port 18089)
         setPageStage('ocr_running');
+
+        // Shared region-aware preparation (same helper as batch/retry/verify):
+        // crop the saved writing-area region when one exists for this page;
+        // pages without a region keep the existing full-page behavior.
+        const singleAreaResolution = resolveWritingAreasForPage(item.page, item.part, templateRegions);
+        const prepared = await prepareOcrImageFromRegions(
+          item.page.previewUrl,
+          singleAreaResolution.hasError ? [] : singleAreaResolution.regions
+        );
+
+        if (prepared.error) {
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: `Page ${item.part}: ${prepared.error}`,
+          });
+          pageResults.push({
+            scanPageId: item.page.id,
+            part: item.part,
+            totalParts: item.total,
+            status: 'failed',
+            error: prepared.error,
+            errorCode: 'INVALID_OCR_REGION',
+            ocrMode: activeMode,
+          });
+          continue;
+        }
+
         setNotice({
           type: 'info',
-          text: `Contacting Mathpix OCR (Port 18089) for Page ${item.part} of ${item.total}...`,
+          text: prepared.isRegionCrop
+            ? `Contacting Mathpix OCR (Port 18089) for the selected region of Page ${item.part} of ${item.total}...`
+            : `Contacting Mathpix OCR (Port 18089) for Page ${item.part} of ${item.total}...`,
         });
 
         const ocrRes = await ocrService.recognize({
-          imageUrls: [item.page.previewUrl],
+          imageUrls: [prepared.imageUrl],
           studentId: targetStudentId,
           assignmentId: assignment.id,
         });
@@ -560,6 +591,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
             mathpixRawTranscript: mathpixText,
             linesWithBboxes: mathpixLinesWithBboxes,
             ocrMode: 'mathpix_only',
+            ocrRegionImageUrl: prepared.imageUrl,
+            isRegionCrop: prepared.isRegionCrop,
           });
           continue;
         }
@@ -578,7 +611,9 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
               scanPageId: item.page.id,
               studentId: targetStudentId,
               pageNumber: item.part,
-              imageDataUri: item.page.previewUrl,
+              // Verify the SAME image that Mathpix OCR ran on (selected region
+              // crop when applicable), not unrelated full-page content.
+              imageDataUri: prepared.imageUrl,
               mathpixTranscript: mathpixText,
               settings: currentSettings,
             });
@@ -612,6 +647,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
             unreadableWords: qwenRes.unreadableWords || [],
             linesWithBboxes: verifiedLines,
             ocrMode: 'mathpix_qwen_verify',
+            ocrRegionImageUrl: prepared.imageUrl,
+            isRegionCrop: prepared.isRegionCrop,
           });
         } else {
           // Qwen verification failed or incomplete -> RETAIN MATHPIX TRANSCRIPT
@@ -627,6 +664,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
             error: `Qwen VL verification incomplete: ${qwenErrMsg}`,
             linesWithBboxes: mathpixLinesWithBboxes,
             ocrMode: 'mathpix_qwen_verify',
+            ocrRegionImageUrl: prepared.imageUrl,
+            isRegionCrop: prepared.isRegionCrop,
           });
         }
       }
@@ -739,7 +778,9 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           scanPageId: pr.scanPageId,
           studentId: targetStudentId,
           pageNumber: pr.part,
-          imageDataUri: pageItem.page.previewUrl,
+          // Reuse the EXACT image region Mathpix OCR ran on (stored crop);
+          // falls back to the full page only for legacy results. No Mathpix call.
+          imageDataUri: pr.ocrRegionImageUrl || pageItem.page.previewUrl,
           mathpixTranscript: mathpixText,
           settings: currentSettings,
         });
@@ -879,9 +920,31 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           ocrMode: 'local_qwen_vl',
         };
       } else {
+        // Shared region-aware preparation (same helper as single/batch/retry).
+        const inlineAreaResolution = resolveWritingAreasForPage(pageItem.page, pageItem.part, templateRegions);
+        const prepared = await prepareOcrImageFromRegions(
+          pageItem.page.previewUrl,
+          inlineAreaResolution.hasError ? [] : inlineAreaResolution.regions
+        );
+
+        if (prepared.error) {
+          pageRes = {
+            scanPageId: pageItem.page.id,
+            part: pageItem.part,
+            totalParts: pageItem.total,
+            status: 'failed',
+            error: prepared.error,
+            errorCode: 'INVALID_OCR_REGION',
+            ocrMode: activeMode,
+          };
+          setNotice({
+            type: 'error',
+            text: `Page ${pageItem.part}: ${prepared.error}`,
+          });
+        } else {
         // Run Mathpix OCR for this page
         const ocrRes = await ocrService.recognize({
-          imageUrls: [pageItem.page.previewUrl],
+          imageUrls: [prepared.imageUrl],
           studentId: targetStudentId,
           assignmentId: assignment.id,
         });
@@ -914,6 +977,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
               mathpixRawTranscript: mathpixText,
               linesWithBboxes: mathpixLines,
               ocrMode: 'mathpix_only',
+              ocrRegionImageUrl: prepared.imageUrl,
+              isRegionCrop: prepared.isRegionCrop,
             };
           } else {
             // Combined mode: verify with Qwen
@@ -924,7 +989,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                   scanPageId: pageItem.page.id,
                   studentId: targetStudentId,
                   pageNumber: pageItem.part,
-                  imageDataUri: pageItem.page.previewUrl,
+                  // Verify the SAME image Mathpix OCR ran on (selected region crop when applicable).
+                  imageDataUri: prepared.imageUrl,
                   mathpixTranscript: mathpixText,
                   settings: currentSettings,
                 });
@@ -952,6 +1018,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                   pageNumber: pageItem.part,
                 })),
                 ocrMode: 'mathpix_qwen_verify',
+                ocrRegionImageUrl: prepared.imageUrl,
+                isRegionCrop: prepared.isRegionCrop,
               };
             } else {
               pageRes = {
@@ -965,9 +1033,12 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                 error: `Qwen VL verification incomplete: ${qwenRes?.message || 'Port 18088 error'}`,
                 linesWithBboxes: mathpixLines,
                 ocrMode: 'mathpix_qwen_verify',
+                ocrRegionImageUrl: prepared.imageUrl,
+                isRegionCrop: prepared.isRegionCrop,
               };
             }
           }
+        }
         }
       }
 
@@ -1084,6 +1155,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     try {
       await controller.run({
         transcriptionService: essayServices.getTranscriptionService(),
+        ocrService: essayServices.getOcrService(),
+        provider: selectedProvider,
         appliedMatching,
         pages,
         assignmentId: assignment.id,
@@ -1106,6 +1179,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         batchControllerRef.current.resume();
         await batchControllerRef.current.run({
           transcriptionService: essayServices.getTranscriptionService(),
+          ocrService: essayServices.getOcrService(),
+          provider: selectedProvider,
           appliedMatching,
           pages,
           assignmentId: assignment.id,
@@ -1123,6 +1198,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         batchControllerRef.current.retryFailedTasks();
         await batchControllerRef.current.run({
           transcriptionService: essayServices.getTranscriptionService(),
+          ocrService: essayServices.getOcrService(),
+          provider: selectedProvider,
           appliedMatching,
           pages,
           assignmentId: assignment.id,

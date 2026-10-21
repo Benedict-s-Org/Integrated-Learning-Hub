@@ -74,14 +74,59 @@ export function generateSafeHtmlReportFilename(
 }
 
 /**
+ * Chooses the source-line representation for annotated rendering.
+ *
+ * Review Marking displays the per-line structure saved with the transcript
+ * (linesWithBboxes). The transcript STRING can lose interior line breaks
+ * (e.g. a verified candidate returned as flowing text), so when the saved
+ * line structure is available and its content matches the transcript text
+ * (ignoring whitespace), it is used as the authoritative source lines to
+ * preserve the verified line/paragraph layout. This is a rendering-level
+ * alignment only — saved student text is never rewritten.
+ *
+ * Falls back to splitting the string when no structure exists or the content
+ * diverges (teacher re-typed text), so teacher edits are always respected.
+ */
+function resolveSourceLines(
+  transcriptText: string,
+  sourceLines?: string[] | null
+): string[] {
+  const fromString = transcriptText.replace(/\r\n/g, '\n').split('\n');
+  if (!Array.isArray(sourceLines) || sourceLines.length === 0) {
+    return fromString;
+  }
+
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const stringNorm = normalize(transcriptText);
+  const linesNorm = normalize(sourceLines.join(' '));
+
+  if (stringNorm && linesNorm && stringNorm === linesNorm) {
+    return sourceLines;
+  }
+  return fromString;
+}
+
+/**
  * Builds the annotated writing HTML for a single student.
  * Places dedicated annotation rows above each source line, formats corrections in green,
  * clarity in blue, improvements in purple, errors in red strikethrough, and handles tooltips/notes.
+ *
+ * Review-state rules (shared with Review Marking):
+ * - rejected findings are excluded.
+ * - needs_review findings are NOT rendered as confirmed corrections; they are
+ *   returned in unresolvedFindings so the report lists them separately as
+ *   requiring review.
+ * - pending AI findings remain eligible (Review Marking displays them inline;
+ *   report approval does not change individual finding decisions).
+ * - suggestions are never blindly anchored to lineIndex: the claim is verified
+ *   against the actual line content; unmatchable items go to the review list,
+ *   never to line 0 as a fallback.
  */
 export function buildAnnotatedWritingHtml(
   transcriptText: string,
   findings: MarkingFinding[],
-  studentId: string
+  studentId: string,
+  sourceLines?: string[] | null
 ): { html: string; unresolvedFindings: MarkingFinding[] } {
   if (!transcriptText || !transcriptText.trim()) {
     return {
@@ -90,7 +135,7 @@ export function buildAnnotatedWritingHtml(
     };
   }
 
-  const rawLines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+  const rawLines = resolveSourceLines(transcriptText, sourceLines);
   const structure = buildTranscriptParagraphStructure(rawLines);
 
   const usedSpansByLine = new Map<number, Array<{ start: number; end: number }>>();
@@ -106,10 +151,19 @@ export function buildAnnotatedWritingHtml(
   const sentenceSuggestionsByLine = new Map<number, MarkingFinding[]>();
   const unresolvedFindings: MarkingFinding[] = [];
 
-  // Filter out rejected and needs_review findings from active annotations
-  const activeFindings = (findings || []).filter(
-    (f) => f.decision !== 'rejected' && f.decision !== 'needs_review'
-  );
+  // Review-state filtering (shared rules with Review Marking):
+  // - rejected: excluded entirely.
+  // - needs_review: NOT rendered as confirmed; collected separately below.
+  // - pending/accepted/edited: eligible for annotation rendering.
+  const needsReviewFindings: MarkingFinding[] = [];
+  const activeFindings = (findings || []).filter((f) => {
+    if (f.decision === 'rejected') return false;
+    if (f.decision === 'needs_review') {
+      needsReviewFindings.push(f);
+      return false;
+    }
+    return true;
+  });
 
   for (const finding of activeFindings) {
     const feedbackType = finding.feedbackType || 'correction';
@@ -117,9 +171,18 @@ export function buildAnnotatedWritingHtml(
     // 1. Sentence-level suggestions (clarity / improvement)
     if (feedbackType === 'clarity' || feedbackType === 'improvement') {
       let lineIdx: number | null = null;
-      if (typeof finding.lineIndex === 'number' && rawLines[finding.lineIndex] !== undefined) {
+      const quote = (finding.originalText || '').trim();
+
+      // Only trust a claimed lineIndex when the quote ACTUALLY occurs on that
+      // line — prevents mis-anchoring to line 0 when the finding's line space
+      // does not match the rendered source lines.
+      if (
+        typeof finding.lineIndex === 'number' &&
+        quote &&
+        rawLines[finding.lineIndex]?.includes(quote)
+      ) {
         lineIdx = finding.lineIndex;
-      } else if (finding.originalText) {
+      } else if (quote) {
         const loc = resolveFindingLocation(finding, rawLines, structure, usedSpansByLine);
         if (loc) lineIdx = loc.rawLineIndex;
       }
@@ -134,8 +197,8 @@ export function buildAnnotatedWritingHtml(
       continue;
     }
 
-    // 2. Required word-level corrections (only accepted or edited)
-    if (finding.decision !== 'accepted' && finding.decision !== 'edited') {
+    // 2. Required word-level corrections (accepted, edited, or pending-review AI items)
+    if (finding.decision !== 'accepted' && finding.decision !== 'edited' && finding.decision !== 'pending') {
       continue;
     }
 
@@ -399,7 +462,7 @@ export function buildAnnotatedWritingHtml(
 
   return {
     html: linesHtml.join('\n'),
-    unresolvedFindings,
+    unresolvedFindings: [...unresolvedFindings, ...needsReviewFindings],
   };
 }
 
@@ -477,19 +540,29 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
       0
     );
 
-    // Filter accepted/teacher-edited corrections and active suggestions
+    // Filter: rejected excluded; needs_review listed for review separately by
+    // the annotated section; pending/accepted/edited corrections + active
+    // reference suggestions are eligible notes.
     const approvedFindings = (marking?.findings || []).filter((f) => {
       if (f.decision === 'rejected') return false;
       if (f.feedbackType === 'improvement' || f.feedbackType === 'clarity') return true;
-      return f.decision === 'accepted' || f.decision === 'edited';
+      if (f.decision === 'needs_review') return true;
+      return f.decision === 'accepted' || f.decision === 'edited' || f.decision === 'pending';
     });
 
     const transcriptText = transcript?.editedText || transcript?.rawOcrText || '';
 
+    // Align the report's source-line representation with Review Marking: the
+    // saved per-line structure (linesWithBboxes) preserves the verified line
+    // breaks even when the transcript string itself collapsed.
+    const savedLineStructure = (transcript?.linesWithBboxes || [])
+      .map((l) => l.text);
+
     const { html: writingHtml, unresolvedFindings } = buildAnnotatedWritingHtml(
       transcriptText,
       marking?.findings || [],
-      s.id
+      s.id,
+      savedLineStructure
     );
 
     // Status label
@@ -519,14 +592,19 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
       notesListHtml = '<p class="text-muted italic">No specific language corrections flagged.</p>';
     } else {
       approvedFindings.forEach((f, fIdx) => {
+        const needsReview = f.decision === 'needs_review';
         const isClarity = f.feedbackType === 'clarity';
         const isImprovement = f.feedbackType === 'improvement';
         const typeBadge = isImprovement
           ? `Optional Improvement · ${f.type}`
           : isClarity
           ? `Clarity / Coherence · ${f.type}`
+          : needsReview
+          ? `Requires Review · ${f.type}`
           : f.type;
-        const badgeClass = isImprovement
+        const badgeClass = needsReview
+          ? 'badge-review'
+          : isImprovement
           ? 'badge-improvement'
           : isClarity
           ? 'badge-clarity'
@@ -1098,6 +1176,7 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
 
     .badge-correction { background: #dcfce7; color: #166534; }
     .badge-error { background: #fee2e2; color: #991b1b; }
+  .badge-review { background: #fef3c7; color: #92400e; }
     .badge-clarity { background: #e0f2fe; color: #075985; }
     .badge-improvement { background: #f3e8ff; color: #6b21a8; }
 

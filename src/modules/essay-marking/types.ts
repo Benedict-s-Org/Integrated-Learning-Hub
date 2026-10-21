@@ -257,6 +257,8 @@ export interface PageTranscriptionResult {
   qwenChanges?: Array<{ ocrOriginal: string; verified: string; reason: string }>;
   unreadableWords?: string[];
   isDryRun?: boolean;
+  ocrRegionImageUrl?: string;
+  isRegionCrop?: boolean;
 }
 
 export interface StagedCandidateTranscript {

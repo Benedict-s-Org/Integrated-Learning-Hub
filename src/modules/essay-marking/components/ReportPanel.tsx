@@ -65,11 +65,16 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
   );
   const maxPossibleScore = rubric.reduce((acc, dim) => acc + dim.maxScore, 0);
 
-  // Filter accepted/teacher-edited corrections and active reference suggestions (exclude rejected)
+  // Review-state filtering (aligned with the HTML/DOCX/Markdown reports and
+  // Review Marking): rejected items are excluded; needs_review items are NOT
+  // shown as confirmed feedback but are still listed explicitly as requiring
+  // review; pending AI corrections remain eligible (Review Marking displays
+  // them inline; report approval does not change finding decisions).
   const approvedFindings = (marking?.findings || []).filter((f) => {
     if (f.decision === 'rejected') return false;
     if (f.feedbackType === 'improvement' || f.feedbackType === 'clarity') return true;
-    return f.decision === 'accepted' || f.decision === 'edited';
+    if (f.decision === 'needs_review') return true;
+    return f.decision === 'accepted' || f.decision === 'edited' || f.decision === 'pending';
   });
 
   const handlePrint = (e: React.MouseEvent) => {
@@ -376,14 +381,19 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
         ) : (
           <div className="space-y-2">
             {approvedFindings.map((f, idx) => {
+              const needsReview = f.decision === 'needs_review';
               const typeLabel =
                 f.feedbackType === 'improvement'
                   ? `Optional Improvement · ${f.type}`
                   : f.feedbackType === 'clarity'
                   ? `Clarity / Coherence · ${f.type}`
+                  : needsReview
+                  ? `Requires Review · ${f.type}`
                   : f.type;
               const badgeColor =
-                f.feedbackType === 'improvement'
+                needsReview
+                  ? 'text-amber-700 bg-amber-50 border-amber-200'
+                  : f.feedbackType === 'improvement'
                   ? 'text-purple-700 bg-purple-50 border-purple-200'
                   : f.feedbackType === 'clarity'
                   ? 'text-sky-700 bg-sky-50 border-sky-200'
