@@ -651,6 +651,7 @@ app.post('/api/mark-essay', requireTeacherAuth, async (req, res) => {
     scopePrompt,
     rubric,
     promptSnapshot,
+    yearLevel,
   } = req.body || {};
 
   if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
@@ -658,6 +659,16 @@ app.post('/api/mark-essay', requireTeacherAuth, async (req, res) => {
       status: 'error',
       code: 'MISSING_TRANSCRIPT',
       message: 'Non-empty transcript string is required for essay marking.',
+    });
+  }
+
+  const validYears = ['P.3', 'P.4', 'P.5', 'P.6'];
+  if (!yearLevel || !validYears.includes(yearLevel)) {
+    return res.status(400).json({
+      status: 'error',
+      code: 'MISSING_OR_INVALID_YEAR_LEVEL',
+      message: `Valid student year level ('P.3', 'P.4', 'P.5', 'P.6') is required for essay marking. Received: "${yearLevel}".`,
+      studentId: studentId || null,
     });
   }
 
@@ -682,6 +693,7 @@ app.post('/api/mark-essay', requireTeacherAuth, async (req, res) => {
       scopePrompt,
       rubric,
       promptSnapshot,
+      yearLevel,
       endpoint: config.markingEndpoint,
       signal: controller.signal,
     });
@@ -692,6 +704,8 @@ app.post('/api/mark-essay', requireTeacherAuth, async (req, res) => {
       status: 'success',
       studentId: studentId || null,
       assignmentId: assignmentId || null,
+      yearLevel: result.yearLevel || yearLevel,
+      assessment: result.assessment || null,
       findings: result.findings,
       rawFindingsCount: result.rawCount,
       filteredFindingsCount: result.findings.length,

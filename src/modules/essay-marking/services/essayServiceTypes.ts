@@ -1,4 +1,4 @@
-import { RubricDimension, MarkingFinding, TemplateRegion, AssignmentTranscriptionSettings } from '../types';
+import { RubricDimension, MarkingFinding, TemplateRegion, AssignmentTranscriptionSettings, PrimaryGrade } from '../types';
 
 export type ServiceStatusType =
   | 'not_configured'
@@ -123,6 +123,7 @@ export interface EssayMarkingRequest {
   scopePrompt: string;
   rubric: RubricDimension[];
   promptSnapshot?: MarkingPromptSnapshot | null;
+  yearLevel: PrimaryGrade;
 }
 
 export type EssayMarkingResponse =
@@ -140,6 +141,16 @@ export type EssayMarkingResponse =
       findings: Omit<MarkingFinding, 'id' | 'decision'>[];
       suggestedScores: Record<string, number>;
       suggestedFeedback: string;
+      assessment?: {
+        yearLevel: PrimaryGrade;
+        scores: Record<string, number>;
+        totalScore: number;
+        comments: {
+          positive: string;
+          relevant: string;
+          finalNextStep: string;
+        };
+      } | null;
       promptVersion?: string;
       schemaVersion?: string;
     };

@@ -10,6 +10,7 @@ import {
 import {
   buildTranscriptParagraphStructure,
   resolveFindingLocation,
+  normalizeFindingsToMinimalUnits,
 } from './markingTextAlignment';
 
 export interface AllStudentsHtmlReportOptions {
@@ -29,6 +30,152 @@ export interface HtmlWritingWordSegment {
   replacement: string;
   finding?: MarkingFinding;
 }
+
+export const REPORT_ANNOTATION_CSS = `
+    /* Annotated Writing Layout & Typography */
+    .annotated-writing-container {
+      background: #ffffff;
+      padding: 0.5rem 0;
+      font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 1.05rem;
+      color: #0f172a;
+    }
+
+    .annotated-paragraph {
+      line-height: 2.6; /* Ample vertical space so ruby rt text above never collides with line above */
+      margin-bottom: 1.25rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .writing-paragraph-break {
+      height: 1.25rem;
+    }
+
+    /* Ruby Inline Stacked Annotation */
+    ruby.annotated-unit {
+      ruby-position: over;
+      position: relative;
+      display: inline-ruby;
+      vertical-align: baseline;
+      cursor: pointer;
+      margin: 0 1.5px;
+    }
+
+    ruby.annotated-unit rt.corr-text {
+      font-size: 0.78em;
+      font-weight: 700;
+      color: #16a34a;
+      line-height: 1;
+      text-align: center;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    ruby.annotated-unit del.orig-error-text {
+      color: #dc2626;
+      text-decoration: line-through;
+      text-decoration-color: #dc2626;
+      text-decoration-thickness: 1.5px;
+    }
+
+    ruby.annotated-unit .insertion-caret {
+      color: #16a34a;
+      font-weight: 800;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 0 1px;
+    }
+
+    /* Text & Badge Colors */
+    .text-correction { color: #16a34a; }
+    .text-error { color: #dc2626; }
+    .text-clarity { color: #0284c7; }
+    .text-improvement { color: #7c3aed; }
+    .text-muted { color: #64748b; }
+
+    .line-through { text-decoration: line-through; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .font-medium { font-weight: 500; }
+    .italic { font-style: italic; }
+
+    .badge-correction { background: #dcfce7; color: #166534; }
+    .badge-error { background: #fee2e2; color: #991b1b; }
+    .badge-review { background: #fef3c7; color: #92400e; }
+    .badge-clarity { background: #e0f2fe; color: #075985; }
+    .badge-improvement { background: #f3e8ff; color: #6b21a8; }
+
+    /* Interactive Explanation Popovers: STRICTLY HIDDEN BY DEFAULT */
+    .has-explanation {
+      position: relative;
+      cursor: pointer;
+      display: inline-block;
+      outline: none;
+    }
+
+    .has-explanation:focus {
+      outline: 2px solid #3b82f6;
+      border-radius: 2px;
+    }
+
+    .feedback-popover {
+      display: none !important;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-style: normal;
+      font-weight: 400;
+      white-space: normal;
+      width: max-content;
+      max-width: 280px;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      pointer-events: auto;
+      text-align: left;
+    }
+
+    .feedback-popover::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 5px;
+      border-style: solid;
+      border-color: #0f172a transparent transparent transparent;
+    }
+
+    .popover-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      margin-bottom: 0.25rem;
+    }
+
+    .popover-reason {
+      display: block;
+      color: #cbd5e1;
+      line-height: 1.35;
+    }
+
+    .has-explanation:hover .feedback-popover,
+    .has-explanation:focus .feedback-popover,
+    .feedback-popover.is-open {
+      display: block !important;
+    }
+`;
 
 /**
  * Escapes raw strings for safe HTML interpolation to prevent XSS vulnerabilities.
@@ -127,11 +274,16 @@ export function buildAnnotatedWritingHtml(
   findings: MarkingFinding[],
   studentId: string,
   sourceLines?: string[] | null
-): { html: string; unresolvedFindings: MarkingFinding[] } {
+): {
+  html: string;
+  unresolvedFindings: MarkingFinding[];
+  normalizedFindings: MarkingFinding[];
+} {
   if (!transcriptText || !transcriptText.trim()) {
     return {
       html: '<p class="text-muted italic">No verified transcript available for this student.</p>',
       unresolvedFindings: [],
+      normalizedFindings: [],
     };
   }
 
@@ -156,7 +308,7 @@ export function buildAnnotatedWritingHtml(
   // - needs_review: NOT rendered as confirmed; collected separately below.
   // - pending/accepted/edited: eligible for annotation rendering.
   const needsReviewFindings: MarkingFinding[] = [];
-  const activeFindings = (findings || []).filter((f) => {
+  const rawActive = (findings || []).filter((f) => {
     if (f.decision === 'rejected') return false;
     if (f.decision === 'needs_review') {
       needsReviewFindings.push(f);
@@ -165,8 +317,17 @@ export function buildAnnotatedWritingHtml(
     return true;
   });
 
+  // Normalize corrections to minimal yet complete error units
+  const activeFindings = normalizeFindingsToMinimalUnits(rawActive, rawLines, structure);
+
   for (const finding of activeFindings) {
-    const feedbackType = finding.feedbackType || 'correction';
+    const feedbackType =
+      finding.feedbackType ||
+      ((finding as any).category === 'clarity'
+        ? 'clarity'
+        : (finding as any).category === 'improvement'
+        ? 'improvement'
+        : 'correction');
 
     // 1. Sentence-level suggestions (clarity / improvement)
     if (feedbackType === 'clarity' || feedbackType === 'improvement') {
@@ -197,8 +358,8 @@ export function buildAnnotatedWritingHtml(
       continue;
     }
 
-    // 2. Required word-level corrections (accepted, edited, or pending-review AI items)
-    if (finding.decision !== 'accepted' && finding.decision !== 'edited' && finding.decision !== 'pending') {
+    // 2. Required word-level corrections
+    if (finding.decision === 'rejected' || finding.decision === 'needs_review') {
       continue;
     }
 
@@ -307,7 +468,11 @@ export function buildAnnotatedWritingHtml(
         });
       }
 
-      const replRaw = item.finding.teacherCustomText || item.finding.replacementText || '';
+      const replRaw =
+        item.finding.teacherCustomText ||
+        item.finding.replacementText ||
+        (item.finding as any).replacement ||
+        '';
       const cleanRepl = replRaw.trim();
       const isDeletion =
         !cleanRepl || cleanRepl.toLowerCase() === '(delete)' || cleanRepl.toUpperCase() === 'EMPTY';
@@ -347,122 +512,34 @@ export function buildAnnotatedWritingHtml(
       });
     }
 
-    const hasCorrections = segments.some((s) => s.type !== 'text');
+    let lineContentHtml = '';
 
-    let lineBlockHtml = '<div class="writing-line-unit">';
+    for (const seg of segments) {
+      if (seg.type === 'text') {
+        lineContentHtml += escapeHtml(seg.original);
+      } else if (seg.type === 'correction' || seg.type === 'deletion') {
+        const reason = seg.finding?.teacherCustomText || seg.finding?.explanation || '';
+        const badgeText = seg.type === 'deletion' ? 'Unnecessary Word' : seg.finding?.type || 'Grammar';
+        const repl = seg.type === 'deletion' ? '' : escapeHtml(seg.replacement);
 
-    // 1. Sentence Suggestions Row(s)
-    for (const sugg of suggestions) {
-      const isClarity = sugg.feedbackType === 'clarity';
-      const badgeText = isClarity ? 'Clarity & Coherence' : 'Optional Improvement';
-      const badgeClass = isClarity ? 'badge-clarity' : 'badge-improvement';
-      const textClass = isClarity ? 'text-clarity' : 'text-improvement';
+        lineContentHtml += `<ruby class="has-explanation annotated-unit" tabindex="0" role="button" aria-haspopup="true"><del class="orig-error-text">${escapeHtml(seg.original)}</del><rt class="corr-text">${repl}</rt><span class="feedback-popover" role="tooltip"><span class="popover-badge badge-error">Error · ${escapeHtml(badgeText)}</span>${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}</span></ruby>`;
+      } else if (seg.type === 'insertion') {
+        const reason = seg.finding?.teacherCustomText || seg.finding?.explanation || '';
+        const badgeText = seg.finding?.type || 'Missing Word';
 
-      let text = sugg.teacherCustomText || sugg.replacementText || sugg.explanation || '';
-      text = text.trim();
-      if (!text.startsWith('(') || !text.endsWith(')')) {
-        text = `(${text})`;
+        lineContentHtml += `<ruby class="has-explanation annotated-unit" tabindex="0" role="button" aria-haspopup="true"><span class="insertion-caret">^</span><rt class="corr-text">${escapeHtml(seg.replacement)}</rt><span class="feedback-popover" role="tooltip"><span class="popover-badge badge-correction">Missing Word · ${escapeHtml(badgeText)}</span>${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}</span></ruby>`;
       }
-
-      const reason = sugg.teacherCustomText || sugg.explanation || '';
-
-      lineBlockHtml += `
-        <div class="sentence-suggestion-row">
-          <span class="has-explanation ${textClass}" tabindex="0" role="button" aria-haspopup="true">
-            <span class="suggestion-text">${escapeHtml(text)}</span>
-            <span class="feedback-popover" role="tooltip">
-              <span class="popover-badge ${badgeClass}">${escapeHtml(badgeText)} · ${escapeHtml(sugg.type)}</span>
-              ${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}
-            </span>
-          </span>
-        </div>`;
     }
 
-    // 2. Word corrections & Student line table
-    if (hasCorrections) {
-      lineBlockHtml += '<table class="writing-table"><tr class="annotation-row">';
-
-      // Top row (corrections)
-      segments.forEach((seg) => {
-        if (seg.type === 'correction' || seg.type === 'insertion') {
-          const badgeText = seg.type === 'insertion' ? 'Missing Word' : seg.finding?.type || 'Correction';
-          const reason = seg.finding?.teacherCustomText || seg.finding?.explanation || '';
-
-          lineBlockHtml += `
-            <td class="corr-cell">
-              <span class="has-explanation text-correction font-bold" tabindex="0" role="button" aria-haspopup="true">
-                <span class="corr-text">${escapeHtml(seg.replacement)}</span>
-                <span class="feedback-popover" role="tooltip">
-                  <span class="popover-badge badge-correction">Correction · ${escapeHtml(badgeText)}</span>
-                  ${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}
-                </span>
-              </span>
-            </td>`;
-        } else {
-          lineBlockHtml += '<td class="empty-top-cell">&nbsp;</td>';
-        }
-      });
-
-      lineBlockHtml += '</tr><tr class="student-baseline-row">';
-
-      // Bottom row (student text)
-      segments.forEach((seg) => {
-        if (seg.type === 'text') {
-          lineBlockHtml += `<td class="orig-text-cell">${escapeHtml(seg.original)}</td>`;
-        } else if (seg.type === 'correction' || seg.type === 'deletion') {
-          const reason = seg.finding?.teacherCustomText || seg.finding?.explanation || '';
-          const badgeText = seg.type === 'deletion' ? 'Unnecessary Word' : seg.finding?.type || 'Grammar';
-
-          lineBlockHtml += `
-            <td class="error-cell">
-              <span class="has-explanation text-error line-through font-medium" tabindex="0" role="button" aria-haspopup="true">
-                <span class="orig-error-text">${escapeHtml(seg.original)}</span>
-                <span class="feedback-popover" role="tooltip">
-                  <span class="popover-badge badge-error">Error · ${escapeHtml(badgeText)}</span>
-                  ${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}
-                </span>
-              </span>
-            </td>`;
-        } else if (seg.type === 'insertion') {
-          const reason = seg.finding?.teacherCustomText || seg.finding?.explanation || '';
-
-          lineBlockHtml += `
-            <td class="insertion-caret-cell">
-              <span class="has-explanation text-correction font-bold caret-marker" tabindex="0" role="button" aria-haspopup="true">
-                ^
-                <span class="feedback-popover" role="tooltip">
-                  <span class="popover-badge badge-correction">Insertion Point</span>
-                  ${reason ? `<span class="popover-reason">${escapeHtml(reason)}</span>` : ''}
-                </span>
-              </span>
-            </td>`;
-        }
-      });
-
-      lineBlockHtml += '</tr></table>';
-    } else {
-      // Line with NO word corrections
-      lineBlockHtml += '<table class="writing-table">';
-
-      // If no sentence suggestions either, output dedicated blank annotation row
-      if (suggestions.length === 0) {
-        lineBlockHtml += '<tr class="annotation-row"><td class="blank-annotation-cell">&nbsp;</td></tr>';
-      }
-
-      lineBlockHtml += `
-        <tr class="student-baseline-row">
-          <td class="orig-text-cell single-line">${escapeHtml(lineText)}</td>
-        </tr>
-      </table>`;
-    }
-
-    lineBlockHtml += '</div>';
-    linesHtml.push(lineBlockHtml);
+    linesHtml.push(
+      `<div class="writing-line-unit"><p class="annotated-paragraph">${lineContentHtml}</p></div>`
+    );
   });
 
   return {
     html: linesHtml.join('\n'),
     unresolvedFindings: [...unresolvedFindings, ...needsReviewFindings],
+    normalizedFindings: activeFindings,
   };
 }
 
@@ -494,7 +571,10 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
     return count;
   }, 0);
 
-  const maxPossibleScore = rubric.reduce((acc, dim) => acc + dim.maxScore, 0);
+  const maxPossibleScore = (rubric || []).reduce(
+    (acc, dim) => acc + (dim.maxScore || (dim as any).max_score || 0),
+    0
+  );
 
   // Format date
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -535,10 +615,11 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
     const hasMarking = !!marking;
     const hasScores = !!marking && !!marking.scores && Object.keys(marking.scores).length > 0;
 
-    const totalScore = rubric.reduce(
-      (acc, dim) => acc + (marking?.scores?.[dim.id] ?? 0),
-      0
-    );
+    const totalScore =
+      marking?.totalScore ??
+      (hasScores
+        ? rubric.reduce((acc, dim) => acc + (marking?.scores?.[dim.id] ?? 0), 0)
+        : 0);
 
     // Filter: rejected excluded; needs_review listed for review separately by
     // the annotated section; pending/accepted/edited corrections + active
@@ -558,12 +639,20 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
     const savedLineStructure = (transcript?.linesWithBboxes || [])
       .map((l) => l.text);
 
-    const { html: writingHtml, unresolvedFindings } = buildAnnotatedWritingHtml(
+    const { html: writingHtml, unresolvedFindings, normalizedFindings } = buildAnnotatedWritingHtml(
       transcriptText,
       marking?.findings || [],
       s.id,
       savedLineStructure
     );
+
+    // Filter notes: use normalizedFindings (which are identical to in-text annotations!)
+    // Exclude rejected, and exclude unresolved/needs_review which have their own section below
+    const notesFindings = (normalizedFindings || []).filter((f) => {
+      if (f.decision === 'rejected') return false;
+      if (f.decision === 'needs_review') return false;
+      return true;
+    });
 
     // Status label
     const statusText = isApproved
@@ -575,47 +664,54 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
 
     // Rubric grid
     let rubricGridHtml = '';
-    rubric.forEach((dim) => {
+    (rubric || []).forEach((dim) => {
       const scoreVal = marking?.scores?.[dim.id];
       rubricGridHtml += `
         <div class="rubric-grid-item">
           <span class="rubric-dim-name">${escapeHtml(dim.name)}</span>
           <span class="rubric-dim-score font-bold">
-            ${scoreVal !== undefined ? scoreVal : '—'} / ${dim.maxScore}
+            ${scoreVal !== undefined ? scoreVal : '—'} / ${dim.maxScore || (dim as any).max_score || 0}
           </span>
         </div>`;
     });
 
     // Notes section
     let notesListHtml = '';
-    if (approvedFindings.length === 0) {
+    if (notesFindings.length === 0) {
       notesListHtml = '<p class="text-muted italic">No specific language corrections flagged.</p>';
     } else {
-      approvedFindings.forEach((f, fIdx) => {
-        const needsReview = f.decision === 'needs_review';
-        const isClarity = f.feedbackType === 'clarity';
-        const isImprovement = f.feedbackType === 'improvement';
+      notesFindings.forEach((f, fIdx) => {
+        const isClarity = f.feedbackType === 'clarity' || (f as any).category === 'clarity';
+        const isImprovement =
+          f.feedbackType === 'improvement' || (f as any).category === 'improvement';
+        const isInsertion =
+          !f.originalText ||
+          f.originalText.trim() === '' ||
+          f.originalText.trim().toUpperCase() === 'EMPTY';
+        const findingType = f.type || (f as any).category || 'Language';
         const typeBadge = isImprovement
-          ? `Optional Improvement · ${f.type}`
+          ? `Optional Improvement · ${findingType}`
           : isClarity
-          ? `Clarity / Coherence · ${f.type}`
-          : needsReview
-          ? `Requires Review · ${f.type}`
-          : f.type;
-        const badgeClass = needsReview
-          ? 'badge-review'
-          : isImprovement
+          ? `Clarity / Coherence · ${findingType}`
+          : isInsertion
+          ? `Missing Word · ${findingType}`
+          : findingType;
+        const badgeClass = isImprovement
           ? 'badge-improvement'
           : isClarity
           ? 'badge-clarity'
+          : isInsertion
+          ? 'badge-correction'
           : 'badge-error';
 
+        const quoteDisplay = isInsertion ? '^' : f.originalText;
+        const repl = f.teacherCustomText || f.replacementText || (f as any).replacement || '';
         const suggestionHtml =
           isImprovement || isClarity
             ? `suggested phrasing: <span class="${
                 isImprovement ? 'text-improvement' : 'text-clarity'
-              } font-semibold">(${escapeHtml(f.replacementText)})</span>`
-            : `→ <span class="text-correction font-semibold">"${escapeHtml(f.replacementText)}"</span>`;
+              } font-semibold">(${escapeHtml(repl)})</span>`
+            : `→ <span class="text-correction font-semibold">"${escapeHtml(repl)}"</span>`;
 
         const noteText = f.teacherCustomText || f.explanation || '';
 
@@ -624,7 +720,7 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
             <span class="note-idx font-semibold">${fIdx + 1}.</span>
             <div class="note-body">
               <span class="note-badge ${badgeClass}">${escapeHtml(typeBadge)}</span>
-              <span class="note-quote">"${escapeHtml(f.originalText)}"</span>
+              <span class="note-quote">"${escapeHtml(quoteDisplay)}"</span>
               ${suggestionHtml}
               ${noteText ? `<span class="note-reason">: ${escapeHtml(noteText)}</span>` : ''}
             </div>
@@ -704,6 +800,25 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
         <!-- Teacher Feedback Commentary -->
         <div class="report-section">
           <h4 class="section-title">Teacher Feedback</h4>
+          ${
+            marking?.assessmentComments
+              ? `
+          <div class="feedback-structured-grid">
+            <div class="feedback-col feedback-col-pos">
+              <div class="feedback-col-title">★ Strengths &amp; Highlights</div>
+              <div>${escapeHtml(marking.assessmentComments.positive || 'None recorded.')}</div>
+            </div>
+            <div class="feedback-col feedback-col-rel">
+              <div class="feedback-col-title">✎ Areas for Improvement</div>
+              <div>${escapeHtml(marking.assessmentComments.relevant || 'None recorded.')}</div>
+            </div>
+            <div class="feedback-col feedback-col-next">
+              <div class="feedback-col-title">➜ Next Steps for Writing</div>
+              <div>${escapeHtml(marking.assessmentComments.finalNextStep || 'None recorded.')}</div>
+            </div>
+          </div>`
+              : ''
+          }
           <div class="feedback-commentary-box">
             ${escapeHtml(marking?.feedbackComment || 'No written commentary entered yet.')}
           </div>
@@ -737,12 +852,17 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
   });
 
   // Assemble full standalone HTML
+  const singleStudent = totalStudents === 1 ? students[indices[0]] : null;
+  const pageTitle = singleStudent
+    ? `${assignment.title || 'Writing Assessment'} — Class ${classId} No. ${String(singleStudent.classNumber).padStart(2, '0')} ${singleStudent.displayName}`
+    : `${assignment.title || 'Writing Assessment'} — Class ${classId} All Reports`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(assignment.title || 'Writing Assessment')} — Class ${escapeHtml(classId)} All Reports</title>
+  <title>${escapeHtml(pageTitle)}</title>
   <style>
     /* Standalone Offline CSS Reset & Typography */
     *, *::before, *::after {
@@ -1082,6 +1202,40 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
     }
 
     /* Teacher Commentary */
+    .feedback-structured-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .feedback-col {
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .feedback-col-pos {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+    .feedback-col-rel {
+      background: #fefce8;
+      border: 1px solid #fef08a;
+      color: #854d0e;
+    }
+    .feedback-col-next {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+    .feedback-col-title {
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.35rem;
+    }
     .feedback-commentary-box {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -1093,161 +1247,7 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
       line-height: 1.6;
     }
 
-    /* Annotated Writing Layout & Typography */
-    .annotated-writing-container {
-      background: #ffffff;
-      padding: 0.5rem 0;
-      font-family: Georgia, Cambria, "Times New Roman", Times, serif;
-    }
-
-    .writing-line-unit {
-      margin-bottom: 0.65rem;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-
-    .writing-paragraph-break {
-      height: 1.25rem;
-    }
-
-    .sentence-suggestion-row {
-      margin-bottom: 0.25rem;
-      font-size: 0.875rem;
-    }
-
-    .suggestion-text {
-      font-style: italic;
-    }
-
-    .writing-table {
-      border-collapse: collapse;
-      border: none;
-      width: auto;
-      max-width: 100%;
-    }
-
-    .writing-table td {
-      border: none;
-      padding: 0 1px;
-      vertical-align: bottom;
-      font-size: 1rem;
-      line-height: 1.4;
-    }
-
-    .annotation-row td {
-      font-size: 0.875rem;
-      padding-bottom: 2px;
-      line-height: 1.2;
-    }
-
-    .student-baseline-row td {
-      color: #000000;
-    }
-
-    .blank-annotation-cell {
-      height: 1.1rem;
-    }
-
-    .empty-top-cell {
-      height: 1.1rem;
-    }
-
-    .orig-text-cell {
-      color: #000000;
-      white-space: pre-wrap;
-    }
-
-    .single-line {
-      white-space: pre-wrap;
-    }
-
-    /* Text & Badge Colors */
-    .text-correction { color: #16a34a; }
-    .text-error { color: #dc2626; }
-    .text-clarity { color: #0284c7; }
-    .text-improvement { color: #7c3aed; }
-    .text-muted { color: #64748b; }
-
-    .line-through { text-decoration: line-through; }
-    .font-bold { font-weight: 700; }
-    .font-semibold { font-weight: 600; }
-    .font-medium { font-weight: 500; }
-    .italic { font-style: italic; }
-
-    .badge-correction { background: #dcfce7; color: #166534; }
-    .badge-error { background: #fee2e2; color: #991b1b; }
-  .badge-review { background: #fef3c7; color: #92400e; }
-    .badge-clarity { background: #e0f2fe; color: #075985; }
-    .badge-improvement { background: #f3e8ff; color: #6b21a8; }
-
-    /* Interactive Explanation Popovers */
-    .has-explanation {
-      position: relative;
-      cursor: pointer;
-      display: inline-block;
-      outline: none;
-    }
-
-    .has-explanation:focus {
-      outline: 2px solid #3b82f6;
-      border-radius: 2px;
-    }
-
-    .feedback-popover {
-      display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: #0f172a;
-      color: #ffffff;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-style: normal;
-      font-weight: 400;
-      white-space: normal;
-      width: max-content;
-      max-width: 280px;
-      z-index: 50;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-      pointer-events: auto;
-      text-align: left;
-    }
-
-    .feedback-popover::after {
-      content: '';
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      border-width: 5px;
-      border-style: solid;
-      border-color: #0f172a transparent transparent transparent;
-    }
-
-    .popover-badge {
-      display: inline-block;
-      font-size: 0.65rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      padding: 0.1rem 0.35rem;
-      border-radius: 4px;
-      margin-bottom: 0.25rem;
-    }
-
-    .popover-reason {
-      display: block;
-      color: #cbd5e1;
-      line-height: 1.35;
-    }
-
-    .has-explanation:hover .feedback-popover,
-    .has-explanation:focus .feedback-popover,
-    .feedback-popover.is-open {
-      display: block;
-    }
+${REPORT_ANNOTATION_CSS}
 
     /* Fallback Notes List */
     .notes-list {
@@ -1374,21 +1374,36 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
     <!-- Master Header -->
     <header class="master-header no-print">
       <h1 class="master-title">${escapeHtml(assignment.title || 'Writing Assessment')}</h1>
-      <div class="master-subtitle">Class ${escapeHtml(classId)} · Comprehensive Offline Student Writing Evaluation</div>
+      <div class="master-subtitle">${
+        totalStudents === 1
+          ? `Class ${escapeHtml(classId)} · Student Writing Evaluation`
+          : `Class ${escapeHtml(classId)} · Comprehensive Offline Student Writing Evaluation`
+      }</div>
 
       <div class="master-stats-bar">
-        <div class="stat-item">
-          <span class="stat-label">Total Reports:</span>
-          <span class="stat-val">${totalStudents}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Teacher Approved:</span>
-          <span class="stat-val" style="color: #15803d;">${approvedCount}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Draft / Pending:</span>
-          <span class="stat-val" style="color: #b45309;">${totalStudents - approvedCount}</span>
-        </div>
+        ${
+          totalStudents === 1 && singleStudent
+            ? `<div class="stat-item">
+                <span class="stat-label">Student:</span>
+                <span class="stat-val">No. ${String(singleStudent.classNumber).padStart(2, '0')} ${escapeHtml(singleStudent.displayName)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Status:</span>
+                <span class="stat-val" style="color: ${approvedCount === 1 ? '#15803d' : '#b45309'};">${approvedCount === 1 ? 'Teacher Approved' : 'Draft / Pending'}</span>
+              </div>`
+            : `<div class="stat-item">
+                <span class="stat-label">Total Reports:</span>
+                <span class="stat-val">${totalStudents}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Teacher Approved:</span>
+                <span class="stat-val" style="color: #15803d;">${approvedCount}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Draft / Pending:</span>
+                <span class="stat-val" style="color: #b45309;">${totalStudents - approvedCount}</span>
+              </div>`
+        }
         <div class="stat-item">
           <span class="stat-label">Exported:</span>
           <span class="stat-val">${escapeHtml(formattedDate)}</span>
@@ -1396,13 +1411,17 @@ export function generateAllStudentsHtmlReport(options: AllStudentsHtmlReportOpti
       </div>
     </header>
 
-    <!-- Student Contents List (Table of Contents) -->
+    ${
+      totalStudents > 1
+        ? `<!-- Student Contents List (Table of Contents) -->
     <nav class="directory-panel no-print" aria-label="Student Directory">
       <h2 class="directory-title">Student Directory</h2>
       <div class="toc-grid">
         ${tocItemsHtml}
       </div>
-    </nav>
+    </nav>`
+        : ''
+    }
 
     <!-- Marking Colour Legend Box -->
     <aside class="legend-box no-print" aria-label="Marking Legend">
@@ -1488,3 +1507,65 @@ export function downloadHtmlFile(filename: string, htmlContent: string): void {
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export interface StudentHtmlReportOptions {
+  assignment: AssignmentConfig;
+  classId: string;
+  student: StudentRosterItem;
+  rubric: RubricDimension[];
+  transcript?: StudentTranscriptState;
+  marking?: StudentMarkingState;
+  exportTimestamp?: Date;
+}
+
+/**
+ * Builds a standalone offline HTML document for an individual student report.
+ * Mirrors the structure, styling, in-text annotations, and accuracy notes of the merged report.
+ */
+export function generateStudentHtmlReport(options: StudentHtmlReportOptions): string {
+  return generateAllStudentsHtmlReport({
+    assignment: options.assignment,
+    classId: options.classId,
+    students: [options.student],
+    assignedIndices: [0],
+    rubric: options.rubric,
+    transcripts: options.transcript ? { [options.student.id]: options.transcript } : {},
+    markings: options.marking ? { [options.student.id]: options.marking } : {},
+    exportTimestamp: options.exportTimestamp,
+  });
+}
+
+/**
+ * Generates a safe, cross-platform filename for an individual student's HTML report.
+ */
+export function generateSafeStudentHtmlReportFilename(
+  assignmentTitle?: string,
+  classId?: string,
+  student?: StudentRosterItem,
+  date: Date = new Date()
+): string {
+  const sanitize = (str: string) =>
+    str
+      .replace(/[<>:"/\\|?*#%\x00-\x1F]/g, '_')
+      .replace(/\s+/g, '_')
+      .trim();
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(
+    date.getHours()
+  )}${pad(date.getMinutes())}`;
+
+  const parts: string[] = [];
+  if (assignmentTitle) parts.push(sanitize(assignmentTitle));
+  if (classId) parts.push(sanitize(classId));
+  if (student) {
+    const classNum = String(student.classNumber || 1).padStart(2, '0');
+    parts.push(`No${classNum}_${sanitize(student.displayName)}`);
+  }
+  parts.push('Report');
+  parts.push(timestamp);
+
+  const baseName = parts.filter(Boolean).join('_') || 'Student_Writing_Report';
+  return `${baseName}.html`;
+}
+

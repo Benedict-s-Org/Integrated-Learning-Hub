@@ -267,13 +267,15 @@ function findAllOccurrences(str: string, substr: string): number[] {
  * - If ambiguous across multiple lines or not found, return null (unmatched)
  */
 export function resolveFindingLocation(
-  finding: MarkingFinding,
+  finding: MarkingFinding | any,
   rawLines: string[],
-  structure: ParagraphStructure,
-  usedSpansByLine: Map<number, Array<{ start: number; end: number }>>
+  structure?: ParagraphStructure,
+  usedSpansByLine: Map<number, Array<{ start: number; end: number }>> = new Map()
 ): TargetLocation | null {
   const quote = finding.originalText;
   if (!quote) return null;
+
+  const struct = structure || buildTranscriptParagraphStructure(rawLines);
 
   let candidateRawLine: number | null = null;
 
@@ -281,10 +283,10 @@ export function resolveFindingLocation(
   if (
     typeof finding.paragraphIndex === 'number' &&
     typeof finding.lineIndex === 'number' &&
-    structure.paragraphs[finding.paragraphIndex] &&
-    structure.paragraphs[finding.paragraphIndex][finding.lineIndex]
+    struct.paragraphs[finding.paragraphIndex] &&
+    struct.paragraphs[finding.paragraphIndex][finding.lineIndex]
   ) {
-    const paraLine = structure.paragraphs[finding.paragraphIndex][finding.lineIndex];
+    const paraLine = struct.paragraphs[finding.paragraphIndex][finding.lineIndex];
     if (paraLine.text.includes(quote)) {
       candidateRawLine = paraLine.rawLineIndex;
     }
@@ -329,7 +331,20 @@ export function resolveFindingLocation(
   // Determine which occurrence to use
   let selectedStart: number | null = null;
 
+  // If explicit charStart / startIndex given and matches the quote on target line
+  const explicitStart = typeof finding.charStart === 'number' ? finding.charStart : finding.startIndex;
   if (
+    typeof explicitStart === 'number' &&
+    targetLineText.slice(explicitStart, explicitStart + quote.length) === quote
+  ) {
+    const overlaps = usedSpans.some((s) => explicitStart < s.end && explicitStart + quote.length > s.start);
+    if (!overlaps) {
+      selectedStart = explicitStart;
+    }
+  }
+
+  if (
+    selectedStart === null &&
     typeof finding.occurrenceIndex === 'number' &&
     occurrences[finding.occurrenceIndex] !== undefined
   ) {
@@ -367,6 +382,188 @@ export function resolveFindingLocation(
 }
 
 /**
+ * Normalizes a finding down to its minimal yet complete error unit.
+ * Rules:
+ * 1. Optional improvements and clarity suggestions retain their full phrase.
+ * 2. Required corrections compare originalText and replacementText at word-level:
+ *    - Unchanged surrounding words (common prefix/suffix words) are preserved as plain text.
+ *    - Single word changes (e.g. "go" -> "goes", "have" -> "has") retain the complete word, never char-level s insertion.
+ *    - Missing words become insertions (originalText: "", replacement: inserted words).
+ *    - Multiple independent errors in the same quote can be split into separate findings.
+ *    - Phrase rewrites where words cannot be separated into disjoint units remain a phrase.
+ * 3. Range recomputation verifies that the original line at diffCharStart..diffCharEnd matches the new quote.
+ * 4. Exact occurrence index on the line is recalculated to prevent matching earlier duplicate words.
+ */
+export function normalizeFindingToMinimalUnits(
+  finding: MarkingFinding | any,
+  rawLines: string[],
+  structure?: ParagraphStructure
+): any[] {
+  // 1. Keep improvement and clarity suggestions intact (preserve full phrase context)
+  const category = (finding.category || '').toLowerCase();
+  const feedbackType = (finding.feedbackType || '').toLowerCase();
+  if (
+    category === 'improvement' ||
+    category === 'clarity' ||
+    feedbackType === 'improvement' ||
+    feedbackType === 'clarity'
+  ) {
+    return [finding];
+  }
+
+  const origText = finding.originalText || '';
+  const replText =
+    finding.teacherCustomText || finding.replacementText || (finding as any).replacement || '';
+
+  // Already an insertion or identical
+  if (!origText.trim() || origText === replText) {
+    return [finding];
+  }
+
+  const struct = structure || buildTranscriptParagraphStructure(rawLines);
+
+  // 2. Resolve location on transcript lines
+  const loc = resolveFindingLocation(finding, rawLines, struct, new Map());
+  if (!loc) {
+    return [finding];
+  }
+
+  const lineIdx = loc.rawLineIndex;
+  const lineText = rawLines[lineIdx];
+  if (!lineText) {
+    return [finding];
+  }
+
+  // Verify that the anchored location matches origText exactly
+  if (lineText.slice(loc.startIndex, loc.endIndex) !== origText) {
+    return [finding];
+  }
+
+  // 3. Compute word-level diff
+  const diffChunks = computeWordLevelDiff(origText, replText);
+
+  let currentOffsetInQuote = 0;
+  interface DiffItem {
+    chunk: WordDiffChunk;
+    offsetInQuote: number;
+    charStartInLine: number;
+    charEndInLine: number;
+  }
+  const diffs: DiffItem[] = [];
+
+  for (const chunk of diffChunks) {
+    const origLen = chunk.originalText.length;
+    if (chunk.type === 'diff') {
+      diffs.push({
+        chunk,
+        offsetInQuote: currentOffsetInQuote,
+        charStartInLine: loc.startIndex + currentOffsetInQuote,
+        charEndInLine: loc.startIndex + currentOffsetInQuote + origLen,
+      });
+    }
+    currentOffsetInQuote += origLen;
+  }
+
+  if (diffs.length === 0) {
+    return [finding];
+  }
+
+  // Only decompose into minimal units when there are actual words in common
+  const hasEqualWords = diffChunks.some((c) => c.type === 'equal' && /[\w']/.test(c.originalText));
+  if (!hasEqualWords) {
+    return [finding];
+  }
+
+  const normalized: any[] = [];
+
+  diffs.forEach((d, idx) => {
+    let newOrig = d.chunk.originalText;
+    let newRepl = d.chunk.replacementText;
+
+    // Shift leading/trailing whitespace if present
+    const leadingSpace = newOrig.match(/^\s+/)?.[0] || '';
+    const trailingSpace = newOrig.match(/\s+$/)?.[0] || '';
+
+    let diffStart = d.charStartInLine + leadingSpace.length;
+    let diffEnd = d.charEndInLine - trailingSpace.length;
+
+    newOrig = newOrig.trim();
+    newRepl = newRepl.trim();
+
+    // Insertion case: newOrig is empty
+    const isInsertion = newOrig.length === 0;
+
+    if (!isInsertion) {
+      // Verify match on target line
+      const actualOnLine = lineText.slice(diffStart, diffEnd);
+      if (actualOnLine !== newOrig) {
+        normalized.push(finding);
+        return;
+      }
+    }
+
+    // Recalculate exact occurrenceIndex on this line
+    let newOccIdx = 0;
+    if (!isInsertion) {
+      const occurrences = findAllOccurrences(lineText, newOrig);
+      newOccIdx = occurrences.filter((pos) => pos < diffStart).length;
+    }
+
+    // Determine paragraphIndex
+    let paraIdx = finding.paragraphIndex;
+    if (typeof paraIdx !== 'number') {
+      for (let p = 0; p < struct.paragraphs.length; p++) {
+        if (struct.paragraphs[p].some((pl) => pl.rawLineIndex === lineIdx)) {
+          paraIdx = p;
+          break;
+        }
+      }
+    }
+
+    const uniqueId = diffs.length > 1 ? `${finding.id}-part-${idx + 1}` : finding.id;
+
+    normalized.push({
+      ...finding,
+      id: uniqueId,
+      originalText: newOrig,
+      replacementText: newRepl,
+      replacement: newRepl,
+      teacherCustomText: undefined,
+      lineIndex: lineIdx,
+      paragraphIndex: paraIdx,
+      occurrenceIndex: newOccIdx,
+      startIndex: diffStart,
+      endIndex: diffEnd,
+      charStart: diffStart,
+      charEnd: diffEnd,
+    });
+  });
+
+  return normalized.length > 0 ? normalized : [finding];
+}
+
+/**
+ * Normalizes an array of findings, expanding any wide corrections into minimal units.
+ */
+export function normalizeFindingsToMinimalUnits(
+  findings: MarkingFinding[],
+  rawLinesOrTranscript: string[] | string,
+  structure?: ParagraphStructure
+): MarkingFinding[] {
+  const rawLines = Array.isArray(rawLinesOrTranscript)
+    ? rawLinesOrTranscript
+    : rawLinesOrTranscript.replace(/\r\n/g, '\n').split('\n');
+  const struct = structure || buildTranscriptParagraphStructure(rawLines);
+
+  const result: MarkingFinding[] = [];
+  for (const f of findings) {
+    const normalized = normalizeFindingToMinimalUnits(f, rawLines, struct);
+    result.push(...normalized);
+  }
+  return result;
+}
+
+/**
  * Aligns student transcript lines with findings for inline marking view.
  * Applies minimal word-level diffing so only the actual changed words are highlighted,
  * leaving surrounding correct words as normal text.
@@ -392,7 +589,9 @@ export function alignTranscriptWithFindings(
   const usedSpansByLine = new Map<number, Array<{ start: number; end: number }>>();
   const unmatchedFindings: MarkingFinding[] = [];
 
-  for (const finding of findings) {
+  const normalizedFindings = normalizeFindingsToMinimalUnits(findings, rawLines, structure);
+
+  for (const finding of normalizedFindings) {
     // Findings flagged as 'needs_review' are paused from inline rendering until confirmed
     if (finding.decision === 'needs_review') {
       continue;
@@ -680,3 +879,235 @@ export function validateFindingQuoteAndRange({
     endIndex: targetMatch.endIndex,
   };
 }
+
+/**
+ * Line start offsets for a normalized (LF-only) transcript.
+ */
+function computeLineStartOffsets(text: string): number[] {
+  const lines = text.split('\n');
+  const offsets: number[] = [];
+  let acc = 0;
+  for (const line of lines) {
+    offsets.push(acc);
+    acc += line.length + 1; // account for the '\n' separator
+  }
+  return offsets;
+}
+
+export interface TranscriptEditOperation {
+  start: number; // absolute char offset in OLD transcript (inclusive)
+  end: number; // absolute char offset in OLD transcript (exclusive)
+  inserted: string;
+}
+
+export interface RemapOutcome {
+  findingId: string;
+  status: 'mapped' | 'anchor_review';
+  mapped?: {
+    lineIndex: number;
+    occurrenceIndex: number;
+    paragraphIndex: number;
+    startIndex: number;
+    endIndex: number;
+  };
+  anchorReviewReason?: string;
+}
+
+/**
+ * Strictly resolves a finding's source span in the old transcript using only its
+ * stored anchors (paragraph/line, raw lineIndex, occurrenceIndex, startIndex).
+ * Unlike resolveFindingLocation, it never falls back to a unique line elsewhere,
+ * so a deleted occurrence is never relocated to identical surviving text.
+ */
+function resolveStrictFindingLocation(
+  finding: MarkingFinding,
+  rawLines: string[],
+  structure: ParagraphStructure
+): TargetLocation | null {
+  const quote = finding.originalText;
+  if (!quote) return null;
+
+  let candidateRawLine: number | null = null;
+
+  if (
+    typeof finding.paragraphIndex === 'number' &&
+    typeof finding.lineIndex === 'number' &&
+    structure.paragraphs[finding.paragraphIndex] &&
+    structure.paragraphs[finding.paragraphIndex][finding.lineIndex]
+  ) {
+    const paraLine = structure.paragraphs[finding.paragraphIndex][finding.lineIndex];
+    if (paraLine.text.includes(quote)) {
+      candidateRawLine = paraLine.rawLineIndex;
+    }
+  }
+
+  if (candidateRawLine === null && typeof finding.lineIndex === 'number') {
+    if (rawLines[finding.lineIndex]?.includes(quote)) {
+      candidateRawLine = finding.lineIndex;
+    } else if (finding.lineIndex > 0 && rawLines[finding.lineIndex - 1]?.includes(quote)) {
+      candidateRawLine = finding.lineIndex - 1;
+    }
+  }
+
+  if (candidateRawLine === null) return null;
+
+  const lineText = rawLines[candidateRawLine];
+  const occurrences = findAllOccurrences(lineText, quote);
+  if (occurrences.length === 0) return null;
+
+  let selectedStart: number | null = null;
+  const explicitStart =
+    typeof (finding as any).charStart === 'number'
+      ? (finding as any).charStart
+      : finding.startIndex;
+  if (
+    typeof explicitStart === 'number' &&
+    lineText.slice(explicitStart, explicitStart + quote.length) === quote
+  ) {
+    selectedStart = explicitStart;
+  }
+  if (selectedStart === null && typeof finding.occurrenceIndex === 'number') {
+    if (occurrences[finding.occurrenceIndex] !== undefined) {
+      selectedStart = occurrences[finding.occurrenceIndex];
+    }
+  }
+  if (selectedStart === null && occurrences.length === 1) {
+    selectedStart = occurrences[0];
+  }
+  if (selectedStart === null) return null;
+
+  return {
+    rawLineIndex: candidateRawLine,
+    startIndex: selectedStart,
+    endIndex: selectedStart + quote.length,
+  };
+}
+
+
+function mapAbsoluteToLocation(
+  newTranscript: string,
+  start: number,
+  end: number,
+  originalText: string
+): {
+  lineIndex: number;
+  occurrenceIndex: number;
+  paragraphIndex: number;
+  startIndex: number;
+  endIndex: number;
+} | null {
+  const lines = newTranscript.split('\n');
+  const offsets = computeLineStartOffsets(newTranscript);
+
+  let lineIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const lineStart = offsets[i];
+    const lineEnd = lineStart + lines[i].length;
+    if (start >= lineStart && start <= lineEnd) {
+      lineIndex = i;
+      break;
+    }
+  }
+  if (lineIndex === -1) return null;
+
+  const lineText = lines[lineIndex];
+  const startIndex = start - offsets[lineIndex];
+  const endIndex = end - offsets[lineIndex];
+  if (lineText.slice(startIndex, endIndex) !== originalText) return null;
+
+  let occurrenceIndex = 0;
+  let pos = 0;
+  while ((pos = lineText.indexOf(originalText, pos)) !== -1 && pos < startIndex) {
+    occurrenceIndex += 1;
+    pos += 1;
+  }
+
+  const structure = buildTranscriptParagraphStructure(lines);
+  let paragraphIndex = 0;
+  for (let p = 0; p < structure.paragraphs.length; p++) {
+    if (structure.paragraphs[p].some((pl) => pl.rawLineIndex === lineIndex)) {
+      paragraphIndex = p;
+      break;
+    }
+  }
+
+  return { lineIndex, occurrenceIndex, paragraphIndex, startIndex, endIndex };
+}
+
+/**
+ * Maps each finding's source span through an exact transcript edit operation.
+ * Surviving spans (before/after the edit) are remapped; deleted/altered spans are
+ * flagged anchor_review without touching the finding's decision or ownership.
+ */
+export function remapFindingsThroughEdit(
+  oldTranscript: string,
+  newTranscript: string,
+  findings: MarkingFinding[],
+  edit: TranscriptEditOperation
+): RemapOutcome[] {
+  const oldNorm = oldTranscript.replace(/\r\n/g, '\n');
+  const newNorm = newTranscript.replace(/\r\n/g, '\n');
+  const oldLines = oldNorm.split('\n');
+  const structure = buildTranscriptParagraphStructure(oldLines);
+  const oldOffsets = computeLineStartOffsets(oldNorm);
+
+  const outcomes: RemapOutcome[] = [];
+
+  for (const finding of findings) {
+    const loc = resolveStrictFindingLocation(finding, oldLines, structure);
+    if (!loc) {
+      outcomes.push({
+        findingId: finding.id,
+        status: 'anchor_review',
+        anchorReviewReason: '原文無法在舊謄本中定位，已保留並標記待確認',
+      });
+      continue;
+    }
+
+    const oldStart = oldOffsets[loc.rawLineIndex] + loc.startIndex;
+    const oldEnd = oldOffsets[loc.rawLineIndex] + loc.endIndex;
+
+    let newStart: number;
+    let newEnd: number;
+    let disposition: 'before' | 'after' | 'deleted' | 'altered';
+
+    if (oldEnd <= edit.start) {
+      newStart = oldStart;
+      newEnd = oldEnd;
+      disposition = 'before';
+    } else if (oldStart >= edit.end) {
+      const delta = edit.inserted.length - (edit.end - edit.start);
+      newStart = oldStart + delta;
+      newEnd = oldEnd + delta;
+      disposition = 'after';
+    } else if (oldStart >= edit.start && oldEnd <= edit.end) {
+      disposition = 'deleted';
+    } else {
+      disposition = 'altered';
+    }
+
+    if (disposition === 'deleted' || disposition === 'altered') {
+      outcomes.push({
+        findingId: finding.id,
+        status: 'anchor_review',
+        anchorReviewReason: `原文「${finding.originalText}」於本次編輯中被刪除或改動，請重新確認`,
+      });
+      continue;
+    }
+
+    const mapped = mapAbsoluteToLocation(newNorm, newStart, newEnd, finding.originalText);
+    if (!mapped) {
+      outcomes.push({
+        findingId: finding.id,
+        status: 'anchor_review',
+        anchorReviewReason: '編輯後無法重新定位原文範圍，已保留並標記待確認',
+      });
+      continue;
+    }
+
+    outcomes.push({ findingId: finding.id, status: 'mapped', mapped });
+  }
+
+  return outcomes;
+}
+

@@ -29,7 +29,11 @@ import {
 import {
   generateSafeHtmlReportFilename,
   generateAllStudentsHtmlReport,
+  generateStudentHtmlReport,
+  generateSafeStudentHtmlReportFilename,
   downloadHtmlFile,
+  buildAnnotatedWritingHtml,
+  REPORT_ANNOTATION_CSS,
 } from '../utils/htmlReportGenerator';
 
 export interface StudentReportCardProps {
@@ -59,21 +63,28 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
   const hasMarking = !!marking;
   const hasScores = !!marking && !!marking.scores && Object.keys(marking.scores).length > 0;
 
-  const totalScore = rubric.reduce(
-    (acc, dim) => acc + (marking?.scores?.[dim.id] ?? 0),
-    0
-  );
+  const totalScore =
+    marking?.totalScore ??
+    (hasScores
+      ? rubric.reduce((acc, dim) => acc + (marking?.scores?.[dim.id] ?? 0), 0)
+      : 0);
   const maxPossibleScore = rubric.reduce((acc, dim) => acc + dim.maxScore, 0);
 
-  // Review-state filtering (aligned with the HTML/DOCX/Markdown reports and
-  // Review Marking): rejected items are excluded; needs_review items are NOT
-  // shown as confirmed feedback but are still listed explicitly as requiring
-  // review; pending AI corrections remain eligible (Review Marking displays
-  // them inline; report approval does not change finding decisions).
-  const approvedFindings = (marking?.findings || []).filter((f) => {
+  const transcriptText = transcript?.editedText || transcript?.rawOcrText || '';
+  const savedLineStructure = (transcript?.linesWithBboxes || []).map((l) => l.text);
+
+  const { html: writingHtml, normalizedFindings } = buildAnnotatedWritingHtml(
+    transcriptText,
+    marking?.findings || [],
+    student.id,
+    savedLineStructure
+  );
+
+  // Filter notes: use normalizedFindings (which match in-text annotations)
+  const approvedFindings = (normalizedFindings || []).filter((f) => {
     if (f.decision === 'rejected') return false;
     if (f.feedbackType === 'improvement' || f.feedbackType === 'clarity') return true;
-    if (f.decision === 'needs_review') return true;
+    if (f.decision === 'needs_review') return false;
     return f.decision === 'accepted' || f.decision === 'edited' || f.decision === 'pending';
   });
 
@@ -102,6 +113,13 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
       content += `- ${dim.name}: ${dimScore !== undefined ? dimScore : '—'} / ${dim.maxScore}\n`;
     });
     content += `\n`;
+
+    if (marking?.assessmentComments) {
+      content += `STRUCTURED FEEDBACK:\n`;
+      content += `- Positive: ${marking.assessmentComments.positive || '—'}\n`;
+      content += `- Relevant: ${marking.assessmentComments.relevant || '—'}\n`;
+      content += `- Next Step: ${marking.assessmentComments.finalNextStep || '—'}\n\n`;
+    }
 
     content += `TEACHER FEEDBACK:\n`;
     content += `${marking?.feedbackComment || 'No feedback commentary recorded.'}\n\n`;
@@ -163,6 +181,7 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
       rubric,
       scores: marking?.scores || {},
       feedbackComment: marking?.feedbackComment,
+      assessmentComments: marking?.assessmentComments,
       transcriptText: transcript?.editedText || transcript?.rawOcrText || '',
       findings: marking?.findings || [],
     });
@@ -196,6 +215,7 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
         rubric,
         scores: marking?.scores || {},
         feedbackComment: marking?.feedbackComment,
+        assessmentComments: marking?.assessmentComments,
         transcriptText: transcript?.editedText || transcript?.rawOcrText || '',
         findings: marking?.findings || [],
       });
@@ -206,6 +226,24 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
     } finally {
       setIsExportingDocx(false);
     }
+  };
+
+  const handleExportHtml = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const filename = generateSafeStudentHtmlReportFilename(
+      assignment.title,
+      classId,
+      student
+    );
+    const htmlContent = generateStudentHtmlReport({
+      assignment,
+      classId,
+      student,
+      rubric,
+      transcript,
+      marking,
+    });
+    downloadHtmlFile(filename, htmlContent);
   };
 
   return (
@@ -285,6 +323,16 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
             <FileText className="w-3.5 h-3.5" />
             <span>{isExportingDocx ? 'Exporting...' : 'Export .docx'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleExportHtml}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-2xs min-h-[30px] transition-colors"
+            title={`Export report for ${student.displayName} as a standalone formatted HTML (.html) file`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Export .html</span>
+          </button>
         </div>
       </div>
 
@@ -360,10 +408,32 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
       </div>
 
       {/* Teacher Feedback Commentary */}
-      <div className="py-4 border-b border-slate-100">
-        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+      <div className="py-4 border-b border-slate-100 space-y-3">
+        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
           Teacher Feedback
         </h4>
+        {marking?.assessmentComments && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            <div className="p-2.5 bg-emerald-50/50 border border-emerald-100 rounded-md">
+              <span className="font-bold text-emerald-800 text-[11px] block mb-1">★ 優點與亮點 (Positive)</span>
+              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                {marking.assessmentComments.positive || '—'}
+              </p>
+            </div>
+            <div className="p-2.5 bg-amber-50/50 border border-amber-100 rounded-md">
+              <span className="font-bold text-amber-800 text-[11px] block mb-1">✎ 改進建議 (Relevant)</span>
+              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                {marking.assessmentComments.relevant || '—'}
+              </p>
+            </div>
+            <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-md">
+              <span className="font-bold text-blue-800 text-[11px] block mb-1">➜ 下一步行動 (Next Step)</span>
+              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                {marking.assessmentComments.finalNextStep || '—'}
+              </p>
+            </div>
+          </div>
+        )}
         <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line bg-slate-50/60 p-3 rounded-md border border-slate-100">
           {marking?.feedbackComment || 'No written commentary entered yet.'}
         </p>
@@ -408,25 +478,34 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
                     >
                       {typeLabel}
                     </span>
-                    {f.feedbackType === 'improvement' || f.feedbackType === 'clarity' ? (
-                      <span className="font-medium text-slate-800">
-                        "{f.originalText}" → suggested phrasing:{' '}
-                        <span
-                          className={
-                            f.feedbackType === 'improvement'
-                              ? 'text-purple-700 font-semibold'
-                              : 'text-sky-700 font-semibold'
-                          }
-                        >
-                          ({f.replacementText})
+                    {(() => {
+                      const isInsertion = !f.originalText || f.originalText.trim() === '';
+                      const quoteDisplay = isInsertion ? '^' : f.originalText;
+
+                      if (f.feedbackType === 'improvement' || f.feedbackType === 'clarity') {
+                        return (
+                          <span className="font-medium text-slate-800">
+                            "{quoteDisplay}" → suggested phrasing:{' '}
+                            <span
+                              className={
+                                f.feedbackType === 'improvement'
+                                  ? 'text-purple-700 font-semibold'
+                                  : 'text-sky-700 font-semibold'
+                              }
+                            >
+                              ({f.replacementText})
+                            </span>
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <span className="font-medium text-slate-800">
+                          "{quoteDisplay}" →{' '}
+                          <span className="text-emerald-700 font-semibold">"{f.replacementText}"</span>
                         </span>
-                      </span>
-                    ) : (
-                      <span className="font-medium text-slate-800">
-                        "{f.originalText}" →{' '}
-                        <span className="text-emerald-700 font-semibold">"{f.replacementText}"</span>
-                      </span>
-                    )}
+                      );
+                    })()}
                     : <span className="text-slate-600">{f.teacherCustomText || f.explanation}</span>
                   </div>
                 </div>
@@ -436,24 +515,23 @@ export const StudentReportCard: React.FC<StudentReportCardProps> = ({
         )}
       </div>
 
-      {/* Student Verified Transcript Excerpt */}
-      {transcript?.editedText || transcript?.rawOcrText ? (
-        <div className="py-4 border-b border-slate-100">
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            Verified Student Writing
-          </h4>
-          <p className="text-xs font-serif text-slate-700 bg-slate-50/50 p-3 rounded border border-slate-100 whitespace-pre-line leading-relaxed">
-            {transcript.editedText || transcript.rawOcrText}
-          </p>
-        </div>
-      ) : (
-        <div className="py-4 border-b border-slate-100">
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            Verified Student Writing
-          </h4>
+      {/* Annotated Student Writing */}
+      <div className="py-4 border-b border-slate-100">
+        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          Annotated Student Writing
+        </h4>
+        {transcriptText ? (
+          <>
+            <style dangerouslySetInnerHTML={{ __html: REPORT_ANNOTATION_CSS }} />
+            <div
+              className="annotated-writing-container text-xs overflow-x-auto bg-white p-3 rounded border border-slate-100 font-serif"
+              dangerouslySetInnerHTML={{ __html: writingHtml }}
+            />
+          </>
+        ) : (
           <p className="text-xs text-slate-400 italic">No transcript recorded yet for this student.</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Footer Notice & Publishing Guard */}
       <footer className="pt-4 mt-2">

@@ -4,6 +4,7 @@ import {
   EssayMarkingResponse,
 } from './essayServiceTypes';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeFindingsToMinimalUnits } from '../utils/markingTextAlignment';
 
 const BRIDGE_BASE_URL = 'http://127.0.0.1:18089';
 
@@ -54,6 +55,7 @@ export class BridgeMarkingService implements EssayMarkingService {
         scopePrompt: request.scopePrompt || '',
         rubric: request.rubric || [],
         promptSnapshot: request.promptSnapshot || null,
+        yearLevel: request.yearLevel,
       };
 
       let res: Response;
@@ -94,11 +96,24 @@ export class BridgeMarkingService implements EssayMarkingService {
         schemaVersion: data.schemaVersion || f.schemaVersion || '2.0',
       }));
 
+      // Normalize corrections down to minimal error units
+      const normalizedFindings = normalizeFindingsToMinimalUnits(
+        mappedFindings as any,
+        request.transcript
+      );
+
+      const assessment = data.assessment || null;
+      const suggestedScores = assessment?.scores || {};
+      const suggestedFeedback = assessment?.comments?.positive
+        ? `${assessment.comments.positive}\n\n${assessment.comments.relevant}\n\nNext Step: ${assessment.comments.finalNextStep}`
+        : '';
+
       return {
         status: 'success',
-        findings: mappedFindings,
-        suggestedScores: {},
-        suggestedFeedback: '',
+        findings: normalizedFindings,
+        suggestedScores,
+        suggestedFeedback,
+        assessment,
         promptVersion: data.promptVersion,
         schemaVersion: data.schemaVersion,
       };

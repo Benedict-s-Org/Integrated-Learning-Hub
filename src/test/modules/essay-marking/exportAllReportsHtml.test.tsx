@@ -239,8 +239,8 @@ describe('Export All Reports .html Feature Verification Tests', () => {
     expect(html).toContain('text-improvement');
     expect(html).toContain('(commenced gracefully)');
 
-    // Dedicated blank annotation row for lines without feedback
-    expect(html).toContain('blank-annotation-cell');
+    // Lines without feedback are rendered cleanly as readable paragraphs
+    expect(html).toContain('This line has no corrections or suggestions.');
 
     // Colour legend is present
     expect(html).toContain('Marking Legend &amp; Visual Formatting:');

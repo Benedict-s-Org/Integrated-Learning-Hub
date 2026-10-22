@@ -103,13 +103,10 @@ And he have many firend.`;
     expect(oneWord).not.toHaveClass('ring-purple-600');
     expect(oneWord).not.toHaveClass('bg-purple-200');
 
-    // Clicking a word triggers onSelectWord with precise lineIndex and wordIndex
+    // Left-click now places the editing caret (contentEditable) rather than
+    // selecting a word; highlighting is driven by the selectedWordTarget prop.
     fireEvent.click(oneWord);
-    expect(onSelectWord).toHaveBeenCalledWith({
-      lineIndex: 0,
-      wordIndex: 0,
-      text: 'One',
-    });
+    expect(onSelectWord).not.toHaveBeenCalled();
   });
 
   it('disambiguates repeated words across lines and preserves precise occurrence mapping', () => {
@@ -137,13 +134,9 @@ And he have many firend.`;
     expect(heInstances[1]).toHaveClass('ring-purple-600');
     expect(heInstances[1]).toHaveClass('bg-purple-200');
 
-    // Clicking the first instance of 'he' selects Line 1, Word 2
+    // Left-click places the caret; it no longer selects a word.
     fireEvent.click(heInstances[0]);
-    expect(onSelectWord).toHaveBeenCalledWith({
-      lineIndex: 0,
-      wordIndex: 2,
-      text: 'he',
-    });
+    expect(onSelectWord).not.toHaveBeenCalled();
   });
 
   it('displays tooltip on hover over marking', () => {

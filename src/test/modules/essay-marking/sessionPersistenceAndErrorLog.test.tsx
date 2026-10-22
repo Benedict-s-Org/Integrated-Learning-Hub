@@ -169,10 +169,10 @@ describe('EssayMarking Session Persistence & Error Logging', () => {
     // Render EssayMarkingPage (simulates page reload)
     render(<EssayMarkingPage />);
 
-    // Expect automatic restoration to Step 4 ('Recognition & Transcript Verification')
+    // Expect automatic restoration to Step 4 ('Verify & Review Marking')
     await waitFor(() => {
       expect(
-        screen.getByText('Recognition & Transcript Verification')
+        screen.getAllByText('Verify & Review Marking')[0]
       ).toBeInTheDocument();
     });
 
@@ -182,9 +182,8 @@ describe('EssayMarking Session Persistence & Error Logging', () => {
 
     // Verify student transcript was restored
     await waitFor(() => {
-      expect(
-        screen.getByDisplayValue('Dog man is a very special cop.')
-      ).toBeInTheDocument();
+      expect(screen.getByText('Dog')).toBeInTheDocument();
+      expect(screen.getByText('cop.')).toBeInTheDocument();
     });
 
     // Test 'Clear saved session' action

@@ -10,6 +10,12 @@ import {
   ScanPage,
   StudentTranscriptState,
   LineWithBbox,
+  StructuredAssessmentComments,
+  StagedAiProposal,
+  PrimaryGrade,
+  AssignmentConfig,
+  AssignmentTranscriptionSettings,
+  StagedCandidateTranscript,
 } from '../types';
 import {
   CheckCircle2,
@@ -22,6 +28,10 @@ import {
   FileText,
   X,
   Info,
+  MousePointer,
+  ChevronRight,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import { essayServices } from '../services/essayServiceRegistry';
 import { ServiceAvailabilityStatus, MarkingModelHealthStatus } from '../services/essayServiceTypes';
@@ -31,6 +41,12 @@ import { ScanPreviewModal } from './ScanPreviewModal';
 import { resolveScanPageImageUrl, getFallbackScanImageUrl } from '../utils/scanImageResolver';
 import { BatchMarkingQueueProgress } from '../utils/markingBatchQueue';
 import { BatchMarkingProgressBanner } from './BatchMarkingProgressBanner';
+import { AiMarkingFreshness } from '../utils/backgroundMarkingQueue';
+import { remapFindingsThroughEdit, TranscriptEditOperation } from '../utils/markingTextAlignment';
+import { TranscriptionToolbar } from './TranscriptionToolbar';
+import { StagedCandidateBox } from './StagedCandidateBox';
+import { TranscriptionSettingsModal } from './TranscriptionSettingsModal';
+import { useEssayTranscription } from '../hooks/useEssayTranscription';
 
 interface MarkingReviewPanelProps {
   pages?: ScanPage[];
@@ -52,10 +68,15 @@ interface MarkingReviewPanelProps {
   onApproveMarking: (studentId: string) => void;
   onPrev: () => void;
   onNext: () => void;
-  onRunAiMarking?: (studentId: string) => Promise<void>;
+  onRunAiMarking?: (studentId: string) => Promise<void> | void;
+  onRerunAiMarkingAndGoNext?: (studentId: string) => void;
   isAiMarkingLoading?: boolean;
   aiMarkingError?: string | null;
-  onUpdateTranscriptText?: (studentId: string, text: string, linesWithBboxes?: LineWithBbox[]) => void;
+  onUpdateTranscriptText?: (
+    studentId: string,
+    text: string,
+    linesWithBboxes?: LineWithBbox[]
+  ) => { committedText: string; revision: number } | void;
   onUpdateFindings?: (studentId: string, findings: MarkingFinding[]) => void;
   isBatchRunning?: boolean;
   markingModelHealth?: MarkingModelHealthStatus | null;
@@ -63,6 +84,28 @@ interface MarkingReviewPanelProps {
   onRequestStopBatch?: () => void;
   onResumeBatch?: () => void;
   onDismissBatchBanner?: () => void;
+  freshnessMap?: Record<string, AiMarkingFreshness>;
+  assignmentGrade?: PrimaryGrade | null;
+  onAcceptStagedAiProposal?: (
+    studentId: string,
+    options: {
+      applyScores?: boolean;
+      applyComments?: boolean;
+      applyFindings?: boolean;
+    }
+  ) => void;
+  onDismissStagedAiProposal?: (studentId: string) => void;
+  onUpdateAssessmentComments?: (
+    studentId: string,
+    comments: StructuredAssessmentComments
+  ) => void;
+  assignment?: AssignmentConfig;
+  onVerifyTranscript?: (studentId: string) => void;
+  onUpdateAssignmentSettings?: (settings: AssignmentTranscriptionSettings) => void;
+  stagedCandidates?: Record<string, StagedCandidateTranscript>;
+  onSetStagedCandidates?: React.Dispatch<React.SetStateAction<Record<string, StagedCandidateTranscript>>>;
+  onCandidateProduced?: (studentId: string, candidate: StagedCandidateTranscript) => void;
+  onApplyCandidateTranscript?: (studentId: string, candidate: StagedCandidateTranscript) => void;
 }
 
 export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
@@ -96,7 +139,47 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
   onRequestStopBatch,
   onResumeBatch,
   onDismissBatchBanner,
+  onRerunAiMarkingAndGoNext,
+  freshnessMap = {},
+  assignmentGrade,
+  onAcceptStagedAiProposal,
+  onDismissStagedAiProposal,
+  onUpdateAssessmentComments,
+  assignment,
+  onVerifyTranscript,
+  onUpdateAssignmentSettings,
+  stagedCandidates,
+  onSetStagedCandidates,
+  onCandidateProduced,
+  onApplyCandidateTranscript,
 }) => {
+  const [internalStagedCandidates, setInternalStagedCandidates] = useState<Record<string, StagedCandidateTranscript>>({});
+  const stagedCandidatesMap = stagedCandidates ?? internalStagedCandidates;
+  const setStagedCandidatesMap = onSetStagedCandidates ?? setInternalStagedCandidates;
+
+  const transcription = useEssayTranscription({
+    students,
+    pages,
+    appliedMatching,
+    activeStudentIndex,
+    transcripts,
+    assignment: assignment || {
+      id: 'default',
+      title: 'Writing Assignment',
+      grade: assignmentGrade || 'P4',
+      scopePrompt: '',
+      rubric,
+      isConfirmed: isRequirementsConfirmed,
+      responseFormat: 'worksheet',
+    },
+    onUpdateTranscriptText: onUpdateTranscriptText || (() => {}),
+    onVerifyTranscript,
+    onUpdateAssignmentSettings,
+    stagedCandidates: stagedCandidatesMap,
+    onSetStagedCandidates: setStagedCandidatesMap,
+    onCandidateProduced,
+    onApplyCandidateTranscript,
+  });
   const [showAddFindingModal, setShowAddFindingModal] = useState(false);
   const [newFindingType, setNewFindingType] = useState('Tense');
   const [newFindingFeedbackType, setNewFindingFeedbackType] = useState<FindingFeedbackType>('correction');
@@ -116,6 +199,25 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
   const [showCorrectOcrModal, setShowCorrectOcrModal] = useState<boolean>(false);
   const [correctOcrLineIdx, setCorrectOcrLineIdx] = useState<number>(0);
   const [correctOcrLineText, setCorrectOcrLineText] = useState<string>('');
+  const [correctOcrWordText, setCorrectOcrWordText] = useState<string>('');
+  const [correctOcrWordIndex, setCorrectOcrWordIndex] = useState<number | null>(null);
+
+  // In-place selection context menu & selected-source correction editor
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    kind: 'plain' | 'finding' | 'selection';
+    sourceText: string;
+    lineIndex: number | null;
+    findingId: string | null;
+    selectionRange?: { startLine: number; startOffset: number; endLine: number; endOffset: number; revision: number };
+  } | null>(null);
+  const [correctionEditor, setCorrectionEditor] = useState<{
+    sourceText: string;
+    range: { startLine: number; startOffset: number; endLine: number; endOffset: number; revision: number };
+    involvedFindingIds: string[];
+  } | null>(null);
+  const [correctionText, setCorrectionText] = useState('');
 
   const [isRubricOpen, setIsRubricOpen] = useState(false);
   const [serviceStatus, setServiceStatus] = useState<ServiceAvailabilityStatus | null>(null);
@@ -186,10 +288,12 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
   if (appliedMatching && Array.isArray(appliedMatching.map)) {
     appliedMatching.map.forEach((item, pageIndex) => {
       if (item && item.studentIndex === activeStudentIndex && pages[pageIndex]) {
+        const part = item.part ?? (item as any).partIndex ?? 1;
+        const total = item.total ?? (item as any).totalParts ?? 1;
         studentPagesWithIndices.push({
           page: pages[pageIndex],
-          part: item.part,
-          total: item.total,
+          part,
+          total,
         });
       }
     });
@@ -223,15 +327,15 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     }
   };
 
-  const defaultScores: Record<string, number> = {};
-  rubric.forEach((r) => {
-    defaultScores[r.id] = 3;
-  });
+  const [isReviewProposalModalOpen, setIsReviewProposalModalOpen] = useState(false);
+  const [applyProposalScores, setApplyProposalScores] = useState(true);
+  const [applyProposalComments, setApplyProposalComments] = useState(true);
+  const [applyProposalFindings, setApplyProposalFindings] = useState(true);
 
   const currentMarking = markings[activeStudentId] || {
     studentId: activeStudentId,
     findings: [],
-    scores: defaultScores,
+    scores: {},
     feedbackComment: '',
     isApproved: false,
   };
@@ -317,13 +421,83 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
   };
 
   // Operation A: Correct OCR Transcript
-  const handleOpenCorrectOcrModal = (targetLine?: number) => {
+  const handleOpenCorrectOcrModal = (targetLine?: number, targetWord?: string, wordIndex?: number) => {
     const lineIdx = targetLine ?? selectedLineIndex ?? 0;
     const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
     const lineContent = lines[lineIdx] ?? '';
     setCorrectOcrLineIdx(lineIdx);
     setCorrectOcrLineText(lineContent);
+    setCorrectOcrWordText(targetWord ?? selectedWordTarget?.text ?? '');
+    setCorrectOcrWordIndex(wordIndex ?? selectedWordTarget?.wordIndex ?? null);
     setShowCorrectOcrModal(true);
+  };
+
+  const handleWordClick = (target: { lineIndex: number; wordIndex: number; text: string }) => {
+    handleOpenCorrectOcrModal(target.lineIndex, target.text, target.wordIndex);
+  };
+
+  const handleOpenAddFindingForPhrase = (phrase: string, lineIndex: number) => {
+    setNewFindingFeedbackType('correction');
+    setNewFindingOriginal(phrase);
+    setNewFindingReplacement('');
+    setNewFindingExplanation('');
+    setNewFindingLineIndex(lineIndex);
+    checkOverlap(phrase, lineIndex);
+    setShowAddFindingModal(true);
+  };
+
+  const handleWordContextMenu = (
+    target: { lineIndex: number; wordIndex: number; text: string },
+    e: React.MouseEvent
+  ) => {
+    e.preventDefault();
+    if (selectedText && selectedText.trim()) {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        kind: 'selection',
+        sourceText: selectedText,
+        lineIndex: selectedLineIndex,
+        findingId: null,
+        selectionRange: {
+          startLine: selectedLineIndex ?? 0,
+          startOffset: 0,
+          endLine: selectedLineIndex ?? 0,
+          endOffset: selectedText.length,
+          revision: currentTranscript.revision ?? 0,
+        },
+      });
+    } else {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        kind: 'plain',
+        sourceText: target.text,
+        lineIndex: target.lineIndex,
+        findingId: null,
+      });
+    }
+  };
+
+  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+    if (selectedText && selectedText.trim()) {
+      e.preventDefault();
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        kind: 'selection',
+        sourceText: selectedText,
+        lineIndex: selectedLineIndex,
+        findingId: null,
+        selectionRange: {
+          startLine: selectedLineIndex ?? 0,
+          startOffset: 0,
+          endLine: selectedLineIndex ?? 0,
+          endOffset: selectedText.length,
+          revision: currentTranscript.revision ?? 0,
+        },
+      });
+    }
   };
 
   const handleSaveCorrectOcr = (e: React.FormEvent) => {
@@ -376,7 +550,125 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     setSelectedText('');
   };
 
-  // Operation B: Add Finding with pre-fill & overlap check
+  const computeLineEditOperation = (lineIndex: number, oldText: string, newText: string): TranscriptEditOperation => {
+    const lines = oldText.replace(/\r\n/g, '\n').split('\n');
+    let offset = 0;
+    for (let i = 0; i < lineIndex && i < lines.length; i++) offset += lines[i].length + 1;
+    return { start: offset, end: offset + (lines[lineIndex]?.length ?? 0), inserted: newText };
+  };
+
+  const applyRemapFindings = (newTranscript: string, edit: TranscriptEditOperation) => {
+    const remap = remapFindingsThroughEdit(transcriptText, newTranscript, currentMarking.findings, edit);
+    const outcomeById = new Map(remap.map((o) => [o.findingId, o]));
+    let hasChanges = false;
+    const updatedFindings = currentMarking.findings.map((f) => {
+      const outcome = outcomeById.get(f.id);
+      if (!outcome) return f;
+      if (outcome.status === 'mapped' && outcome.mapped) {
+        hasChanges = true;
+        return {
+          ...f,
+          lineIndex: outcome.mapped.lineIndex,
+          occurrenceIndex: outcome.mapped.occurrenceIndex,
+          paragraphIndex: outcome.mapped.paragraphIndex,
+          startIndex: outcome.mapped.startIndex,
+          endIndex: outcome.mapped.endIndex,
+          anchorReview: false,
+          anchorReviewReason: undefined,
+        };
+      }
+      hasChanges = true;
+      return { ...f, anchorReview: true, anchorReviewReason: outcome.anchorReviewReason };
+    });
+    if (hasChanges && onUpdateFindings) {
+      onUpdateFindings(activeStudentId, updatedFindings);
+    }
+  };
+
+  const handleTranscriptTextEdit = (lineIndex: number, newLineText: string) => {
+    const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    if ((lines[lineIndex] ?? '') === newLineText) return;
+    const oldTranscript = transcriptText;
+    lines[lineIndex] = newLineText;
+    const newTranscript = lines.join('\n');
+    const updatedLinesWithBboxes = currentLinesWithBboxes.map((l, i) =>
+      i === lineIndex ? { ...l, text: newLineText } : l
+    );
+    const edit = computeLineEditOperation(lineIndex, oldTranscript, newLineText);
+    if (onUpdateTranscriptText) {
+      onUpdateTranscriptText(activeStudentId, newTranscript, updatedLinesWithBboxes);
+    }
+    applyRemapFindings(newTranscript, edit);
+  };
+
+  const handleSelectionContextMenu = (
+    payload: {
+      sourceText: string;
+      startLine: number;
+      startOffset: number;
+      endLine: number;
+      endOffset: number;
+      involvedFindingIds: string[];
+    },
+    e: React.MouseEvent
+  ) => {
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      kind: 'selection',
+      sourceText: payload.sourceText,
+      lineIndex: payload.startLine,
+      findingId: null,
+      selectionRange: {
+        startLine: payload.startLine,
+        startOffset: payload.startOffset,
+        endLine: payload.endLine,
+        endOffset: payload.endOffset,
+        revision: currentTranscript.revision ?? 0,
+      },
+    });
+  };
+
+  const handleFindingContextMenu = (findingId: string, e: React.MouseEvent) => {
+    const f = currentMarking.findings.find((x) => x.id === findingId);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      kind: 'finding',
+      sourceText: f?.originalText ?? '',
+      lineIndex: f?.lineIndex ?? null,
+      findingId,
+    });
+  };
+
+  const openCorrectionEditorForSelection = () => {
+    if (!contextMenu?.selectionRange) return;
+    setCorrectionEditor({
+      sourceText: contextMenu.sourceText,
+      range: contextMenu.selectionRange,
+      involvedFindingIds: [],
+    });
+    setCorrectionText(contextMenu.sourceText);
+    setContextMenu(null);
+  };
+
+  const applySelectedCorrection = () => {
+    if (!correctionEditor) return;
+    const { range, sourceText } = correctionEditor;
+    const currentLines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    const lineIdx = range.startLine;
+    const oldLine = currentLines[lineIdx] ?? '';
+    if (oldLine.slice(range.startOffset, range.endOffset) !== sourceText) {
+      // Range changed since snapshot; abort (do not roll back already-saved edits).
+      setCorrectionEditor(null);
+      return;
+    }
+    const newLine = oldLine.slice(0, range.startOffset) + correctionText + oldLine.slice(range.endOffset);
+    handleTranscriptTextEdit(lineIdx, newLine);
+    setCorrectionEditor(null);
+  };
+
+
   const checkOverlap = (original: string, lineIdx: number | null) => {
     if (!original.trim() || lineIdx === null) {
       setOverlapWarning(null);
@@ -417,10 +709,12 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     onUpdateScores(activeStudentId, nextScores);
   };
 
-  const totalScore = rubric.reduce(
-    (acc, dim) => acc + (currentMarking.scores[dim.id] ?? 0),
-    0
-  );
+  const hasScores = Object.keys(currentMarking.scores || {}).length > 0;
+  const totalScore =
+    currentMarking.totalScore ??
+    (hasScores
+      ? rubric.reduce((acc, dim) => acc + (currentMarking.scores[dim.id] ?? 0), 0)
+      : 0);
   const maxPossibleScore = rubric.reduce((acc, dim) => acc + dim.maxScore, 0);
 
   const handleCreateFinding = (e: React.FormEvent) => {
@@ -559,6 +853,29 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
         />
       )}
 
+      {/* Restored OCR Toolbar for Unified Step 4 */}
+      <TranscriptionToolbar
+        provider={transcription.selectedProvider}
+        onSelectProvider={transcription.setSelectedProvider}
+        onOpenSettings={() => transcription.setIsSettingsModalOpen(true)}
+        onTranscribeAllPending={transcription.handleStartBatchQueue}
+        pendingCount={transcription.pendingOcrCount}
+        isBatchRunning={transcription.isBatchRunning}
+        batchProgress={transcription.batchProgress}
+        onPauseBatch={transcription.handlePauseBatchQueue}
+        onResumeBatch={transcription.handleResumeBatchQueue}
+        onRetryFailed={transcription.handleRetryFailedBatchQueue}
+        hasWritingAreas={transcription.hasWritingAreas}
+        pageCount={transcription.studentPagesWithIndices.length}
+        pageStage={transcription.pageStage}
+        isDryRun={transcription.isDryRun}
+        isMathpixConfigured={transcription.isMathpixConfigured}
+        qwenStatus={transcription.qwenStatus}
+        hasMathpixOutput={Boolean(transcription.activeCandidate?.mathpixTranscript)}
+        onRetryQwenVerify={() => transcription.executeRetryQwenVerification(activeStudentId)}
+        isTranscribingActive={transcription.isTranscribingSingle}
+      />
+
       {/* Desktop 3-Column Layout:
           Left ~55% (Scan Viewer),
           Middle ~35% (Inline Full-Text Marking + Collapsible Rubric/Feedback),
@@ -603,15 +920,32 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                   key={item.page.id}
                   type="button"
                   onClick={() => setSelectedScanPagePart(item.part)}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors shrink-0 ${
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors shrink-0 flex items-center gap-1.5 ${
                     item.part === (activePageItem?.part ?? 1)
                       ? 'bg-blue-600 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Page {item.part} of {item.total}
+                  <span>Page {item.part} of {item.total}</span>
+                  {item.page.isBlank && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-slate-200 text-slate-800">
+                      Blank
+                    </span>
+                  )}
+                  {item.part >= 3 && !item.page.isBlank && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-purple-100 text-purple-800">
+                      Cont.
+                    </span>
+                  )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {activePageItem?.page.isBlank && (
+            <div className="mb-2 p-2 bg-slate-100 border border-slate-200 rounded-md text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-slate-500" />
+              <span>Page {activePageItem.part} is marked blank and excluded from OCR & AI marking.</span>
             </div>
           )}
 
@@ -786,18 +1120,57 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
           {/* Header & AI Marking Toolbar */}
           <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 mb-3 gap-2">
             <div>
-              <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                <span>Direct Full-Text Marking</span>
-                <span className="text-xs font-normal text-slate-500">
-                  ({activeStudent?.displayName})
-                </span>
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>Direct Full-Text Marking</span>
+                  <span className="text-xs font-normal text-slate-500">
+                    ({activeStudent?.displayName})
+                  </span>
+                </h2>
+                {/* Transcript Verification Stage Badge */}
+                {isTranscriptVerified ? (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    已核對 (Verified) ✓
+                  </span>
+                ) : transcriptText.trim().length > 0 ? (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                    未核對 (Unverified · Provisional)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                    無謄本 (No Transcript)
+                  </span>
+                )}
+              </div>
               <span className="text-[11px] text-slate-400">
                 {currentMarking.findings.length} findings • Original script line layout
               </span>
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onVerifyTranscript?.(activeStudentId)}
+                disabled={!transcriptText.trim()}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors shadow-2xs ${
+                  isTranscriptVerified
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                    : !transcriptText.trim()
+                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+                title={
+                  !transcriptText.trim()
+                    ? '請先輸入或辨識謄本文字後再確認核對'
+                    : isTranscriptVerified
+                    ? '謄本已核對完成（點擊可再次確認）'
+                    : '確認謄本內容無誤'
+                }
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{isTranscriptVerified ? '已確認核對 ✓' : '確認核對謄本'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleOpenAddFindingModal}
@@ -809,140 +1182,450 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
             </div>
           </div>
 
-          {/* AI Marking Status & Action Alert */}
-          {isAiMarkingLoading ? (
-            <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 flex items-center justify-between mb-3 animate-pulse">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
-                <div>
-                  <strong className="font-semibold">AI Marking in progress:</strong>{' '}
-                  {markingModelHealth?.modelId || 'Local LLM'} is evaluating the transcript on port {markingModelHealth?.port || 18086}...
-                </div>
-              </div>
-            </div>
-          ) : aiMarkingError ? (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-900 flex items-center justify-between mb-3">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold">AI Marking Notice:</strong> {aiMarkingError}
-                </div>
-              </div>
-              {onRunAiMarking && (
-                <button
-                  type="button"
-                  onClick={() => onRunAiMarking(activeStudentId)}
-                  disabled={isBatchRunning}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 rounded hover:bg-rose-50 transition-colors shrink-0 ml-2 disabled:opacity-50"
-                  title={isBatchRunning ? '批次批改運行中，請稍候' : '重試'}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Retry</span>
-                </button>
-              )}
-            </div>
-          ) : (markingModelHealth?.status === 'ready' || serviceStatus?.marking?.status === 'available') ? (
-            <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs text-emerald-900 flex items-center justify-between mb-3">
-              <div className="flex items-start gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold">
-                    AI Marking Active ({markingModelHealth?.modelId || serviceStatus?.marking?.modelId || 'Port 18086'}):
-                  </strong>{' '}
-                  {(() => {
-                    const reqCount = currentMarking.findings.filter((f) => (f.feedbackType || 'correction') === 'correction').length;
-                    const impCount = currentMarking.findings.filter((f) => f.feedbackType === 'improvement').length;
-                    const claCount = currentMarking.findings.filter((f) => f.feedbackType === 'clarity').length;
-                    if (currentMarking.findings.length === 0) {
-                      return 'Ready to evaluate grammar, spelling, and vocabulary.';
-                    }
-                    return `${reqCount} required corrections • ${impCount} improvements • ${claCount} clarity suggestions available.`;
-                  })()}
-                </div>
-              </div>
-              {onRunAiMarking && (
-                <button
-                  type="button"
-                  onClick={() => onRunAiMarking(activeStudentId)}
-                  disabled={isAiMarkingLoading || isBatchRunning}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 rounded hover:bg-emerald-100 transition-colors shrink-0 ml-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isBatchRunning ? '批次批改運行中，請稍候' : undefined}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>
-                    {isBatchRunning
-                      ? 'Batch Marking...'
-                      : currentMarking.findings.length > 0
-                      ? 'Re-run AI Marking'
-                      : 'Run AI Marking'}
-                  </span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-md text-xs text-amber-900 flex items-start gap-2 mb-3">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <strong className="font-semibold">AI Marking Status:</strong>{' '}
-                {markingModelHealth?.status === 'bridge_unreachable'
-                  ? 'Essay Marking Bridge (18089) is unreachable. Ensure the bridge is running.'
-                  : markingModelHealth?.details || serviceStatus?.marking?.details || 'Local marking model on port 18086 is offline. Manual teacher findings can be added above.'}
-              </div>
+          {/* Transcription Notice Banner */}
+          {transcription.notice && (
+            <div
+              className={`p-2.5 rounded-md text-xs mb-3 flex items-start gap-2 border animate-in fade-in duration-100 ${
+                transcription.notice.type === 'error'
+                  ? 'bg-rose-50 border-rose-200 text-rose-800'
+                  : transcription.notice.type === 'warning'
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : transcription.notice.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}
+            >
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex-1">{transcription.notice.text}</div>
+              <button
+                type="button"
+                onClick={() => transcription.setNotice(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
-          {/* Active Line / Word Selection Action Toolbar */}
-          {(selectedLineIndex !== null || selectedWordTarget !== null || selectedText) && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-purple-50 border border-purple-200 rounded-md mb-3 text-xs animate-in fade-in duration-150">
-              <div className="flex items-center gap-1.5 text-purple-900 font-medium">
-                <span className="font-bold bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded text-[11px] font-mono">
-                  L{(selectedWordTarget?.lineIndex ?? selectedLineIndex ?? 0) + 1}
-                  {selectedWordTarget && ` : W${selectedWordTarget.wordIndex + 1}`}
-                  {typeof selectedOccurrenceIndex === 'number' && selectedOccurrenceIndex > 0 && ` (#${selectedOccurrenceIndex + 1})`}
-                </span>
-                <span>
-                  {selectedWordTarget ? (
-                    <>已選取單詞：「<strong className="text-purple-950 font-serif">{selectedWordTarget.text}</strong>」（第 {selectedWordTarget.lineIndex + 1} 行第 {selectedWordTarget.wordIndex + 1} 個字）</>
-                  ) : selectedText ? (
-                    <>已選取文字：「<strong className="text-purple-950 font-serif">{selectedText}</strong>」{typeof selectedOccurrenceIndex === 'number' && selectedOccurrenceIndex > 0 ? `（第 ${selectedOccurrenceIndex + 1} 處）` : ''}</>
+          {/* Current Student OCR Action Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-md mb-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>
+                <strong>
+                  {transcription.selectedProvider === 'mathpix_only'
+                    ? 'Mathpix OCR Only'
+                    : 'Mathpix OCR + Qwen VL Verify'}
+                  :
+                </strong>{' '}
+                {transcription.studentPagesWithIndices.length}{' '}
+                {transcription.studentPagesWithIndices.length === 1 ? 'page' : 'pages'} to process.
+                {transcription.isDryRun && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                    DRY RUN
+                  </span>
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {transcription.activeCandidate?.ocrMode === 'mathpix_qwen_verify' &&
+                transcription.activeCandidate?.qwenVerificationStatus === 'failed' && (
+                  <button
+                    type="button"
+                    onClick={() => transcription.executeRetryQwenVerification(activeStudentId)}
+                    disabled={transcription.isRetryingQwen || transcription.isTranscribingSingle || isBatchRunning}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-md transition-colors disabled:opacity-50 shadow-2xs"
+                    title="Retry Qwen verification using stored Mathpix output without calling Mathpix again"
+                  >
+                    {transcription.isRetryingQwen ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-amber-700" />
+                    ) : (
+                      <RotateCcw className="w-3 h-3 text-amber-700" />
+                    )}
+                    <span>Retry Qwen Verify</span>
+                  </button>
+                )}
+
+              {activePageItem && (
+                <button
+                  type="button"
+                  onClick={() => transcription.executeRetrySinglePage(activeStudentId, activePageItem)}
+                  disabled={transcription.isTranscribingSingle || isBatchRunning || !!transcription.perPageLoading[activePageItem.page.id]}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-colors disabled:opacity-50 shadow-2xs"
+                >
+                  {transcription.perPageLoading[activePageItem.page.id] ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-purple-600" />
                   ) : (
-                    <>已選取原稿第 <strong>{(selectedLineIndex ?? 0) + 1}</strong> 行</>
+                    <RotateCcw className="w-3 h-3 text-slate-500" />
                   )}
-                </span>
+                  <span>Retry Page {activePageItem.part}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => transcription.handleInitiateSingleEssayTranscribe(activeStudentId)}
+                disabled={transcription.isTranscribingSingle || isBatchRunning || transcription.studentPagesWithIndices.length === 0}
+                aria-label={`Start ${transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (${transcription.studentPagesWithIndices.length}) - Transcribe This Essay`}
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 shadow-2xs"
+              >
+                {transcription.isTranscribingSingle ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>
+                      {transcription.pageStage === 'vl_running'
+                        ? 'Verifying with Qwen VL...'
+                        : 'Running Mathpix OCR...'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>
+                      Start {transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (
+                      {transcription.studentPagesWithIndices.length})
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Staged Candidate Review Box */}
+          {transcription.activeCandidate && (
+            <div className="mb-3">
+              <StagedCandidateBox
+                candidate={transcription.activeCandidate}
+                studentId={activeStudentId}
+                isStale={transcription.isCandidateStale}
+                staleReason={transcription.activeCandidateStaleReason || transcription.activeCandidate.staleReason}
+                onApply={() => transcription.handleRequestApplyCandidate(activeStudentId)}
+                onDiscard={() => transcription.handleDiscardCandidate(activeStudentId)}
+                onRetryPage={(scanPageId, part) => {
+                  const item = transcription.studentPagesWithIndices.find(
+                    (p) => p.page.id === scanPageId || p.part === part
+                  );
+                  if (item) {
+                    transcription.executeRetrySinglePage(activeStudentId, item);
+                  }
+                }}
+                onRetryQwenVerify={() => transcription.executeRetryQwenVerification(activeStudentId)}
+                isRetryingQwen={transcription.isRetryingQwen}
+                perPageLoading={transcription.perPageLoading}
+                assignmentId={assignment?.id || 'default'}
+              />
+            </div>
+          )}
+
+          {/* AI Marking Status & Action Alert */}
+          {(() => {
+            const isEntireScriptBlank =
+              currentTranscript.isEntireScriptBlank ||
+              (studentPagesWithIndices.length > 0 &&
+                studentPagesWithIndices.every((item) => item.page.isBlank));
+
+            if (isEntireScriptBlank) {
+              return (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-slate-500 shrink-0" />
+                    <div>
+                      <strong className="font-semibold text-slate-800">Entire script confirmed blank:</strong>{' '}
+                      OCR and ordinary AI marking are skipped for this student. You can enter teacher feedback or approve directly.
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            const currentFreshness = freshnessMap?.[activeStudentId] ?? (
+              isAiMarkingLoading
+                ? 'running'
+                : aiMarkingError
+                ? 'failed'
+                : currentMarking.findings.length > 0
+                ? 'up_to_date'
+                : 'initial_pending'
+            );
+
+            const reqCount = currentMarking.findings.filter((f) => (f.feedbackType || 'correction') === 'correction').length;
+            const impCount = currentMarking.findings.filter((f) => f.feedbackType === 'improvement').length;
+            const claCount = currentMarking.findings.filter((f) => f.feedbackType === 'clarity').length;
+
+            if (currentFreshness === 'running' || currentFreshness === 'queued') {
+              return (
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 flex items-center justify-between mb-3 animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+                    <div>
+                      <strong className="font-semibold">
+                        {currentFreshness === 'running' ? 'AI Marking in progress (running in background):' : 'AI Marking queued in background:'}
+                      </strong>{' '}
+                      {markingModelHealth?.modelId || 'Local LLM'} is evaluating the transcript on port {markingModelHealth?.port || 18086}...
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            if (currentFreshness === 'needs_refresh') {
+              return (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="font-semibold">OCR changed · AI marking needs refresh</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {onRunAiMarking && (
+                      <button
+                        type="button"
+                        onClick={() => onRunAiMarking(activeStudentId)}
+                        disabled={isBatchRunning}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-900 bg-white border border-amber-300 rounded hover:bg-amber-100 transition-colors shadow-2xs"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Re-run AI Marking for this student</span>
+                      </button>
+                    )}
+                    {onRerunAiMarkingAndGoNext && (
+                      <button
+                        type="button"
+                        onClick={() => onRerunAiMarkingAndGoNext(activeStudentId)}
+                        disabled={isBatchRunning}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 rounded hover:bg-amber-700 transition-colors shadow-2xs"
+                      >
+                        <span>Re-run AI Marking and go to next student</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (currentFreshness === 'failed') {
+              return (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-900 flex items-center justify-between mb-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-semibold">AI Marking failed:</strong> {aiMarkingError || 'Marking error'}
+                    </div>
+                  </div>
+                  {onRunAiMarking && (
+                    <button
+                      type="button"
+                      onClick={() => onRunAiMarking(activeStudentId)}
+                      disabled={isBatchRunning}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-rose-700 bg-white border border-rose-300 rounded hover:bg-rose-50 transition-colors shrink-0 ml-2"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Retry</span>
+                    </button>
+                  )}
+                </div>
+              );
+            }
+
+            // Distinguish the 4 states for AI Marking readiness:
+            const hasTranscriptText = transcriptText.trim().length > 0;
+            const hasStagedCandidate = Boolean(transcription.activeCandidate?.transcript?.trim());
+
+            if (!hasTranscriptText) {
+              if (hasStagedCandidate) {
+                return (
+                  <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-md text-xs text-purple-900 flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                      <div>
+                        <strong className="font-semibold text-purple-800">OCR 候選文字已就緒 (Staged OCR):</strong> 請檢視上方候選文字並點擊「套用至謄本」，再進行 AI 評分。
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-purple-400 bg-purple-50 border border-purple-200 rounded cursor-not-allowed opacity-60"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Run AI Marking</span>
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-600 flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                    <div>
+                      <strong className="font-semibold text-slate-700">尚未辨識或輸入謄本 (No transcript):</strong> 請先執行上方 OCR 辨識或手動輸入作文謄本後再進行評分。
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded cursor-not-allowed opacity-60"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Run AI Marking</span>
+                  </button>
+                </div>
+              );
+            }
+
+            // Has transcript text, but unverified -> Allow provisional marking!
+            if (!isTranscriptVerified) {
+              if (currentFreshness === 'initial_pending' || currentMarking.findings.length === 0) {
+                return (
+                  <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-md text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div>
+                        <strong className="font-semibold text-amber-800">臨時 AI 評分 (Provisional AI Marking):</strong> 謄本尚未核對。可先執行臨時初步評分，核對謄本後評分將更精確。
+                      </div>
+                    </div>
+                    {onRunAiMarking && (
+                      <button
+                        type="button"
+                        onClick={() => onRunAiMarking(activeStudentId)}
+                        disabled={isAiMarkingLoading || isBatchRunning}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Run AI Marking (Provisional)</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              // Up to date (provisional)
+              return (
+                <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-md text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-semibold">AI Marking up to date [Provisional / 臨時評分]</strong>
+                      <span className="text-amber-800 text-[11px] block mt-0.5">
+                        {reqCount} required corrections • {impCount} improvements • {claCount} clarity suggestions available (基於未核對謄本).
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onRunAiMarking && (
+                      <button
+                        type="button"
+                        onClick={() => onRunAiMarking(activeStudentId)}
+                        disabled={isAiMarkingLoading || isBatchRunning}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded hover:bg-amber-100 transition-colors shadow-xs cursor-pointer disabled:opacity-50 whitespace-normal"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Re-run AI Marking (Provisional)</span>
+                      </button>
+                    )}
+                    {onRerunAiMarkingAndGoNext && (
+                      <button
+                        type="button"
+                        onClick={() => onRerunAiMarkingAndGoNext(activeStudentId)}
+                        disabled={isAiMarkingLoading || isBatchRunning}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 rounded hover:bg-amber-700 transition-colors shadow-xs cursor-pointer disabled:opacity-50 whitespace-normal"
+                      >
+                        <span>Re-run AI Marking and go to next student</span>
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            // Has transcript text and is verified!
+            if (currentFreshness === 'initial_pending') {
+              return (
+                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-700 flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-slate-500 shrink-0" />
+                    <div>
+                      <strong className="font-semibold">Preliminary AI Marking:</strong> Ready to evaluate student script.
+                    </div>
+                  </div>
+                  {onRunAiMarking && (
+                    <button
+                      type="button"
+                      onClick={() => onRunAiMarking(activeStudentId)}
+                      disabled={isBatchRunning}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-white border border-blue-300 rounded hover:bg-blue-50 transition-colors shadow-2xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Run AI Marking</span>
+                    </button>
+                  )}
+                </div>
+              );
+            }
+
+            // Up to date
+            return (
+              <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="font-semibold">AI Marking up to date</strong>
+                    <span className="text-emerald-800 text-[11px] block mt-0.5">
+                      {reqCount} required corrections • {impCount} improvements • {claCount} clarity suggestions available.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {onRunAiMarking && (
+                    <button
+                      type="button"
+                      onClick={() => onRunAiMarking(activeStudentId)}
+                      disabled={isAiMarkingLoading || isBatchRunning}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 rounded hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer disabled:opacity-50 whitespace-normal"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Re-run AI Marking</span>
+                    </button>
+                  )}
+                  {onRerunAiMarkingAndGoNext && (
+                    <button
+                      type="button"
+                      onClick={() => onRerunAiMarkingAndGoNext(activeStudentId)}
+                      disabled={isAiMarkingLoading || isBatchRunning}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer disabled:opacity-50 whitespace-normal"
+                    >
+                      <span>Re-run AI Marking and go to next student</span>
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                    </button>
+                  )}
+                </div>
               </div>
+            );
+          })()}
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenCorrectOcrModal(selectedWordTarget?.lineIndex ?? selectedLineIndex ?? 0)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-purple-800 bg-white border border-purple-300 rounded hover:bg-purple-100 transition-colors shadow-2xs"
-                  title="原稿正確，但 OCR 抄錯。更新核對後文字，不算作學生錯誤。"
-                >
-                  <FileText className="w-3.5 h-3.5 text-purple-600" />
-                  <span>A. 修正辨識文字</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleOpenAddFindingModal}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 rounded hover:bg-emerald-100 transition-colors shadow-2xs"
-                  title="原稿本身有錯，但 AI 漏報。標記學生錯誤，並在正上方加上綠色修正。"
-                >
-                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>B. 新增批改</span>
-                </button>
-
+          {/* Persistent instruction near transcript */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100/80 border border-slate-200 rounded-md text-xs text-slate-700 mb-2 font-medium">
+            <div className="flex items-center gap-1.5">
+              <MousePointer className="w-3.5 h-3.5 text-slate-500" />
+              <span className="font-semibold text-slate-800">Left-click: correct OCR · Right-click: add marking</span>
+              <span className="text-slate-400 hidden sm:inline">（左鍵：修正 OCR · 右鍵：新增批改）</span>
+            </div>
+            {selectedText && (
+              <div className="flex items-center gap-2 text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                <span className="truncate max-w-[180px]">已選取：「<strong>{selectedText}</strong>」</span>
                 <button
                   type="button"
                   onClick={handleClearSelection}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                  className="text-slate-400 hover:text-slate-600"
                   title="取消選取"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Full-Text Inline Marking Canvas */}
           <div className="flex-1 border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs flex flex-col">
@@ -958,6 +1641,12 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
               onSelectLine={handleSelectLine}
               onSelectWord={handleSelectWord}
               onTextSelection={handleTextSelection}
+              onWordClick={handleWordClick}
+              onWordContextMenu={handleWordContextMenu}
+              onCanvasContextMenu={handleCanvasContextMenu}
+              onTranscriptTextEdit={handleTranscriptTextEdit}
+              onSelectionContextMenu={handleSelectionContextMenu}
+              onFindingContextMenu={handleFindingContextMenu}
               onFindingDecision={onFindingDecision}
               onDeleteFinding={onDeleteFinding}
               onEditFinding={onEditFinding}
@@ -1022,9 +1711,64 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
             {/* Collapsible Content */}
             {isRubricOpen && (
               <div className="p-4 space-y-4 animate-in fade-in duration-150">
-                {/* Rubric Dimension Score Inputs */}
+                {/* Staged AI Proposal Banner (Protects Teacher Overrides) */}
+                {currentMarking.stagedAiProposal && (
+                  <div className="p-3 rounded-lg border border-indigo-200 bg-indigo-50/80 text-xs text-indigo-950 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span>新 AI 批改建議已就緒（現有教師修改已安全保留）</span>
+                      </div>
+                      <span className="text-[11px] text-indigo-700 font-semibold px-2 py-0.5 rounded bg-indigo-100/80 border border-indigo-200">
+                        AI 建議總分: {currentMarking.stagedAiProposal.totalScore}/100
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-indigo-800 leading-relaxed">
+                      系統偵測到您已編輯過此學生的評分或評語。新執行的 AI 結果已暫存，未覆蓋您的手動修改。您可以選擇檢視並套用分數、評語或新標註。
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsReviewProposalModalOpen(true)}
+                        className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-2xs"
+                      >
+                        檢視並選擇套用
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDismissStagedAiProposal?.(activeStudentId)}
+                        className="px-2.5 py-1 bg-white text-indigo-700 border border-indigo-300 rounded text-xs font-medium hover:bg-indigo-100 transition-colors"
+                      >
+                        略過此建議
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rubric Dimension Score Inputs & Total Badge */}
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-700 mb-2">Rubric Dimensions</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-semibold text-slate-700">Rubric Dimensions &amp; Scores</h4>
+                      {currentMarking.scoresSource && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                            currentMarking.scoresSource === 'teacher'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          {currentMarking.scoresSource === 'teacher' ? '教師評分' : 'AI 評分'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-xs">
+                      <span className="text-slate-500 font-medium">Total:</span>
+                      <span className="font-bold text-slate-800 text-sm">
+                        {hasScores ? `${totalScore} / ${maxPossibleScore}` : `— / ${maxPossibleScore}`}
+                      </span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {rubric.map((dim) => {
                       const currentScore = currentMarking.scores[dim.id] ?? 0;
@@ -1063,7 +1807,50 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Feedback Commentary */}
+                {/* Structured Assessment Comments (Positive, Relevant, Next Step) */}
+                {currentMarking.assessmentComments && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-slate-700">Structured Pedagogical Feedback</h4>
+                      {currentMarking.commentsSource && (
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {currentMarking.commentsSource === 'teacher' ? '教師編輯評語' : 'AI 生成評語'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <div className="p-2.5 rounded bg-emerald-50/60 border border-emerald-200/80 text-xs">
+                        <div className="font-bold text-emerald-800 text-[11px] mb-1 flex items-center gap-1">
+                          <span>★</span>
+                          <span>優點與亮點 (Positive)</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed whitespace-pre-line text-[11px]">
+                          {currentMarking.assessmentComments.positive || '（暫無優點評語）'}
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded bg-amber-50/60 border border-amber-200/80 text-xs">
+                        <div className="font-bold text-amber-800 text-[11px] mb-1 flex items-center gap-1">
+                          <span>✎</span>
+                          <span>改進建議 (Relevant)</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed whitespace-pre-line text-[11px]">
+                          {currentMarking.assessmentComments.relevant || '（暫無改進建議）'}
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded bg-blue-50/60 border border-blue-200/80 text-xs">
+                        <div className="font-bold text-blue-800 text-[11px] mb-1 flex items-center gap-1">
+                          <span>➜</span>
+                          <span>下一步行動 (Next Step)</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed whitespace-pre-line text-[11px]">
+                          {currentMarking.assessmentComments.finalNextStep || '（暫無下一步行動）'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Composite / Overall Feedback Commentary */}
                 <div>
                   <label
                     htmlFor="studentFeedback"
@@ -1133,6 +1920,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
               if (!student) return null;
               const isSelected = studentIdx === activeStudentIndex;
               const marking = markings[student.id];
+              const studentFreshness = freshnessMap?.[student.id];
               const isApproved = marking?.isApproved;
               const activeFindings = (marking?.findings || []).filter((f) => f.decision !== 'rejected');
               const reqCount = activeFindings.filter((f) => (f.feedbackType || 'correction') === 'correction').length;
@@ -1162,6 +1950,16 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                     className={`block text-[10px] mt-0.5 truncate ${
                       isApproved
                         ? 'text-emerald-600'
+                        : studentFreshness === 'running'
+                        ? 'text-blue-600 font-medium'
+                        : studentFreshness === 'queued'
+                        ? 'text-blue-600'
+                        : studentFreshness === 'needs_refresh'
+                        ? 'text-amber-600 font-semibold'
+                        : studentFreshness === 'failed'
+                        ? 'text-rose-600 font-semibold'
+                        : studentFreshness === 'initial_pending'
+                        ? 'text-slate-400'
                         : reqCount > 0
                         ? 'text-blue-600 font-medium'
                         : refCount > 0
@@ -1173,13 +1971,23 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                   >
                     {isApproved
                       ? '✓ Approved'
+                      : studentFreshness === 'running'
+                      ? 'Evaluating...'
+                      : studentFreshness === 'queued'
+                      ? 'Queued'
+                      : studentFreshness === 'needs_refresh'
+                      ? 'Needs refresh'
+                      : studentFreshness === 'failed'
+                      ? 'Marking failed'
+                      : studentFreshness === 'initial_pending'
+                      ? 'Initial pending'
                       : reqCount > 0
                       ? `${reqCount} corr${refCount > 0 ? ` · ${refCount} opt` : ''}`
                       : refCount > 0
                       ? `${refCount} opt suggestions`
                       : marking?.feedbackComment
                       ? 'Draft review'
-                      : 'Pending review'}
+                      : 'Ready for review'}
                   </span>
                 </button>
               );
@@ -1413,6 +2221,11 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
             </div>
 
             <form onSubmit={handleSaveCorrectOcr} className="space-y-3">
+              {correctOcrWordText && (
+                <div className="p-2 bg-purple-50 text-purple-900 border border-purple-200 rounded font-medium text-xs">
+                  點擊單詞 (Target word)：<strong className="font-serif text-purple-950 font-bold">"{correctOcrWordText}"</strong>
+                </div>
+              )}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   核對後文字 (修正此行文字以完全符合學生原稿手寫字)：
@@ -1460,6 +2273,171 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
       {/* Handwriting Lens Magnifier */}
       <MagnifierLens state={magnifier} />
 
+      {/* Staged AI Proposal Review & Selective Application Modal */}
+      {isReviewProposalModalOpen && currentMarking.stagedAiProposal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-800 text-sm">
+                  檢視並選擇套用 AI 批改建議
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReviewProposalModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 rounded p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                系統偵測到您已編輯過此學生的評分或評語。重新執行的 AI 結果已妥善暫存，未覆蓋任何手動修改。請檢視下列新舊比對，並勾選欲套用的項目：
+              </p>
+
+              {/* Side-by-Side Scores Comparison */}
+              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between font-bold text-slate-700">
+                  <span>評分比對</span>
+                  <span className="text-[11px] text-slate-500">滿分: {maxPossibleScore} 分</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2.5 rounded bg-white border border-slate-200">
+                    <span className="font-semibold text-slate-700 block mb-1">
+                      現有評分 ({currentMarking.scoresSource === 'teacher' ? '教師自訂' : '目前評分'})
+                    </span>
+                    <div className="text-lg font-bold text-slate-800 mb-1">
+                      {hasScores ? `${totalScore} 分` : '未評分'}
+                    </div>
+                    <div className="space-y-0.5 text-[11px] text-slate-600">
+                      {rubric.map((dim) => (
+                        <div key={dim.id} className="flex justify-between">
+                          <span>{dim.name}:</span>
+                          <span className="font-medium">
+                            {currentMarking.scores[dim.id] ?? '—'} / {dim.maxScore}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-indigo-50/80 border border-indigo-200">
+                    <span className="font-semibold text-indigo-900 block mb-1">
+                      AI 建議新評分
+                    </span>
+                    <div className="text-lg font-bold text-indigo-700 mb-1">
+                      {currentMarking.stagedAiProposal.totalScore} 分
+                    </div>
+                    <div className="space-y-0.5 text-[11px] text-indigo-800">
+                      {rubric.map((dim) => (
+                        <div key={dim.id} className="flex justify-between">
+                          <span>{dim.name}:</span>
+                          <span className="font-semibold">
+                            {currentMarking.stagedAiProposal?.scores[dim.id] ?? 0} / {dim.maxScore}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Comments Comparison */}
+              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50/50 space-y-2">
+                <span className="font-bold text-slate-700 block">評語比對</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2.5 rounded bg-white border border-slate-200 text-[11px]">
+                    <span className="font-semibold text-slate-700 block mb-1">現有評語</span>
+                    <p className="text-slate-600 whitespace-pre-line leading-relaxed max-h-36 overflow-y-auto">
+                      {currentMarking.feedbackComment || '（暫無評語）'}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded bg-indigo-50/80 border border-indigo-200 text-[11px]">
+                    <span className="font-semibold text-indigo-900 block mb-1">AI 結構化新評語</span>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto text-indigo-900">
+                      <div>
+                        <span className="font-bold text-[10px] text-indigo-700 block">優點與亮點：</span>
+                        <p>{currentMarking.stagedAiProposal.assessmentComments.positive || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="font-bold text-[10px] text-indigo-700 block">改進建議：</span>
+                        <p>{currentMarking.stagedAiProposal.assessmentComments.relevant || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="font-bold text-[10px] text-indigo-700 block">下一步行動：</span>
+                        <p>{currentMarking.stagedAiProposal.assessmentComments.finalNextStep || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selection Checkboxes */}
+              <div className="border border-indigo-100 rounded-lg p-3 bg-indigo-50/30 space-y-2">
+                <span className="font-bold text-slate-800 block text-xs">請勾選要套用至學生的項目：</span>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={applyProposalScores}
+                      onChange={(e) => setApplyProposalScores(e.target.checked)}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>套用 AI 建議分數 (總分: {currentMarking.stagedAiProposal.totalScore} / {maxPossibleScore})</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={applyProposalComments}
+                      onChange={(e) => setApplyProposalComments(e.target.checked)}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>套用 AI 結構化評語 (優點、改進建議與下一步行動)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={applyProposalFindings}
+                      onChange={(e) => setApplyProposalFindings(e.target.checked)}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>套用 AI 標註建議 ({currentMarking.stagedAiProposal.findings.length} 項，保留教師手動標註)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setIsReviewProposalModalOpen(false)}
+                className="px-3.5 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-md font-semibold text-xs hover:bg-slate-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={!applyProposalScores && !applyProposalComments && !applyProposalFindings}
+                onClick={() => {
+                  onAcceptStagedAiProposal?.(activeStudentId, {
+                    applyScores: applyProposalScores,
+                    applyComments: applyProposalComments,
+                    applyFindings: applyProposalFindings,
+                  });
+                  setIsReviewProposalModalOpen(false);
+                }}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-semibold text-xs shadow-2xs transition-colors"
+              >
+                確認套用所選項目
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer Navigation */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-200">
         <button
@@ -1478,6 +2456,182 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
           <span>Export Report →</span>
         </button>
       </div>
+
+      {/* Transcription Settings Modal */}
+      {transcription.isSettingsModalOpen && (
+        <TranscriptionSettingsModal
+          isOpen={transcription.isSettingsModalOpen}
+          onClose={() => transcription.setIsSettingsModalOpen(false)}
+          settings={transcription.currentSettings}
+          onSave={(newSettings) => {
+            onUpdateAssignmentSettings?.(newSettings);
+            transcription.setIsSettingsModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* Transcription Confirmation Dialog */}
+      {transcription.confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-sm font-bold text-slate-800">
+              {transcription.confirmDialog.type === 'apply_candidate_overwrite'
+                ? '覆蓋現有謄本內容 (Overwrite Transcript)'
+                : transcription.confirmDialog.type === 'qwen_unavailable_choice'
+                ? 'Qwen VL (18088) 離線提示'
+                : '重新執行 OCR (Re-run OCR)'}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {transcription.confirmDialog.type === 'apply_candidate_overwrite'
+                ? '套用此候選謄本將覆蓋目前編輯器內的文字。已核對的狀態將被撤銷以供重新檢視。確定要繼續嗎？'
+                : transcription.confirmDialog.type === 'qwen_unavailable_choice'
+                ? 'Qwen VL (Port 18088) 目前無法連線。是否要改以「Mathpix OCR Only」模式直接進行辨識？'
+                : '重新執行 OCR 將產生新的候選謄本。現有編輯器內的文字不會被自動覆蓋，除非您明確點擊「套用至謄本」。'}
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => transcription.setConfirmDialog(null)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors shadow-2xs"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const dlg = transcription.confirmDialog;
+                  transcription.setConfirmDialog(null);
+                  if (!dlg) return;
+                  if (dlg.type === 'apply_candidate_overwrite') {
+                    transcription.applyCandidateToEditor(dlg.targetStudentId, dlg.candidateText, dlg.linesWithBboxes);
+                  } else if (dlg.type === 'qwen_unavailable_choice') {
+                    transcription.executeSingleEssayTranscription(dlg.targetStudentId, 'mathpix_only');
+                  } else if (dlg.type === 'pre_flight_transcribe') {
+                    transcription.executeSingleEssayTranscription(dlg.targetStudentId);
+                  }
+                }}
+                className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-xs"
+              >
+                確定執行
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selection / word / finding context menu */}
+      {contextMenu && (
+        <div className="fixed inset-0 z-[99990]" onMouseDown={() => setContextMenu(null)}>
+          <div
+            className="absolute w-60 bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700"
+            style={{
+              left: Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 800) - 250),
+              top: contextMenu.y,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {contextMenu.kind !== 'finding' && (
+              <>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                  onClick={() => {
+                    if (contextMenu.kind === 'selection') {
+                      openCorrectionEditorForSelection();
+                    } else {
+                      setCorrectionEditor({
+                        sourceText: contextMenu.sourceText,
+                        range: {
+                          startLine: contextMenu.lineIndex ?? 0,
+                          startOffset: 0,
+                          endLine: contextMenu.lineIndex ?? 0,
+                          endOffset: contextMenu.sourceText.length,
+                          revision: currentTranscript.revision ?? 0,
+                        },
+                        involvedFindingIds: [],
+                      });
+                      setCorrectionText(contextMenu.sourceText);
+                      setContextMenu(null);
+                    }
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Correct OCR text
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                  onClick={() => {
+                    handleOpenAddFindingForPhrase(contextMenu.sourceText, contextMenu.lineIndex ?? 0);
+                    setContextMenu(null);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Add manual finding
+                </button>
+              </>
+            )}
+            {contextMenu.kind === 'finding' && (
+              <>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                  onClick={() => {
+                    setCorrectionEditor({
+                      sourceText: contextMenu.sourceText,
+                      range: {
+                        startLine: contextMenu.lineIndex ?? 0,
+                        startOffset: 0,
+                        endLine: contextMenu.lineIndex ?? 0,
+                        endOffset: contextMenu.sourceText.length,
+                        revision: currentTranscript.revision ?? 0,
+                      },
+                      involvedFindingIds: contextMenu.findingId ? [contextMenu.findingId] : [],
+                    });
+                    setCorrectionText(contextMenu.sourceText);
+                    setContextMenu(null);
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Correct OCR source text
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Selected OCR source correction editor */}
+      {correctionEditor && (
+        <div className="fixed inset-0 z-[99995] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-800">Correct OCR source text</h3>
+              <button type="button" onClick={() => setCorrectionEditor(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={correctionText}
+              onChange={(e) => setCorrectionText(e.target.value)}
+              className="w-full min-h-[120px] p-2 border border-slate-200 rounded-md text-sm font-serif focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setCorrectionEditor(null)}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applySelectedCorrection}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                Apply correction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

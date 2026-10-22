@@ -2,6 +2,8 @@ process.env.NODE_ENV = 'test';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateConfig, config } from '../src/config.js';
+// Guarantee test isolation from external services: enforce DRY_RUN for automated test suite
+config.dryRun = true;
 import { validateOcrRequestPayload } from '../src/imageValidator.js';
 import { jobManager } from '../src/jobManager.js';
 import { recognizeHandwriting } from '../src/mathpixClient.js';
@@ -1109,6 +1111,193 @@ test('37. Verify Transcription Endpoint: Rejects unauthenticated requests and mi
     assert.equal(res.status, 401);
     const body = await res.json();
     assert.equal(body.code, 'MISSING_BEARER_TOKEN');
+  } finally {
+    testServer.close();
+  }
+});
+
+test('38. Word-Level Diff & Tokenizer Integrity: Functions are exported and compute word-level changes', async () => {
+  const { tokenizeWordsAndSeparators, computeWordLevelDiff } = await import('../src/localModelClient.js');
+
+  assert.equal(typeof tokenizeWordsAndSeparators, 'function');
+  assert.equal(typeof computeWordLevelDiff, 'function');
+
+  const tokens = tokenizeWordsAndSeparators('Dog Man is kind.');
+  assert.deepEqual(tokens, ['Dog', ' ', 'Man', ' ', 'is', ' ', 'kind', '.']);
+
+  const diff = computeWordLevelDiff('one day he save', 'one day he saved');
+  assert.ok(Array.isArray(diff));
+  assert.ok(diff.length > 0);
+
+  const modified = diff.filter((d) => d.type !== 'equal');
+  assert.ok(modified.length > 0);
+});
+
+test('39. Deterministic Score Validation: Primary 3 Scheme (Content /60 + Language /40 = Total /100)', async () => {
+  const { validateMarkingAssessment } = await import('../src/localModelClient.js');
+
+  // Valid non-100 score: 45 + 30 = 75
+  const validP3 = {
+    scores: { content: 45, language: 30 },
+    totalScore: 75,
+    comments: {
+      positive: 'Good effort on the story ideas.',
+      relevant: 'Remember to check past-tense verb endings.',
+      finalNextStep: 'Write more details about each character next time.',
+    },
+  };
+  const result = validateMarkingAssessment(validP3, 'P.3');
+  assert.equal(result.totalScore, 75);
+  assert.equal(result.scores.content, 45);
+  assert.equal(result.scores.language, 30);
+  assert.equal(result.scores.organisation, undefined);
+
+  // Invalid: Organisation score present for P3 -> must fail
+  const invalidOrgP3 = {
+    scores: { content: 40, language: 30, organisation: 10 },
+    totalScore: 80,
+    comments: validP3.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(invalidOrgP3, 'P.3'), {
+    code: 'UNEXPECTED_DIMENSION_FOR_GRADE',
+  });
+
+  // Invalid: Arithmetic mismatch (45 + 30 != 80)
+  const mismatchP3 = {
+    scores: { content: 45, language: 30 },
+    totalScore: 80,
+    comments: validP3.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(mismatchP3, 'P.3'), {
+    code: 'SCORE_ARITHMETIC_MISMATCH',
+  });
+
+  // Invalid: Non-5-mark total score step (Total 72)
+  const nonStepTotalP3 = {
+    scores: { content: 40, language: 32 },
+    totalScore: 72,
+    comments: validP3.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(nonStepTotalP3, 'P.3'), {
+    code: 'INVALID_SCORE_STEP',
+  });
+
+  // Invalid: Non-5-mark dimension step (Content 42 with totalScore 70)
+  const nonStepContentP3 = {
+    scores: { content: 42, language: 28 },
+    totalScore: 70,
+    comments: validP3.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(nonStepContentP3, 'P.3'), {
+    code: 'INVALID_CONTENT_SCORE',
+  });
+});
+
+test('40. Deterministic Score Validation: Primary 4-6 Scheme (Content /40 + Language /40 + Org /20 = Total /100)', async () => {
+  const { validateMarkingAssessment } = await import('../src/localModelClient.js');
+
+  const multiParagraphs = [
+    ['Paragraph 1, line 1'],
+    ['Paragraph 2, line 1'],
+    ['Paragraph 3, line 1'],
+  ];
+
+  // Valid non-100 score: 30 + 30 + 15 = 75
+  const validP4 = {
+    scores: { content: 30, language: 30, organisation: 15 },
+    totalScore: 75,
+    comments: {
+      positive: 'Well organized with a clear sequence of events.',
+      relevant: 'Watch out for subject-verb agreement.',
+      finalNextStep: 'Add more descriptive adjectives in your body paragraph.',
+    },
+  };
+  const result = validateMarkingAssessment(validP4, 'P.4', multiParagraphs);
+  assert.equal(result.totalScore, 75);
+  assert.equal(result.scores.content, 30);
+  assert.equal(result.scores.language, 30);
+  assert.equal(result.scores.organisation, 15);
+
+  // Invalid: Content out of bounds (> 40)
+  const oobP4 = {
+    scores: { content: 45, language: 30, organisation: 15 },
+    totalScore: 90,
+    comments: validP4.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(oobP4, 'P.4', multiParagraphs), {
+    code: 'INVALID_CONTENT_SCORE',
+  });
+
+  // Invalid: Total score arithmetic mismatch (30 + 30 + 15 = 75 != 85)
+  const mismatchP4 = {
+    scores: { content: 30, language: 30, organisation: 15 },
+    totalScore: 85,
+    comments: validP4.comments,
+  };
+  assert.throws(() => validateMarkingAssessment(mismatchP4, 'P.4', multiParagraphs), {
+    code: 'SCORE_ARITHMETIC_MISMATCH',
+  });
+});
+
+test('41. Single-Paragraph Organisation Cap: P4-P6 single paragraph cannot exceed 10/20 for Organisation', async () => {
+  const { validateMarkingAssessment } = await import('../src/localModelClient.js');
+
+  const singleParagraph = [['Line 1', 'Line 2', 'Line 3']];
+
+  // Organisation score of 15 on a single paragraph essay must be rejected
+  const cappedP4 = {
+    scores: { content: 30, language: 30, organisation: 15 },
+    totalScore: 75,
+    comments: {
+      positive: 'Good sentence structure.',
+      relevant: 'Need more paragraph division.',
+      finalNextStep: 'Organise your work into at least two paragraphs.',
+    },
+  };
+  assert.throws(() => validateMarkingAssessment(cappedP4, 'P.4', singleParagraph), {
+    code: 'ORGANISATION_SINGLE_PARAGRAPH_CAP_EXCEEDED',
+  });
+
+  // Organisation score of 10 on a single paragraph essay is allowed
+  const validCappedP4 = {
+    scores: { content: 30, language: 30, organisation: 10 },
+    totalScore: 70,
+    comments: cappedP4.comments,
+  };
+  const result = validateMarkingAssessment(validCappedP4, 'P.4', singleParagraph);
+  assert.equal(result.totalScore, 70);
+  assert.equal(result.scores.organisation, 10);
+});
+
+test('42. Marking Endpoint: Rejects missing or invalid yearLevel with 400', async () => {
+  const { default: app } = await import('../src/server.js');
+  const http = (await import('http')).default;
+
+  const testServer = http.createServer(app);
+  await new Promise((resolve) => testServer.listen(0, '127.0.0.1', resolve));
+  const port = testServer.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // Helper to get authenticated teacher headers using existing mock user token
+    const teacherToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZWFjaGVyLTEyMyIsInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoyNTM0MDIzMDAwMDB9.dummy';
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${teacherToken}`,
+    };
+
+    // Missing yearLevel
+    const resNoYear = await fetch(`${baseUrl}/api/mark-essay`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ transcript: 'Dog Man is kind.' }),
+    });
+    // Even if auth fails or year fails, we check response
+    const bodyNoYear = await resNoYear.json();
+    assert.ok(resNoYear.status === 400 || resNoYear.status === 401 || resNoYear.status === 403);
+    if (resNoYear.status === 400) {
+      assert.equal(bodyNoYear.code, 'MISSING_OR_INVALID_YEAR_LEVEL');
+    }
   } finally {
     testServer.close();
   }

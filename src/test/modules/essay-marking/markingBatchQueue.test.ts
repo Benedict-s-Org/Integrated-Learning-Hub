@@ -106,26 +106,84 @@ describe('markingBatchQueue', () => {
       });
 
       expect(result.items).toHaveLength(4);
-      expect(result.eligibleCount).toBe(1); // Alice
+      expect(result.eligibleCount).toBe(2); // Alice (verified) + Charlie (provisional unverified)
+      expect(result.provisionalCount).toBe(1); // Charlie
       expect(result.alreadyMarkedCount).toBe(1); // Bob
-      expect(result.unverifiedCount).toBe(1); // Charlie
-      expect(result.skippedCount).toBe(3); // Bob (already), Charlie (unverified), David (no pages)
+      expect(result.skippedCount).toBe(2); // Bob (already), David (no pages)
 
       const alice = result.items.find((i) => i.studentId === 's1');
       expect(alice?.status).toBe('pending');
+      expect(alice?.isProvisional).toBe(false);
       expect(alice?.pageCount).toBe(2);
+
+      const charlie = result.items.find((i) => i.studentId === 's3');
+      expect(charlie?.status).toBe('pending');
+      expect(charlie?.isProvisional).toBe(true);
 
       const bob = result.items.find((i) => i.studentId === 's2');
       expect(bob?.status).toBe('skipped');
       expect(bob?.skipReason).toContain('已有 1 條批改記錄');
 
-      const charlie = result.items.find((i) => i.studentId === 's3');
-      expect(charlie?.status).toBe('skipped');
-      expect(charlie?.skipReason).toContain('未核對');
-
       const david = result.items.find((i) => i.studentId === 's4');
       expect(david?.status).toBe('skipped');
       expect(david?.skipReason).toContain('尚未分配掃描頁面');
+
+      // Strict mode when allowProvisional = false
+      const strictResult = evaluateBatchMarkingEligibility({
+        students: mockStudents,
+        appliedMatching,
+        transcripts: transcripts as any,
+        markings: markings as any,
+        pages: mockPages as any,
+        allowProvisional: false,
+      });
+      expect(strictResult.eligibleCount).toBe(1); // Alice only
+      expect(strictResult.skippedCount).toBe(3); // Bob, Charlie (unverified), David
+      const strictCharlie = strictResult.items.find((i) => i.studentId === 's3');
+      expect(strictCharlie?.status).toBe('skipped');
+      expect(strictCharlie?.skipReason).toContain('未核對');
+    });
+
+    it('preserves the confirmed matched student order [2, 0, 3, 1] in batch queue items', () => {
+      const mockPages = [
+        { id: 'p1', fileName: 'demo.pdf', pageNumber: 1, originalImageUrl: '' },
+        { id: 'p2', fileName: 'demo.pdf', pageNumber: 2, originalImageUrl: '' },
+        { id: 'p3', fileName: 'demo.pdf', pageNumber: 3, originalImageUrl: '' },
+        { id: 'p4', fileName: 'demo.pdf', pageNumber: 4, originalImageUrl: '' },
+      ];
+
+      // Confirmed matched order: s3 (idx 2), s1 (idx 0), s4 (idx 3), s2 (idx 1)
+      const appliedMatching = {
+        classId: 'A',
+        counts: [1, 1, 1, 1],
+        assignedStudentIndices: [2, 0, 3, 1],
+        map: [
+          { pageIndex: 0, studentIndex: 2, studentId: 's3' },
+          { pageIndex: 1, studentIndex: 0, studentId: 's1' },
+          { pageIndex: 2, studentIndex: 3, studentId: 's4' },
+          { pageIndex: 3, studentIndex: 1, studentId: 's2' },
+        ],
+      };
+
+      const transcripts = {
+        s1: { rawOcrText: 'Alice', editedText: 'Alice essay', isVerified: true },
+        s2: { rawOcrText: 'Bob', editedText: 'Bob essay', isVerified: true },
+        s3: { rawOcrText: 'Charlie', editedText: 'Charlie essay', isVerified: true },
+        s4: { rawOcrText: 'David', editedText: 'David essay', isVerified: true },
+      };
+
+      const result = evaluateBatchMarkingEligibility({
+        students: mockStudents,
+        appliedMatching: appliedMatching as any,
+        transcripts: transcripts as any,
+        markings: {},
+        pages: mockPages as any,
+      });
+
+      expect(result.items).toHaveLength(4);
+      // Items must be ordered strictly as [s3, s1, s4, s2]
+      expect(result.items.map((i) => i.studentId)).toEqual(['s3', 's1', 's4', 's2']);
+      expect(result.items.map((i) => i.studentIndex)).toEqual([2, 0, 3, 1]);
     });
   });
 

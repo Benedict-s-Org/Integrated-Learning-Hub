@@ -152,13 +152,13 @@ describe('Report annotation regression (collapsed text + intact saved line struc
     expect(html).toContain('orig-error-text">save<');
   });
 
-  it('anchors the purple suggestion to the line containing its quote, NOT line 0', () => {
+  it('does not insert optional improvement suggestions into the student writing text', () => {
     const units = lineUnits(html);
-    expect(units[3]).toContain('Part dog as well.');
+    expect(units[3]).not.toContain('Part dog as well.');
     expect(units[0]).not.toContain('Part dog as well.');
   });
 
-  it('does NOT place unmatched suggestions at line 0; lists them separately as requiring review', () => {
+  it('does NOT place unmatched suggestions in writing text; lists them separately as requiring review', () => {
     const units = lineUnits(html);
     expect(units[0]).not.toContain('(He has)');
     expect(unresolvedFindings.some((f) => f.id === 'f-5')).toBe(true);
@@ -181,16 +181,16 @@ describe('Report annotation regression (collapsed text + intact saved line struc
     expect(units[4]).toContain('orig-error-text">meas<');
   });
 
-  it('keeps an empty annotation row above unchanged lines', () => {
+  it('renders unchanged text cleanly without table row artifacts', () => {
     const units = lineUnits(html);
-    expect(units[0]).toContain('blank-annotation-cell');
+    expect(units[0]).toContain('CHARACTER&#39;S NAME: Dog Man');
   });
 
   it('handles repeated words by occurrence index (first "He" untouched, second "He" corrected)', () => {
     const units = lineUnits(html);
     const unit5 = units[5];
     // First occurrence stays normal text...
-    expect(unit5).toContain('orig-text-cell">He have some friend too.');
+    expect(unit5).toContain('He have some friend too.');
     // ...second occurrence gets green correction above + red strikethrough baseline
     expect(unit5).toContain('>She<');
     expect(unit5).toContain('orig-error-text">He<');

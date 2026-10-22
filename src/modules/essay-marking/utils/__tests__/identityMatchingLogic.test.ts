@@ -246,5 +246,170 @@ describe('identityMatchingLogic', () => {
         total: 2,
       });
     });
+
+    it('preserves non-numeric matched order [3, 1, 4, 2] instead of numeric roster order [1, 2, 3, 4]', () => {
+      const pages: ScanPage[] = [
+        { id: 'p1', fileId: 'f1', fileName: 'page1.jpg', sourcePageNumber: 1, previewUrl: '', orderIndex: 0 },
+        { id: 'p2', fileId: 'f1', fileName: 'page2.jpg', sourcePageNumber: 2, previewUrl: '', orderIndex: 1 },
+        { id: 'p3', fileId: 'f1', fileName: 'page3.jpg', sourcePageNumber: 3, previewUrl: '', orderIndex: 2 },
+        { id: 'p4', fileId: 'f1', fileName: 'page4.jpg', sourcePageNumber: 4, previewUrl: '', orderIndex: 3 },
+      ];
+
+      // Source order [1, 2, 3, 4] matched to students in order [s3, s1, s4, s2]
+      const recognitions: Record<string, PageIdentityRecognition> = {
+        p1: {
+          scanPageId: 'p1',
+          pageNumber: 1,
+          rawClass: '3A',
+          rawStudentName: 'Lee Siu Lung',
+          rawClassNumber: '3',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's3', // index 2
+        },
+        p2: {
+          scanPageId: 'p2',
+          pageNumber: 2,
+          rawClass: '3A',
+          rawStudentName: 'Chan Tai Man',
+          rawClassNumber: '1',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's1', // index 0
+        },
+        p3: {
+          scanPageId: 'p3',
+          pageNumber: 3,
+          rawClass: '3A',
+          rawStudentName: 'Cheung Ho Yin',
+          rawClassNumber: '4',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's4', // index 3
+        },
+        p4: {
+          scanPageId: 'p4',
+          pageNumber: 4,
+          rawClass: '3A',
+          rawStudentName: 'Wong Ka Yan',
+          rawClassNumber: '2',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's2', // index 1
+        },
+      };
+
+      const result = computeIdentityMatchingPreview(pages, recognitions, sampleStudents);
+
+      // Must preserve the non-numeric matched order [2, 0, 3, 1] corresponding to [s3, s1, s4, s2]
+      expect(result.assignedStudentIndices).toEqual([2, 0, 3, 1]);
+
+      // Every student remains correctly linked to their respective page
+      expect(result.preview.map[0]?.studentId).toBe('s3');
+      expect(result.preview.map[0]?.studentIndex).toBe(2);
+      expect(result.preview.map[1]?.studentId).toBe('s1');
+      expect(result.preview.map[1]?.studentIndex).toBe(0);
+      expect(result.preview.map[2]?.studentId).toBe('s4');
+      expect(result.preview.map[2]?.studentIndex).toBe(3);
+      expect(result.preview.map[3]?.studentId).toBe('s2');
+      expect(result.preview.map[3]?.studentIndex).toBe(1);
+    });
+
+    it('ensures unmatched and ambiguous scripts do not disturb the confirmed matches order', () => {
+      const pages: ScanPage[] = [
+        { id: 'p1', fileId: 'f1', fileName: 'page1.jpg', sourcePageNumber: 1, previewUrl: '', orderIndex: 0 },
+        { id: 'p2', fileId: 'f1', fileName: 'page2.jpg', sourcePageNumber: 2, previewUrl: '', orderIndex: 1 },
+        { id: 'p3', fileId: 'f1', fileName: 'page3.jpg', sourcePageNumber: 3, previewUrl: '', orderIndex: 2 }, // unmatched
+        { id: 'p4', fileId: 'f1', fileName: 'page4.jpg', sourcePageNumber: 4, previewUrl: '', orderIndex: 3 },
+        { id: 'p5', fileId: 'f1', fileName: 'page5.jpg', sourcePageNumber: 5, previewUrl: '', orderIndex: 4 },
+      ];
+
+      const recognitions: Record<string, PageIdentityRecognition> = {
+        p1: {
+          scanPageId: 'p1',
+          pageNumber: 1,
+          rawClass: '3A',
+          rawStudentName: 'Lee Siu Lung',
+          rawClassNumber: '3',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's3',
+        },
+        p2: {
+          scanPageId: 'p2',
+          pageNumber: 2,
+          rawClass: '3A',
+          rawStudentName: 'Chan Tai Man',
+          rawClassNumber: '1',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's1',
+        },
+        p3: {
+          scanPageId: 'p3',
+          pageNumber: 3,
+          rawClass: '3A',
+          rawStudentName: null,
+          rawClassNumber: null,
+          classReadable: false,
+          nameReadable: false,
+          numberReadable: false,
+          warnings: ['Unreadable'],
+          status: 'unmatched',
+          matchedStudentId: null,
+        },
+        p4: {
+          scanPageId: 'p4',
+          pageNumber: 4,
+          rawClass: '3A',
+          rawStudentName: 'Cheung Ho Yin',
+          rawClassNumber: '4',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's4',
+        },
+        p5: {
+          scanPageId: 'p5',
+          pageNumber: 5,
+          rawClass: '3A',
+          rawStudentName: 'Wong Ka Yan',
+          rawClassNumber: '2',
+          classReadable: true,
+          nameReadable: true,
+          numberReadable: true,
+          warnings: [],
+          status: 'matched',
+          matchedStudentId: 's2',
+        },
+      };
+
+      const result = computeIdentityMatchingPreview(pages, recognitions, sampleStudents);
+
+      // Unmatched page p3 should be counted as unmatched, and confirmed order remains [2, 0, 3, 1]
+      expect(result.unmatchedPagesCount).toBe(1);
+      expect(result.preview.map[2]).toBeNull();
+      expect(result.assignedStudentIndices).toEqual([2, 0, 3, 1]);
+    });
   });
 });

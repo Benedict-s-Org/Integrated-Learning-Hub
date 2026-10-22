@@ -19,6 +19,11 @@ import {
   AssignmentTranscriptionSettings,
   DEFAULT_TRANSCRIPTION_SETTINGS,
   LineWithBbox,
+  computeRubricFingerprint,
+  resolveEffectiveGrade,
+  StructuredAssessmentComments,
+  MarkingJobContext,
+  StagedAiProposal,
 } from './types';
 import {
   computeMatchingPreview,
@@ -29,6 +34,13 @@ import {
   computeIdentityMatchingPreview,
   crossCheckIdentity,
 } from './utils/identityMatchingLogic';
+import {
+  reorderStudentPages,
+  assignPageToStudent,
+  unassignPageFromStudent,
+  deriveStudentPageOrdersFromMatching,
+  isEntireScriptBlank,
+} from './utils/continuationPageLogic';
 import { cropIdentityRegions } from './utils/scanRegionCropper';
 import { essayServices } from './services/essayServiceRegistry';
 import { WorkflowStepper } from './components/WorkflowStepper';
@@ -58,6 +70,29 @@ import {
   PersistedSessionData,
 } from './utils/essayMarkingStorage';
 import { setupGlobalErrorCatchers } from './utils/clientErrorLogger';
+import {
+  AiMarkingFreshness,
+  BackgroundMarkingQueueController,
+  checkStudentMarkingReadiness,
+  getStudentAssignedPages,
+  isEffectiveTranscriptPresent,
+  reconcileRestoredCandidates,
+} from './utils/backgroundMarkingQueue';
+
+export function formatCompositeFeedback(comments?: StructuredAssessmentComments | null): string {
+  if (!comments) return '';
+  const parts: string[] = [];
+  if (comments.positive?.trim()) {
+    parts.push(`【優點與亮點】\n${comments.positive.trim()}`);
+  }
+  if (comments.relevant?.trim()) {
+    parts.push(`【改進建議】\n${comments.relevant.trim()}`);
+  }
+  if (comments.finalNextStep?.trim()) {
+    parts.push(`【下一步行動】\n${comments.finalNextStep.trim()}`);
+  }
+  return parts.join('\n\n');
+}
 
 export const EssayMarkingPage: React.FC = () => {
   // Navigation / Workflow Step
@@ -121,9 +156,25 @@ export const EssayMarkingPage: React.FC = () => {
   const [transcripts, setTranscripts] = useState<
     Record<string, StudentTranscriptState>
   >({});
+  const [stagedCandidates, setStagedCandidates] = useState<
+    Record<string, StagedCandidateTranscript>
+  >({});
 
   // Step 5: Markings State (keyed by studentId)
   const [markings, setMarkings] = useState<Record<string, StudentMarkingState>>({});
+
+  // Background AI Marking Queue & Transcript Revisions State
+  const [aiMarkingFreshnessMap, setAiMarkingFreshnessMap] = useState<
+    Record<string, AiMarkingFreshness>
+  >({});
+  const markingQueueRef = useRef<BackgroundMarkingQueueController | null>(null);
+  const transcriptRevisionsRef = useRef<Record<string, number>>({});
+  const reconciledCandidateIdsRef = useRef<Set<string>>(new Set());
+  const [backgroundNotice, setBackgroundNotice] = useState<{
+    id: string;
+    message: string;
+    type: 'success' | 'info' | 'error';
+  } | null>(null);
 
   // Persistence & Error Catching Refs
   const [isRestored, setIsRestored] = useState(false);
@@ -131,13 +182,182 @@ export const EssayMarkingPage: React.FC = () => {
   currentStepRef.current = currentStep;
   const restoredSessionRef = useRef<PersistedSessionData | null>(null);
 
+  const assignmentRef = useRef<AssignmentConfig>(assignment);
+  useEffect(() => {
+    assignmentRef.current = assignment;
+  }, [assignment]);
+
+  const studentsRef = useRef<StudentRosterItem[]>(students);
+  useEffect(() => {
+    studentsRef.current = students;
+  }, [students]);
+
+  const transcriptsRef = useRef<Record<string, StudentTranscriptState>>(transcripts);
+  useEffect(() => {
+    transcriptsRef.current = transcripts;
+  }, [transcripts]);
+
   // 1. Capture uncaught errors & unhandled rejections across the essay-marking module
   useEffect(() => {
     const teardown = setupGlobalErrorCatchers(() => currentStepRef.current);
     return teardown;
   }, []);
 
-  // 2. Restore session from IndexedDB on initial mount
+  // 2. Initialize BackgroundMarkingQueueController
+  useEffect(() => {
+    const controller = new BackgroundMarkingQueueController({
+      getCurrentRevision: (sId) => transcriptRevisionsRef.current[sId] ?? 0,
+      onJobStatusChange: (sId, freshness) => {
+        setAiMarkingFreshnessMap((prev) => ({ ...prev, [sId]: freshness }));
+      },
+      onJobCompleted: (job, newAiFindings, isCurrentRevision, assessment) => {
+        const curAssignment = assignmentRef.current;
+        const curStudents = studentsRef.current;
+        const student = curStudents.find((s) => s.id === job.studentId);
+        const resolvedGrade = resolveEffectiveGrade(curAssignment.grade, student?.className);
+        const currentRubricFingerprint = computeRubricFingerprint(curAssignment.rubric);
+
+        // Context Safeguards: Check if grade, rubric, title, prompt, or transcript changed while job ran
+        const isGradeConsistent = resolvedGrade.grade === job.yearLevel;
+        const isRubricConsistent = currentRubricFingerprint === job.rubricFingerprint;
+        const isTitleConsistent = curAssignment.title === job.assignmentTitle;
+        const isScopeConsistent = curAssignment.scopePrompt === job.scopePrompt;
+        const isContextValid =
+          isCurrentRevision &&
+          isGradeConsistent &&
+          isRubricConsistent &&
+          isTitleConsistent &&
+          isScopeConsistent;
+
+        if (!isContextValid) {
+          setAiMarkingFreshnessMap((prev) => ({ ...prev, [job.studentId]: 'needs_refresh' }));
+          setBackgroundNotice({
+            id: `toast-${Date.now()}`,
+            message: `${job.studentName} 的批改條件（年級、評分標準、題目指引或辨識文字）在執行期間變更，已略過舊版結果。`,
+            type: 'info',
+          });
+          return;
+        }
+
+        const aiScores: Record<string, number> = assessment?.scores || {};
+        const aiTotalScore: number =
+          assessment?.totalScore ??
+          Object.values(aiScores).reduce((a, b) => a + (Number(b) || 0), 0);
+        const aiComments: StructuredAssessmentComments = assessment?.comments || {
+          positive: '',
+          relevant: '',
+          finalNextStep: '',
+        };
+
+        setMarkings((prev) => {
+          const current = prev[job.studentId] || {
+            studentId: job.studentId,
+            findings: [],
+            scores: {},
+            feedbackComment: '',
+            isApproved: false,
+          };
+
+          const preservedManual = current.findings.filter(
+            (f) =>
+              f.source === 'teacher' ||
+              f.isManual ||
+              f.decision === 'edited' ||
+              (!f.id.startsWith('f-ai-') && f.source !== 'ai')
+          );
+
+          const hasTeacherScores = current.scoresSource === 'teacher';
+          const hasTeacherComments = current.commentsSource === 'teacher';
+
+          // If teacher has customized scores or comments, preserve them and stage the AI proposal!
+          if (hasTeacherScores || hasTeacherComments) {
+            const stagedProposal: StagedAiProposal = {
+              scores: aiScores,
+              totalScore: aiTotalScore,
+              assessmentComments: aiComments,
+              findings: newAiFindings,
+              receivedAt: new Date().toISOString(),
+              promptVersion: (newAiFindings[0] as any)?.promptVersion,
+              contextIdentity: job.contextIdentity,
+            };
+
+            return {
+              ...prev,
+              [job.studentId]: {
+                ...current,
+                findings: [...preservedManual, ...newAiFindings],
+                stagedAiProposal: stagedProposal,
+                isApproved: false,
+              },
+            };
+          }
+
+          // Otherwise, apply AI scores and structured comments directly
+          return {
+            ...prev,
+            [job.studentId]: {
+              ...current,
+              findings: [...preservedManual, ...newAiFindings],
+              scores: aiScores,
+              totalScore: aiTotalScore,
+              scoresSource: 'ai',
+              assessmentComments: aiComments,
+              commentsSource: 'ai',
+              feedbackComment: formatCompositeFeedback(aiComments),
+              contextIdentity: job.contextIdentity,
+              stagedAiProposal: undefined,
+              isApproved: false,
+            },
+          };
+        });
+
+        // Background notice reflecting outcome
+        setMarkings((prev) => {
+          const marking = prev[job.studentId];
+          const hasTeacherOverrides =
+            marking?.scoresSource === 'teacher' || marking?.commentsSource === 'teacher';
+          if (hasTeacherOverrides) {
+            setBackgroundNotice({
+              id: `toast-${Date.now()}`,
+              message: `${job.studentName} AI 批改完成。已保留現有教師評分/評語，新建議已暫存。`,
+              type: 'info',
+            });
+          } else {
+            const scoreDisplay =
+              marking?.totalScore !== undefined ? `總分 ${marking.totalScore}/100, ` : '';
+            setBackgroundNotice({
+              id: `toast-${Date.now()}`,
+              message: `${job.studentName} AI 批改已完成 (${scoreDisplay}${newAiFindings.length} 項標註)`,
+              type: 'success',
+            });
+          }
+          return prev;
+        });
+      },
+      onJobFailed: (job, err) => {
+        setBackgroundNotice({
+          id: `toast-${Date.now()}`,
+          message: `${job.studentName} AI 批改失敗: ${err}`,
+          type: 'error',
+        });
+      },
+    });
+    markingQueueRef.current = controller;
+    return () => {
+      controller.clearQueue();
+    };
+  }, []);
+
+  // 3. Auto-dismiss background notice after 4s
+  useEffect(() => {
+    if (!backgroundNotice) return;
+    const timer = setTimeout(() => {
+      setBackgroundNotice(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [backgroundNotice]);
+
+  // 4. Restore session from IndexedDB on initial mount
   useEffect(() => {
     let isMounted = true;
     loadWorkbenchSession().then((saved) => {
@@ -154,10 +374,16 @@ export const EssayMarkingPage: React.FC = () => {
       if (saved.selectedStudentIndices) setSelectedStudentIndices(new Set(saved.selectedStudentIndices));
       if (saved.appliedMatching) setAppliedMatching(saved.appliedMatching);
       if (typeof saved.activeStudentIndex === 'number') setActiveStudentIndex(saved.activeStudentIndex);
-      if (saved.transcripts) setTranscripts(saved.transcripts);
+      if (saved.transcripts) {
+        setTranscripts(saved.transcripts);
+        Object.entries(saved.transcripts).forEach(([sId, tState]) => {
+          transcriptRevisionsRef.current[sId] = tState?.revision || 0;
+        });
+      }
       if (saved.markings) setMarkings(saved.markings);
       if (saved.recognitionResults) setRecognitionResults(saved.recognitionResults);
       if (saved.matchingMode) setMatchingMode(saved.matchingMode);
+      if (saved.stagedCandidatesByStudent) setStagedCandidates(saved.stagedCandidatesByStudent);
       if (saved.currentStep) setCurrentStep(saved.currentStep);
       setIsRestored(true);
     });
@@ -185,6 +411,7 @@ export const EssayMarkingPage: React.FC = () => {
         markings,
         recognitionResults,
         matchingMode,
+        stagedCandidatesByStudent: stagedCandidates,
       });
     }, 600);
 
@@ -204,6 +431,7 @@ export const EssayMarkingPage: React.FC = () => {
     markings,
     recognitionResults,
     matchingMode,
+    stagedCandidates,
   ]);
 
   // Fetch Class List from Supabase
@@ -595,6 +823,171 @@ export const EssayMarkingPage: React.FC = () => {
     setPages((prev) =>
       prev.map((p) => (p.id === pageId ? { ...p, customRegions } : p))
     );
+
+    // If page belongs to a matched student, mark AI freshness as needs_refresh
+    const studentOrders =
+      appliedMatching?.studentPageOrders ||
+      deriveStudentPageOrdersFromMatching(appliedMatching, pages);
+    for (const [studentId, pageIds] of Object.entries(studentOrders)) {
+      if (pageIds.includes(pageId)) {
+        const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+        transcriptRevisionsRef.current[studentId] = nextRev;
+
+        setAiMarkingFreshnessMap((prev) => ({
+          ...prev,
+          [studentId]: 'needs_refresh',
+        }));
+        break;
+      }
+    }
+  };
+
+  const handleTogglePageBlank = (pageId: string, isBlank: boolean) => {
+    setPages((prev) =>
+      prev.map((p) => (p.id === pageId ? { ...p, isBlank } : p))
+    );
+
+    const studentOrders =
+      appliedMatching?.studentPageOrders ||
+      deriveStudentPageOrdersFromMatching(appliedMatching, pages);
+    for (const [studentId, pageIds] of Object.entries(studentOrders)) {
+      if (pageIds.includes(pageId)) {
+        const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+        transcriptRevisionsRef.current[studentId] = nextRev;
+
+        setAiMarkingFreshnessMap((prev) => ({
+          ...prev,
+          [studentId]: 'needs_refresh',
+        }));
+
+        // Preserve findings, flag for review
+        setMarkings((prev) => {
+          const current = prev[studentId];
+          if (!current || !current.findings || current.findings.length === 0) return prev;
+          return {
+            ...prev,
+            [studentId]: {
+              ...current,
+              findings: current.findings.map((f) => ({
+                ...f,
+                decision: 'needs_review' as FindingDecision,
+              })),
+              isApproved: false,
+            },
+          };
+        });
+
+        const allBlank = pageIds.every((pid) => {
+          if (pid === pageId) return isBlank;
+          return Boolean(pages.find((p) => p.id === pid)?.isBlank);
+        });
+
+        setTranscripts((prev) => {
+          const current = prev[studentId];
+          if (!current) {
+            return {
+              ...prev,
+              [studentId]: {
+                studentId,
+                rawOcrText: null,
+                editedText: '',
+                isManuallyEntered: false,
+                uncertainRegions: [],
+                isVerified: false,
+                revision: nextRev,
+                isEntireScriptBlank: allBlank,
+              },
+            };
+          }
+
+          return {
+            ...prev,
+            [studentId]: {
+              ...current,
+              revision: nextRev,
+              isVerified: false,
+              isEntireScriptBlank: allBlank,
+            },
+          };
+        });
+
+        break;
+      }
+    }
+  };
+
+  const handleReorderStudentPages = (studentId: string, fromIndex: number, toIndex: number) => {
+    if (!appliedMatching) return;
+    const updatedMatching = reorderStudentPages(appliedMatching, studentId, fromIndex, toIndex);
+    setAppliedMatching(updatedMatching);
+
+    const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+    transcriptRevisionsRef.current[studentId] = nextRev;
+
+    setAiMarkingFreshnessMap((prev) => ({
+      ...prev,
+      [studentId]: 'needs_refresh',
+    }));
+
+    setMarkings((prev) => {
+      const current = prev[studentId];
+      if (!current || !current.findings || current.findings.length === 0) return prev;
+      return {
+        ...prev,
+        [studentId]: {
+          ...current,
+          findings: current.findings.map((f) => ({
+            ...f,
+            decision: 'needs_review' as FindingDecision,
+          })),
+          isApproved: false,
+        },
+      };
+    });
+  };
+
+  const handleAssignContinuationPage = (studentId: string, scanPageId: string) => {
+    if (!appliedMatching) return;
+    const updatedMatching = assignPageToStudent(appliedMatching, studentId, scanPageId);
+    setAppliedMatching(updatedMatching);
+
+    const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+    transcriptRevisionsRef.current[studentId] = nextRev;
+
+    setAiMarkingFreshnessMap((prev) => ({
+      ...prev,
+      [studentId]: 'needs_refresh',
+    }));
+  };
+
+  const handleUnassignPage = (studentId: string, scanPageId: string) => {
+    if (!appliedMatching) return;
+    const updatedMatching = unassignPageFromStudent(appliedMatching, studentId, scanPageId);
+    setAppliedMatching(updatedMatching);
+
+    const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+    transcriptRevisionsRef.current[studentId] = nextRev;
+
+    setAiMarkingFreshnessMap((prev) => ({
+      ...prev,
+      [studentId]: 'needs_refresh',
+    }));
+
+    setMarkings((prev) => {
+      const current = prev[studentId];
+      if (!current || !current.findings || current.findings.length === 0) return prev;
+      return {
+        ...prev,
+        [studentId]: {
+          ...current,
+          findings: current.findings.map((f) => ({
+            ...f,
+            decision: 'needs_review' as FindingDecision,
+          })),
+          isApproved: false,
+        },
+      };
+    });
   };
 
   // Student Matching handlers
@@ -677,9 +1070,14 @@ export const EssayMarkingPage: React.FC = () => {
       return;
     }
 
-    const assignedIndices = studentPageCounts
-      .map((c, i) => (c > 0 ? i : null))
-      .filter((i): i is number => i !== null);
+    const assignedIndices: number[] = [];
+    const seenIndices = new Set<number>();
+    matchingPreview.map.forEach((item) => {
+      if (item && !seenIndices.has(item.studentIndex)) {
+        seenIndices.add(item.studentIndex);
+        assignedIndices.push(item.studentIndex);
+      }
+    });
 
     setAppliedMatching({
       classId: selectedClassId,
@@ -699,6 +1097,9 @@ export const EssayMarkingPage: React.FC = () => {
 
   // Step 4: Transcript Verification Handlers
   const handleUpdateTranscriptText = (studentId: string, text: string, linesWithBboxes?: LineWithBbox[]) => {
+    const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+    transcriptRevisionsRef.current[studentId] = nextRev;
+
     setTranscripts((prev) => ({
       ...prev,
       [studentId]: {
@@ -709,7 +1110,14 @@ export const EssayMarkingPage: React.FC = () => {
         isManuallyEntered: true,
         uncertainRegions: prev[studentId]?.uncertainRegions || [],
         isVerified: false, // Editing revokes verification
+        revision: nextRev,
       },
+    }));
+
+    // Immediately mark student AI marking as needing refresh
+    setAiMarkingFreshnessMap((prev) => ({
+      ...prev,
+      [studentId]: 'needs_refresh',
     }));
 
     // Invalidate marking approval for this student
@@ -720,6 +1128,9 @@ export const EssayMarkingPage: React.FC = () => {
         [studentId]: { ...prev[studentId], isApproved: false },
       };
     });
+
+    // Confirm the actual committed text and revision for range replacement.
+    return { committedText: text, revision: nextRev };
   };
 
   const handleVerifyTranscript = (studentId: string) => {
@@ -758,6 +1169,10 @@ export const EssayMarkingPage: React.FC = () => {
     studentId: string,
     scores: Record<string, number>
   ) => {
+    const totalScore = Object.values(scores).reduce(
+      (a, b) => a + (Number(b) || 0),
+      0
+    );
     setMarkings((prev) => ({
       ...prev,
       [studentId]: {
@@ -767,6 +1182,8 @@ export const EssayMarkingPage: React.FC = () => {
           feedbackComment: '',
         }),
         scores,
+        totalScore,
+        scoresSource: 'teacher',
         isApproved: false, // Editing revokes approval
       },
     }));
@@ -782,9 +1199,147 @@ export const EssayMarkingPage: React.FC = () => {
           scores: {},
         }),
         feedbackComment: feedback,
+        commentsSource: 'teacher',
         isApproved: false, // Editing revokes approval
       },
     }));
+  };
+
+  const handleUpdateAssessmentComments = (
+    studentId: string,
+    comments: StructuredAssessmentComments
+  ) => {
+    setMarkings((prev) => {
+      const cur = prev[studentId] || {
+        studentId,
+        findings: [],
+        scores: {},
+        feedbackComment: '',
+        isApproved: false,
+      };
+      const formatted = formatCompositeFeedback(comments);
+      return {
+        ...prev,
+        [studentId]: {
+          ...cur,
+          assessmentComments: comments,
+          feedbackComment: formatted,
+          commentsSource: 'teacher',
+          isApproved: false,
+        },
+      };
+    });
+  };
+
+  const handleAcceptStagedAiProposal = (
+    studentId: string,
+    options: {
+      applyScores?: boolean;
+      applyComments?: boolean;
+      applyFindings?: boolean;
+    }
+  ) => {
+    const currentMarking = markings[studentId];
+    const staged = currentMarking?.stagedAiProposal;
+    if (!staged) return;
+
+    // Recheck context before accepting staged proposal!
+    const student = students.find((s) => s.id === studentId);
+    const gradeRes = resolveEffectiveGrade(assignment.grade, student?.className);
+    const currentRubricFingerprint = computeRubricFingerprint(assignment.rubric);
+    const transcriptState = transcripts[studentId];
+    const currentTranscriptText = (
+      transcriptState?.editedText ||
+      transcriptState?.rawOcrText ||
+      ''
+    ).trim();
+
+    if (staged.contextIdentity) {
+      const isGradeMatch = staged.contextIdentity.yearLevel === gradeRes.grade;
+      const isRubricMatch = staged.contextIdentity.rubricFingerprint === currentRubricFingerprint;
+      const isTitleMatch = staged.contextIdentity.assignmentTitle === assignment.title;
+      const isScopeMatch = staged.contextIdentity.scopePrompt === assignment.scopePrompt;
+      const isTextMatch = staged.contextIdentity.transcriptHash === currentTranscriptText;
+
+      if (!isGradeMatch || !isRubricMatch || !isTitleMatch || !isScopeMatch || !isTextMatch) {
+        alert(
+          '無法套用暫存建議：批改條件（年級、評分標準、題目指引或學生文字）在建議產生後已發生變更。請重新執行 AI 批改。'
+        );
+        return;
+      }
+    }
+
+    setMarkings((prev) => {
+      const cur = prev[studentId];
+      if (!cur || !cur.stagedAiProposal) return prev;
+      const proposal = cur.stagedAiProposal;
+
+      const nextScores = options.applyScores ? proposal.scores : cur.scores;
+      const nextTotalScore = options.applyScores
+        ? proposal.totalScore
+        : cur.totalScore ??
+          Object.values(nextScores).reduce((a, b) => a + (Number(b) || 0), 0);
+      const nextScoresSource = options.applyScores ? ('ai' as const) : cur.scoresSource;
+
+      const nextComments = options.applyComments
+        ? proposal.assessmentComments
+        : cur.assessmentComments;
+      const nextFeedbackComment = options.applyComments
+        ? formatCompositeFeedback(proposal.assessmentComments)
+        : cur.feedbackComment;
+      const nextCommentsSource = options.applyComments ? ('ai' as const) : cur.commentsSource;
+
+      let nextFindings = cur.findings;
+      if (options.applyFindings) {
+        const preservedManual = cur.findings.filter(
+          (f) =>
+            f.source === 'teacher' ||
+            f.isManual ||
+            f.decision === 'edited' ||
+            (!f.id.startsWith('f-ai-') && f.source !== 'ai')
+        );
+        nextFindings = [...preservedManual, ...proposal.findings];
+      }
+
+      const allApplied =
+        (options.applyScores ?? false) &&
+        (options.applyComments ?? false) &&
+        (options.applyFindings ?? false);
+
+      return {
+        ...prev,
+        [studentId]: {
+          ...cur,
+          scores: nextScores,
+          totalScore: nextTotalScore,
+          scoresSource: nextScoresSource,
+          assessmentComments: nextComments,
+          commentsSource: nextCommentsSource,
+          feedbackComment: nextFeedbackComment,
+          findings: nextFindings,
+          contextIdentity:
+            options.applyScores || options.applyComments
+              ? proposal.contextIdentity
+              : cur.contextIdentity,
+          stagedAiProposal: allApplied ? undefined : cur.stagedAiProposal,
+          isApproved: false,
+        },
+      };
+    });
+  };
+
+  const handleDismissStagedAiProposal = (studentId: string) => {
+    setMarkings((prev) => {
+      const cur = prev[studentId];
+      if (!cur || !cur.stagedAiProposal) return prev;
+      return {
+        ...prev,
+        [studentId]: {
+          ...cur,
+          stagedAiProposal: undefined,
+        },
+      };
+    });
   };
 
   const handleAddFinding = (
@@ -1063,6 +1618,10 @@ export const EssayMarkingPage: React.FC = () => {
       console.warn('Could not capture prompt snapshot for batch:', err);
     }
 
+    const batchRubricFingerprint = computeRubricFingerprint(assignment.rubric);
+    const batchScopePrompt = assignment.scopePrompt;
+    const batchAssignmentTitle = assignment.title;
+
     // Sequential execution loop: exactly 1 request in flight across entire batch
     for (let i = 0; i < itemsToRun.length; i++) {
       const targetItem = itemsToRun[i];
@@ -1085,6 +1644,34 @@ export const EssayMarkingPage: React.FC = () => {
           return stoppedState;
         });
         break;
+      }
+
+      // Resolve student grade
+      const student = students.find((s) => s.id === studentId);
+      const gradeRes = resolveEffectiveGrade(assignment.grade, student?.className);
+      if (!gradeRes.grade) {
+        setBatchProgress((prev) => {
+          if (!prev) return prev;
+          const nextItems = prev.items.map((it) =>
+            it.studentId === studentId
+              ? { ...it, status: 'failed' as const, error: gradeRes.error || '無法判斷學生年級' }
+              : it
+          );
+          const nextFailed = prev.failedItems + 1;
+          const nextPending = Math.max(0, prev.pendingItems - 1);
+          const isFinished = prev.completedItems + nextFailed >= prev.totalItems;
+          const nextState: BatchMarkingQueueProgress = {
+            ...prev,
+            failedItems: nextFailed,
+            pendingItems: nextPending,
+            items: nextItems,
+            status: isFinished ? 'completed' : prev.status,
+            finishedAt: isFinished ? new Date().toISOString() : undefined,
+          };
+          persistBatchState(assignment.id, nextState);
+          return nextState;
+        });
+        continue;
       }
 
       // Update active student in progress
@@ -1117,13 +1704,20 @@ export const EssayMarkingPage: React.FC = () => {
           scopePrompt: assignment.scopePrompt,
           rubric: assignment.rubric,
           promptSnapshot: batchPromptSnapshot,
+          yearLevel: gradeRes.grade,
         });
 
         if (res.status === 'success') {
-          // Check if teacher edited the transcript text while inference was running
+          // Check if teacher edited the transcript text or assignment conditions while inference was running
           const latestTranscriptState = transcripts[studentId];
           const latestText = (latestTranscriptState?.editedText || latestTranscriptState?.rawOcrText || '').trim();
           const wasTextEditedDuringRun = latestText !== textSnapshotAtStart;
+          const currentRubricFingerprint = computeRubricFingerprint(assignment.rubric);
+          const wasRubricEdited = currentRubricFingerprint !== batchRubricFingerprint;
+          const wasAssignmentEdited =
+            assignment.title !== batchAssignmentTitle ||
+            assignment.scopePrompt !== batchScopePrompt;
+          const isStale = wasTextEditedDuringRun || wasRubricEdited || wasAssignmentEdited;
 
           const newFindings: MarkingFinding[] = res.findings.map((f, idx) => ({
             id: `f-ai-${Date.now()}-${idx}`,
@@ -1132,14 +1726,40 @@ export const EssayMarkingPage: React.FC = () => {
             originalText: f.originalText,
             replacementText: f.replacementText,
             explanation: f.explanation,
-            decision: wasTextEditedDuringRun ? ('needs_review' as const) : ('pending' as const),
-            reviewReason: wasTextEditedDuringRun ? '批改回傳前教師已修改原文，請重新確認。' : undefined,
+            decision: isStale ? ('needs_review' as const) : ('pending' as const),
+            reviewReason: isStale ? '批改回傳前教師已修改條件或原文，請重新確認。' : undefined,
             paragraphIndex: (f as any).paragraphIndex,
             lineIndex: (f as any).lineIndex,
             occurrenceIndex: (f as any).occurrenceIndex,
             promptVersion: (f as any).promptVersion || res.promptVersion,
             schemaVersion: (f as any).schemaVersion || res.schemaVersion,
           }));
+
+          const aiScores: Record<string, number> = res.assessment?.scores || {};
+          const aiTotalScore: number =
+            res.assessment?.totalScore ??
+            Object.values(aiScores).reduce((a, b) => a + (Number(b) || 0), 0);
+          const aiComments: StructuredAssessmentComments = res.assessment?.comments || {
+            positive: '',
+            relevant: '',
+            finalNextStep: '',
+          };
+
+          const contextIdentity: MarkingJobContext = {
+            studentId,
+            yearLevel: gradeRes.grade,
+            transcriptRevision: transcriptRevisionsRef.current[studentId] ?? latestTranscriptState?.revision ?? 0,
+            transcriptHash: latestText,
+            assignmentTitle: assignment.title,
+            scopePrompt: assignment.scopePrompt,
+            rubricFingerprint: currentRubricFingerprint,
+            promptSnapshot: batchPromptSnapshot
+              ? {
+                  promptVersion: batchPromptSnapshot.promptVersion,
+                  promptHash: batchPromptSnapshot.promptHash,
+                }
+              : null,
+          };
 
           // Merge with teacher manual findings and save immediately
           setMarkings((prev) => {
@@ -1151,13 +1771,62 @@ export const EssayMarkingPage: React.FC = () => {
               isApproved: false,
             };
             const preservedManual = current.findings.filter(
-              (f) => !f.id.startsWith('f-ai-') || f.decision === 'edited' || f.decision === 'accepted' || (f as any).isManual || f.source === 'teacher'
+              (f) =>
+                f.source === 'teacher' ||
+                f.isManual ||
+                f.decision === 'edited' ||
+                (!f.id.startsWith('f-ai-') && f.source !== 'ai')
             );
+
+            const hasTeacherScores = current.scoresSource === 'teacher';
+            const hasTeacherComments = current.commentsSource === 'teacher';
+
+            if (isStale) {
+              return {
+                ...prev,
+                [studentId]: {
+                  ...current,
+                  findings: [...preservedManual, ...newFindings],
+                  isApproved: false,
+                },
+              };
+            }
+
+            if (hasTeacherScores || hasTeacherComments) {
+              const stagedProposal: StagedAiProposal = {
+                scores: aiScores,
+                totalScore: aiTotalScore,
+                assessmentComments: aiComments,
+                findings: newFindings,
+                receivedAt: new Date().toISOString(),
+                promptVersion: res.promptVersion,
+                contextIdentity,
+              };
+
+              return {
+                ...prev,
+                [studentId]: {
+                  ...current,
+                  findings: [...preservedManual, ...newFindings],
+                  stagedAiProposal,
+                  isApproved: false,
+                },
+              };
+            }
+
             return {
               ...prev,
               [studentId]: {
                 ...current,
                 findings: [...preservedManual, ...newFindings],
+                scores: aiScores,
+                totalScore: aiTotalScore,
+                scoresSource: 'ai',
+                assessmentComments: aiComments,
+                commentsSource: 'ai',
+                feedbackComment: formatCompositeFeedback(aiComments),
+                contextIdentity,
+                stagedAiProposal: undefined,
                 isApproved: false,
               },
             };
@@ -1252,77 +1921,344 @@ export const EssayMarkingPage: React.FC = () => {
     handleStartBatchMarking(remaining);
   };
 
-  const handleRunAiMarking = async (studentId: string) => {
-    const transcriptState = transcripts[studentId];
-    const textToMark = transcriptState?.editedText || transcriptState?.rawOcrText || '';
-    if (!textToMark.trim()) {
-      alert('Cannot mark essay: transcript is empty. Please verify transcript first in Step 4.');
+  // Shared candidate import: commits a validated candidate as the student's
+  // transcript, clears the staged candidate, and enqueues normal-priority
+  // provisional marking. Used by both first-time OCR and restored-candidate
+  // reconciliation (idempotency is enforced by the caller for reconciliation).
+  const importCandidateAsTranscript = useCallback(
+    (studentId: string, candidate: StagedCandidateTranscript) => {
+      const student = studentsRef.current.find((s) => s.id === studentId);
+      const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+      transcriptRevisionsRef.current[studentId] = nextRev;
+
+      const completedPageIds = candidate.pageResults
+        ? candidate.pageResults
+            .filter((p) => p.status === 'success' || p.isBlank)
+            .map((p) => p.scanPageId)
+        : [];
+
+      const newTranscript: StudentTranscriptState = {
+        studentId,
+        rawOcrText: candidate.transcript,
+        editedText: candidate.transcript,
+        linesWithBboxes: candidate.linesWithBboxes,
+        isManuallyEntered: false,
+        uncertainRegions: [],
+        isVerified: false,
+        revision: nextRev,
+        completedPageIds,
+      };
+
+      setTranscripts((prev) => {
+        const updated = { ...prev, [studentId]: newTranscript };
+        transcriptsRef.current = updated;
+        return updated;
+      });
+
+      // Clear staged candidate
+      setStagedCandidates((prev) => {
+        if (!prev[studentId]) return prev;
+        const copy = { ...prev };
+        delete copy[studentId];
+        return copy;
+      });
+
+      // Assessment context safeguards & enqueue normal-priority provisional marking
+      const curAssignment = assignmentRef.current;
+      const gradeRes = resolveEffectiveGrade(curAssignment.grade, student?.className);
+      if (gradeRes.grade && !gradeRes.conflict) {
+        setAiMarkingFreshnessMap((prev) => ({ ...prev, [studentId]: 'initial_pending' }));
+        markingQueueRef.current?.enqueueJob({
+          studentId,
+          studentName: student?.displayName || studentId,
+          studentClassNumber: student?.classNumber,
+          yearLevel: gradeRes.grade,
+          transcriptRevision: nextRev,
+          transcriptText: candidate.transcript,
+          assignmentTitle: curAssignment.title,
+          scopePrompt: curAssignment.scopePrompt,
+          rubric: curAssignment.rubric,
+          priority: 'normal',
+        });
+      }
+    },
+    []
+  );
+
+  // Candidate OCR production handler:
+  // - First-time OCR (no effective transcript): automatically imports and enqueues provisional marking on port 18086
+  // - Overwrite safeguard (effective transcript exists): stages replacement candidate for explicit teacher confirmation
+  const handleCandidateProduced = useCallback(
+    (studentId: string, candidate: StagedCandidateTranscript) => {
+      const curTranscript = transcriptsRef.current[studentId];
+      const effectiveText = (curTranscript?.editedText ?? curTranscript?.rawOcrText ?? '').trim();
+
+      // Safe Overwrite Protection: If effective transcript exists, stage for teacher confirmation
+      if (effectiveText.length > 0) {
+        setStagedCandidates((prev) => ({
+          ...prev,
+          [studentId]: candidate,
+        }));
+        return;
+      }
+
+      // First-time OCR: check if all required non-blank pages completed successfully
+      const assignedPages = getStudentAssignedPages(studentId, studentsRef.current, appliedMatching, pages);
+      const requiredPages = assignedPages.filter((p) => !p.page.isBlank);
+      const allRequiredSucceeded =
+        requiredPages.length === 0 ||
+        requiredPages.every((req) => {
+          const pr = candidate.pageResults?.find((p) => p.scanPageId === req.page.id);
+          return pr && pr.status === 'success';
+        });
+
+      if (!allRequiredSucceeded || !candidate.transcript?.trim()) {
+        // Stage partial/incomplete candidate so teacher can see failed page and retry
+        setStagedCandidates((prev) => ({
+          ...prev,
+          [studentId]: candidate,
+        }));
+        return;
+      }
+
+      importCandidateAsTranscript(studentId, candidate);
+    },
+    [appliedMatching, pages, importCandidateAsTranscript]
+  );
+
+  // Safe restored-candidate reconciliation: auto-imports valid first-time
+  // candidates that were staged before the auto-import feature existed, without
+  // overwriting existing teacher text and without accepting stale candidates.
+  useEffect(() => {
+    if (!isRestored) return;
+    if (Object.keys(stagedCandidates).length === 0) return;
+
+    reconcileRestoredCandidates(
+      stagedCandidates,
+      {
+        students,
+        pages,
+        appliedMatching,
+        transcripts,
+      },
+      reconciledCandidateIdsRef.current,
+      importCandidateAsTranscript
+    );
+  }, [
+    isRestored,
+    stagedCandidates,
+    transcripts,
+    appliedMatching,
+    pages,
+    students,
+    importCandidateAsTranscript,
+  ]);
+
+  const handleApplyCandidateTranscript = useCallback(
+    (studentId: string, candidate: StagedCandidateTranscript) => {
+      const student = studentsRef.current.find((s) => s.id === studentId);
+      const nextRev = (transcriptRevisionsRef.current[studentId] ?? 0) + 1;
+      transcriptRevisionsRef.current[studentId] = nextRev;
+
+      const completedPageIds = candidate.pageResults
+        ? candidate.pageResults
+            .filter((p) => p.status === 'success' || p.isBlank)
+            .map((p) => p.scanPageId)
+        : [];
+
+      const newTranscript: StudentTranscriptState = {
+        studentId,
+        rawOcrText: candidate.transcript,
+        editedText: candidate.transcript,
+        linesWithBboxes: candidate.linesWithBboxes,
+        isManuallyEntered: false,
+        uncertainRegions: [],
+        isVerified: false,
+        revision: nextRev,
+        completedPageIds,
+      };
+
+      setTranscripts((prev) => {
+        const updated = { ...prev, [studentId]: newTranscript };
+        transcriptsRef.current = updated;
+        return updated;
+      });
+
+      setStagedCandidates((prev) => {
+        if (!prev[studentId]) return prev;
+        const copy = { ...prev };
+        delete copy[studentId];
+        return copy;
+      });
+
+      const curAssignment = assignmentRef.current;
+      const gradeRes = resolveEffectiveGrade(curAssignment.grade, student?.className);
+      if (gradeRes.grade && !gradeRes.conflict) {
+        setAiMarkingFreshnessMap((prev) => ({ ...prev, [studentId]: 'initial_pending' }));
+        markingQueueRef.current?.enqueueJob({
+          studentId,
+          studentName: student?.displayName || studentId,
+          studentClassNumber: student?.classNumber,
+          yearLevel: gradeRes.grade,
+          transcriptRevision: nextRev,
+          transcriptText: candidate.transcript,
+          assignmentTitle: curAssignment.title,
+          scopePrompt: curAssignment.scopePrompt,
+          rubric: curAssignment.rubric,
+          priority: 'normal',
+        });
+      }
+    },
+    []
+  );
+
+  const handleRunAiMarking = (studentId: string, priority: 'normal' | 'high' = 'normal') => {
+    const readiness = checkStudentMarkingReadiness(studentId, {
+      students,
+      pages,
+      appliedMatching,
+      transcripts: transcriptsRef.current,
+      stagedCandidates,
+      assignment,
+    });
+
+    if (!readiness.ready) {
+      alert(`無法批改：${readiness.reason || '學生批改條件尚未就緒'}`);
       return;
     }
 
-    setAiMarkingLoadingMap((prev) => ({ ...prev, [studentId]: true }));
-    setAiMarkingErrorMap((prev) => ({ ...prev, [studentId]: null }));
+    const student = students.find((s) => s.id === studentId);
+    const transcriptState = transcriptsRef.current[studentId];
+    const textToMark = (transcriptState?.editedText || transcriptState?.rawOcrText || '').trim();
+    const currentRev = transcriptRevisionsRef.current[studentId] ?? transcriptState?.revision ?? 0;
+
+    markingQueueRef.current?.enqueueJob({
+      studentId,
+      studentName: student?.displayName || studentId,
+      studentClassNumber: student?.classNumber,
+      yearLevel: readiness.grade!,
+      transcriptRevision: currentRev,
+      transcriptText: textToMark,
+      assignmentTitle: assignment.title,
+      scopePrompt: assignment.scopePrompt,
+      rubric: assignment.rubric,
+      priority,
+    });
+  };
+
+  const handleRerunAiMarkingAndGoNext = (studentId: string) => {
+    const readiness = checkStudentMarkingReadiness(studentId, {
+      students,
+      pages,
+      appliedMatching,
+      transcripts: transcriptsRef.current,
+      stagedCandidates,
+      assignment,
+    });
+
+    if (!readiness.ready) {
+      alert(`無法批改：${readiness.reason || '學生批改條件尚未就緒'}`);
+      return;
+    }
+
+    const student = students.find((s) => s.id === studentId);
+    const transcriptState = transcriptsRef.current[studentId];
+    const textToMark = (transcriptState?.editedText || transcriptState?.rawOcrText || '').trim();
+    const currentRev = transcriptRevisionsRef.current[studentId] ?? transcriptState?.revision ?? 0;
 
     try {
-      const res = await essayServices.getMarkingService().mark({
-        transcript: textToMark,
+      if (!markingQueueRef.current) {
+        throw new Error('批改隊列服務尚未就緒');
+      }
+
+      markingQueueRef.current.enqueueJob({
         studentId,
+        studentName: student?.displayName || studentId,
+        studentClassNumber: student?.classNumber,
+        yearLevel: readiness.grade!,
+        transcriptRevision: currentRev,
+        transcriptText: textToMark,
         assignmentTitle: assignment.title,
         scopePrompt: assignment.scopePrompt,
         rubric: assignment.rubric,
+        priority: 'high',
       });
-
-      if (res.status === 'success') {
-        const newFindings: MarkingFinding[] = res.findings.map((f, idx) => ({
-          id: `f-ai-${Date.now()}-${idx}`,
-          type: f.type,
-          feedbackType: f.feedbackType || 'correction',
-          originalText: f.originalText,
-          replacementText: f.replacementText,
-          explanation: f.explanation,
-          decision: 'pending',
-          paragraphIndex: (f as any).paragraphIndex,
-          lineIndex: (f as any).lineIndex,
-          occurrenceIndex: (f as any).occurrenceIndex,
-          promptVersion: (f as any).promptVersion || res.promptVersion,
-          schemaVersion: (f as any).schemaVersion || res.schemaVersion,
-        }));
-
-        setMarkings((prev) => {
-          const current = prev[studentId] || {
-            studentId,
-            findings: [],
-            scores: {},
-            feedbackComment: '',
-            isApproved: false,
-          };
-          const preservedManual = current.findings.filter(
-            (f) => !f.id.startsWith('f-ai-') || f.decision === 'edited' || f.decision === 'accepted' || (f as any).isManual || f.source === 'teacher'
-          );
-          return {
-            ...prev,
-            [studentId]: {
-              ...current,
-              findings: [...preservedManual, ...newFindings],
-              isApproved: false,
-            },
-          };
-        });
-      } else {
-        setAiMarkingErrorMap((prev) => ({
-          ...prev,
-          [studentId]: res.message || 'AI marking failed',
-        }));
-      }
     } catch (err: any) {
-      setAiMarkingErrorMap((prev) => ({
-        ...prev,
-        [studentId]: err?.message || 'Failed to connect to AI marking service',
-      }));
-    } finally {
-      setAiMarkingLoadingMap((prev) => ({ ...prev, [studentId]: false }));
+      alert(`排入批改失敗：${err?.message || '未知錯誤'}`);
+      return;
+    }
+
+    // Advance to next student in confirmed matching order, or confirm terminal student
+    if (appliedMatching && appliedMatching.assignedStudentIndices.length > 0) {
+      const indices = appliedMatching.assignedStudentIndices;
+      const curPos = indices.indexOf(activeStudentIndex);
+      if (curPos === indices.length - 1) {
+        setBackgroundNotice({
+          id: `toast-${Date.now()}`,
+          message: `已為最後一位學生 (${student?.displayName || studentId}) 排入高優先 AI 批改`,
+          type: 'success',
+        });
+      } else if (curPos >= 0 && curPos < indices.length - 1) {
+        setActiveStudentIndex(indices[curPos + 1]);
+      }
     }
   };
+
+  // Provisional Initial AI Marking effect when entering 'grade' or when matching is applied
+  useEffect(() => {
+    if ((currentStep === 'grade' || currentStep === 'ocr') && appliedMatching) {
+      appliedMatching.assignedStudentIndices.forEach((sIdx) => {
+        const student = students[sIdx];
+        if (!student) return;
+        const studentId = student.id;
+        const transcriptText = (transcripts[studentId]?.editedText || transcripts[studentId]?.rawOcrText || '').trim();
+        const hasFindings = (markings[studentId]?.findings?.length ?? 0) > 0;
+        const currentFreshness = aiMarkingFreshnessMap[studentId];
+
+        // If transcript is empty, ensure it is not falsely marked initial_pending
+        if (currentFreshness === 'initial_pending' && !transcriptText) {
+          setAiMarkingFreshnessMap((prev) => {
+            const next = { ...prev };
+            delete next[studentId];
+            return next;
+          });
+          return;
+        }
+
+        if (!currentFreshness) {
+          if (hasFindings) {
+            setAiMarkingFreshnessMap((prev) => ({ ...prev, [studentId]: 'up_to_date' }));
+          } else {
+            const readiness = checkStudentMarkingReadiness(studentId, {
+              students,
+              pages,
+              appliedMatching,
+              transcripts,
+              stagedCandidates,
+              assignment,
+            });
+
+            if (readiness.ready && readiness.grade) {
+              const rev = transcriptRevisionsRef.current[studentId] ?? transcripts[studentId]?.revision ?? 0;
+              setAiMarkingFreshnessMap((prev) => ({ ...prev, [studentId]: 'initial_pending' }));
+              markingQueueRef.current?.enqueueJob({
+                studentId,
+                studentName: student.displayName || student.id,
+                studentClassNumber: student.classNumber,
+                yearLevel: readiness.grade,
+                transcriptRevision: rev,
+                transcriptText,
+                assignmentTitle: assignment.title,
+                scopePrompt: assignment.scopePrompt,
+                rubric: assignment.rubric,
+                priority: 'normal',
+              });
+            }
+          }
+        }
+      });
+    }
+  }, [currentStep, appliedMatching, transcripts, students, markings, aiMarkingFreshnessMap, assignment.title, assignment.scopePrompt, assignment.rubric, assignment.grade, stagedCandidates, pages]);
 
   const handleUpdateTranscriptionSettings = (newSettings: AssignmentTranscriptionSettings) => {
     setAssignment((prev) => ({
@@ -1355,10 +2291,8 @@ export const EssayMarkingPage: React.FC = () => {
               ? 'Add Student Scans'
               : currentStep === 'pair'
               ? 'Match Scans to Students'
-              : currentStep === 'ocr'
-              ? 'Recognition & Transcript Verification'
-              : currentStep === 'grade'
-              ? 'Marking & Teacher Review'
+              : currentStep === 'grade' || currentStep === 'ocr'
+              ? 'Verify & Review Marking'
               : 'Feedback Report Preview'
           }
           stepDescription={
@@ -1368,16 +2302,14 @@ export const EssayMarkingPage: React.FC = () => {
               ? 'Select or drag local handwriting scans or multi-page PDFs. Scans are processed in browser memory.'
               : currentStep === 'pair'
               ? 'Assign scans sequentially in student-number order. Preview page counts before applying matching.'
-              : currentStep === 'ocr'
-              ? 'Examine original scan and verify student transcript. Student spelling and grammar errors are preserved.'
-              : currentStep === 'grade'
-              ? 'Review language suggestions, score rubric dimensions, and craft constructive teacher feedback.'
+              : currentStep === 'grade' || currentStep === 'ocr'
+              ? 'Verify OCR text, review AI & manual findings, and craft constructive teacher feedback.'
               : 'Inspect student feedback report, export text records, or prepare print summaries.'
           }
           onOpenStatusModal={() => setIsStatusModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           onResetSession={handleResetSession}
-          showMarkingTools={currentStep === 'grade'}
+          showMarkingTools={currentStep === 'grade' || currentStep === 'ocr'}
           onCheck18086Status={handleCheck18086Status}
           isChecking18086={isChecking18086}
           markingModelHealth={markingModelHealth}
@@ -1426,7 +2358,7 @@ export const EssayMarkingPage: React.FC = () => {
             onApplyBulkCounts={handleApplyBulkCounts}
             onApplyMatching={handleApplyMatching}
             onPrev={() => setCurrentStep('intake')}
-            onNext={() => setCurrentStep('ocr')}
+            onNext={() => setCurrentStep('grade')}
             matchingMode={matchingMode}
             onChangeMatchingMode={(m) => setMatchingMode(m)}
             recognitionResults={recognitionResults}
@@ -1438,28 +2370,16 @@ export const EssayMarkingPage: React.FC = () => {
             onManualAssignStudent={handleManualAssignStudent}
             templateRegions={assignment.templateRegions || []}
             onUpdatePageCustomRegions={handleUpdatePageCustomRegions}
-          />
-        )}
-
-        {currentStep === 'ocr' && appliedMatching && (
-          <TranscriptVerificationPanel
-            students={students}
-            pages={pages}
-            appliedMatching={appliedMatching}
-            activeStudentIndex={activeStudentIndex}
+            onTogglePageBlank={handleTogglePageBlank}
+            onReorderStudentPages={handleReorderStudentPages}
+            onAssignContinuationPage={handleAssignContinuationPage}
+            onUnassignPage={handleUnassignPage}
             transcripts={transcripts}
-            assignment={assignment}
-            onUpdateAssignmentSettings={handleUpdateTranscriptionSettings}
-            onSelectStudent={(i) => setActiveStudentIndex(i)}
-            onUpdateTranscriptText={handleUpdateTranscriptText}
-            onVerifyTranscript={handleVerifyTranscript}
-            onPrev={() => setCurrentStep('pair')}
-            onNext={() => setCurrentStep('grade')}
-            onNavigateToPreparation={handleNavigateToPreparation}
+            markings={markings}
           />
         )}
 
-        {currentStep === 'grade' && appliedMatching && (
+        {(currentStep === 'grade' || currentStep === 'ocr') && appliedMatching && (
           <MarkingReviewPanel
             pages={pages}
             transcripts={transcripts}
@@ -1478,11 +2398,13 @@ export const EssayMarkingPage: React.FC = () => {
             onDeleteFinding={handleDeleteFinding}
             onEditFinding={handleEditFinding}
             onApproveMarking={handleApproveMarking}
-            onPrev={() => setCurrentStep('ocr')}
+            onPrev={() => setCurrentStep('pair')}
             onNext={() => setCurrentStep('report')}
             onRunAiMarking={handleRunAiMarking}
-            isAiMarkingLoading={Boolean(activeStudent?.id && aiMarkingLoadingMap[activeStudent.id])}
-            aiMarkingError={activeStudent?.id ? aiMarkingErrorMap[activeStudent.id] : null}
+            onRerunAiMarkingAndGoNext={handleRerunAiMarkingAndGoNext}
+            freshnessMap={aiMarkingFreshnessMap}
+            isAiMarkingLoading={Boolean(activeStudent?.id && aiMarkingFreshnessMap[activeStudent.id] === 'running')}
+            aiMarkingError={Boolean(activeStudent?.id && aiMarkingFreshnessMap[activeStudent.id] === 'failed') ? (activeStudent?.id ? aiMarkingErrorMap[activeStudent.id] : null) : null}
             onUpdateTranscriptText={handleUpdateTranscriptText}
             onUpdateFindings={handleUpdateFindings}
             isBatchRunning={batchProgress?.status === 'running' || batchProgress?.status === 'stopping'}
@@ -1491,6 +2413,17 @@ export const EssayMarkingPage: React.FC = () => {
             onRequestStopBatch={handleRequestStopBatch}
             onResumeBatch={handleResumeBatch}
             onDismissBatchBanner={handleDismissBatchBanner}
+            assignmentGrade={assignment.grade}
+            onAcceptStagedAiProposal={handleAcceptStagedAiProposal}
+            onDismissStagedAiProposal={handleDismissStagedAiProposal}
+            onUpdateAssessmentComments={handleUpdateAssessmentComments}
+            assignment={assignment}
+            onVerifyTranscript={handleVerifyTranscript}
+            onUpdateAssignmentSettings={handleUpdateTranscriptionSettings}
+            stagedCandidates={stagedCandidates}
+            onSetStagedCandidates={setStagedCandidates}
+            onCandidateProduced={handleCandidateProduced}
+            onApplyCandidateTranscript={handleApplyCandidateTranscript}
           />
         )}
 
@@ -1508,6 +2441,28 @@ export const EssayMarkingPage: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Floating Background Notification Toast */}
+      {backgroundNotice && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg shadow-lg border text-xs font-semibold flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-200 ${
+            backgroundNotice.type === 'success'
+              ? 'bg-emerald-900 text-emerald-100 border-emerald-700'
+              : backgroundNotice.type === 'error'
+              ? 'bg-rose-900 text-rose-100 border-rose-700'
+              : 'bg-slate-900 text-slate-100 border-slate-700'
+          }`}
+        >
+          <span>{backgroundNotice.message}</span>
+          <button
+            type="button"
+            onClick={() => setBackgroundNotice(null)}
+            className="text-white/70 hover:text-white ml-2 p-0.5 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Batch AI Marking Confirmation Modal */}
       {appliedMatching && (

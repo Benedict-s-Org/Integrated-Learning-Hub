@@ -167,6 +167,11 @@ export const BatchMarkingModal: React.FC<BatchMarkingModalProps> = ({
                 {eligibility.toProcessCount}
                 <span className="text-xs font-normal text-blue-600 ml-1">份作文</span>
               </span>
+              {eligibility.provisionalCount > 0 && (
+                <span className="text-[10px] text-amber-700 font-medium block mt-0.5">
+                  （含 {eligibility.provisionalCount} 份未核對臨時評分）
+                </span>
+              )}
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
@@ -178,9 +183,9 @@ export const BatchMarkingModal: React.FC<BatchMarkingModalProps> = ({
             </div>
 
             <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg">
-              <span className="text-[11px] font-medium text-amber-700 block">跳過（未核對／無內容）</span>
+              <span className="text-[11px] font-medium text-amber-700 block">跳過（無內容／缺頁）</span>
               <span className="text-xl font-bold text-amber-900 mt-1 block">
-                {eligibility.unverifiedCount + eligibility.emptyContentCount}
+                {eligibility.emptyContentCount + (eligibility.skippedCount - eligibility.alreadyMarkedCount - eligibility.emptyContentCount)}
                 <span className="text-xs font-normal text-amber-600 ml-1">份</span>
               </span>
             </div>
@@ -217,7 +222,7 @@ export const BatchMarkingModal: React.FC<BatchMarkingModalProps> = ({
               {activeTab === 'to_process' ? (
                 toProcessItems.length === 0 ? (
                   <div className="p-6 text-center text-slate-400">
-                    目前沒有符合批次條件的作文（全部皆已批改或尚未核對謄本）。
+                    目前沒有符合批次條件的作文（全部皆已批改或尚未分配頁面與內容）。
                   </div>
                 ) : (
                   toProcessItems.map((item) => (
@@ -229,9 +234,17 @@ export const BatchMarkingModal: React.FC<BatchMarkingModalProps> = ({
                         <span className="font-semibold text-slate-800">{item.studentName}</span>
                         <span className="text-slate-400">({item.pageCount} 頁)</span>
                       </div>
-                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-medium border border-emerald-200">
-                        待批改
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {item.isProvisional ? (
+                          <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-medium border border-amber-200">
+                            待評分 (臨時)
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-medium border border-emerald-200">
+                            待批改
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))
                 )

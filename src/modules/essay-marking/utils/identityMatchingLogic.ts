@@ -333,10 +333,16 @@ export function computeIdentityMatchingPreview(
     return totalForStudent;
   });
 
+  // Extract unique assigned student indices in the exact order they appear across confirmed scan pages
   const assignedStudentIndices: number[] = [];
-  studentPageCounts.forEach((count, idx) => {
-    if (count > 0) assignedStudentIndices.push(idx);
-  });
+  const seenStudentIndices = new Set<number>();
+  for (let i = 0; i < pages.length; i++) {
+    const item = map[i];
+    if (item && !seenStudentIndices.has(item.studentIndex)) {
+      seenStudentIndices.add(item.studentIndex);
+      assignedStudentIndices.push(item.studentIndex);
+    }
+  }
 
   const assignedPages = pages.length - unmatchedPagesCount;
 

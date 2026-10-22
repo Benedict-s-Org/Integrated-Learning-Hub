@@ -173,4 +173,112 @@ export async function prepareOcrImageFromRegions(
   };
 }
 
+/**
+ * Prepares an array of cropped images, one for each writing area, sorted strictly
+ * by configured reading order (r.orderIndex).
+ * If no writing areas: returns a single full-page item.
+ */
+export async function prepareOcrRegionsInReadingOrder(
+  pageImageUrl: string,
+  writingAreas: TemplateRegion[]
+): Promise<Array<PreparedOcrImage>> {
+  const noRegion: PreparedOcrImage = {
+    imageUrl: pageImageUrl,
+    isRegionCrop: false,
+    sourceImageUrl: pageImageUrl,
+  };
+
+  if (!Array.isArray(writingAreas) || writingAreas.length === 0) {
+    return [noRegion];
+  }
+
+  // Sort by orderIndex
+  const sorted = [...writingAreas].sort(
+    (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+  );
+
+  let img: HTMLImageElement;
+  try {
+    img = await loadImage(pageImageUrl);
+  } catch {
+    return [
+      {
+        imageUrl: pageImageUrl,
+        isRegionCrop: false,
+        sourceImageUrl: pageImageUrl,
+        error: 'Could not load the scan image to crop the selected OCR region.',
+      },
+    ];
+  }
+
+  const naturalWidth = img.naturalWidth || img.width;
+  const naturalHeight = img.naturalHeight || img.height;
+  if (!naturalWidth || !naturalHeight) {
+    return [
+      {
+        imageUrl: pageImageUrl,
+        isRegionCrop: false,
+        sourceImageUrl: pageImageUrl,
+        error: 'Scan image dimensions are unavailable; cannot crop the selected OCR region.',
+      },
+    ];
+  }
+
+  const results: PreparedOcrImage[] = [];
+
+  for (let idx = 0; idx < sorted.length; idx++) {
+    const r = sorted[idx];
+    const rectResult = computeWritingAreaRect([r]);
+    if (!rectResult.ok) {
+      results.push({
+        imageUrl: pageImageUrl,
+        isRegionCrop: false,
+        sourceImageUrl: pageImageUrl,
+        error: `Region #${idx + 1}: ${rectResult.error}`,
+      });
+      continue;
+    }
+
+    const padX = rectResult.rect.width * 0.04;
+    const padY = rectResult.rect.height * 0.04;
+    const cropW =
+      Math.min(1 - Math.max(0, rectResult.rect.x - padX), rectResult.rect.width + padX * 2) *
+      naturalWidth;
+    const cropH =
+      Math.min(1 - Math.max(0, rectResult.rect.y - padY), rectResult.rect.height + padY * 2) *
+      naturalHeight;
+
+    if (cropW < MIN_CROP_PX || cropH < MIN_CROP_PX) {
+      results.push({
+        imageUrl: pageImageUrl,
+        isRegionCrop: false,
+        sourceImageUrl: pageImageUrl,
+        error: `Region #${idx + 1} is too small (${Math.round(cropW)}x${Math.round(cropH)} px). Minimum is ${MIN_CROP_PX}x${MIN_CROP_PX} px. Please draw a larger region.`,
+      });
+      continue;
+    }
+
+    const cropped = cropRegionFromImage(img, rectResult.rect);
+    if (!cropped) {
+      results.push({
+        imageUrl: pageImageUrl,
+        isRegionCrop: false,
+        sourceImageUrl: pageImageUrl,
+        error: `Cropping region #${idx + 1} failed. Please re-draw the region in the region editor.`,
+      });
+      continue;
+    }
+
+    results.push({
+      imageUrl: cropped,
+      isRegionCrop: true,
+      regionRect: rectResult.rect,
+      sourceImageUrl: pageImageUrl,
+    });
+  }
+
+  return results;
+}
+
+
 

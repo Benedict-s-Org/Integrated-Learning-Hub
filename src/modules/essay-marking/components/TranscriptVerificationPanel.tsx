@@ -30,7 +30,7 @@ import { TranscriptionToolbar } from './TranscriptionToolbar';
 import { StagedCandidateBox } from './StagedCandidateBox';
 import { MagnifierLens, MagnifierState } from './MagnifierLens';
 import { essayServices } from '../services/essayServiceRegistry';
-import { prepareOcrImageFromRegions } from '../utils/regionAwareOcr';
+import { prepareOcrImageFromRegions, prepareOcrRegionsInReadingOrder } from '../utils/regionAwareOcr';
 import {
   BatchQueueProgress,
   BatchTranscriptionQueueController,
@@ -120,7 +120,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     () => templateRegions.filter((r) => r && r.type === 'writing_area'),
     [templateRegions]
   );
-  const hasWritingAreas = writingAreas.length > 0;
+  const hasWritingAreas = assignment?.responseFormat !== 'worksheet' || writingAreas.length > 0;
 
   // Staged Candidate Transcripts by Student ID (does NOT overwrite teacher editor automatically)
   const [stagedCandidatesByStudent, setStagedCandidatesByStudent] = useState<
@@ -441,6 +441,20 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
 
     try {
       for (const item of studentPagesWithIndices) {
+        // Skip OCR for confirmed blank pages
+        if (item.page.isBlank) {
+          pageResults.push({
+            scanPageId: item.page.id,
+            part: item.part,
+            totalParts: item.total,
+            status: 'success',
+            transcript: '',
+            isBlank: true,
+            ocrMode: activeMode,
+          });
+          continue;
+        }
+
         // Mode: Legacy Local Qwen VL direct transcription
         if (activeMode === 'local_qwen_vl') {
           const areaResolution = resolveWritingAreasForPage(
@@ -493,13 +507,98 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         // Mode A & B: Run Mathpix OCR via Bridge (port 18089)
         setPageStage('ocr_running');
 
-        // Shared region-aware preparation (same helper as batch/retry/verify):
-        // crop the saved writing-area region when one exists for this page;
-        // pages without a region keep the existing full-page behavior.
         const singleAreaResolution = resolveWritingAreasForPage(item.page, item.part, templateRegions);
+        if (singleAreaResolution.hasError) {
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: `Page ${item.part}: ${singleAreaResolution.errorMessage || 'Invalid OCR region'}`,
+          });
+          pageResults.push({
+            scanPageId: item.page.id,
+            part: item.part,
+            totalParts: item.total,
+            status: 'failed',
+            error: singleAreaResolution.errorMessage || 'Invalid OCR region',
+            errorCode: 'INVALID_OCR_REGION',
+            ocrMode: activeMode,
+          });
+          continue;
+        }
+
+        // Multi-region continuation page support
+        if (singleAreaResolution.regions.length > 1) {
+          const regionCrops = await prepareOcrRegionsInReadingOrder(
+            item.page.previewUrl,
+            singleAreaResolution.regions
+          );
+          const regionTexts: string[] = [];
+          let hasFail = false;
+          let firstError = '';
+          for (let rIdx = 0; rIdx < regionCrops.length; rIdx++) {
+            const crop = regionCrops[rIdx];
+            if (crop.error) {
+              hasFail = true;
+              firstError = crop.error;
+              break;
+            }
+            setNotice({
+              type: 'info',
+              text: `Contacting Mathpix OCR (Port 18089) for region ${rIdx + 1} of ${regionCrops.length} on Page ${item.part}...`,
+            });
+            const ocrRes = await ocrService.recognize({
+              imageUrls: [crop.imageUrl],
+              studentId: targetStudentId,
+              assignmentId: assignment.id,
+            });
+            if (ocrRes.status !== 'success') {
+              hasFail = true;
+              firstError = ocrRes.message || 'OCR failed';
+              break;
+            }
+            regionTexts.push(ocrRes.transcript.trim());
+          }
+
+          if (hasFail) {
+            setPageStage('failed');
+            setNotice({ type: 'error', text: `Page ${item.part}: ${firstError}` });
+            pageResults.push({
+              scanPageId: item.page.id,
+              part: item.part,
+              totalParts: item.total,
+              status: 'failed',
+              error: firstError,
+              ocrMode: activeMode,
+            });
+            continue;
+          }
+
+          const combinedMultiRegionText = regionTexts.join('\n\n');
+          const multiLines = combinedMultiRegionText.split('\n').map((l) => ({
+            text: l,
+            bbox: null,
+            scanPageId: item.page.id,
+            pageNumber: item.part,
+          }));
+
+          pageResults.push({
+            scanPageId: item.page.id,
+            part: item.part,
+            totalParts: item.total,
+            status: 'success',
+            transcript: combinedMultiRegionText,
+            mathpixRawTranscript: combinedMultiRegionText,
+            linesWithBboxes: multiLines,
+            ocrMode: activeMode,
+            ocrRegionImageUrl: regionCrops[0]?.imageUrl,
+            isRegionCrop: true,
+          });
+          continue;
+        }
+
         const prepared = await prepareOcrImageFromRegions(
           item.page.previewUrl,
-          singleAreaResolution.hasError ? [] : singleAreaResolution.regions
+          singleAreaResolution.regions
         );
 
         if (prepared.error) {
@@ -872,6 +971,18 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     pageItem: { page: ScanPage; part: number; total: number }
   ) => {
     if (inFlightRef.current || isBatchRunning) return;
+
+    // Confirm before OCR rerun replaces teacher-corrected text
+    const existingTranscript = transcripts[targetStudentId];
+    if (existingTranscript?.isManuallyEntered && existingTranscript?.editedText?.trim()) {
+      const confirmReplace = window.confirm(
+        'Re-running OCR for this page will replace teacher-corrected text in the transcript. Do you want to proceed?'
+      );
+      if (!confirmReplace) {
+        return;
+      }
+    }
+
     inFlightRef.current = true;
     setPerPageLoading((prev) => ({ ...prev, [pageItem.page.id]: true }));
     setNotice(null);
@@ -883,7 +994,18 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     try {
       let pageRes: PageTranscriptionResult;
 
-      if (activeMode === 'local_qwen_vl') {
+      // Skip OCR for confirmed blank pages
+      if (pageItem.page.isBlank) {
+        pageRes = {
+          scanPageId: pageItem.page.id,
+          part: pageItem.part,
+          totalParts: pageItem.total,
+          status: 'success',
+          transcript: '',
+          isBlank: true,
+          ocrMode: activeMode,
+        };
+      } else if (activeMode === 'local_qwen_vl') {
         const areaResolution = resolveWritingAreasForPage(
           pageItem.page,
           pageItem.part,
@@ -920,30 +1042,107 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           ocrMode: 'local_qwen_vl',
         };
       } else {
-        // Shared region-aware preparation (same helper as single/batch/retry).
         const inlineAreaResolution = resolveWritingAreasForPage(pageItem.page, pageItem.part, templateRegions);
-        const prepared = await prepareOcrImageFromRegions(
-          pageItem.page.previewUrl,
-          inlineAreaResolution.hasError ? [] : inlineAreaResolution.regions
-        );
-
-        if (prepared.error) {
+        if (inlineAreaResolution.hasError) {
           pageRes = {
             scanPageId: pageItem.page.id,
             part: pageItem.part,
             totalParts: pageItem.total,
             status: 'failed',
-            error: prepared.error,
+            error: inlineAreaResolution.errorMessage || 'Invalid OCR region',
             errorCode: 'INVALID_OCR_REGION',
             ocrMode: activeMode,
           };
           setNotice({
             type: 'error',
-            text: `Page ${pageItem.part}: ${prepared.error}`,
+            text: `Page ${pageItem.part}: ${inlineAreaResolution.errorMessage || 'Invalid OCR region'}`,
           });
+        } else if (inlineAreaResolution.regions.length > 1) {
+          // Multi-region continuation page support in single page retry
+          const regionCrops = await prepareOcrRegionsInReadingOrder(
+            pageItem.page.previewUrl,
+            inlineAreaResolution.regions
+          );
+          const regionTexts: string[] = [];
+          let hasFail = false;
+          let firstError = '';
+          for (let rIdx = 0; rIdx < regionCrops.length; rIdx++) {
+            const crop = regionCrops[rIdx];
+            if (crop.error) {
+              hasFail = true;
+              firstError = crop.error;
+              break;
+            }
+            setNotice({
+              type: 'info',
+              text: `Contacting Mathpix OCR for region ${rIdx + 1} of ${regionCrops.length} on Page ${pageItem.part}...`,
+            });
+            const ocrRes = await ocrService.recognize({
+              imageUrls: [crop.imageUrl],
+              studentId: targetStudentId,
+              assignmentId: assignment.id,
+            });
+            if (ocrRes.status !== 'success') {
+              hasFail = true;
+              firstError = ocrRes.message || 'OCR failed';
+              break;
+            }
+            regionTexts.push(ocrRes.transcript.trim());
+          }
+
+          if (hasFail) {
+            pageRes = {
+              scanPageId: pageItem.page.id,
+              part: pageItem.part,
+              totalParts: pageItem.total,
+              status: 'failed',
+              error: firstError,
+              ocrMode: activeMode,
+            };
+            setNotice({ type: 'error', text: `Page ${pageItem.part}: ${firstError}` });
+          } else {
+            const joinedText = regionTexts.join('\n\n');
+            pageRes = {
+              scanPageId: pageItem.page.id,
+              part: pageItem.part,
+              totalParts: pageItem.total,
+              status: 'success',
+              transcript: joinedText,
+              mathpixRawTranscript: joinedText,
+              linesWithBboxes: joinedText.split('\n').map((l) => ({
+                text: l,
+                bbox: null,
+                scanPageId: pageItem.page.id,
+                pageNumber: pageItem.part,
+              })),
+              ocrMode: activeMode,
+              ocrRegionImageUrl: regionCrops[0]?.imageUrl,
+              isRegionCrop: true,
+            };
+          }
         } else {
-        // Run Mathpix OCR for this page
-        const ocrRes = await ocrService.recognize({
+          const prepared = await prepareOcrImageFromRegions(
+            pageItem.page.previewUrl,
+            inlineAreaResolution.regions
+          );
+
+          if (prepared.error) {
+            pageRes = {
+              scanPageId: pageItem.page.id,
+              part: pageItem.part,
+              totalParts: pageItem.total,
+              status: 'failed',
+              error: prepared.error,
+              errorCode: 'INVALID_OCR_REGION',
+              ocrMode: activeMode,
+            };
+            setNotice({
+              type: 'error',
+              text: `Page ${pageItem.part}: ${prepared.error}`,
+            });
+          } else {
+          // Run Mathpix OCR for this page
+          const ocrRes = await ocrService.recognize({
           imageUrls: [prepared.imageUrl],
           studentId: targetStudentId,
           assignmentId: assignment.id,
@@ -1040,6 +1239,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           }
         }
         }
+      }
       }
 
       const existingCandidate = stagedCandidatesByStudent[targetStudentId];
@@ -1405,15 +1605,32 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                   key={item.part}
                   type="button"
                   onClick={() => setSelectedScanPagePart(item.part)}
-                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded font-medium transition-colors flex items-center gap-1 ${
                     activePageItem?.part === item.part
                       ? 'bg-white text-blue-700 shadow-2xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Page {item.part} of {item.total}
+                  <span>Page {item.part} of {item.total}</span>
+                  {item.page.isBlank && (
+                    <span className="text-[10px] bg-slate-200 text-slate-700 px-1 py-0.2 rounded font-semibold">
+                      Blank
+                    </span>
+                  )}
+                  {item.part >= 3 && !item.page.isBlank && (
+                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1 py-0.2 rounded font-semibold">
+                      Cont.
+                    </span>
+                  )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {activePageItem?.page.isBlank && (
+            <div className="mb-3 p-2 rounded bg-slate-100 border border-slate-200 text-xs text-slate-600 font-semibold flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-slate-500 shrink-0" />
+              <span>Page {activePageItem.part} is marked blank and excluded from OCR & transcript assembly.</span>
             </div>
           )}
 
@@ -1551,6 +1768,22 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
               </button>
             </div>
           )}
+
+          {/* Entire Script Blank Banner */}
+          {studentPagesWithIndices.length > 0 &&
+            studentPagesWithIndices.every((item) => item.page.isBlank) && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-slate-500 shrink-0" />
+                  <div>
+                    <strong className="font-semibold text-slate-800">
+                      Entire script confirmed blank:
+                    </strong>{' '}
+                    All assigned pages are blank. OCR is skipped. You can proceed directly to verify without transcript text.
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* Current Student Transcription Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-md mb-3">

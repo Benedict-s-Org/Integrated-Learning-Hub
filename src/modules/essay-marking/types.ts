@@ -45,6 +45,18 @@ export const getRubricForGrade = (grade: PrimaryGrade): RubricDimension[] => {
   return [...RUBRIC_P4_P6];
 };
 
+/**
+ * Computes a deterministic fingerprint of the rubric including all dimensions, names, maxima,
+ * and criteria/descriptions to protect against context changes.
+ */
+export function computeRubricFingerprint(rubric: RubricDimension[]): string {
+  if (!Array.isArray(rubric) || rubric.length === 0) return 'rubric_empty';
+  return rubric
+    .map((d) => `${d.id}:${d.name}:${d.maxScore}:${d.description || ''}`)
+    .sort()
+    .join('|');
+}
+
 export const parseGradeFromClassName = (className?: string | null): PrimaryGrade | null => {
   if (!className) return null;
   const trimmed = className.trim();
@@ -54,6 +66,43 @@ export const parseGradeFromClassName = (className?: string | null): PrimaryGrade
   }
   return null;
 };
+
+/**
+ * Resolves the effective primary grade for a student, detecting conflicts between assignment and student class.
+ * Enforces:
+ * - Current pedagogical prompt supports P.3 - P.6 only. P.1 and P.2 return an unsupported error.
+ * - If assignment grade and student class grade conflict, returns an explicit conflict error rather than silently choosing.
+ */
+export function resolveEffectiveGrade(
+  assignmentGrade?: PrimaryGrade | null,
+  studentClassName?: string | null
+): { grade: PrimaryGrade | null; error?: string } {
+  const studentGrade = parseGradeFromClassName(studentClassName);
+
+  if (assignmentGrade && studentGrade && assignmentGrade !== studentGrade) {
+    return {
+      grade: null,
+      error: `年級設定衝突：作業設定為 ${assignmentGrade}，但學生班級（${studentClassName}）推算為 ${studentGrade}。請先於作業設定或班級名冊解決衝突。`,
+    };
+  }
+
+  const effective = assignmentGrade || studentGrade;
+  if (!effective) {
+    return {
+      grade: null,
+      error: '缺少學生年級：請於作業設定或班級名單指定學生年級 (P.3, P.4, P.5, P.6)。',
+    };
+  }
+
+  if (effective === 'P.1' || effective === 'P.2') {
+    return {
+      grade: null,
+      error: `不支援的年級 (${effective})：目前寫作批改指引僅支援小三至小六 (P.3–P.6)。`,
+    };
+  }
+
+  return { grade: effective };
+}
 
 export const DEFAULT_RUBRIC: RubricDimension[] = [];
 
@@ -74,6 +123,7 @@ export interface TemplateRegion {
   pageWidth?: number;
   pageHeight?: number;
   name?: string;
+  orderIndex?: number;
 }
 
 export interface AssignmentConfig {
@@ -112,6 +162,7 @@ export interface ScanPage {
   orderIndex: number;
   customRegions?: TemplateRegion[];
   imageBlob?: Blob;
+  isBlank?: boolean;
 }
 
 export interface StudentRosterItem {
@@ -172,6 +223,7 @@ export interface AppliedMatching {
   assignedStudentIndices: number[];
   mode?: MatchingMode;
   contextFingerprint?: string;
+  studentPageOrders?: Record<string, string[]>;
 }
 
 export type TranscriptionProvider =
@@ -259,6 +311,7 @@ export interface PageTranscriptionResult {
   isDryRun?: boolean;
   ocrRegionImageUrl?: string;
   isRegionCrop?: boolean;
+  isBlank?: boolean;
 }
 
 export interface StagedCandidateTranscript {
@@ -286,6 +339,7 @@ export interface StagedCandidateTranscript {
   qwenChanges?: Array<{ ocrOriginal: string; verified: string; reason: string }>;
   unreadableWords?: string[];
   isDryRun?: boolean;
+  isEntireScriptBlank?: boolean;
 }
 
 export interface UncertainRegion {
@@ -306,6 +360,9 @@ export interface StudentTranscriptState {
   uncertainRegions: UncertainRegion[];
   isVerified: boolean;
   verifiedAt?: string;
+  revision?: number;
+  isEntireScriptBlank?: boolean;
+  completedPageIds?: string[];
 }
 
 export type FindingDecision = 'pending' | 'accepted' | 'rejected' | 'edited' | 'needs_review';
@@ -324,20 +381,61 @@ export interface MarkingFinding {
   paragraphIndex?: number;
   lineIndex?: number;
   occurrenceIndex?: number;
+  startIndex?: number;
+  endIndex?: number;
   isManual?: boolean;
   reviewReason?: string;
+  anchorReview?: boolean;
+  anchorReviewReason?: string;
   source?: 'ai' | 'teacher';
   promptVersion?: string;
   schemaVersion?: string;
+}
+
+export interface StructuredAssessmentComments {
+  positive: string;
+  relevant: string;
+  finalNextStep: string;
+}
+
+export interface MarkingJobContext {
+  studentId: string;
+  yearLevel: PrimaryGrade;
+  transcriptRevision: number;
+  transcriptHash: string;
+  assignmentTitle: string;
+  scopePrompt: string;
+  rubricFingerprint: string;
+  promptSnapshot?: {
+    promptVersion: string;
+    promptHash: string;
+  } | null;
+}
+
+export interface StagedAiProposal {
+  scores: Record<string, number>;
+  totalScore: number;
+  assessmentComments: StructuredAssessmentComments;
+  findings: MarkingFinding[];
+  receivedAt: string;
+  promptVersion?: string;
+  contextIdentity?: MarkingJobContext;
 }
 
 export interface StudentMarkingState {
   studentId: string;
   findings: MarkingFinding[];
   scores: Record<string, number>;
+  totalScore?: number;
+  scoresSource?: 'ai' | 'teacher';
+  assessmentComments?: StructuredAssessmentComments;
+  commentsSource?: 'ai' | 'teacher';
   feedbackComment: string;
   isApproved: boolean;
   approvedAt?: string;
+  markingSchemaVersion?: string;
+  contextIdentity?: MarkingJobContext;
+  stagedAiProposal?: StagedAiProposal;
 }
 
 export interface StudentReportState {

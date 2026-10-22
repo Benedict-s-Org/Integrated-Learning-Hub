@@ -841,6 +841,153 @@ export function loadEditableMarkingInstructions(customPath) {
 }
 
 /**
+ * Validates model output assessment fields (scores, totalScore, comments) against the pedagogical scoring scheme.
+ * Enforces:
+ * - 5-mark steps (e.g. 0, 5, 10, ..., 100)
+ * - Exact arithmetic sum (100 is maximum, not required awarded total)
+ * - P3: content /60 + language /40 = totalScore (organisation MUST NOT be present)
+ * - P4-P6: content /40 + language /40 + organisation /20 = totalScore (single paragraph organisation cap <= 10)
+ * - Required positive, relevant, and finalNextStep comments
+ *
+ * @param {object} parsed
+ * @param {string} yearLevel - 'P.3' | 'P.4' | 'P.5' | 'P.6'
+ * @param {Array<string[]>} [paragraphs]
+ * @returns {{
+ *   scores: Record<string, number>,
+ *   totalScore: number,
+ *   comments: { positive: string, relevant: string, finalNextStep: string }
+ * }}
+ */
+export function validateMarkingAssessment(parsed, yearLevel, paragraphs = []) {
+  if (!parsed || typeof parsed !== 'object') {
+    const err = new Error('Model output is not a valid JSON object.');
+    err.code = 'INVALID_MODEL_OUTPUT_FORMAT';
+    throw err;
+  }
+
+  const { scores, totalScore, comments } = parsed;
+  if (!scores || typeof scores !== 'object') {
+    const err = new Error('Model output missing "scores" object.');
+    err.code = 'MISSING_SCORES';
+    throw err;
+  }
+
+  if (typeof totalScore !== 'number' || Number.isNaN(totalScore)) {
+    const err = new Error(`Model output missing or invalid numeric "totalScore": ${totalScore}.`);
+    err.code = 'INVALID_TOTAL_SCORE';
+    throw err;
+  }
+
+  if (totalScore < 0 || totalScore > 100) {
+    const err = new Error(`totalScore must be between 0 and 100, received ${totalScore}.`);
+    err.code = 'SCORE_OUT_OF_BOUNDS';
+    throw err;
+  }
+
+  if (totalScore % 5 !== 0) {
+    const err = new Error(`totalScore must be in 5-mark steps, received ${totalScore}.`);
+    err.code = 'INVALID_SCORE_STEP';
+    throw err;
+  }
+
+  if (!comments || typeof comments !== 'object') {
+    const err = new Error('Model output missing "comments" object.');
+    err.code = 'MISSING_COMMENTS';
+    throw err;
+  }
+
+  for (const cKey of ['positive', 'relevant', 'finalNextStep']) {
+    if (typeof comments[cKey] !== 'string' || !comments[cKey].trim()) {
+      const err = new Error(`Model output missing or empty comments.${cKey}.`);
+      err.code = 'MISSING_COMMENT_FIELD';
+      throw err;
+    }
+  }
+
+  const isP3 = yearLevel === 'P.3';
+
+  if (isP3) {
+    if (scores.organisation !== undefined && scores.organisation !== null) {
+      const err = new Error('Primary 3 scheme must NOT include an organisation score.');
+      err.code = 'UNEXPECTED_DIMENSION_FOR_GRADE';
+      throw err;
+    }
+
+    const { content, language } = scores;
+    if (typeof content !== 'number' || Number.isNaN(content) || content < 0 || content > 60 || content % 5 !== 0) {
+      const err = new Error(`P3 "content" score must be a 5-mark step between 0 and 60. Received: ${content}.`);
+      err.code = 'INVALID_CONTENT_SCORE';
+      throw err;
+    }
+
+    if (typeof language !== 'number' || Number.isNaN(language) || language < 0 || language > 40 || language % 5 !== 0) {
+      const err = new Error(`P3 "language" score must be a 5-mark step between 0 and 40. Received: ${language}.`);
+      err.code = 'INVALID_LANGUAGE_SCORE';
+      throw err;
+    }
+
+    if (content + language !== totalScore) {
+      const err = new Error(`Score arithmetic mismatch: content (${content}) + language (${language}) = ${content + language}, but totalScore was reported as ${totalScore}.`);
+      err.code = 'SCORE_ARITHMETIC_MISMATCH';
+      throw err;
+    }
+
+    return {
+      scores: { content, language },
+      totalScore,
+      comments: {
+        positive: comments.positive.trim(),
+        relevant: comments.relevant.trim(),
+        finalNextStep: comments.finalNextStep.trim(),
+      },
+    };
+  } else {
+    // P.4 - P.6
+    const { content, language, organisation } = scores;
+    if (typeof content !== 'number' || Number.isNaN(content) || content < 0 || content > 40 || content % 5 !== 0) {
+      const err = new Error(`P4-P6 "content" score must be a 5-mark step between 0 and 40. Received: ${content}.`);
+      err.code = 'INVALID_CONTENT_SCORE';
+      throw err;
+    }
+
+    if (typeof language !== 'number' || Number.isNaN(language) || language < 0 || language > 40 || language % 5 !== 0) {
+      const err = new Error(`P4-P6 "language" score must be a 5-mark step between 0 and 40. Received: ${language}.`);
+      err.code = 'INVALID_LANGUAGE_SCORE';
+      throw err;
+    }
+
+    if (typeof organisation !== 'number' || Number.isNaN(organisation) || organisation < 0 || organisation > 20 || organisation % 5 !== 0) {
+      const err = new Error(`P4-P6 "organisation" score must be a 5-mark step between 0 and 20. Received: ${organisation}.`);
+      err.code = 'INVALID_ORGANISATION_SCORE';
+      throw err;
+    }
+
+    // Single paragraph cap: compositions with only 1 paragraph cannot exceed 10/20 for Organisation
+    if (paragraphs.length <= 1 && organisation > 10) {
+      const err = new Error(`Primary 4-6 composition with a single paragraph cannot exceed 10/20 for Organisation. Received: ${organisation}.`);
+      err.code = 'ORGANISATION_SINGLE_PARAGRAPH_CAP_EXCEEDED';
+      throw err;
+    }
+
+    if (content + language + organisation !== totalScore) {
+      const err = new Error(`Score arithmetic mismatch: content (${content}) + language (${language}) + organisation (${organisation}) = ${content + language + organisation}, but totalScore was reported as ${totalScore}.`);
+      err.code = 'SCORE_ARITHMETIC_MISMATCH';
+      throw err;
+    }
+
+    return {
+      scores: { content, language, organisation },
+      totalScore,
+      comments: {
+        positive: comments.positive.trim(),
+        relevant: comments.relevant.trim(),
+        finalNextStep: comments.finalNextStep.trim(),
+      },
+    };
+  }
+}
+
+/**
  * Builds the canonical system and user messages for essay marking.
  * Combines editable pedagogical instructions with strict technical JSON contract.
  *
@@ -848,9 +995,25 @@ export function loadEditableMarkingInstructions(customPath) {
  * @param {string} [assignmentTitle]
  * @param {string} [scopePrompt]
  * @param {object|null} [promptSnapshot]
- * @returns {{ systemMessage: string, userMessage: string, promptVersion: string, schemaVersion: string }}
+ * @param {string} [yearLevel] - 'P.3' | 'P.4' | 'P.5' | 'P.6'
+ * @param {Array<object>} [rubric]
+ * @returns {{ systemMessage: string, userMessage: string, promptVersion: string, schemaVersion: string, yearLevel: string }}
  */
-export function buildMarkingPrompt(paragraphs, assignmentTitle = '', scopePrompt = '', promptSnapshot = null) {
+export function buildMarkingPrompt(
+  paragraphs,
+  assignmentTitle = '',
+  scopePrompt = '',
+  promptSnapshot = null,
+  yearLevel = 'P.4',
+  rubric = []
+) {
+  const validYears = ['P.3', 'P.4', 'P.5', 'P.6'];
+  if (!yearLevel || !validYears.includes(yearLevel)) {
+    const err = new Error(`Valid student year level ('P.3', 'P.4', 'P.5', 'P.6') is required for essay marking. Received: "${yearLevel}".`);
+    err.code = 'INVALID_YEAR_LEVEL';
+    throw err;
+  }
+
   let formattedStructure = '';
   paragraphs.forEach((para, pIdx) => {
     para.forEach((lineText, lIdx) => {
@@ -860,6 +1023,7 @@ export function buildMarkingPrompt(paragraphs, assignmentTitle = '', scopePrompt
 
   const assignmentContext = assignmentTitle ? `ASSIGNMENT: ${assignmentTitle}\n` : '';
   const promptContext = scopePrompt ? `REQUIREMENTS / CONTEXT: ${scopePrompt}\n` : '';
+  const yearContext = `STUDENT YEAR LEVEL: ${yearLevel}\n`;
 
   const promptInfo = promptSnapshot && promptSnapshot.content
     ? {
@@ -869,11 +1033,21 @@ export function buildMarkingPrompt(paragraphs, assignmentTitle = '', scopePrompt
       }
     : loadEditableMarkingInstructions();
 
-  const technicalContract = `
----
-CRITICAL TECHNICAL CONTRACT (System Rules - Output JSON Only):
-You must output a single valid JSON object strictly matching this schema:
-{
+  const isP3 = yearLevel === 'P.3';
+
+  const schemaExample = isP3
+    ? `{
+  "scores": {
+    "content": number, // 0..60 in 5-mark steps (e.g. 0, 5, ..., 60)
+    "language": number // 0..40 in 5-mark steps (e.g. 0, 5, ..., 40)
+    // NOTE: Primary 3 has NO organisation score. Do NOT include an organisation field.
+  },
+  "totalScore": number, // Exactly content + language. 100 is maximum, not required. (e.g. 45 + 30 = 75)
+  "comments": {
+    "positive": string, // One genuine positive comment highlighting a real strength
+    "relevant": string, // Important genuine language issues or content feedback
+    "finalNextStep": string // Summary of main achievement and practical next step
+  },
   "findings": [
     {
       "feedbackType": "correction" | "improvement" | "clarity",
@@ -886,32 +1060,246 @@ You must output a single valid JSON object strictly matching this schema:
       "occurrenceIndex": number
     }
   ]
-}
+}`
+    : `{
+  "scores": {
+    "content": number, // 0..40 in 5-mark steps (e.g. 0, 5, ..., 40)
+    "language": number, // 0..40 in 5-mark steps (e.g. 0, 5, ..., 40)
+    "organisation": number // 0..20 in 5-mark steps (0, 5, 10, 15, 20). Single-paragraph composition cannot exceed 10.
+  },
+  "totalScore": number, // Exactly content + language + organisation. 100 is maximum, not required. (e.g. 30 + 30 + 15 = 75)
+  "comments": {
+    "positive": string, // One genuine positive comment highlighting a real strength
+    "relevant": string, // Important genuine language issues, content, or organisation feedback
+    "finalNextStep": string // Summary of main achievement and practical next step
+  },
+  "findings": [
+    {
+      "feedbackType": "correction" | "improvement" | "clarity",
+      "type": "Tense" | "Grammar" | "Spelling" | "Punctuation" | "Capitalization" | "Vocabulary" | "Style" | "Coherence" | "Reference Clarity",
+      "quote": string,
+      "suggestion": string,
+      "reason": string,
+      "paragraphIndex": number,
+      "lineIndex": number,
+      "occurrenceIndex": number
+    }
+  ]
+}`;
 
-Technical Rules:
-1. "feedbackType" MUST be one of:
-   - "correction": Required clear errors (spelling, grammar, punctuation, verb tense).
-   - "improvement": Optional phrasing or vocabulary enhancements where the original is understandable and grammatically acceptable.
-   - "clarity": For confusing connections, ambiguous pronouns, or logical inconsistencies across the passage. If the intended meaning cannot be inferred with certainty, "suggestion" MUST be "Clarification needed".
-2. "quote" MUST be an exact verbatim substring from the specified line.
-3. For "correction", "suggestion" MUST be different from "quote" (no-op corrections are invalid).
-4. Never suggest an improvement or clarity finding that repeats or overlaps an existing required correction on the same words.
-5. "paragraphIndex" and "lineIndex" must be 0-indexed integers matching the provided lines. "occurrenceIndex" is 0-indexed for repeated occurrences on the same line.
-6. Output strict JSON only. Keep every item's "reason" explanation concise (normally one useful sentence). Do not add markdown commentary outside the JSON block.`;
+  const technicalContract = `
+---
+CRITICAL TECHNICAL CONTRACT (System Rules - Output JSON Only):
+You must output a single valid JSON object strictly matching this schema:
+${schemaExample}
+
+Scoring & Assessment Rules:
+1. Student Year Level: ${yearLevel}.
+${isP3
+  ? '   - P3 Scheme: Content /60 + Language /40 = TotalScore /100.\n   - Primary 3 MUST NOT receive an organisation score and must not receive a paragraphing penalty.'
+  : '   - P4–P6 Scheme: Content /40 + Language /40 + Organisation /20 = TotalScore /100.\n   - Single paragraph composition cannot exceed 10/20 for Organisation.'}
+2. Permitted Score Steps: Every dimension score and totalScore MUST be an exact 5-mark step (e.g., 0, 5, 10, 15, ..., 95, 100). Do NOT use arbitrary scores like 82, 78, 66.
+3. Total Score Arithmetic: "totalScore" MUST equal the exact mathematical sum of the applicable dimensions (${isP3 ? 'content + language' : 'content + language + organisation'}). 100 is the maximum possible score, NOT a compulsory total (e.g., 75, 80, 85 are common and valid).
+4. Comments:
+   - "positive": Exactly one encouraging sentence highlighting a genuine strength.
+   - "relevant": Concise summary of main language issues or content development.
+   - "finalNextStep": Encouraging summary with a clear practical writing goal.
+5. Findings Contract:
+   - "feedbackType": "correction" (required clear errors), "improvement" (optional natural phrasing), or "clarity" (confusing/inconsistent text).
+   - "quote": exact verbatim substring from specified line.
+   - For "correction", "suggestion" MUST be different from "quote".
+   - Never duplicate or overlap an improvement/clarity finding on the same words as a required correction.
+   - "paragraphIndex" and "lineIndex" are 0-indexed integers.
+6. Output strict JSON only without markdown commentary outside the JSON block.`;
 
   const systemMessage = `${promptInfo.content}\n${technicalContract}`;
 
-  const userMessage = `${assignmentContext}${promptContext}Student Essay Lines (Read Complete Essay Before Evaluating):
+  const userMessage = `${assignmentContext}${promptContext}${yearContext}Student Essay Lines (Read Complete Essay Before Evaluating):
 ${formattedStructure}
 
-Please evaluate the complete student essay across all three feedback types (correction, improvement, clarity) and output strict JSON now:`;
+Please evaluate the complete student essay across all three feedback types and output strict JSON now:`;
 
   return {
     systemMessage,
     userMessage,
     promptVersion: promptInfo.promptVersion,
     schemaVersion: promptInfo.schemaVersion,
+    yearLevel,
   };
+}
+
+/**
+ * Parses and verifies model output for essay marking findings.
+ * Enforces strict JSON schema, exact quote location verification, single-paragraph relocation,
+ * overlap merging, and unreadable word rejection.
+ *
+ * @param {string} rawContent
+ * @param {Array<string[]>} paragraphs
+ * @param {object} [options]
+ * @param {string|null} [options.studentId]
+ * @returns {{
+ *   findings: Array<{
+ *     type: string,
+ *     quote: string,
+ *     suggestion: string,
+ *     reason: string,
+ *     paragraphIndex: number,
+ *     lineIndex: number,
+ *     occurrenceIndex: number
+ *   }>,
+ *   rawCount: number,
+ *   discardedCount: number
+ * }}
+ */
+export function tokenizeWordsAndSeparators(text) {
+  if (!text) return [];
+  const tokens = text.match(/[\w']+|[^\w\s]+|\s+/g);
+  return tokens || [text];
+}
+
+export function computeWordLevelDiff(originalText, replacementText) {
+  if (!originalText && !replacementText) return [];
+  if (originalText === replacementText) {
+    return [{ type: 'equal', originalText, replacementText }];
+  }
+
+  const origTokens = tokenizeWordsAndSeparators(originalText);
+  const replTokens = tokenizeWordsAndSeparators(replacementText);
+
+  const n = origTokens.length;
+  const m = replTokens.length;
+
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (origTokens[i - 1] === replTokens[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  let i = n;
+  let j = m;
+  const rawChunks = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && origTokens[i - 1] === replTokens[j - 1]) {
+      rawChunks.push({
+        type: 'equal',
+        orig: [origTokens[i - 1]],
+        repl: [replTokens[j - 1]],
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      rawChunks.push({
+        type: 'diff',
+        orig: [],
+        repl: [replTokens[j - 1]],
+      });
+      j--;
+    } else {
+      rawChunks.push({
+        type: 'diff',
+        orig: [origTokens[i - 1]],
+        repl: [],
+      });
+      i--;
+    }
+  }
+
+  rawChunks.reverse();
+
+  const mergedChunks = [];
+  for (const chunk of rawChunks) {
+    const last = mergedChunks[mergedChunks.length - 1];
+    const origStr = chunk.orig.join('');
+    const replStr = chunk.repl.join('');
+
+    if (last && last.type === chunk.type) {
+      last.originalText += origStr;
+      last.replacementText += replStr;
+    } else {
+      mergedChunks.push({
+        type: chunk.type,
+        originalText: origStr,
+        replacementText: replStr,
+      });
+    }
+  }
+
+  const refinedChunks = [];
+  for (let k = 0; k < mergedChunks.length; k++) {
+    const chunk = mergedChunks[k];
+    if (chunk.type === 'diff') {
+      let orig = chunk.originalText;
+      let repl = chunk.replacementText;
+
+      const leadingSpaceMatch = orig.match(/^\s+/);
+      const replLeadingSpaceMatch = repl.match(/^\s+/);
+      if (
+        leadingSpaceMatch &&
+        replLeadingSpaceMatch &&
+        leadingSpaceMatch[0] === replLeadingSpaceMatch[0]
+      ) {
+        const space = leadingSpaceMatch[0];
+        refinedChunks.push({
+          type: 'equal',
+          originalText: space,
+          replacementText: space,
+        });
+        orig = orig.slice(space.length);
+        repl = repl.slice(space.length);
+      }
+
+      let trailingSpace = '';
+      const trailingSpaceMatch = orig.match(/\s+$/);
+      const replTrailingSpaceMatch = repl.match(/\s+$/);
+      if (
+        trailingSpaceMatch &&
+        replTrailingSpaceMatch &&
+        trailingSpaceMatch[0] === replTrailingSpaceMatch[0]
+      ) {
+        trailingSpace = trailingSpaceMatch[0];
+        orig = orig.slice(0, orig.length - trailingSpace.length);
+        repl = repl.slice(0, repl.length - trailingSpace.length);
+      }
+
+      if (orig.length > 0 || repl.length > 0) {
+        refinedChunks.push({
+          type: 'diff',
+          originalText: orig,
+          replacementText: repl,
+        });
+      }
+
+      if (trailingSpace.length > 0) {
+        refinedChunks.push({
+          type: 'equal',
+          originalText: trailingSpace,
+          replacementText: trailingSpace,
+        });
+      }
+    } else {
+      refinedChunks.push(chunk);
+    }
+  }
+
+  const finalChunks = [];
+  for (const c of refinedChunks) {
+    const last = finalChunks[finalChunks.length - 1];
+    if (last && last.type === c.type) {
+      last.originalText += c.originalText;
+      last.replacementText += c.replacementText;
+    } else if (c.originalText.length > 0 || c.replacementText.length > 0) {
+      finalChunks.push(c);
+    }
+  }
+
+  return finalChunks;
 }
 
 /**
@@ -1134,18 +1522,88 @@ export function parseModelJsonFindings(rawContent, paragraphs = [], options = {}
       continue;
     }
 
-    candidateFindings.push({
-      feedbackType,
-      type: f.type.trim(),
-      quote,
-      suggestion,
-      reason: f.reason.trim(),
-      paragraphIndex: pIdx,
-      lineIndex: lIdx,
-      occurrenceIndex: safeOccIdx,
-      charStart,
-      charEnd,
-    });
+    // Normalize corrections to minimal error units (strip unchanged prefix/suffix context words)
+    let itemsToAdd = [];
+    if (feedbackType === 'correction' && quote.length > 0) {
+      const diffChunks = computeWordLevelDiff(quote, suggestion);
+      const hasEqualWords = diffChunks.some((c) => c.type === 'equal' && /[\w']/.test(c.originalText));
+
+      if (hasEqualWords) {
+        let currentOffsetInQuote = 0;
+        for (const chunk of diffChunks) {
+          const origLen = chunk.originalText.length;
+          if (chunk.type === 'diff') {
+            let chunkOrig = chunk.originalText;
+            let chunkRepl = chunk.replacementText;
+            const leadSpace = chunkOrig.match(/^\s+/)?.[0] || '';
+            const trailSpace = chunkOrig.match(/\s+$/)?.[0] || '';
+            const cStart = charStart + currentOffsetInQuote + leadSpace.length;
+            const cEnd = charStart + currentOffsetInQuote + origLen - trailSpace.length;
+            chunkOrig = chunkOrig.trim();
+            chunkRepl = chunkRepl.trim();
+
+            if (chunkOrig.length > 0) {
+              if (targetLine.slice(cStart, cEnd) === chunkOrig) {
+                // Count occurrences of chunkOrig before cStart on targetLine
+                let count = 0;
+                let p = 0;
+                while ((p = targetLine.indexOf(chunkOrig, p)) !== -1) {
+                  if (p < cStart) count++;
+                  else break;
+                  p += 1;
+                }
+                itemsToAdd.push({
+                  feedbackType,
+                  type: f.type.trim(),
+                  quote: chunkOrig,
+                  suggestion: chunkRepl,
+                  reason: f.reason.trim(),
+                  paragraphIndex: pIdx,
+                  lineIndex: lIdx,
+                  occurrenceIndex: count,
+                  charStart: cStart,
+                  charEnd: cEnd,
+                });
+              }
+            } else if (chunkRepl.length > 0) {
+              // Insertion
+              itemsToAdd.push({
+                feedbackType,
+                type: f.type.trim(),
+                quote: '',
+                suggestion: chunkRepl,
+                reason: f.reason.trim(),
+                paragraphIndex: pIdx,
+                lineIndex: lIdx,
+                occurrenceIndex: 0,
+                charStart: cStart,
+                charEnd: cStart,
+              });
+            }
+          }
+          currentOffsetInQuote += origLen;
+        }
+      }
+    }
+
+    if (itemsToAdd.length === 0) {
+      itemsToAdd.push({
+        feedbackType,
+        type: f.type.trim(),
+        quote,
+        suggestion,
+        reason: f.reason.trim(),
+        paragraphIndex: pIdx,
+        lineIndex: lIdx,
+        occurrenceIndex: safeOccIdx,
+        charStart,
+        charEnd,
+      });
+    }
+
+    for (const item of itemsToAdd) {
+      candidateFindings.push(item);
+    }
   }
 
   // Merge findings that overlap the same text location on the same line
@@ -1239,8 +1697,16 @@ export function parseModelJsonFindings(rawContent, paragraphs = [], options = {}
     }
   }
 
+  let assessment = null;
+  if (options.yearLevel) {
+    assessment = validateMarkingAssessment(parsed, options.yearLevel, paragraphs);
+  } else if (parsed.scores && parsed.totalScore !== undefined) {
+    assessment = validateMarkingAssessment(parsed, 'P.4', paragraphs);
+  }
+
   return {
     findings: validFindings,
+    assessment,
     rawCount,
     discardedCount,
   };
@@ -1254,18 +1720,22 @@ export function parseModelJsonFindings(rawContent, paragraphs = [], options = {}
  * @param {string} [params.studentId]
  * @param {string} [params.assignmentTitle]
  * @param {string} [params.scopePrompt]
+ * @param {Array<object>} [params.rubric]
  * @param {object|null} [params.promptSnapshot]
+ * @param {string} [params.yearLevel]
  * @param {string} [params.endpoint]
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<{
  *   findings: Array<object>,
+ *   assessment: object|null,
  *   rawCount: number,
  *   discardedCount: number,
  *   modelId: string,
  *   promptVersion: string,
  *   schemaVersion: string,
  *   wordCount: number,
- *   studentId: string|null
+ *   studentId: string|null,
+ *   yearLevel: string
  * }>}
  */
 export async function markEssayWithLocalVL({
@@ -1273,7 +1743,9 @@ export async function markEssayWithLocalVL({
   studentId = null,
   assignmentTitle = '',
   scopePrompt = '',
+  rubric = [],
   promptSnapshot = null,
+  yearLevel = 'P.4',
   endpoint = config.markingEndpoint || config.qwenVlEndpoint,
   signal,
 }) {
@@ -1284,7 +1756,9 @@ export async function markEssayWithLocalVL({
     paragraphs,
     assignmentTitle,
     scopePrompt,
-    promptSnapshot
+    promptSnapshot,
+    yearLevel,
+    rubric
   );
 
   const maxTokens = config.markingMaxTokens || 6000;
@@ -1350,11 +1824,13 @@ export async function markEssayWithLocalVL({
     studentId,
     promptVersion,
     schemaVersion,
+    yearLevel,
   });
   const words = transcript.trim().split(/\s+/).filter(Boolean);
 
   return {
     findings: parsedResult.findings,
+    assessment: parsedResult.assessment,
     rawCount: parsedResult.rawCount,
     discardedCount: parsedResult.discardedCount,
     modelId,
@@ -1362,6 +1838,7 @@ export async function markEssayWithLocalVL({
     schemaVersion,
     wordCount: words.length,
     studentId,
+    yearLevel,
   };
 }
 

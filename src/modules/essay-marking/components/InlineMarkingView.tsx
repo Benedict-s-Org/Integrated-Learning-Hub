@@ -53,6 +53,25 @@ interface InlineMarkingViewProps {
     updatedFinding: Partial<MarkingFinding>
   ) => void;
   onUpdateFindings?: (studentId: string, findings: MarkingFinding[]) => void;
+  onWordClick?: (target: { lineIndex: number; wordIndex: number; text: string }) => void;
+  onWordContextMenu?: (
+    target: { lineIndex: number; wordIndex: number; text: string },
+    e: React.MouseEvent
+  ) => void;
+  onCanvasContextMenu?: (e: React.MouseEvent) => void;
+  onTranscriptTextEdit?: (lineIndex: number, newLineText: string) => void;
+  onSelectionContextMenu?: (
+    payload: {
+      sourceText: string;
+      startLine: number;
+      startOffset: number;
+      endLine: number;
+      endOffset: number;
+      involvedFindingIds: string[];
+    },
+    e: React.MouseEvent
+  ) => void;
+  onFindingContextMenu?: (findingId: string, e: React.MouseEvent) => void;
 }
 
 interface TooltipPosition {
@@ -82,9 +101,19 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
   onDeleteFinding,
   onEditFinding,
   onUpdateFindings,
+  onWordClick,
+  onWordContextMenu,
+  onCanvasContextMenu,
+  onTranscriptTextEdit,
+  onSelectionContextMenu,
+  onFindingContextMenu,
 }) => {
   const [showRejected, setShowRejected] = useState(false);
   const [isUnmatchedOpen, setIsUnmatchedOpen] = useState(false);
+
+  // Mouse drag tracking refs to distinguish click from drag-selection
+  const isDraggingRef = useRef(false);
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Hover Tooltip state
   const [hoveredFinding, setHoveredFinding] = useState<MarkingFinding | null>(null);
@@ -125,6 +154,22 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
     }
   }, [selectedLineIndex, selectedWordTarget]);
 
+  const handleMouseDownCanvas = (e: React.MouseEvent) => {
+    if (e.button === 0) {
+      dragStartPosRef.current = { x: e.clientX, y: e.clientY };
+      isDraggingRef.current = false;
+    }
+  };
+
+  const handleMouseMoveCanvas = (e: React.MouseEvent) => {
+    if (dragStartPosRef.current && (e.buttons === 1 || e.buttons === 3)) {
+      const dist = Math.hypot(e.clientX - dragStartPosRef.current.x, e.clientY - dragStartPosRef.current.y);
+      if (dist > 3) {
+        isDraggingRef.current = true;
+      }
+    }
+  };
+
   // Handle mouseup for text selection inside middle column
   const handleMouseUpCanvas = () => {
     if (typeof window === 'undefined') return;
@@ -132,6 +177,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
     if (selection && !selection.isCollapsed) {
       const text = selection.toString().trim();
       if (text) {
+        isDraggingRef.current = true;
         let node: Node | null = selection.anchorNode;
         let lineEl: HTMLElement | null = null;
         while (node && !lineEl) {
@@ -453,6 +499,118 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
     handleClosePopover();
   };
 
+  // In-place line editing: IME/paste/commit state
+  const composingRef = useRef(false);
+  const pendingCommitRef = useRef(false);
+  // Bumped on Escape to force a remount that discards the current uncommitted edit.
+  const [cancelVersion, setCancelVersion] = useState(0);
+
+  const extractLinePlainText = (el: HTMLElement): string => {
+    let text = '';
+    el.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent || '';
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const elem = node as HTMLElement;
+        const orig = elem.getAttribute('data-finding-original');
+        if (orig !== null) {
+          text += orig;
+        } else {
+          text += extractLinePlainText(elem);
+        }
+      }
+    });
+    return text;
+  };
+
+  const commitLineIfChanged = (lineIndex: number, el: HTMLElement) => {
+    if (composingRef.current) {
+      pendingCommitRef.current = true;
+      return;
+    }
+    const newText = extractLinePlainText(el).replace(/\u00a0/g, ' ');
+    const oldText = alignedLines.find((l) => l.lineIndex === lineIndex)?.rawText ?? '';
+    if (newText !== oldText) {
+      onTranscriptTextEdit?.(lineIndex, newText);
+    }
+  };
+
+  const handleLineCompositionStart = () => {
+    composingRef.current = true;
+  };
+
+  const handleLineInput = () => {
+    // Content edits are committed on blur/Enter; nothing to do per keystroke.
+  };
+
+  const handleLineCompositionEnd = (e: React.CompositionEvent<HTMLDivElement>) => {
+    composingRef.current = false;
+    if (pendingCommitRef.current) {
+      pendingCommitRef.current = false;
+      const lineIdx = parseInt(e.currentTarget.getAttribute('data-line-tokens') || '0', 10);
+      commitLineIfChanged(lineIdx, e.currentTarget);
+    }
+  };
+
+  const handleLineKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, lineIndex: number) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commitLineIfChanged(lineIndex, e.currentTarget as HTMLElement);
+      (e.currentTarget as HTMLElement).blur();
+    } else if (e.key === 'Escape') {
+      // Cancel the current uncommitted edit by remounting with the committed text
+      // (no direct DOM mutation; the key change discards browser edits safely).
+      e.preventDefault();
+      setCancelVersion((v) => v + 1);
+    }
+  };
+
+  const handleLineBlur = (e: React.FocusEvent<HTMLDivElement>, lineIndex: number) => {
+    commitLineIfChanged(lineIndex, e.currentTarget);
+  };
+
+  const handleLinePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    try {
+      document.execCommand('insertText', false, text);
+    } catch {
+      // Fallback: insert at caret via Selection API is browser-specific; no-op.
+    }
+  };
+
+  const handleLineContextMenu = (e: React.MouseEvent<HTMLDivElement>, lineIndex: number) => {
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    const selectedText = sel && !sel.isCollapsed ? sel.toString() : '';
+    if (selectedText.trim()) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Determine involved findings by DOM intersection (best-effort).
+      const involvedFindingIds: string[] = [];
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const container = e.currentTarget;
+        container.querySelectorAll('[data-finding-id]').forEach((node) => {
+          const id = node.getAttribute('data-finding-id');
+          if (id && range.intersectsNode(node)) {
+            involvedFindingIds.push(id);
+          }
+        });
+      }
+      onSelectionContextMenu?.(
+        {
+          sourceText: selectedText,
+          startLine: lineIndex,
+          startOffset: 0,
+          endLine: lineIndex,
+          endOffset: selectedText.length,
+          involvedFindingIds,
+        },
+        e
+      );
+    }
+  };
+
   const getCategoryBadgeClass = (category: string) => {
     const cat = category.toLowerCase();
     if (cat.includes('tense')) return 'bg-purple-100 text-purple-800 border-purple-200';
@@ -511,14 +669,24 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
 
       {/* Main Inline Text Canvas */}
       <div
+        onMouseDown={handleMouseDownCanvas}
+        onMouseMove={handleMouseMoveCanvas}
         onMouseUp={handleMouseUpCanvas}
+        onContextMenu={(e) => {
+          const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+          if (sel && sel.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            onCanvasContextMenu?.(e);
+          }
+        }}
         className="p-4 md:p-6 bg-white overflow-y-auto max-h-[calc(100vh-270px)] min-h-[420px] select-text"
       >
         {alignedLines.length === 0 || (alignedLines.length === 1 && alignedLines[0].rawText.trim() === '') ? (
           <div className="text-center py-16 text-slate-400 text-xs">
             <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="font-medium text-slate-600">No transcript available for {studentName}.</p>
-            <p className="text-slate-400 mt-1">Please verify the transcript in Step 4 before marking.</p>
+            <p className="text-slate-400 mt-1">Please run OCR or enter transcript text before marking.</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -568,10 +736,22 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                     {line.lineIndex + 1}
                   </span>
 
-                  {/* Line Content with double-spaced inline markings */}
+                  {/* Line Content: editable plain text with non-editable finding islands.
+                      The key forces a full remount after a commit so React never reconciles
+                      browser-mutated contentEditable children (prevents removeChild crash). */}
                   <div
+                    key={`editable-${line.lineIndex}-${line.rawText}-${cancelVersion}`}
                     data-line-tokens={line.lineIndex}
-                    className="flex-1 flex flex-wrap items-baseline gap-y-8 text-slate-800 text-sm md:text-[15px] font-serif leading-relaxed"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={handleLineInput}
+                    onCompositionStart={handleLineCompositionStart}
+                    onCompositionEnd={handleLineCompositionEnd}
+                    onKeyDown={(e) => handleLineKeyDown(e, line.lineIndex)}
+                    onBlur={(e) => handleLineBlur(e, line.lineIndex)}
+                    onPaste={handleLinePaste}
+                    onContextMenu={(e) => handleLineContextMenu(e, line.lineIndex)}
+                    className="flex-1 text-slate-800 text-sm md:text-[15px] font-serif leading-relaxed outline-none whitespace-pre-wrap"
                   >
                     {(() => {
                       let lineWordCounter = 0;
@@ -603,20 +783,16 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                             return (
                               <span
                                 key={`w-${line.lineIndex}-${tokenIdx}-${partIdx}-${currentWIdx}`}
-                                onClick={(e) => {
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
-                                  if (isReselectingRange) {
-                                    handleSelectWordForReselect(line.lineIndex, cleanWord, partOffset, line.rawText);
-                                    return;
-                                  }
-                                  onSelectWord?.(
-                                    isThisWordSelected
-                                      ? null
-                                      : {
-                                          lineIndex: line.lineIndex,
-                                          wordIndex: currentWIdx,
-                                          text: cleanWord,
-                                        }
+                                  onWordContextMenu?.(
+                                    {
+                                      lineIndex: line.lineIndex,
+                                      wordIndex: currentWIdx,
+                                      text: cleanWord,
+                                    },
+                                    e
                                   );
                                 }}
                                 className={`whitespace-pre-wrap inline-block rounded transition-all cursor-pointer select-text ${
@@ -629,7 +805,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                 title={
                                   isReselectingRange
                                     ? `Click to select "${cleanWord}" for quote (L${line.lineIndex + 1})`
-                                    : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${cleanWord}`
+                                    : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${cleanWord} · Left-click: correct OCR · Right-click: add marking`
                                 }
                               >
                                 {part}
@@ -676,11 +852,34 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                   handleSelectWordForReselect(line.lineIndex, originalText, tokenOffset, line.rawText);
                                   return;
                                 }
+                                const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                                if (isDraggingRef.current || (sel && sel.length > 0)) {
+                                  isDraggingRef.current = false;
+                                  return;
+                                }
+                                isDraggingRef.current = false;
                                 onSelectWord?.({
                                   lineIndex: line.lineIndex,
                                   wordIndex: currentWIdx,
                                   text: originalText,
                                 });
+                                onWordClick?.({
+                                  lineIndex: line.lineIndex,
+                                  wordIndex: currentWIdx,
+                                  text: originalText,
+                                });
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onWordContextMenu?.(
+                                  {
+                                    lineIndex: line.lineIndex,
+                                    wordIndex: currentWIdx,
+                                    text: originalText,
+                                  },
+                                  e
+                                );
                               }}
                               className={`whitespace-pre-wrap text-slate-800 inline-block rounded transition-all cursor-pointer ${
                                 isReselectingRange
@@ -692,7 +891,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                               title={
                                 isReselectingRange
                                   ? `Click to select "${originalText}" for quote (L${line.lineIndex + 1})`
-                                  : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${originalText}`
+                                  : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${originalText} · Left-click: correct OCR · Right-click: add marking`
                               }
                             >
                               {originalText}
@@ -711,12 +910,18 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                   handleSelectWordForReselect(line.lineIndex, originalText, tokenOffset, line.rawText);
                                   return;
                                 }
+                                e.stopPropagation();
                                 handleClickMarking(finding, e);
                                 onSelectWord?.({
                                   lineIndex: line.lineIndex,
                                   wordIndex: currentWIdx,
                                   text: originalText,
                                 });
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleClickMarking(finding, e);
                               }}
                               className={`whitespace-pre-wrap text-slate-500 line-through decoration-slate-300 decoration-dashed cursor-pointer rounded px-0.5 transition-all ${
                                 isReselectingRange
@@ -739,6 +944,9 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                         return (
                           <span
                             key={`fnd-${finding.id}-${tokenIdx}-${currentWIdx}`}
+                            contentEditable={false}
+                            data-finding-id={finding.id}
+                            data-finding-original={originalText}
                             className={`relative inline-block align-baseline mx-0.5 group cursor-pointer transition-all ${
                               isReselectingRange
                                 ? 'hover:bg-amber-100/80 cursor-crosshair ring-1 ring-amber-400 rounded'
@@ -752,6 +960,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                 handleSelectWordForReselect(line.lineIndex, originalText, tokenOffset, line.rawText);
                                 return;
                               }
+                              e.stopPropagation();
                               handleClickMarking(finding, e);
                               onSelectWord?.(
                                 isFindingWordSelected
@@ -762,6 +971,11 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                       text: originalText,
                                     }
                               );
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onFindingContextMenu?.(finding.id, e);
                             }}
                             onMouseEnter={(e) => handleMouseEnterMarking(finding, e)}
                             onMouseLeave={handleMouseLeaveMarking}

@@ -15,7 +15,7 @@ import {
   EssayTranscriptionService,
   EssayOcrService,
 } from '../services/essayServiceTypes';
-import { prepareOcrImageFromRegions } from './regionAwareOcr';
+import { prepareOcrImageFromRegions, prepareOcrRegionsInReadingOrder } from './regionAwareOcr';
 
 export interface BatchPageTask {
   taskId: string;
@@ -51,6 +51,7 @@ export interface BatchPageTask {
   isDryRun?: boolean;
   ocrRegionImageUrl?: string;
   isRegionCrop?: boolean;
+  isBlank?: boolean;
 }
 
 export interface SkippedStudentReport {
@@ -83,12 +84,20 @@ export function computeStudentPageSignature(
   pages: ScanPage[]
 ): string {
   const pageIds: string[] = [];
-  appliedMatching.map.forEach((item, pageIndex) => {
-    if (item && item.studentIndex === studentIndex && pages[pageIndex]) {
-      pageIds.push(pages[pageIndex].id);
+  if (Array.isArray(appliedMatching?.map)) {
+    appliedMatching.map.forEach((item, pageIndex) => {
+      if (item && item.studentIndex === studentIndex && pages[pageIndex]) {
+        pageIds.push(pages[pageIndex].id);
+      }
+    });
+  } else if (appliedMatching?.studentPageOrders) {
+    const studentKeys = Object.keys(appliedMatching.studentPageOrders);
+    const sId = studentKeys[studentIndex];
+    if (sId && appliedMatching.studentPageOrders[sId]) {
+      pageIds.push(...appliedMatching.studentPageOrders[sId]);
     }
-  });
-  return pageIds.sort().join(',');
+  }
+  return pageIds.join(',');
 }
 
 /**
@@ -104,31 +113,65 @@ export function resolveWritingAreasForPage(
   templateRegions?: TemplateRegion[]
 ): {
   regions: TemplateRegion[];
+  isBlank?: boolean;
   hasError: boolean;
   errorMessage?: string;
 } {
+  // 1. If page is marked blank: skip OCR and do not require custom regions
+  if (scanPage?.isBlank) {
+    return { regions: [], isBlank: true, hasError: false };
+  }
+
+  // 2. Page 3 onward (continuation page):
+  // Must use saved custom regions for this page; never falls back to full page or page 1/2 templates
+  if (part >= 3) {
+    if (Array.isArray(scanPage?.customRegions) && scanPage.customRegions.length > 0) {
+      const customAreas = scanPage.customRegions.filter(
+        (r) => r && (r.type === 'writing_area' || !r.type)
+      );
+      if (customAreas.length > 0) {
+        const sorted = [...customAreas].sort(
+          (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+        );
+        return { regions: sorted, hasError: false };
+      }
+    }
+
+    return {
+      regions: [],
+      hasError: true,
+      errorMessage: `Page ${part} setup incomplete: Non-blank continuation page requires custom OCR regions to be set in Match Students.`,
+    };
+  }
+
   const safeTemplateRegions = Array.isArray(templateRegions) ? templateRegions : [];
 
-  // 1. If page has custom adjusted regions, use those
+  // 3. For pages 1-2: if page has custom adjusted regions, use those
   if (Array.isArray(scanPage?.customRegions) && scanPage.customRegions.length > 0) {
     const customAreas = scanPage.customRegions.filter(
       (r) => r && (r.type === 'writing_area' || !r.type)
     );
     if (customAreas.length > 0) {
+      const sorted = [...customAreas].sort(
+        (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+      );
       return { regions: customAreas, hasError: false };
     }
   }
 
-  // 2. Check template regions defined for this exact page part
+  // 4. Check template regions defined for this exact page part
   const matchingTemplateAreas = safeTemplateRegions.filter(
     (r) => r && r.type === 'writing_area' && r.pageNumber === part
   );
 
   if (matchingTemplateAreas.length > 0) {
-    return { regions: matchingTemplateAreas, hasError: false };
+    const sorted = [...matchingTemplateAreas].sort(
+      (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+    );
+    return { regions: sorted, hasError: false };
   }
 
-  // 3. Check if template has writing areas defined on other pages
+  // 5. Check if template has writing areas defined on other pages
   const totalTemplateWritingAreas = safeTemplateRegions.filter(
     (r) => r && r.type === 'writing_area'
   );
@@ -142,11 +185,10 @@ export function resolveWritingAreasForPage(
     };
   }
 
-  // 4. Missing required writing areas: No writing areas exist anywhere on the template
+  // 6. Pages 1-2 with no template writing areas defined: retain existing OCR behavior (full page)
   return {
     regions: [],
-    hasError: true,
-    errorMessage: `Missing required writing areas: No writing areas have been defined on the worksheet template. Please configure writing areas in Preparation before transcribing.`,
+    hasError: false,
   };
 }
 
@@ -175,12 +217,16 @@ export function buildBatchTasks({
   const tasks: BatchPageTask[] = [];
   const skippedStudents: SkippedStudentReport[] = [];
 
-  appliedMatching.assignedStudentIndices.forEach((studentIdx) => {
+  const assignedIndices = Array.isArray(appliedMatching?.assignedStudentIndices)
+    ? appliedMatching.assignedStudentIndices
+    : students.map((_, idx) => idx);
+
+  assignedIndices.forEach((studentIdx) => {
     const student = students[studentIdx];
     if (!student) return;
 
     // Check existing transcript state
-    const existing = transcripts[student.id];
+    const existing = transcripts ? transcripts[student.id] : undefined;
     if (skipExisting && existing) {
       if (existing.isVerified) {
         skippedStudents.push({
@@ -204,15 +250,31 @@ export function buildBatchTasks({
 
     // Collect all pages assigned to this student in confirmed order
     const studentPageItems: Array<{ page: ScanPage; part: number; total: number }> = [];
-    appliedMatching.map.forEach((item, pageIndex) => {
-      if (item && item.studentIndex === studentIdx && pages[pageIndex]) {
-        studentPageItems.push({
-          page: pages[pageIndex],
-          part: item.part,
-          total: item.total,
-        });
-      }
-    });
+    if (Array.isArray(appliedMatching?.map)) {
+      appliedMatching.map.forEach((item, pageIndex) => {
+        if (item && item.studentIndex === studentIdx && pages[pageIndex]) {
+          studentPageItems.push({
+            page: pages[pageIndex],
+            part: item.part,
+            total: item.total,
+          });
+        }
+      });
+    } else if (appliedMatching?.studentPageOrders && appliedMatching.studentPageOrders[student.id]) {
+      const order = appliedMatching.studentPageOrders[student.id];
+      const pageMap = new Map<string, ScanPage>();
+      pages.forEach((p) => pageMap.set(p.id, p));
+      order.forEach((pId, idx) => {
+        const p = pageMap.get(pId);
+        if (p) {
+          studentPageItems.push({
+            page: p,
+            part: idx + 1,
+            total: order.length,
+          });
+        }
+      });
+    }
 
     if (studentPageItems.length === 0) {
       skippedStudents.push({
@@ -228,6 +290,29 @@ export function buildBatchTasks({
     studentPageItems.sort((a, b) => a.part - b.part);
 
     studentPageItems.forEach((item) => {
+      // Confirmed blank page:
+      // "For confirmed blank pages:
+      // - Submit no OCR request.
+      // - Exclude their text from transcript assembly.
+      // - Do not count them as unfinished OCR."
+      if (item.page.isBlank) {
+        tasks.push({
+          taskId: `${student.id}_p${item.part}_${item.page.id}`,
+          studentId: student.id,
+          studentIndex: studentIdx,
+          studentName: student.displayName,
+          classNumber: student.classNumber,
+          scanPage: item.page,
+          part: item.part,
+          totalParts: item.total,
+          regions: [],
+          status: 'success', // Resolved without OCR request
+          transcript: '',
+          isBlank: true,
+        });
+        return;
+      }
+
       const areaCheck = resolveWritingAreasForPage(
         item.page,
         item.part,
@@ -246,6 +331,7 @@ export function buildBatchTasks({
         regions: areaCheck.regions,
         status: areaCheck.hasError ? 'failed' : 'pending',
         error: areaCheck.errorMessage,
+        isBlank: false,
       });
     });
   });
@@ -332,6 +418,7 @@ export function combineCandidateTranscript(
         isDryRun: t.isDryRun,
         ocrRegionImageUrl: t.ocrRegionImageUrl,
         isRegionCrop: t.isRegionCrop,
+        isBlank: t.isBlank || t.scanPage?.isBlank,
       }));
     }
   }
@@ -339,14 +426,19 @@ export function combineCandidateTranscript(
   // Sort tasks in strict part order
   const sorted = [...pageResults].sort((a, b) => a.part - b.part);
 
-  const allSuccess = sorted.length > 0 && sorted.every((t) => t.status === 'success');
-  const anySuccess = sorted.some((t) => t.status === 'success');
+  const nonBlankSorted = sorted.filter((t) => !t.isBlank);
+  const isEntireScriptBlank = sorted.length > 0 && sorted.every((t) => Boolean(t.isBlank));
+  const allSuccess =
+    sorted.length > 0 &&
+    (isEntireScriptBlank || (nonBlankSorted.length > 0 && nonBlankSorted.every((t) => t.status === 'success')));
+  const anySuccess = nonBlankSorted.some((t) => t.status === 'success');
 
   // Preserve faithful line breaks and paragraph structure across pages
   // Normalize CRLF to LF and trim leading/trailing empty lines
   // Join multi-page text with '\n' to prevent inventing blank-line paragraphs at page boundaries
+  // Blank pages are excluded from transcript text assembly
   const combinedText = sorted
-    .filter((t) => t.status === 'success' && t.transcript && t.transcript.trim())
+    .filter((t) => t.status === 'success' && !t.isBlank && t.transcript && t.transcript.trim())
     .map((t) => (t.transcript || '').replace(/\r\n/g, '\n').trim())
     .join('\n');
 
@@ -360,7 +452,7 @@ export function combineCandidateTranscript(
   }> = [];
 
   sorted.forEach((pr) => {
-    if (pr.status === 'success' && Array.isArray(pr.linesWithBboxes)) {
+    if (pr.status === 'success' && !pr.isBlank && Array.isArray(pr.linesWithBboxes)) {
       pr.linesWithBboxes.forEach((l) => {
         allLinesWithBboxes.push({
           ...l,
@@ -383,7 +475,9 @@ export function combineCandidateTranscript(
     promptVersion: sorted[0]?.promptVersion || 'Version unavailable',
     settingsVersion: settings.version || 'v1.0',
     pageSignature,
-    status: allSuccess
+    status: isEntireScriptBlank
+      ? 'candidate_ready'
+      : allSuccess
       ? 'candidate_ready'
       : anySuccess
       ? 'partially_transcribed'
@@ -391,6 +485,7 @@ export function combineCandidateTranscript(
     pageResults: sorted,
     hasUnreadable: sorted.some((t) => t.hasUnreadable),
     wordCount: words.length,
+    isEntireScriptBlank,
   };
 }
 
@@ -603,10 +698,69 @@ export class BatchTranscriptionQueueController {
               continue;
             }
 
-            // Shared region-aware preparation: crop the saved writing-area
-            // region (tasks resolve regions at build time). No region ->
-            // full page; invalid region -> task fails with a clear error
-            // (never a silent full-page fallback).
+            // Shared region-aware preparation:
+            // When multiple regions are configured on a page (e.g. continuation page),
+            // process each region sequentially in configured reading order and join with '\n\n'.
+            if (Array.isArray(task.regions) && task.regions.length > 1) {
+              const preparedList = await prepareOcrRegionsInReadingOrder(
+                task.scanPage.previewUrl,
+                task.regions
+              );
+              const anyError = preparedList.find((p) => p.error);
+              if (anyError) {
+                task.status = 'failed';
+                task.error = anyError.error;
+                task.errorCode = 'INVALID_OCR_REGION';
+                task.isRetryable = false;
+                this.progress.failedTasks++;
+                this.notifyProgress();
+                continue;
+              }
+
+              const regionTexts: string[] = [];
+              let regionFailed = false;
+
+              for (let rIdx = 0; rIdx < preparedList.length; rIdx++) {
+                const prep = preparedList[rIdx];
+                const ocrRes = await ocrService.recognize({
+                  imageUrls: [prep.imageUrl],
+                  studentId: task.studentId,
+                  assignmentId,
+                });
+
+                if (ocrRes.status !== 'success') {
+                  task.status = 'failed';
+                  task.error = ocrRes.message || `OCR recognition failed for region #${rIdx + 1}.`;
+                  task.errorCode = (ocrRes as any).code || 'OCR_ERROR';
+                  task.ocrMode = provider;
+                  this.progress.failedTasks++;
+                  this.notifyProgress();
+                  regionFailed = true;
+                  break;
+                }
+                regionTexts.push(ocrRes.transcript.trim());
+              }
+
+              if (regionFailed) continue;
+
+              const combinedRegionText = regionTexts.join('\n\n').trim();
+              task.status = 'success';
+              task.transcript = combinedRegionText;
+              task.mathpixRawTranscript = combinedRegionText;
+              task.linesWithBboxes = combinedRegionText.split('\n').map((l) => ({
+                text: l,
+                bbox: null,
+                scanPageId: task.scanPage.id,
+                pageNumber: task.part,
+              }));
+              task.ocrMode = 'mathpix_only';
+              task.isRegionCrop = true;
+              this.progress.completedTasks++;
+              this.notifyProgress();
+              continue;
+            }
+
+            // Single region or full-page fallback for pages 1-2
             const prepared = await prepareOcrImageFromRegions(
               task.scanPage.previewUrl,
               task.regions

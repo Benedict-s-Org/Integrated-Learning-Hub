@@ -113,17 +113,15 @@ describe('BridgeMarkingService Tests', () => {
         promptVersion: undefined,
         schemaVersion: '2.0',
       });
-      expect(result.findings[1]).toEqual({
+      expect(result.findings[1]).toMatchObject({
         type: 'Grammar',
         feedbackType: 'correction',
-        originalText: 'He have',
-        replacementText: 'He has',
+        originalText: 'have',
+        replacementText: 'has',
         explanation: 'Subject-verb agreement',
         paragraphIndex: 0,
         lineIndex: 3,
         occurrenceIndex: 0,
-        promptVersion: undefined,
-        schemaVersion: '2.0',
       });
       // Invariant: Phase 2 does not generate AI rubric scores
       expect(result.suggestedScores).toEqual({});

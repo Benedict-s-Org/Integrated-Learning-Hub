@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StudentRosterItem,
   ScanPage,
@@ -7,11 +7,22 @@ import {
   MatchingMode,
   PageIdentityRecognition,
   TemplateRegion,
+  StudentMatchMapItem,
+  StudentTranscriptState,
+  StudentMarkingState,
 } from '../types';
 import { isMatchingDirty } from '../utils/matchingLogic';
 import { MagnifierLens, MagnifierState } from './MagnifierLens';
 import { ScanPreviewModal } from './ScanPreviewModal';
 import { AdjustScanRegionsModal } from './AdjustScanRegionsModal';
+import { CustomOcrRegionEditorModal } from './CustomOcrRegionEditorModal';
+import { BlankPageConfirmModal } from './BlankPageConfirmModal';
+import {
+  evaluatePageReadiness,
+  evaluateStudentMatchingReadiness,
+  deriveStudentPageOrdersFromMatching,
+  isEntireScriptBlank,
+} from '../utils/continuationPageLogic';
 import {
   AlertCircle,
   Sparkles,
@@ -28,6 +39,12 @@ import {
   ZoomOut,
   Maximize2,
   Eye,
+  PenTool,
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface StudentMatchingPanelProps {
@@ -62,6 +79,14 @@ interface StudentMatchingPanelProps {
   onManualAssignStudent?: (scanPageId: string, studentId: string | null) => void;
   templateRegions?: TemplateRegion[];
   onUpdatePageCustomRegions?: (pageId: string, customRegions: TemplateRegion[]) => void;
+
+  // Continuation pages and blank pages
+  onTogglePageBlank?: (pageId: string, isBlank: boolean) => void;
+  onReorderStudentPages?: (studentId: string, fromIndex: number, toIndex: number) => void;
+  onAssignContinuationPage?: (studentId: string, scanPageId: string) => void;
+  onUnassignPage?: (studentId: string, scanPageId: string) => void;
+  transcripts?: Record<string, StudentTranscriptState>;
+  markings?: Record<string, StudentMarkingState>;
 }
 
 export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
@@ -94,6 +119,12 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
   onManualAssignStudent,
   templateRegions = [],
   onUpdatePageCustomRegions,
+  onTogglePageBlank,
+  onReorderStudentPages,
+  onAssignContinuationPage,
+  onUnassignPage,
+  transcripts = {},
+  markings = {},
 }) => {
   const [bulkInput, setBulkInput] = useState<string>('1');
   const [previewModalPage, setPreviewModalPage] = useState<ScanPage | null>(null);
@@ -101,6 +132,121 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
   const [activeAdjustPage, setActiveAdjustPage] = useState<ScanPage | null>(null);
   const [selectedPageIndex, setSelectedPageIndex] = useState<number>(0);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  // Continuation Regions Editor & Blank Page Confirmation
+  const [customRegionEditorPage, setCustomRegionEditorPage] = useState<{
+    page: ScanPage;
+    part: number;
+    studentName?: string;
+    classNumber?: number;
+  } | null>(null);
+
+  const [blankConfirmTarget, setBlankConfirmTarget] = useState<{
+    page: ScanPage;
+    targetBlank: boolean;
+    pageNumber: number;
+    studentName: string;
+    hasExistingTranscript: boolean;
+    hasFindings: boolean;
+  } | null>(null);
+
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+
+  const handleToggleBlank = (
+    page: ScanPage,
+    targetBlank: boolean,
+    matchItem?: StudentMatchMapItem | null
+  ) => {
+    if (targetBlank) {
+      const studentId = matchItem?.studentId;
+      const existingTranscript = studentId ? transcripts[studentId] : null;
+      const existingMarking = studentId ? markings[studentId] : null;
+      const hasExistingText = Boolean(
+        existingTranscript?.rawOcrText || existingTranscript?.editedText
+      );
+      const hasFindings = Boolean(
+        existingMarking?.findings && existingMarking.findings.length > 0
+      );
+
+      if (hasExistingText || hasFindings) {
+        setBlankConfirmTarget({
+          page,
+          targetBlank: true,
+          pageNumber: matchItem?.part ?? 1,
+          studentName: matchItem?.studentName || 'Student',
+          hasExistingTranscript: hasExistingText,
+          hasFindings,
+        });
+        return;
+      }
+    }
+
+    onTogglePageBlank?.(page.id, targetBlank);
+  };
+
+  const effectiveStudentPageOrders = useMemo(() => {
+    if (appliedMatching?.studentPageOrders) {
+      return appliedMatching.studentPageOrders;
+    }
+    return deriveStudentPageOrdersFromMatching(appliedMatching, pages);
+  }, [appliedMatching, pages]);
+
+  const readinessCheck = useMemo(() => {
+    return evaluateStudentMatchingReadiness(students, pages, appliedMatching);
+  }, [students, pages, appliedMatching]);
+
+  const assignedPageIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(effectiveStudentPageOrders).forEach((ids) => {
+      ids.forEach((id) => set.add(id));
+    });
+    return set;
+  }, [effectiveStudentPageOrders]);
+
+  const unassignedPages = useMemo(() => {
+    return pages.filter((p) => !assignedPageIds.has(p.id));
+  }, [pages, assignedPageIds]);
+
+  const getPageMatchInfo = (page: ScanPage, pageIndex: number): StudentMatchMapItem | null => {
+    for (const [studentId, pageIds] of Object.entries(effectiveStudentPageOrders)) {
+      const idx = pageIds.indexOf(page.id);
+      if (idx !== -1) {
+        const student = students.find((s) => s.id === studentId);
+        return {
+          pageIndex,
+          studentId,
+          studentName: student?.displayName || 'Unknown',
+          classNumber: student?.classNumber || 0,
+          part: idx + 1,
+          total: pageIds.length,
+        };
+      }
+    }
+
+    if (matchingPreview.map[pageIndex]) {
+      return matchingPreview.map[pageIndex];
+    }
+
+    if (matchingMode === 'recognition') {
+      const rec = recognitionResults[page.id];
+      const studentId =
+        rec?.manualStudentId ||
+        (rec?.status === 'matched' ? rec.matchedStudentId : null);
+      if (studentId) {
+        const student = students.find((s) => s.id === studentId);
+        return {
+          pageIndex,
+          studentId,
+          studentName: student?.displayName || 'Unknown',
+          classNumber: student?.classNumber || 0,
+          part: 1,
+          total: 1,
+        };
+      }
+    }
+
+    return null;
+  };
 
   const safePageIndex =
     pages.length > 0 ? Math.min(Math.max(0, selectedPageIndex), pages.length - 1) : 0;
@@ -421,29 +567,22 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                     <th className="py-2 px-3 w-16">Preview</th>
                     <th className="py-2 px-3">Scan Page</th>
-                    {matchingMode === 'recognition' ? (
-                      <>
-                        <th className="py-2 px-3">Recognised Details</th>
-                        <th className="py-2 px-3">Status</th>
-                        <th className="py-2 px-3">Assigned Student</th>
-                        <th className="py-2 px-3 text-right">Actions</th>
-                      </>
-                    ) : (
-                      <>
-                        <th className="py-2 px-3">Matched Student</th>
-                        <th className="py-2 px-3 text-right">Part / Total</th>
-                        <th className="py-2 px-3 text-right">Actions</th>
-                      </>
-                    )}
+                    <th className="py-2 px-3">Student Assignment</th>
+                    <th className="py-2 px-3">Page / Role</th>
+                    <th className="py-2 px-3">Blank Page</th>
+                    <th className="py-2 px-3">OCR Status</th>
+                    <th className="py-2 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pages.map((page, index) => {
-                    const match = matchingPreview.map[index];
+                    const match = getPageMatchInfo(page, index);
                     const rec = recognitionResults[page.id];
                     const effectiveStudentId =
+                      match?.studentId ||
                       rec?.manualStudentId ||
                       (rec?.status === 'matched' ? rec.matchedStudentId : null);
+                    const isContinuation = (match?.part ?? 1) >= 3;
 
                     return (
                       <tr
@@ -463,7 +602,7 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                               setSelectedPageIndex(index);
                               onViewModeChange('large');
                             }}
-                            title="點擊切換至單頁大圖檢視"
+                            title="Click to view in Large Mode"
                           />
                         </td>
                         <td className="py-2 px-3 font-medium text-slate-800">
@@ -473,78 +612,11 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                           </div>
                         </td>
 
-                        {matchingMode === 'recognition' ? (
-                          <>
-                            <td className="py-2 px-3">
-                              {rec ? (
-                                <div className="space-y-0.5 text-[11px]">
-                                  <div>
-                                    <span className="text-slate-400">Class: </span>
-                                    <strong className="text-slate-700">
-                                      {rec.rawClass || 'unreadable'}
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400">Name: </span>
-                                    <strong className="text-slate-700">
-                                      {rec.rawStudentName || 'unreadable'}
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400">No: </span>
-                                    <strong className="text-slate-700">
-                                      {rec.rawClassNumber || 'unreadable'}
-                                    </strong>
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-[11px]">Pending recognition</span>
-                              )}
-                            </td>
-
-                            <td className="py-2 px-3">
-                              {rec ? (
-                                <div>
-                                  <span
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
-                                      rec.manualConfirmed
-                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                        : rec.status === 'matched'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : rec.status === 'needs_review'
-                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                        : rec.status === 'conflict'
-                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                        : 'bg-slate-100 text-slate-600 border-slate-200'
-                                    }`}
-                                  >
-                                    {rec.manualConfirmed ? (
-                                      '✓ Manually Assigned'
-                                    ) : rec.status === 'matched' ? (
-                                      '✓ Matched'
-                                    ) : rec.status === 'needs_review' ? (
-                                      '⚠️ Needs Review'
-                                    ) : rec.status === 'conflict' ? (
-                                      '🚫 Conflict'
-                                    ) : (
-                                      'Unmatched'
-                                    )}
-                                  </span>
-                                  {rec.statusReason && !rec.manualConfirmed && (
-                                    <div className="text-[10px] text-slate-500 mt-1 max-w-[200px] leading-tight">
-                                      {rec.statusReason}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-[11px]">—</span>
-                              )}
-                            </td>
-
-                            <td className="py-2 px-3">
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          {matchingMode === 'recognition' ? (
+                            <div className="space-y-1">
                               <select
                                 value={effectiveStudentId || ''}
-                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) =>
                                   onManualAssignStudent?.(page.id, e.target.value || null)
                                 }
@@ -557,38 +629,14 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                                   </option>
                                 ))}
                               </select>
-                            </td>
-
-                            <td className="py-2 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedPageIndex(index);
-                                    onViewModeChange('large');
-                                  }}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
-                                  title="View in Large Mode"
-                                >
-                                  <Eye className="w-3 h-3 text-blue-600" />
-                                  <span>Large</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveAdjustPage(page)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
-                                  title="Adjust crop regions for this scan"
-                                >
-                                  <Sliders className="w-3 h-3 text-slate-500" />
-                                  <span>Adjust</span>
-                                </button>
-                              </div>
-                            </td>
-                          </>
-                        ) : (
-                          /* Sequential List Cells */
-                          <>
-                            <td className="py-2 px-3">
+                              {rec && (
+                                <div className="text-[10px] text-slate-400">
+                                  Rec: {rec.rawStudentName || rec.rawClassNumber || 'unmatched'}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
                               {match ? (
                                 <span className="font-semibold text-slate-800">
                                   #{match.classNumber} {match.studentName}
@@ -596,37 +644,107 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                               ) : (
                                 <span className="text-amber-600 font-medium">Unassigned</span>
                               )}
-                            </td>
-                            <td className="py-2 px-3 text-right font-medium text-slate-600">
-                              {match ? `${match.part} / ${match.total}` : '—'}
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedPageIndex(index);
-                                    onViewModeChange('large');
-                                  }}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
-                                  title="View in Large Mode"
-                                >
-                                  <Eye className="w-3 h-3 text-blue-600" />
-                                  <span>Large</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveAdjustPage(page)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
-                                  title="Adjust crop regions for this scan"
-                                >
-                                  <Sliders className="w-3 h-3 text-slate-500" />
-                                  <span>Adjust</span>
-                                </button>
-                              </div>
-                            </td>
-                          </>
-                        )}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-2 px-3 font-medium text-slate-600">
+                          {match ? (
+                            isContinuation ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                Page {match.part} (Continuation)
+                              </span>
+                            ) : (
+                              <span>Part {match.part} of {match.total}</span>
+                            )
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(page.isBlank)}
+                              onChange={(e) => handleToggleBlank(page, e.target.checked, match)}
+                              className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <span className={page.isBlank ? 'font-bold text-slate-900' : 'text-slate-500'}>
+                              {page.isBlank ? 'Blank' : 'Active'}
+                            </span>
+                          </label>
+                        </td>
+
+                        <td className="py-2 px-3">
+                          {page.isBlank ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                              Blank (OCR skipped)
+                            </span>
+                          ) : isContinuation ? (
+                            page.customRegions && page.customRegions.length > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                ✓ {page.customRegions.length} region(s)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+                                ⚠️ Needs OCR regions
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">Pages 1–2 OCR</span>
+                          )}
+                        </td>
+
+                        <td className="py-2 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPageIndex(index);
+                                onViewModeChange('large');
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                              title="View in Large Mode"
+                            >
+                              <Eye className="w-3 h-3 text-blue-600" />
+                              <span>Large</span>
+                            </button>
+
+                            {isContinuation && !page.isBlank ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCustomRegionEditorPage({
+                                    page,
+                                    part: match?.part ?? 3,
+                                    studentName: match?.studentName,
+                                    classNumber: match?.classNumber,
+                                  })
+                                }
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${
+                                  page.customRegions && page.customRegions.length > 0
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                }`}
+                                title="Define OCR regions for continuation page"
+                              >
+                                <PenTool className="w-3 h-3" />
+                                <span>{page.customRegions && page.customRegions.length > 0 ? `Regions (${page.customRegions.length})` : 'Set OCR *'}</span>
+                              </button>
+                            ) : !page.isBlank ? (
+                              <button
+                                type="button"
+                                onClick={() => setActiveAdjustPage(page)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                                title="Adjust crop regions for this scan"
+                              >
+                                <Sliders className="w-3 h-3 text-slate-500" />
+                                <span>Adjust</span>
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -730,11 +848,13 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
 
               {/* Current Page Identity & Pairing Details Banner */}
               {currentPage && (() => {
-                const match = matchingPreview.map[safePageIndex];
+                const match = getPageMatchInfo(currentPage, safePageIndex);
                 const rec = recognitionResults[currentPage.id];
                 const effectiveStudentId =
+                  match?.studentId ||
                   rec?.manualStudentId ||
                   (rec?.status === 'matched' ? rec.matchedStudentId : null);
+                const isContinuation = (match?.part ?? 1) >= 3;
 
                 return (
                   <div className="p-3 bg-white border border-slate-200 rounded-lg shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -810,11 +930,32 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                             {match ? `#${match.classNumber} ${match.studentName}` : 'Unassigned'}
                           </span>
                           <span className="text-slate-400">•</span>
-                          <span className="text-slate-600">
-                            {match ? `Part ${match.part} of ${match.total}` : 'No mapping'}
-                          </span>
+                          {match ? (
+                            isContinuation ? (
+                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                Page {match.part} (Continuation)
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">
+                                Part {match.part} of {match.total}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-400">No mapping</span>
+                          )}
                         </div>
                       )}
+
+                      {/* Blank Page Checkbox in Large View */}
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold px-2.5 py-1.5 rounded-md border bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(currentPage.isBlank)}
+                          onChange={(e) => handleToggleBlank(currentPage, e.target.checked, match)}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>Blank Page (Skip OCR)</span>
+                      </label>
                     </div>
 
                     {/* Page Actions: Manual Student Assignment & Crop Region Adjustment */}
@@ -841,15 +982,46 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                         </div>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => setActiveAdjustPage(currentPage)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                        title="Adjust crop regions for this scan"
-                      >
-                        <Sliders className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Adjust</span>
-                      </button>
+                      {currentPage.isBlank ? (
+                        <span className="px-2.5 py-1 text-xs font-semibold text-slate-500 bg-slate-100 rounded-md border border-slate-200">
+                          Blank page — OCR skipped
+                        </span>
+                      ) : isContinuation ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCustomRegionEditorPage({
+                              page: currentPage,
+                              part: match?.part ?? 3,
+                              studentName: match?.studentName,
+                              classNumber: match?.classNumber,
+                            })
+                          }
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors shadow-2xs ${
+                            currentPage.customRegions && currentPage.customRegions.length > 0
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
+                          }`}
+                          title="Define custom OCR regions for this continuation page"
+                        >
+                          <PenTool className="w-3.5 h-3.5" />
+                          <span>
+                            {currentPage.customRegions && currentPage.customRegions.length > 0
+                              ? `Set OCR Regions (${currentPage.customRegions.length})`
+                              : 'Set OCR Regions *'}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setActiveAdjustPage(currentPage)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
+                          title="Adjust crop regions for this scan"
+                        >
+                          <Sliders className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Adjust</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -902,11 +1074,13 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
             /* Medium View: Responsive Multi-Page Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {pages.map((page, index) => {
-                const match = matchingPreview.map[index];
+                const match = getPageMatchInfo(page, index);
                 const rec = recognitionResults[page.id];
                 const effectiveStudentId =
+                  match?.studentId ||
                   rec?.manualStudentId ||
                   (rec?.status === 'matched' ? rec.matchedStudentId : null);
+                const isContinuation = (match?.part ?? 1) >= 3;
 
                 return (
                   <div
@@ -923,18 +1097,58 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between px-2.5 py-1.5 bg-white border-b border-slate-200 text-xs">
-                      <span className="font-bold text-slate-800">Page #{index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveAdjustPage(page);
-                        }}
-                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
-                        title="Adjust crop regions"
-                      >
-                        Adjust
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-800">Page #{index + 1}</span>
+                        {isContinuation && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                            P{match?.part} (Cont.)
+                          </span>
+                        )}
+                      </div>
+
+                      {page.isBlank ? (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          OCR Skipped
+                        </span>
+                      ) : isContinuation ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCustomRegionEditorPage({
+                              page,
+                              part: match?.part ?? 3,
+                              studentName: match?.studentName,
+                              classNumber: match?.classNumber,
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                            page.customRegions && page.customRegions.length > 0
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
+                          }`}
+                          title="Set custom OCR regions"
+                        >
+                          <PenTool className="w-3 h-3" />
+                          <span>
+                            {page.customRegions && page.customRegions.length > 0
+                              ? `Regions (${page.customRegions.length})`
+                              : 'Set OCR *'}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveAdjustPage(page);
+                          }}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                          title="Adjust crop regions"
+                        >
+                          Adjust
+                        </button>
+                      )}
                     </div>
 
                     {/* Image Preview with Magnifier */}
@@ -1054,6 +1268,27 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                           </div>
                         </>
                       )}
+
+                      {/* Blank Page Checkbox Row */}
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-xs">
+                        <label
+                          className="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(page.isBlank)}
+                            onChange={(e) => handleToggleBlank(page, e.target.checked, match)}
+                            className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>Blank page</span>
+                        </label>
+                        {isContinuation && !page.isBlank && (
+                          <span className={`text-[10px] font-semibold ${page.customRegions?.length ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {page.customRegions?.length ? `✓ Ready` : '⚠️ Regions needed'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1139,60 +1374,197 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
                     students.map((student, i) => {
                       const count = studentPageCounts[i] ?? 0;
                       const isSelected = selectedStudentIndices.has(i);
+                      const isExpanded = expandedStudentId === student.id;
+                      const assignedPageIdsForStudent =
+                        effectiveStudentPageOrders[student.id] || [];
+                      const isAllBlank =
+                        assignedPageIdsForStudent.length > 0 &&
+                        isEntireScriptBlank(pages, assignedPageIdsForStudent);
 
                       return (
-                        <div
-                          key={student.id}
-                          className={`p-2 flex items-center justify-between gap-2 text-xs transition-colors ${
-                            count === 0 ? 'bg-slate-50/70 text-slate-400' : 'hover:bg-blue-50/20'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 pr-1">
-                            {matchingMode === 'sequential' && (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => onToggleSelectStudent(i)}
-                                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
-                              />
-                            )}
-                            <div className="truncate">
-                              <span className="font-bold text-slate-700 mr-1.5">
-                                #{String(student.classNumber).padStart(2, '0')}
-                              </span>
-                              <span className="font-medium text-slate-800">
-                                {student.displayName}
-                              </span>
+                        <div key={student.id} className="transition-colors border-b border-slate-100 last:border-b-0">
+                          <div
+                            className={`p-2 flex items-center justify-between gap-2 text-xs cursor-pointer ${
+                              count === 0 ? 'bg-slate-50/70 text-slate-400' : 'hover:bg-blue-50/20'
+                            }`}
+                            onClick={() =>
+                              setExpandedStudentId((prev) =>
+                                prev === student.id ? null : student.id
+                              )
+                            }
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                              {matchingMode === 'sequential' && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={() => onToggleSelectStudent(i)}
+                                  className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                className="text-slate-400 hover:text-slate-700 p-0.5"
+                                title={isExpanded ? 'Collapse' : 'Expand student pages'}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                ) : (
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <div className="truncate">
+                                <span className="font-bold text-slate-700 mr-1.5">
+                                  #{String(student.classNumber).padStart(2, '0')}
+                                </span>
+                                <span className="font-medium text-slate-800">
+                                  {student.displayName}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              {isAllBlank && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                  All Blank
+                                </span>
+                              )}
+                              {matchingMode === 'recognition' ? (
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                    count > 0
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-slate-100 text-slate-400 border-slate-200'
+                                  }`}
+                                >
+                                  {count} {count === 1 ? 'page' : 'pages'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={count}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val)) {
+                                      onPageCountChange(i, Math.max(0, Math.min(100, val)));
+                                    }
+                                  }}
+                                  className="w-12 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white font-semibold"
+                                />
+                              )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {matchingMode === 'recognition' ? (
-                              <span
-                                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-                                  count > 0
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                                }`}
-                              >
-                                {count} {count === 1 ? 'page' : 'pages'}
-                              </span>
-                            ) : (
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={count}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  if (!isNaN(val)) {
-                                    onPageCountChange(i, Math.max(0, Math.min(100, val)));
-                                  }
-                                }}
-                                className="w-12 text-center py-0.5 px-1 border border-slate-300 rounded text-xs bg-white font-semibold"
-                              />
-                            )}
-                          </div>
+                          {/* Expanded Student Page Order & Actions */}
+                          {isExpanded && (
+                            <div className="px-3 py-2 bg-slate-50/80 border-t border-slate-100 text-xs space-y-1.5">
+                              {assignedPageIdsForStudent.length === 0 ? (
+                                <div className="text-[11px] text-slate-400 italic py-0.5">
+                                  No scan pages assigned yet.
+                                </div>
+                              ) : (
+                                assignedPageIdsForStudent.map((pageId, pIdx) => {
+                                  const assignedPage = pages.find((p) => p.id === pageId);
+                                  const pageNumber = pIdx + 1;
+                                  const scanIndex = pages.findIndex((p) => p.id === pageId) + 1;
+                                  const isCont = pageNumber >= 3;
+
+                                  return (
+                                    <div
+                                      key={pageId}
+                                      className="flex items-center justify-between gap-1 p-1.5 rounded bg-white border border-slate-200 shadow-2xs"
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="font-bold text-slate-700">
+                                          P{pageNumber}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 truncate max-w-[80px]">
+                                          (Scan #{scanIndex})
+                                        </span>
+                                        {assignedPage?.isBlank ? (
+                                          <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                                            Blank
+                                          </span>
+                                        ) : isCont ? (
+                                          assignedPage?.customRegions && assignedPage.customRegions.length > 0 ? (
+                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700">
+                                              ✓ Regions
+                                            </span>
+                                          ) : (
+                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 animate-pulse">
+                                              ⚠️ Needs Setup
+                                            </span>
+                                          )
+                                        ) : null}
+                                      </div>
+
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={pIdx === 0}
+                                          onClick={() =>
+                                            onReorderStudentPages?.(student.id, pIdx, pIdx - 1)
+                                          }
+                                          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-20"
+                                          title="Move page up in student script"
+                                        >
+                                          <ArrowUp className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={pIdx === assignedPageIdsForStudent.length - 1}
+                                          onClick={() =>
+                                            onReorderStudentPages?.(student.id, pIdx, pIdx + 1)
+                                          }
+                                          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-20"
+                                          title="Move page down in student script"
+                                        >
+                                          <ArrowDown className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => onUnassignPage?.(student.id, pageId)}
+                                          className="p-1 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                          title="Unassign page from student"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+
+                              {/* Assign Continuation Page Dropdown */}
+                              {unassignedPages.length > 0 && (
+                                <div className="pt-1">
+                                  <select
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        onAssignContinuationPage?.(student.id, e.target.value);
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    className="w-full text-[11px] p-1 border border-slate-300 rounded bg-white text-slate-700"
+                                  >
+                                    <option value="">+ Assign scan page...</option>
+                                    {unassignedPages.map((up) => {
+                                      const uIdx = pages.findIndex((p) => p.id === up.id) + 1;
+                                      return (
+                                        <option key={up.id} value={up.id}>
+                                          Scan #{uIdx} ({up.fileName?.slice(0, 16) || 'page'})
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -1261,9 +1633,14 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
               <button
                 type="button"
                 onClick={onNext}
-                disabled={!appliedMatching || isDirty}
+                disabled={!appliedMatching || isDirty || !readinessCheck.isReady}
+                title={
+                  !readinessCheck.isReady
+                    ? 'Please configure custom OCR regions for non-blank continuation pages before proceeding.'
+                    : undefined
+                }
                 className={`w-full py-2 px-3 text-xs font-semibold rounded-md transition-colors min-h-[36px] ${
-                  appliedMatching && !isDirty
+                  appliedMatching && !isDirty && readinessCheck.isReady
                     ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                     : 'bg-slate-50 text-slate-300 border border-slate-200 cursor-not-allowed'
                 }`}
@@ -1279,6 +1656,26 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
         </aside>
       </div>
 
+      {/* Continuation Page Setup Incomplete Alert Banner */}
+      {appliedMatching && !readinessCheck.isReady && (
+        <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-amber-800">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Continuation Page Setup Required ({readinessCheck.incompleteContinuationPages.length} incomplete)</span>
+          </div>
+          <p className="text-amber-700">
+            Before proceeding to transcript verification, non-blank continuation pages (Page 3+) must have custom OCR regions defined:
+          </p>
+          <ul className="list-disc list-inside space-y-0.5 text-amber-800">
+            {readinessCheck.incompleteContinuationPages.map((item) => (
+              <li key={item.pageId}>
+                <strong>{item.studentName}</strong> — Page {item.part} ({item.pageFileName || item.pageId}): Set OCR regions or mark as Blank page
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Footer Navigation */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-200">
         <button
@@ -1291,10 +1688,15 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
 
         <button
           type="button"
-          disabled={!appliedMatching || isDirty}
+          disabled={!appliedMatching || isDirty || !readinessCheck.isReady}
+          title={
+            !readinessCheck.isReady
+              ? 'Please configure custom OCR regions for non-blank continuation pages before proceeding.'
+              : undefined
+          }
           onClick={onNext}
           className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-md min-h-[34px] transition-colors ${
-            appliedMatching && !isDirty
+            appliedMatching && !isDirty && readinessCheck.isReady
               ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'
           }`}
@@ -1330,6 +1732,36 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
             setActiveAdjustPage(null);
           }}
           onClose={() => setActiveAdjustPage(null)}
+        />
+      )}
+
+      {/* Custom OCR Region Editor Modal for Continuation Pages */}
+      {customRegionEditorPage && (
+        <CustomOcrRegionEditorModal
+          page={customRegionEditorPage.page}
+          part={customRegionEditorPage.part}
+          studentName={customRegionEditorPage.studentName}
+          classNumber={customRegionEditorPage.classNumber}
+          onSaveRegions={(pageId, customRegions) => {
+            onUpdatePageCustomRegions?.(pageId, customRegions);
+            setCustomRegionEditorPage(null);
+          }}
+          onClose={() => setCustomRegionEditorPage(null)}
+        />
+      )}
+
+      {/* Blank Page Confirmation Modal */}
+      {blankConfirmTarget && (
+        <BlankPageConfirmModal
+          pageNumber={blankConfirmTarget.pageNumber}
+          studentName={blankConfirmTarget.studentName}
+          hasExistingTranscript={blankConfirmTarget.hasExistingTranscript}
+          hasFindings={blankConfirmTarget.hasFindings}
+          onConfirm={() => {
+            onTogglePageBlank?.(blankConfirmTarget.page.id, true);
+            setBlankConfirmTarget(null);
+          }}
+          onCancel={() => setBlankConfirmTarget(null)}
         />
       )}
     </div>

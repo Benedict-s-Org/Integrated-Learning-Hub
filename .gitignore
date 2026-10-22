@@ -57,3 +57,6 @@ bridges/**/.debug/
 
 # Exclude scans from source-code backup
 /public/demo-scans/
+
+# Local workbench backups (not source)
+.backups/

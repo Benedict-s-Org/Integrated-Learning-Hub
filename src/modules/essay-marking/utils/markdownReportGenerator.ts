@@ -1,6 +1,7 @@
 import {
   MarkingFinding,
   RubricDimension,
+  StructuredAssessmentComments,
 } from '../types';
 import {
   buildTranscriptParagraphStructure,
@@ -18,6 +19,7 @@ export interface MarkdownReportOptions {
   rubric: RubricDimension[];
   scores: Record<string, number>;
   feedbackComment?: string;
+  assessmentComments?: StructuredAssessmentComments;
   transcriptText?: string;
   findings?: MarkingFinding[];
 }
@@ -209,6 +211,7 @@ export function generateStudentMarkdownReport(options: MarkdownReportOptions): s
     rubric = [],
     scores = {},
     feedbackComment = '',
+    assessmentComments,
     transcriptText = '',
     findings = [],
   } = options;
@@ -273,6 +276,11 @@ export function generateStudentMarkdownReport(options: MarkdownReportOptions): s
 
   // Teacher Feedback Commentary
   md += `## Teacher Feedback\n`;
+  if (assessmentComments) {
+    md += `### Strengths & Highlights\n${assessmentComments.positive || 'None recorded.'}\n\n`;
+    md += `### Areas for Improvement\n${assessmentComments.relevant || 'None recorded.'}\n\n`;
+    md += `### Next Steps for Writing\n${assessmentComments.finalNextStep || 'None recorded.'}\n\n`;
+  }
   md += `${feedbackComment.trim() || 'No written commentary entered yet.'}\n\n`;
 
   // Verified Student Writing (Annotated)

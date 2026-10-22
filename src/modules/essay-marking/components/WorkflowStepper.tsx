@@ -11,9 +11,8 @@ const STEPS: { key: WorkflowStep; label: string; number: number }[] = [
   { key: 'prep', label: 'Preparation', number: 1 },
   { key: 'intake', label: 'Add Scans', number: 2 },
   { key: 'pair', label: 'Match Students', number: 3 },
-  { key: 'ocr', label: 'Verify Transcript', number: 4 },
-  { key: 'grade', label: 'Review Marking', number: 5 },
-  { key: 'report', label: 'Report', number: 6 },
+  { key: 'grade', label: 'Verify & Review Marking', number: 4 },
+  { key: 'report', label: 'Report', number: 5 },
 ];
 
 export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
@@ -27,8 +26,8 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
       aria-label="Essay marking workflow"
     >
       {STEPS.map((step) => {
-        const isCurrent = currentStep === step.key;
-        const isAllowed = canNavigateTo(step.key);
+        const isCurrent = currentStep === step.key || (step.key === 'grade' && currentStep === 'ocr');
+        const isAllowed = canNavigateTo(step.key) || (step.key === 'grade' && canNavigateTo('ocr'));
 
         return (
           <button

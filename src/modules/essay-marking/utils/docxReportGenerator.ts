@@ -12,7 +12,7 @@ import {
   BorderStyle,
   AlignmentType,
 } from 'docx';
-import { MarkingFinding, RubricDimension } from '../types';
+import { MarkingFinding, RubricDimension, StructuredAssessmentComments } from '../types';
 import {
   buildTranscriptParagraphStructure,
   resolveFindingLocation,
@@ -30,6 +30,7 @@ export interface DocxReportOptions {
   rubric: RubricDimension[];
   scores: Record<string, number>;
   feedbackComment?: string;
+  assessmentComments?: StructuredAssessmentComments;
   transcriptText?: string;
   findings?: MarkingFinding[];
 }
@@ -542,6 +543,7 @@ export function buildStudentDocxDocument(options: DocxReportOptions): Document {
     rubric = [],
     scores = {},
     feedbackComment = '',
+    assessmentComments,
     transcriptText = '',
     findings = [],
   } = options;
@@ -753,6 +755,106 @@ export function buildStudentDocxDocument(options: DocxReportOptions): Document {
 
   // Teacher feedback comment box
   let commentSection: (Paragraph | Table)[] = [];
+  const feedbackItems: (Paragraph | Table)[] = [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 180, after: 100 },
+      children: [
+        new TextRun({
+          text: 'Teacher Feedback',
+          bold: true,
+          size: 24,
+          color: DOCX_COLORS.SLATE_HEADER,
+        }),
+      ],
+    }),
+  ];
+
+  if (assessmentComments) {
+    const colWidth = Math.floor(TOTAL_PAGE_WIDTH_DXA / 3);
+    const structuredRows: TableRow[] = [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: colWidth, type: WidthType.DXA },
+            margins: { top: 60, bottom: 60, left: 80, right: 80 },
+            shading: { fill: 'F0FDF4' },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 4, color: 'BBF7D0' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: 'BBF7D0' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: 'BBF7D0' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: 'BBF7D0' },
+            },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '★ Strengths', bold: true, size: 18, color: '166534' }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: assessmentComments.positive || '—', size: 18, color: '166534' }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: colWidth, type: WidthType.DXA },
+            margins: { top: 60, bottom: 60, left: 80, right: 80 },
+            shading: { fill: 'FEFCE8' },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 4, color: 'FEF08A' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: 'FEF08A' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: 'FEF08A' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: 'FEF08A' },
+            },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '✎ Improvements', bold: true, size: 18, color: '854D0E' }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: assessmentComments.relevant || '—', size: 18, color: '854D0E' }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: colWidth, type: WidthType.DXA },
+            margins: { top: 60, bottom: 60, left: 80, right: 80 },
+            shading: { fill: 'EFF6FF' },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 4, color: 'BFDBFE' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: 'BFDBFE' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: 'BFDBFE' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: 'BFDBFE' },
+            },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '➜ Next Steps', bold: true, size: 18, color: '1E40AF' }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: assessmentComments.finalNextStep || '—', size: 18, color: '1E40AF' }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
+    feedbackItems.push(
+      new Table({
+        width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
+        rows: structuredRows,
+      })
+    );
+  }
+
   if (feedbackComment && feedbackComment.trim()) {
     const commentTable = new Table({
       width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
@@ -786,22 +888,11 @@ export function buildStudentDocxDocument(options: DocxReportOptions): Document {
         }),
       ],
     });
+    feedbackItems.push(commentTable);
+  }
 
-    commentSection = [
-      new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 180, after: 100 },
-        children: [
-          new TextRun({
-            text: 'Teacher Feedback',
-            bold: true,
-            size: 24,
-            color: DOCX_COLORS.SLATE_HEADER,
-          }),
-        ],
-      }),
-      commentTable,
-    ];
+  if (assessmentComments || (feedbackComment && feedbackComment.trim())) {
+    commentSection = feedbackItems;
   }
 
   // Short Marking Legend Box

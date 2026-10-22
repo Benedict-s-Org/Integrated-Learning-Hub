@@ -21,6 +21,7 @@ export interface BatchMarkingItem {
   error?: string;
   skipReason?: string;
   completedAt?: string;
+  isProvisional?: boolean;
 }
 
 export interface BatchMarkingEligibilityResult {
@@ -31,6 +32,7 @@ export interface BatchMarkingEligibilityResult {
   alreadyMarkedCount: number;
   unverifiedCount: number;
   emptyContentCount: number;
+  provisionalCount: number;
 }
 
 export interface BatchMarkingQueueProgress {
@@ -53,11 +55,12 @@ export interface BatchMarkingQueueProgress {
 export const BATCH_STORAGE_KEY_PREFIX = 'essay_marking_batch_';
 
 /**
- * Evaluates the eligibility of all students in current assignment in roster order.
+ * Evaluates the eligibility of all students in current assignment following confirmed matched order.
  * Invariants:
- * - Sequential roster order.
+ * - Confirmed matched student queue order (or fallback roster order).
  * - Multi-page essays include all assigned pages.
- * - Skips unverified or empty transcripts with clear reason.
+ * - Allows initial provisional AI marking of an applied, non-empty transcript before teacher verification.
+ * - Blocks marking when text is empty or page count is 0.
  * - Skips already marked essays by default to protect existing findings.
  */
 export function evaluateBatchMarkingEligibility({
@@ -66,12 +69,14 @@ export function evaluateBatchMarkingEligibility({
   transcripts,
   markings,
   pages,
+  allowProvisional = true,
 }: {
   students: StudentRosterItem[];
   appliedMatching: AppliedMatching;
   transcripts: Record<string, StudentTranscriptState>;
   markings: Record<string, StudentMarkingState>;
   pages: ScanPage[];
+  allowProvisional?: boolean;
 }): BatchMarkingEligibilityResult {
   const items: BatchMarkingItem[] = [];
   let eligibleCount = 0;
@@ -79,8 +84,16 @@ export function evaluateBatchMarkingEligibility({
   let alreadyMarkedCount = 0;
   let unverifiedCount = 0;
   let emptyContentCount = 0;
+  let provisionalCount = 0;
 
-  students.forEach((student, studentIndex) => {
+  const orderedStudentIndices =
+    appliedMatching?.assignedStudentIndices && appliedMatching.assignedStudentIndices.length > 0
+      ? appliedMatching.assignedStudentIndices
+      : students.map((_, i) => i);
+
+  orderedStudentIndices.forEach((studentIndex) => {
+    const student = students[studentIndex];
+    if (!student) return;
     // 1. Calculate assigned scan pages
     let pageCount = 0;
     if (appliedMatching && Array.isArray(appliedMatching.map)) {
@@ -95,22 +108,19 @@ export function evaluateBatchMarkingEligibility({
     const transcriptText = (transcriptState?.editedText || transcriptState?.rawOcrText || '').trim();
     const existingMarking = markings[student.id];
     const hasExistingFindings = (existingMarking?.findings?.length || 0) > 0;
+    const isVerified = Boolean(transcriptState?.isVerified);
 
     let status: BatchMarkingItem['status'] = 'pending';
     let skipReason: string | undefined = undefined;
+    let isProvisional = false;
 
     if (pageCount === 0) {
       status = 'skipped';
       skipReason = '尚未分配掃描頁面 (缺頁)';
       skippedCount++;
-    } else if (!transcriptState?.isVerified) {
-      status = 'skipped';
-      skipReason = '謄本尚未在 Step 4 核對完成 (未核對)';
-      unverifiedCount++;
-      skippedCount++;
     } else if (!transcriptText) {
       status = 'skipped';
-      skipReason = '核對後文字內容為空';
+      skipReason = '謄本文字為空 (尚未辨識或輸入)';
       emptyContentCount++;
       skippedCount++;
     } else if (hasExistingFindings) {
@@ -118,9 +128,19 @@ export function evaluateBatchMarkingEligibility({
       skipReason = `已有 ${existingMarking.findings.length} 條批改記錄 (預設跳過，避免覆蓋)`;
       alreadyMarkedCount++;
       skippedCount++;
+    } else if (!isVerified && !allowProvisional) {
+      status = 'skipped';
+      skipReason = '謄本尚未在 Step 4 核對完成 (未核對)';
+      unverifiedCount++;
+      skippedCount++;
     } else {
       status = 'pending';
       eligibleCount++;
+      if (!isVerified) {
+        isProvisional = true;
+        unverifiedCount++;
+        provisionalCount++;
+      }
     }
 
     items.push({
@@ -133,6 +153,7 @@ export function evaluateBatchMarkingEligibility({
       transcriptText,
       findingsCount: hasExistingFindings ? existingMarking.findings.length : undefined,
       skipReason,
+      isProvisional,
     });
   });
 
@@ -144,6 +165,7 @@ export function evaluateBatchMarkingEligibility({
     alreadyMarkedCount,
     unverifiedCount,
     emptyContentCount,
+    provisionalCount,
   };
 }
 

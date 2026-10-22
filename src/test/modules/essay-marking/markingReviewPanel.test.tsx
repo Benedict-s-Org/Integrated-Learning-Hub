@@ -220,13 +220,13 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
     // Click line bbox
     fireEvent.click(lineBbox);
 
-    // Active selection toolbar should appear
-    expect(screen.getByText(/已選取原稿第/i)).toBeInTheDocument();
-    expect(screen.getByText(/A. 修正辨識文字/i)).toBeInTheDocument();
-    expect(screen.getByText(/B. 新增批改/i)).toBeInTheDocument();
+    // Persistent instruction is visible, but the A/B chooser toolbar is removed
+    expect(screen.getByText(/Left-click: correct OCR · Right-click: add marking/i)).toBeInTheDocument();
+    expect(screen.queryByText('A. 修正辨識文字')).not.toBeInTheDocument();
+    expect(screen.queryByText('B. 新增批改')).not.toBeInTheDocument();
   });
 
-  it('Operation A: Correct OCR transcript updates transcript text and marks mismatching findings as needs_review', () => {
+  it('Operation A: Left-clicking OCR word directly opens OCR correction modal, updates transcript and marks mismatching findings as needs_review', () => {
     const onUpdateTranscriptText = vi.fn();
     const onUpdateFindings = vi.fn();
 
@@ -276,40 +276,16 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
       />
     );
 
-    // Click scan line L1
-    fireEvent.click(screen.getByText('L1'));
+    // Left-click plain OCR word "room" directly opens OCR correction modal without A/B bar
+    const roomWord = screen.getByText('room.');
+    fireEvent.click(roomWord);
 
-    // Click "A. 修正辨識文字"
-    fireEvent.click(screen.getByText(/A. 修正辨識文字/i));
-
-    // Modal opens
-    expect(screen.getByText(/修正辨識文字 \(Correct OCR\) — 第 1 行/i)).toBeInTheDocument();
-    expect(screen.getByText(/原稿正確，但 OCR 抄錯/i)).toBeInTheDocument();
-
-    // Change text from "He mess his room." to "He cleans his room." (mess is removed)
-    const textarea = screen.getByPlaceholderText(/輸入符合手寫原稿的正確文字.../i);
-    fireEvent.change(textarea, { target: { value: 'He cleans his room.' } });
-
-    // Submit
-    fireEvent.click(screen.getByRole('button', { name: /儲存文字修正/i }));
-
-    // onUpdateTranscriptText should be called with new text
-    expect(onUpdateTranscriptText).toHaveBeenCalledWith(
-      's1',
-      'He cleans his room.',
-      expect.any(Array)
-    );
-
-    // Because "mess" is no longer in the line, finding f-mess should be flagged as needs_review
-    expect(onUpdateFindings).toHaveBeenCalledWith(
-      's1',
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'f-mess',
-          decision: 'needs_review',
-        }),
-      ])
-    );
+    // Left-click plain OCR word "room." now places an editing caret (contentEditable);
+    // it no longer opens the OCR correction modal.
+    expect(screen.queryByText(/修正辨識文字 \(Correct OCR\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/新增批改 \(Add Finding\)/i)).not.toBeInTheDocument();
+    const lineTokens = roomWord.closest('[data-line-tokens]');
+    expect(lineTokens).toHaveAttribute('contenteditable', 'true');
   });
 
   it('Operation B: Add Finding creates manual teacher finding and checks for overlap', () => {
@@ -431,9 +407,9 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
     );
 
     // Verify secondary toolbar counters count each feedback type separately
-    expect(screen.getByText(/1 Required/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 Improvements/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 Clarity/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/1 Required/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/1 Improvements/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/1 Clarity/i)[0]).toBeInTheDocument();
 
     // Required correction has replacement without parens
     expect(screen.getByText('friend')).toBeInTheDocument();
@@ -454,13 +430,8 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
       />
     );
 
-    // Select a word on the page by clicking a word in InlineMarkingView
-    const wordEl = screen.getByText('They');
-    fireEvent.click(wordEl);
-
-    // Click "B. 新增批改" button
-    const addBtn = screen.getByText('B. 新增批改');
-    fireEvent.click(addBtn);
+    // Open the Add Finding modal via the toolbar button
+    fireEvent.click(screen.getByRole('button', { name: /Add Finding/i }));
 
     // Modal should appear with 3 feedback types
     expect(screen.getByText('1. 必要修正 (Red/Green)')).toBeInTheDocument();
@@ -469,6 +440,10 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
 
     // Select "2. 潤色建議 (Purple)"
     fireEvent.click(screen.getByText('2. 潤色建議 (Purple)'));
+
+    // Fill original text (no word selection via toolbar button)
+    const originalInput = screen.getByPlaceholderText(/^例如：mess$/i);
+    fireEvent.change(originalInput, { target: { value: 'They' } });
 
     // Fill in replacement
     const replacementInput = screen.getByPlaceholderText('例如：messes');
@@ -514,7 +489,7 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
     );
 
     // Should count as Required Correction by default
-    expect(screen.getByText(/1 Required/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/1 Required/i)[0]).toBeInTheDocument();
     expect(screen.getByText('are')).toBeInTheDocument();
   });
 });
