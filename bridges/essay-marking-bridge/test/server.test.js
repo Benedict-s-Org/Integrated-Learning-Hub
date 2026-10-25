@@ -1303,6 +1303,137 @@ test('42. Marking Endpoint: Rejects missing or invalid yearLevel with 400', asyn
   }
 });
 
+test('43. Qwen VL OCR Prompt Loader & Snapshot Endpoint', async () => {
+  const { loadEditableOcrPrompt, DEFAULT_OCR_PROMPT_FILE } = await import('../src/localModelClient.js');
+  const { default: app } = await import('../src/server.js');
+  const http = (await import('http')).default;
+  const fs = (await import('fs')).default;
+  const path = (await import('path')).default;
+
+  // Case 1: Standard authoritative prompt loads cleanly and extracts section
+  assert.ok(fs.existsSync(DEFAULT_OCR_PROMPT_FILE));
+  const promptData = loadEditableOcrPrompt();
+  assert.ok(promptData.promptText.includes('You are an objective, precise, and faithful'));
+  assert.ok(promptData.promptText.includes('Strict Transcription Rules'));
+  // Verifies documentation section above marker was NOT included in model prompt
+  assert.ok(!promptData.promptText.includes('# Qwen VL OCR Instructions & Teacher Guide'));
+  assert.ok(promptData.promptHash);
+  assert.ok(promptData.promptVersion.startsWith('qwen-vl-ocr-'));
+
+  // Case 2: Missing prompt file throws PROMPT_FILE_MISSING
+  assert.throws(() => {
+    loadEditableOcrPrompt('non_existent_ocr_prompt.md');
+  }, { code: 'PROMPT_FILE_MISSING' });
+
+  // Case 3: Empty file throws PROMPT_FILE_EMPTY
+  const tmpEmptyFile = path.resolve('test-empty-ocr-prompt.md');
+  fs.writeFileSync(tmpEmptyFile, '   \n  \n');
+  try {
+    assert.throws(() => {
+      loadEditableOcrPrompt(tmpEmptyFile);
+    }, { code: 'PROMPT_FILE_EMPTY' });
+  } finally {
+    if (fs.existsSync(tmpEmptyFile)) fs.unlinkSync(tmpEmptyFile);
+  }
+
+  // Case 4: Section marker present but prompt section is empty throws PROMPT_FILE_EMPTY
+  const tmpEmptySectionFile = path.resolve('test-empty-section-ocr-prompt.md');
+  fs.writeFileSync(tmpEmptySectionFile, '## Guide\n<!-- SECTION: OCR_PROMPT -->\n   \n');
+  try {
+    assert.throws(() => {
+      loadEditableOcrPrompt(tmpEmptySectionFile);
+    }, { code: 'PROMPT_FILE_EMPTY' });
+  } finally {
+    if (fs.existsSync(tmpEmptySectionFile)) fs.unlinkSync(tmpEmptySectionFile);
+  }
+
+  // Case 5: Endpoint GET /api/ocr-prompt returns snapshot
+  const testServer = http.createServer(app);
+  await new Promise((resolve) => testServer.listen(0, '127.0.0.1', resolve));
+  const port = testServer.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/ocr-prompt`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.status, 'ok');
+    assert.equal(body.promptHash, promptData.promptHash);
+    assert.equal(body.promptVersion, promptData.promptVersion);
+    assert.ok(body.promptText.length > 50);
+  } finally {
+    testServer.close();
+  }
+});
+
+test('44. Local VL OCR: Preserves physical lines, explicit empty lines, geometry-unavailable lines, and literal backslashes', async () => {
+  const { parseModelJsonLines, normalizeTranscriptLineBreaks } = await import('../src/localModelClient.js');
+
+  // 1. Multiple physical lines remain separate
+  const multiLineJson = JSON.stringify({
+    lines: [
+      { text: 'Yesterday, my family went to the country park.', bbox: [120, 210, 850, 248] },
+      { text: 'We had a delicious picnic and flew our kites', bbox: [120, 252, 830, 290] },
+      { text: 'high up in the sunny sky.', bbox: [120, 294, 520, 332] },
+    ],
+  });
+  const parsed1 = parseModelJsonLines(multiLineJson);
+  assert.equal(parsed1.length, 3);
+  assert.equal(parsed1[0].text, 'Yesterday, my family went to the country park.');
+  assert.equal(parsed1[1].text, 'We had a delicious picnic and flew our kites');
+  assert.equal(parsed1[2].text, 'high up in the sunny sky.');
+  const joined1 = parsed1.map((l) => l.text).join('\n');
+  assert.equal(joined1.split('\n').length, 3);
+
+  // 2. Explicit empty-line entries survive
+  const emptyLineJson = JSON.stringify({
+    lines: [
+      { text: 'Paragraph 1 line 1', bbox: [100, 200, 800, 240] },
+      { text: '', bbox: null },
+      { text: 'Paragraph 2 line 1', bbox: [100, 300, 800, 340] },
+    ],
+  });
+  const parsed2 = parseModelJsonLines(emptyLineJson);
+  assert.equal(parsed2.length, 3);
+  assert.equal(parsed2[1].text, '');
+  assert.equal(parsed2[1].bbox, null);
+  const joined2 = parsed2.map((l) => l.text).join('\n');
+  assert.equal(joined2, 'Paragraph 1 line 1\n\nParagraph 2 line 1');
+
+  // 3. A long single returned line is not artificially split
+  const longSingleLine = 'This is a very long line of handwritten prose that goes on and on and contains multiple sentences. Sentence two here. Sentence three here.';
+  const longLineJson = JSON.stringify({
+    lines: [{ text: longSingleLine, bbox: [100, 200, 950, 240] }],
+  });
+  const parsed3 = parseModelJsonLines(longLineJson);
+  assert.equal(parsed3.length, 1);
+  assert.equal(parsed3[0].text, longSingleLine);
+
+  // 4. Literal \n text is not confused with real newline characters
+  const literalSlashN = 'Student wrote C:\\notes\\file.txt and a literal \\n sequence.';
+  const literalJson = JSON.stringify({
+    lines: [{ text: literalSlashN, bbox: [100, 200, 800, 240] }],
+  });
+  const parsed4 = parseModelJsonLines(literalJson);
+  assert.equal(parsed4[0].text, literalSlashN);
+  const normalized4 = normalizeTranscriptLineBreaks(parsed4[0].text);
+  assert.equal(normalized4, literalSlashN); // No replacement of literal \n
+  assert.ok(!normalized4.includes('\n')); // Contains zero real newlines
+
+  // 5. Geometry-unavailable responses retain text boundaries without fabricated boxes
+  const noGeometryJson = JSON.stringify({
+    lines: [
+      { text: 'Line without bbox 1', bbox: null },
+      { text: 'Line without bbox 2', bbox: null },
+    ],
+  });
+  const parsed5 = parseModelJsonLines(noGeometryJson);
+  assert.equal(parsed5.length, 2);
+  assert.equal(parsed5[0].bbox, null);
+  assert.equal(parsed5[1].bbox, null);
+  assert.equal(parsed5.map((l) => l.text).join('\n'), 'Line without bbox 1\nLine without bbox 2');
+});
+
 
 
 

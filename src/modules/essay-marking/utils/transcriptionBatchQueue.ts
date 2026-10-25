@@ -14,8 +14,12 @@ import {
   TranscribePageRequest,
   EssayTranscriptionService,
   EssayOcrService,
+  OcrPromptSnapshot,
 } from '../services/essayServiceTypes';
 import { prepareOcrImageFromRegions, prepareOcrRegionsInReadingOrder } from './regionAwareOcr';
+import { normalizeOcrTranscript } from './ocrFormatNormalizer';
+import { OcrRulesConfig } from './ocrRulesSchema';
+import { loadOcrRulesSnapshot } from './ocrRulesLoader';
 
 export interface BatchPageTask {
   taskId: string;
@@ -41,6 +45,7 @@ export interface BatchPageTask {
   isRetryable?: boolean;
   modelId?: string;
   promptVersion?: string;
+  promptHash?: string;
   settingsVersion?: string;
   hasUnreadable?: boolean;
   ocrMode?: TranscriptionProvider;
@@ -356,13 +361,15 @@ export function combineCandidateTranscript(
         assignmentId?: string;
         pageSignature?: string;
         provider?: TranscriptionProvider;
+        rulesConfig?: OcrRulesConfig;
       }
     | string,
   arg2?: PageTranscriptionResult[],
   arg3?: AssignmentTranscriptionSettings,
   arg4?: TranscriptionProvider,
   arg5?: string,
-  arg6?: string
+  arg6?: string,
+  arg7?: OcrRulesConfig
 ): StagedCandidateTranscript {
   let studentId = '';
   let studentIndex = 0;
@@ -371,21 +378,24 @@ export function combineCandidateTranscript(
   let provider: TranscriptionProvider = 'local_qwen_vl';
   let pageSignature = '';
   let assignmentId: string | undefined = undefined;
+  let rulesConfig: OcrRulesConfig | undefined = undefined;
 
   if (typeof arg1 === 'string') {
-    // Positional call: (studentId, pageResults, settings, provider, signature, assignmentId)
+    // Positional call: (studentId, pageResults, settings, provider, signature, assignmentId, rulesConfig)
     studentId = arg1;
     pageResults = Array.isArray(arg2) ? [...arg2] : [];
     if (arg3) settings = arg3;
     if (arg4) provider = arg4;
     if (typeof arg5 === 'string') pageSignature = arg5;
     if (typeof arg6 === 'string') assignmentId = arg6;
+    if (arg7) rulesConfig = arg7;
   } else if (arg1 && typeof arg1 === 'object') {
     studentId = arg1.studentId;
     studentIndex = arg1.studentIndex ?? 0;
     assignmentId = arg1.assignmentId;
     if (arg1.settings) settings = arg1.settings;
     if (arg1.provider) provider = arg1.provider;
+    if (arg1.rulesConfig) rulesConfig = arg1.rulesConfig;
     if (arg1.pageSignature) {
       pageSignature = arg1.pageSignature;
     } else if (arg1.appliedMatching && arg1.pages) {
@@ -408,6 +418,7 @@ export function combineCandidateTranscript(
         isRetryable: t.isRetryable,
         modelId: t.modelId,
         promptVersion: t.promptVersion,
+        promptHash: t.promptHash,
         settingsVersion: t.settingsVersion,
         hasUnreadable: t.hasUnreadable,
         ocrMode: t.ocrMode,
@@ -437,12 +448,18 @@ export function combineCandidateTranscript(
   // Normalize CRLF to LF and trim leading/trailing empty lines
   // Join multi-page text with '\n' to prevent inventing blank-line paragraphs at page boundaries
   // Blank pages are excluded from transcript text assembly
-  const combinedText = sorted
+  const rawCombinedText = sorted
     .filter((t) => t.status === 'success' && !t.isBlank && t.transcript && t.transcript.trim())
     .map((t) => (t.transcript || '').replace(/\r\n/g, '\n').trim())
     .join('\n');
 
-  const words = combinedText.trim().split(/\s+/).filter(Boolean);
+  // Conservative, pure OCR format cleanup and review notice detection using active rules config
+  const { normalizedText, notices: reviewNotices } = normalizeOcrTranscript(
+    rawCombinedText,
+    rulesConfig
+  );
+
+  const words = normalizedText.trim().split(/\s+/).filter(Boolean);
 
   const allLinesWithBboxes: Array<{
     text: string;
@@ -467,12 +484,15 @@ export function combineCandidateTranscript(
     id: `candidate_${studentId}_${Date.now()}`,
     studentId,
     assignmentId,
-    transcript: combinedText,
+    transcript: normalizedText,
+    rawTranscript: rawCombinedText,
+    reviewNotices,
     linesWithBboxes: allLinesWithBboxes,
     receivedAt: Date.now(),
     provider,
     modelId: sorted[0]?.modelId,
     promptVersion: sorted[0]?.promptVersion || 'Version unavailable',
+    promptHash: sorted[0]?.promptHash,
     settingsVersion: settings.version || 'v1.0',
     pageSignature,
     status: isEntireScriptBlank
@@ -620,6 +640,7 @@ export class BatchTranscriptionQueueController {
     assignmentId,
     provider: runProvider,
     ocrService: runOcrService,
+    promptSnapshot: runPromptSnapshot,
   }: {
     transcriptionService: EssayTranscriptionService;
     appliedMatching: AppliedMatching;
@@ -627,6 +648,7 @@ export class BatchTranscriptionQueueController {
     assignmentId?: string;
     provider?: TranscriptionProvider;
     ocrService?: EssayOcrService;
+    promptSnapshot?: OcrPromptSnapshot | null;
   }): Promise<void> {
     if (this.isExecuting) return; // Prevent duplicate concurrent runs
 
@@ -640,6 +662,36 @@ export class BatchTranscriptionQueueController {
     this.isPauseRequested = false;
     this.isStopped = false;
     this.notifyProgress();
+
+    // Load and validate one immutable rules snapshot before starting any OCR tasks.
+    // If validation fails, aborts immediately without touching saved data or calling paid OCR.
+    const rulesRes = await loadOcrRulesSnapshot(true);
+    if (!rulesRes.ok) {
+      this.isExecuting = false;
+      this.progress.status = 'failed';
+      this.progress.activeTaskId = null;
+      this.notifyProgress();
+      throw new Error(`OCR Rules Configuration Error: ${rulesRes.error}`);
+    }
+    const actionRulesConfig = rulesRes.snapshot.config;
+
+    // For local Qwen VL mode, ensure an immutable prompt snapshot is loaded and validated before running.
+    let actionPromptSnapshot: OcrPromptSnapshot | null = runPromptSnapshot || null;
+    if (provider === 'local_qwen_vl' && !actionPromptSnapshot) {
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          this.isExecuting = false;
+          this.progress.status = 'failed';
+          this.progress.activeTaskId = null;
+          this.notifyProgress();
+          throw new Error(
+            `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}`
+          );
+        }
+        actionPromptSnapshot = promptRes.snapshot;
+      }
+    }
 
     try {
 
@@ -678,6 +730,18 @@ export class BatchTranscriptionQueueController {
         if (task.error) {
           task.status = 'failed';
           this.progress.failedTasks++;
+          this.notifyProgress();
+          continue;
+        }
+
+        // Blank page exclusion: skip OCR call completely
+        if (task.scanPage.isBlank) {
+          task.status = 'success';
+          task.transcript = '';
+          task.linesWithBboxes = [];
+          task.isBlank = true;
+          task.ocrMode = provider;
+          this.progress.completedTasks++;
           this.notifyProgress();
           continue;
         }
@@ -888,7 +952,7 @@ export class BatchTranscriptionQueueController {
             continue;
           }
 
-          // Legacy/direct mode: local Qwen VL transcription via bridge.
+          // Direct local Qwen VL transcription via bridge (ZERO Mathpix calls).
           const req: TranscribePageRequest = {
             scanPageId: task.scanPage.id,
             studentId: task.studentId,
@@ -899,6 +963,7 @@ export class BatchTranscriptionQueueController {
             regions: task.regions,
             readingOrder: this.settingsSnapshot.readingOrder,
             settings: this.settingsSnapshot,
+            promptSnapshot: actionPromptSnapshot || undefined,
           };
 
           const res = await transcriptionService.transcribePage(req);
@@ -908,9 +973,11 @@ export class BatchTranscriptionQueueController {
             task.transcript = res.transcript;
             task.linesWithBboxes = res.linesWithBboxes;
             task.modelId = res.modelId;
-            task.promptVersion = res.promptVersion;
+            task.promptVersion = res.promptVersion || actionPromptSnapshot?.promptVersion;
+            task.promptHash = res.promptHash || actionPromptSnapshot?.promptHash;
             task.settingsVersion = res.settingsVersion;
             task.hasUnreadable = res.hasUnreadable;
+            task.ocrMode = 'local_qwen_vl';
             this.progress.completedTasks++;
           } else {
             task.status = 'failed';
@@ -918,6 +985,7 @@ export class BatchTranscriptionQueueController {
             task.errorCode = res.code;
             task.httpStatus = res.httpStatus;
             task.isRetryable = res.isRetryable;
+            task.ocrMode = 'local_qwen_vl';
             this.progress.failedTasks++;
           }
         } catch (err) {
@@ -947,6 +1015,7 @@ export class BatchTranscriptionQueueController {
           settings: this.settingsSnapshot,
           assignmentId,
           provider,
+          rulesConfig: actionRulesConfig,
         });
 
         // Mirror single-page flow: if any page kept its Mathpix transcript

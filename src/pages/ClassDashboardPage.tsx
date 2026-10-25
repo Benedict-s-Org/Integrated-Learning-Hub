@@ -18,6 +18,9 @@ import { MorningDutiesBoard } from '@/components/admin/MorningDutiesBoard';
 import { TimetableBoard } from '@/components/admin/TimetableBoard';
 import { StudentNameSidebar } from '@/components/admin/StudentNameSidebar';
 import { AvatarImageItem } from '@/components/avatar/avatarParts';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
+export { isArchivedClassName };
+
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
@@ -73,14 +76,6 @@ export interface UserWithCoins {
     daily_counts?: Record<string, any>;
     consequence_count?: number;
 }
-
-export const isArchivedClassName = (name?: string | null, archivedList?: string[]): boolean => {
-    if (!name) return false;
-    const trimmed = name.trim().toLowerCase();
-    if (archivedList && archivedList.some(a => a.trim().toLowerCase() === trimmed)) return true;
-    if (trimmed.includes('(2526)') || trimmed.includes('(2025-2026)') || trimmed.includes('2526')) return true;
-    return false;
-};
 
 interface SortableTabProps {
     id: string;
@@ -1114,34 +1109,52 @@ export function ClassDashboardPage() {
     };
 
     const handleReorder = async (newOrder: UserWithCoins[]) => {
-
         try {
             const updates = newOrder.map((student, index) => ({
                 userId: student.id,
+                id: student.id,
                 classNumber: index + 1,
-                class: student.class
+                class: student.class === 'Unassigned' ? null : (student.class || (activeClass !== 'all' ? activeClass : null))
             }));
 
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const { error } = await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
-                headers: {
-                    'Authorization': `Bearer ${session?.access_token || anonKey}`,
-                    'apikey': anonKey
-                },
-                body: {
-                    adminUserId: currentUser?.id,
-                    updates: updates,
-                    syncAuthMetadata: false
-                }
-            });
+            // 1. Direct DB update safety net (instant, reliable)
+            const dbPromises = updates.map(u =>
+                (supabase as any).from('users').update({
+                    class_number: u.classNumber,
+                    ...(u.class ? { class: u.class } : {})
+                }).eq('id', u.userId)
+            );
+            await Promise.all(dbPromises);
 
-            if (error) throw error;
+            // 2. Also invoke Edge Function for server-side / auth metadata sync
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            try {
+                await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
+                    headers: {
+                        'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                        'apikey': anonKey
+                    },
+                    body: {
+                        adminUserId: currentUser?.id,
+                        updates: updates,
+                        syncAuthMetadata: false
+                    }
+                });
+            } catch (edgeFnErr) {
+                console.warn('Edge function bulk-update-class-numbers note:', edgeFnErr);
+            }
+
+            // Invalidate global cache so fresh data is fetched
+            globalAuthUserCache = null;
+
             await fetchUsers();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to reorder students:', err);
-            alert('Failed to save order');
+            alert(`Failed to save order: ${err?.message || 'Unknown error'}`);
+            throw err;
         }
     };
+
 
 
 

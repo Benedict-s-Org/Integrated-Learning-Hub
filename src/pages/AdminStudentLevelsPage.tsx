@@ -66,7 +66,7 @@ export const AdminStudentLevelsPage: React.FC = () => {
 
       if (error) throw error;
       
-      const studentsOnly = (data.users || []).filter((u: any) => u.role === 'user' && !isArchivedClassName(u.class));
+      const studentsOnly = (data.users || []).filter((u: any) => u.role === 'user');
       setStudents(studentsOnly.map((u: any) => ({
         id: u.id,
         display_name: u.display_name || 'Unnamed',
@@ -103,7 +103,7 @@ export const AdminStudentLevelsPage: React.FC = () => {
   }, [students, filterClass, searchQuery]);
 
   const classes = useMemo(() => {
-    const classSet = new Set(students.map(s => s.class).filter(c => Boolean(c) && !isArchivedClassName(c)));
+    const classSet = new Set(students.map(s => s.class).filter(c => Boolean(c)));
     return Array.from(classSet).sort() as string[];
   }, [students]);
 

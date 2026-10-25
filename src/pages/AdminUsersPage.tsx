@@ -54,6 +54,7 @@ interface UserWithProfile {
   daily_real_earned?: number;
   class_number: number | null;
   class_name?: string | null;
+  previous_archived_class?: string | null;
   qr_token?: string;
   managed_by_id?: string | null;
   spelling_level?: number;
@@ -186,7 +187,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       try {
         const { data: classRows } = await (supabase.from('classes').select('name, is_archived') as any);
         if (classRows) {
-          setDbClasses(classRows.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name)).map((c: any) => c.name).filter(Boolean));
+          setDbClasses(classRows.map((c: any) => c.name).filter(Boolean));
         }
       } catch (err) {
         console.warn('Failed to fetch classes in AdminUsersPage:', err);
@@ -221,8 +222,9 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           coins: roomData?.coins || 0,
           virtual_coins: roomData?.virtual_coins || 0,
           daily_real_earned: roomData?.daily_real_earned || 0,
-          class_number: u.class_number ?? u.seat_number ?? null,
-          class_name: u.class,
+          class_number: isArchivedClassName(u.class) ? null : (u.class_number ?? u.seat_number ?? null),
+          class_name: isArchivedClassName(u.class) ? null : u.class,
+          previous_archived_class: isArchivedClassName(u.class) ? u.class : null,
           qr_token: u.qr_token,
           managed_by_id: u.managed_by_id,
           spelling_level: u.spelling_level,
@@ -265,8 +267,8 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const visibleUsers = useMemo(() => {
     const activeAdminId = forcedAdminId || currentUser?.id;
 
-    // Filter out archived students
-    const activeNonArchivedUsers = users.filter(u => u.role === 'admin' || !isArchivedClassName(u.class_name));
+    // In User Management, NEVER filter out students - all users remain visible and manageable
+    const activeNonArchivedUsers = users;
     let baseUsers: UserWithProfile[] = [];
     if (showAllStudents || (isSuperAdmin && !forcedAdminId)) {
       baseUsers = activeNonArchivedUsers;
@@ -281,7 +283,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     if (filterClass === 'unassigned') {
       classFiltered = baseUsers.filter(u => !u.class_name);
     } else if (filterClass !== 'all') {
-      classFiltered = baseUsers.filter(u => u.class_name === filterClass);
+      classFiltered = baseUsers.filter(u => u.class_name === filterClass || u.previous_archived_class === filterClass);
     }
 
     // 2. Filter by Search Query (matching name, username/email, auth_email, class, or class_number)
@@ -333,17 +335,41 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
     }).length;
   }, [searchQuery, filterClass, users, showAllStudents, isSuperAdmin, forcedAdminId, currentUser?.id]);
 
-  // Computed all available classes (excluding archived classes)
-  const allAvailableClasses = useMemo(() => {
-    const set = new Set<string>();
+  // Computed active classes vs archived classes
+  const { activeClasses, archivedClassesList } = useMemo(() => {
+    const activeSet = new Set<string>();
+    const archivedSet = new Set<string>();
+
     dbClasses.forEach(c => {
-      if (!isArchivedClassName(c)) set.add(c);
+      if (isArchivedClassName(c)) {
+        archivedSet.add(c);
+      } else {
+        activeSet.add(c);
+      }
     });
+
     users.forEach(u => {
-      if (u.class_name && !isArchivedClassName(u.class_name)) set.add(u.class_name);
+      if (u.class_name) {
+        if (isArchivedClassName(u.class_name)) {
+          archivedSet.add(u.class_name);
+        } else {
+          activeSet.add(u.class_name);
+        }
+      }
+      if (u.previous_archived_class) {
+        archivedSet.add(u.previous_archived_class);
+      }
     });
-    return Array.from(set).sort();
+
+    return {
+      activeClasses: Array.from(activeSet).sort(),
+      archivedClassesList: Array.from(archivedSet).sort()
+    };
   }, [dbClasses, users]);
+
+  const allAvailableClasses = useMemo(() => {
+    return [...activeClasses, ...archivedClassesList];
+  }, [activeClasses, archivedClassesList]);
 
   // Computed all available activities from database + user ecas
   const allActivitiesList = useMemo(() => {
@@ -802,11 +828,22 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                 onChange={(e) => setFilterClass(e.target.value)}
                 className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none cursor-pointer"
               >
-                <option value="all">All Classes</option>
-                <option value="unassigned">Unassigned</option>
-                {allAvailableClasses.map(className => (
-                  <option key={className} value={className}>{className}</option>
-                ))}
+                <option value="all">所有學生 (All Classes)</option>
+                <option value="unassigned">未編班 / 待分配 (Unassigned)</option>
+                {activeClasses.length > 0 && (
+                  <optgroup label="現有在讀班別 (Active Classes)">
+                    {activeClasses.map(className => (
+                      <option key={className} value={className}>{className}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {archivedClassesList.length > 0 && (
+                  <optgroup label="已封存舊班別 (Archived Classes - 舊生管理/轉班)">
+                    {archivedClassesList.map(className => (
+                      <option key={className} value={className}>{className} (已封存)</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
 
               <div className="relative">
@@ -1027,17 +1064,32 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                       try {
                         const updates = newOrder.map((user, index) => ({
                           userId: user.id,
+                          id: user.id,
                           classNumber: index + 1,
                           class: user.class_name
                         }));
+
+                        // Direct DB update safety net
+                        await Promise.all(updates.map(u =>
+                          (supabase as any).from('users').update({
+                            class_number: u.classNumber,
+                            ...(u.class ? { class: u.class } : {})
+                          }).eq('id', u.userId)
+                        ));
+
                         const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                        await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
-                          headers: {
-                            'Authorization': `Bearer ${session?.access_token || anonKey}`,
-                            'apikey': anonKey
-                          },
-                          body: { adminUserId: forcedAdminId || currentUser?.id, updates }
-                        });
+                        try {
+                          await supabase.functions.invoke('user-management/bulk-update-class-numbers', {
+                            headers: {
+                              'Authorization': `Bearer ${session?.access_token || anonKey}`,
+                              'apikey': anonKey
+                            },
+                            body: { adminUserId: forcedAdminId || currentUser?.id, updates }
+                          });
+                        } catch (edgeErr) {
+                          console.warn('Edge function reorder note:', edgeErr);
+                        }
+
                         await fetchUsers();
                       } catch (err) {
                         console.error('Failed to reorder:', err);

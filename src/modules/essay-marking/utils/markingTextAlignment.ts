@@ -247,7 +247,7 @@ interface TargetLocation {
 /**
  * Locates all character occurrences of substring in str
  */
-function findAllOccurrences(str: string, substr: string): number[] {
+export function findAllOccurrences(str: string, substr: string): number[] {
   if (!substr) return [];
   const indices: number[] = [];
   let pos = 0;
@@ -279,8 +279,20 @@ export function resolveFindingLocation(
 
   let candidateRawLine: number | null = null;
 
+  // 0. Prioritize exact lineIndex and explicit character offset if it matches the quote
+  const explicitStartPre = typeof finding.charStart === 'number' ? finding.charStart : finding.startIndex;
+  if (
+    typeof finding.lineIndex === 'number' &&
+    rawLines[finding.lineIndex] &&
+    typeof explicitStartPre === 'number' &&
+    rawLines[finding.lineIndex].slice(explicitStartPre, explicitStartPre + quote.length) === quote
+  ) {
+    candidateRawLine = finding.lineIndex;
+  }
+
   // 1. Check paragraphIndex & lineIndex
   if (
+    candidateRawLine === null &&
     typeof finding.paragraphIndex === 'number' &&
     typeof finding.lineIndex === 'number' &&
     struct.paragraphs[finding.paragraphIndex] &&
@@ -399,7 +411,11 @@ export function normalizeFindingToMinimalUnits(
   rawLines: string[],
   structure?: ParagraphStructure
 ): any[] {
-  // 1. Keep improvement and clarity suggestions intact (preserve full phrase context)
+  // 1. Keep manual teacher findings, improvement, and clarity suggestions intact (preserve exact span)
+  if (finding.isManual || finding.source === 'teacher') {
+    return [finding];
+  }
+
   const category = (finding.category || '').toLowerCase();
   const feedbackType = (finding.feedbackType || '').toLowerCase();
   if (
@@ -575,7 +591,7 @@ export function alignTranscriptWithFindings(
   alignedLines: AlignedMarkingLine[];
   unmatchedFindings: MarkingFinding[];
 } {
-  const rawLines = rawTranscript.replace(/\r\n/g, '\n').split('\n');
+  const rawLines = rawTranscript.replace(/\r\n?/g, '\n').split('\n');
   const structure = buildTranscriptParagraphStructure(rawLines);
 
   const lineFindingsMap = new Map<
@@ -592,8 +608,8 @@ export function alignTranscriptWithFindings(
   const normalizedFindings = normalizeFindingsToMinimalUnits(findings, rawLines, structure);
 
   for (const finding of normalizedFindings) {
-    // Findings flagged as 'needs_review' are paused from inline rendering until confirmed
-    if (finding.decision === 'needs_review') {
+    // Findings flagged as 'needs_review' or 'anchorReview' are paused from inline rendering until confirmed
+    if (finding.decision === 'needs_review' || finding.anchorReview) {
       continue;
     }
 
@@ -609,7 +625,12 @@ export function alignTranscriptWithFindings(
       spans.push({ start: startIndex, end: endIndex });
       usedSpansByLine.set(rawLineIndex, spans);
     } else {
-      unmatchedFindings.push(finding);
+      unmatchedFindings.push({
+        ...finding,
+        anchorReviewReason:
+          finding.anchorReviewReason ||
+          `原文「${finding.originalText}」無法在目前謄本文字中唯一定位，請手動確認或重新定位。`,
+      });
     }
   }
 
@@ -1035,15 +1056,176 @@ function mapAbsoluteToLocation(
 }
 
 /**
- * Maps each finding's source span through an exact transcript edit operation.
- * Surviving spans (before/after the edit) are remapped; deleted/altered spans are
- * flagged anchor_review without touching the finding's decision or ownership.
+ * Computes the exact list of disjoint edits between old and new transcripts using token-level diff.
+ * Strips common prefix and suffix tokens first for optimal performance and minimal edit spans.
  */
-export function remapFindingsThroughEdit(
+export function computeTranscriptEdits(
+  oldText: string,
+  newText: string
+): TranscriptEditOperation[] {
+  const oldNorm = oldText.replace(/\r\n/g, '\n');
+  const newNorm = newText.replace(/\r\n/g, '\n');
+  if (oldNorm === newNorm) return [];
+
+  const origTokens = tokenizeWordsAndSeparators(oldNorm);
+  const newTokens = tokenizeWordsAndSeparators(newNorm);
+
+  const n = origTokens.length;
+  const m = newTokens.length;
+
+  // Trim common prefix tokens
+  let prefix = 0;
+  while (prefix < n && prefix < m && origTokens[prefix] === newTokens[prefix]) {
+    prefix++;
+  }
+
+  // Trim common suffix tokens
+  let suffix = 0;
+  while (
+    suffix < n - prefix &&
+    suffix < m - prefix &&
+    origTokens[n - 1 - suffix] === newTokens[m - 1 - suffix]
+  ) {
+    suffix++;
+  }
+
+  // Compute character offsets for origTokens
+  const origTokenOffsets: number[] = [];
+  let cur = 0;
+  for (const t of origTokens) {
+    origTokenOffsets.push(cur);
+    cur += t.length;
+  }
+
+  const trimmedOrig = origTokens.slice(prefix, n - suffix);
+  const trimmedNew = newTokens.slice(prefix, m - suffix);
+
+  // If one of the trimmed slices is empty, it's a simple insertion or deletion
+  if (trimmedOrig.length === 0 || trimmedNew.length === 0) {
+    const editStart = prefix < origTokens.length ? origTokenOffsets[prefix] : oldNorm.length;
+    const editEnd =
+      n - suffix < origTokens.length ? origTokenOffsets[n - suffix] : oldNorm.length;
+    const inserted = trimmedNew.join('');
+    return [{ start: editStart, end: editEnd, inserted }];
+  }
+
+  // LCS on trimmed tokens
+  const tn = trimmedOrig.length;
+  const tm = trimmedNew.length;
+  const dp: number[][] = Array.from({ length: tn + 1 }, () => new Array(tm + 1).fill(0));
+
+  for (let i = 1; i <= tn; i++) {
+    for (let j = 1; j <= tm; j++) {
+      if (trimmedOrig[i - 1] === trimmedNew[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to assemble aligned chunks
+  let i = tn;
+  let j = tm;
+  interface DiffChunk {
+    type: 'equal' | 'diff';
+    orig: string[];
+    repl: string[];
+    origStartIndex: number; // index in origTokens
+  }
+  const rawChunks: DiffChunk[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && trimmedOrig[i - 1] === trimmedNew[j - 1]) {
+      rawChunks.push({
+        type: 'equal',
+        orig: [trimmedOrig[i - 1]],
+        repl: [trimmedNew[j - 1]],
+        origStartIndex: prefix + i - 1,
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      rawChunks.push({
+        type: 'diff',
+        orig: [],
+        repl: [trimmedNew[j - 1]],
+        origStartIndex: prefix + i,
+      });
+      j--;
+    } else if (i > 0) {
+      rawChunks.push({
+        type: 'diff',
+        orig: [trimmedOrig[i - 1]],
+        repl: [],
+        origStartIndex: prefix + i - 1,
+      });
+      i--;
+    }
+  }
+
+  rawChunks.reverse();
+
+  // Merge adjacent diff chunks into continuous edit operations
+  const edits: TranscriptEditOperation[] = [];
+  let currentDiff: { origCount: number; origStartIdx: number; repl: string[] } | null = null;
+
+  for (const chunk of rawChunks) {
+    if (chunk.type === 'diff') {
+      if (!currentDiff) {
+        currentDiff = {
+          origCount: chunk.orig.length,
+          origStartIdx: chunk.origStartIndex,
+          repl: [...chunk.repl],
+        };
+      } else {
+        currentDiff.origCount += chunk.orig.length;
+        currentDiff.repl.push(...chunk.repl);
+      }
+    } else {
+      if (currentDiff) {
+        const start = origTokenOffsets[currentDiff.origStartIdx] ?? oldNorm.length;
+        const end =
+          currentDiff.origStartIdx + currentDiff.origCount < origTokenOffsets.length
+            ? origTokenOffsets[currentDiff.origStartIdx + currentDiff.origCount]
+            : oldNorm.length;
+        edits.push({
+          start,
+          end,
+          inserted: currentDiff.repl.join(''),
+        });
+        currentDiff = null;
+      }
+    }
+  }
+
+  if (currentDiff) {
+    const start = origTokenOffsets[currentDiff.origStartIdx] ?? oldNorm.length;
+    const end =
+      currentDiff.origStartIdx + currentDiff.origCount < origTokenOffsets.length
+        ? origTokenOffsets[currentDiff.origStartIdx + currentDiff.origCount]
+        : oldNorm.length;
+    edits.push({
+      start,
+      end,
+      inserted: currentDiff.repl.join(''),
+    });
+  }
+
+  return edits;
+}
+
+/**
+ * Maps each finding's source span through multiple exact transcript edit operations.
+ * Non-overlapping edits preserve findings in intervening unchanged text.
+ * Surviving spans are remapped with updated line/character positions;
+ * deleted or altered spans are flagged anchor_review without touching decision or ownership.
+ */
+export function remapFindingsThroughEdits(
   oldTranscript: string,
   newTranscript: string,
   findings: MarkingFinding[],
-  edit: TranscriptEditOperation
+  edits: TranscriptEditOperation[]
 ): RemapOutcome[] {
   const oldNorm = oldTranscript.replace(/\r\n/g, '\n');
   const newNorm = newTranscript.replace(/\r\n/g, '\n');
@@ -1051,6 +1233,7 @@ export function remapFindingsThroughEdit(
   const structure = buildTranscriptParagraphStructure(oldLines);
   const oldOffsets = computeLineStartOffsets(oldNorm);
 
+  const sortedEdits = [...edits].sort((a, b) => a.start - b.start);
   const outcomes: RemapOutcome[] = [];
 
   for (const finding of findings) {
@@ -1067,23 +1250,25 @@ export function remapFindingsThroughEdit(
     const oldStart = oldOffsets[loc.rawLineIndex] + loc.startIndex;
     const oldEnd = oldOffsets[loc.rawLineIndex] + loc.endIndex;
 
-    let newStart: number;
-    let newEnd: number;
-    let disposition: 'before' | 'after' | 'deleted' | 'altered';
+    let cumulativeDelta = 0;
+    let disposition: 'clean' | 'deleted' | 'altered' = 'clean';
 
-    if (oldEnd <= edit.start) {
-      newStart = oldStart;
-      newEnd = oldEnd;
-      disposition = 'before';
-    } else if (oldStart >= edit.end) {
-      const delta = edit.inserted.length - (edit.end - edit.start);
-      newStart = oldStart + delta;
-      newEnd = oldEnd + delta;
-      disposition = 'after';
-    } else if (oldStart >= edit.start && oldEnd <= edit.end) {
-      disposition = 'deleted';
-    } else {
-      disposition = 'altered';
+    for (const edit of sortedEdits) {
+      if (edit.start < oldEnd && edit.end > oldStart) {
+        // Edit overlaps this finding
+        if (oldStart >= edit.start && oldEnd <= edit.end && edit.inserted.length === 0) {
+          disposition = 'deleted';
+        } else {
+          disposition = 'altered';
+        }
+        break;
+      } else if (edit.end <= oldStart) {
+        // Edit is strictly before this finding
+        cumulativeDelta += edit.inserted.length - (edit.end - edit.start);
+      } else if (edit.start >= oldEnd) {
+        // Edit is strictly after this finding (sorted, so no more can be before)
+        break;
+      }
     }
 
     if (disposition === 'deleted' || disposition === 'altered') {
@@ -1091,6 +1276,22 @@ export function remapFindingsThroughEdit(
         findingId: finding.id,
         status: 'anchor_review',
         anchorReviewReason: `原文「${finding.originalText}」於本次編輯中被刪除或改動，請重新確認`,
+      });
+      continue;
+    }
+
+    const newStart = oldStart + cumulativeDelta;
+    const newEnd = oldEnd + cumulativeDelta;
+
+    if (
+      newStart < 0 ||
+      newEnd > newNorm.length ||
+      newNorm.slice(newStart, newEnd) !== finding.originalText
+    ) {
+      outcomes.push({
+        findingId: finding.id,
+        status: 'anchor_review',
+        anchorReviewReason: '編輯後無法重新定位原文範圍，已保留並標記待確認',
       });
       continue;
     }
@@ -1109,5 +1310,17 @@ export function remapFindingsThroughEdit(
   }
 
   return outcomes;
+}
+
+/**
+ * Maps each finding's source span through an exact single transcript edit operation.
+ */
+export function remapFindingsThroughEdit(
+  oldTranscript: string,
+  newTranscript: string,
+  findings: MarkingFinding[],
+  edit: TranscriptEditOperation
+): RemapOutcome[] {
+  return remapFindingsThroughEdits(oldTranscript, newTranscript, findings, [edit]);
 }
 

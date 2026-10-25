@@ -39,6 +39,7 @@ import {
   computeStudentPageSignature,
   resolveWritingAreasForPage,
 } from '../utils/transcriptionBatchQueue';
+import { loadOcrRulesSnapshot } from '../utils/ocrRulesLoader';
 
 interface TranscriptVerificationPanelProps {
   students: StudentRosterItem[];
@@ -386,6 +387,42 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
 
     const modeToUse = forcedMode || selectedProvider;
 
+    // In local Qwen VL mode, check service health on 18088 and validate prompt snapshot before starting
+    if (modeToUse === 'local_qwen_vl') {
+      try {
+        const status = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = status.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+
+        if (!isQwenOnline) {
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+          });
+          return;
+        }
+      } catch {
+        setQwenStatus('error');
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+        });
+        return;
+      }
+
+      const transcriptionService = essayServices.getTranscriptionService();
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+      }
+    }
+
     // In combined mode, check Qwen availability before starting Mathpix
     if (modeToUse === 'mathpix_qwen_verify') {
       try {
@@ -436,8 +473,65 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     const ocrService = essayServices.getOcrService();
     const transcriptionService = essayServices.getTranscriptionService();
     const pageResults: PageTranscriptionResult[] = [];
+    // Pre-flight check: validate OCR rules snapshot before running OCR
+    const rulesRes = await loadOcrRulesSnapshot();
+    if (!rulesRes.ok) {
+      inFlightRef.current = false;
+      setIsTranscribingSingle(false);
+      setPageStage('failed');
+      setNotice({
+        type: 'error',
+        text: `OCR Rules Error: ${rulesRes.error}`,
+      });
+      return;
+    }
 
-    setPageStage('ocr_running');
+    setPageStage(activeMode === 'local_qwen_vl' ? 'vl_running' : 'ocr_running');
+
+    // For Qwen VL Local Only mode, check service health and load one immutable prompt snapshot for this action
+    let actionPromptSnapshot: any = null;
+    if (activeMode === 'local_qwen_vl') {
+      try {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = avail.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+        if (!isQwenOnline) {
+          inFlightRef.current = false;
+          setIsTranscribingSingle(false);
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+          });
+          return;
+        }
+      } catch {
+        setQwenStatus('error');
+        inFlightRef.current = false;
+        setIsTranscribingSingle(false);
+        setPageStage('failed');
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+        });
+        return;
+      }
+
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          inFlightRef.current = false;
+          setIsTranscribingSingle(false);
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+        actionPromptSnapshot = promptRes.snapshot;
+      }
+    }
 
     try {
       for (const item of studentPagesWithIndices) {
@@ -455,13 +549,39 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           continue;
         }
 
-        // Mode: Legacy Local Qwen VL direct transcription
+        // Mode: Direct Local Qwen VL transcription via bridge (ZERO Mathpix calls)
         if (activeMode === 'local_qwen_vl') {
+          setPageStage('vl_running');
           const areaResolution = resolveWritingAreasForPage(
             item.page,
             item.part,
             templateRegions
           );
+
+          if (areaResolution.hasError) {
+            setPageStage('failed');
+            setNotice({
+              type: 'error',
+              text: `Page ${item.part}: ${areaResolution.errorMessage || 'Invalid OCR region'}`,
+            });
+            pageResults.push({
+              scanPageId: item.page.id,
+              part: item.part,
+              totalParts: item.total,
+              status: 'failed',
+              error: areaResolution.errorMessage || 'Invalid OCR region',
+              errorCode: 'INVALID_OCR_REGION',
+              ocrMode: 'local_qwen_vl',
+              promptVersion: actionPromptSnapshot?.promptVersion,
+              promptHash: actionPromptSnapshot?.promptHash,
+            });
+            continue;
+          }
+
+          setNotice({
+            type: 'info',
+            text: `Contacting Qwen VL OCR (Port 18088) for Page ${item.part} of ${item.total}...`,
+          });
 
           const res = await transcriptionService.transcribePage({
             scanPageId: item.page.id,
@@ -473,6 +593,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
             regions: areaResolution.regions,
             readingOrder: currentSettings.readingOrder,
             settings: currentSettings,
+            promptSnapshot: actionPromptSnapshot || undefined,
           });
 
           const errDetail =
@@ -496,8 +617,9 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
             httpStatus: res.httpStatus,
             isRetryable: res.isRetryable,
             modelId: res.modelId,
-            promptVersion: res.promptVersion,
-            settingsVersion: currentSettings.version,
+            promptVersion: res.promptVersion || actionPromptSnapshot?.promptVersion,
+            promptHash: res.promptHash || actionPromptSnapshot?.promptHash,
+            settingsVersion: res.settingsVersion || currentSettings.version,
             hasUnreadable: res.hasUnreadable,
             ocrMode: 'local_qwen_vl',
           });
@@ -784,7 +906,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         currentSettings,
         activeMode,
         initialSignature,
-        assignment.id
+        assignment.id,
+        rulesRes.snapshot.config
       );
 
       const anyQwenIncomplete = pageResults.some((p) => p.qwenVerificationStatus === 'failed');
@@ -803,7 +926,9 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         setNotice({
           type: 'success',
           text:
-            activeMode === 'mathpix_qwen_verify'
+            activeMode === 'local_qwen_vl'
+              ? 'Qwen VL OCR transcript generated. Ready for teacher review.'
+              : activeMode === 'mathpix_qwen_verify'
               ? 'Candidate transcript generated and verified with Qwen VL. Ready for teacher review.'
               : 'Mathpix OCR transcript generated. Ready for teacher review.',
         });
@@ -819,6 +944,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         combined.qwenChanges = firstResult.qwenChanges;
         combined.qwenVerificationStatus = firstResult.qwenVerificationStatus;
         combined.ocrMode = activeMode;
+        combined.promptVersion = firstResult.promptVersion;
+        combined.promptHash = firstResult.promptHash;
         combined.isDryRun = firstResult.isDryRun;
       }
 
@@ -1006,11 +1133,33 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           ocrMode: activeMode,
         };
       } else if (activeMode === 'local_qwen_vl') {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        if (avail.visualVerification?.status !== 'available') {
+          throw new Error(
+            'Qwen VL OCR service is offline on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.'
+          );
+        }
+
+        let promptSnapshot: any = null;
+        if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+          const promptRes = await transcriptionService.getOcrPromptSnapshot();
+          if (!promptRes.ok || !promptRes.snapshot) {
+            throw new Error(
+              `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}`
+            );
+          }
+          promptSnapshot = promptRes.snapshot;
+        }
+
         const areaResolution = resolveWritingAreasForPage(
           pageItem.page,
           pageItem.part,
           templateRegions
         );
+
+        if (areaResolution.hasError) {
+          throw new Error(areaResolution.errorMessage || 'Invalid OCR region');
+        }
 
         const res = await transcriptionService.transcribePage({
           scanPageId: pageItem.page.id,
@@ -1022,13 +1171,22 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           regions: areaResolution.regions,
           readingOrder: currentSettings.readingOrder,
           settings: currentSettings,
+          promptSnapshot: promptSnapshot || undefined,
         });
+
+        if (res.status !== 'success') {
+          throw new Error(
+            res.message ||
+              res.error ||
+              (res.code ? `Transcription error: ${res.code}` : 'Qwen VL OCR retry failed')
+          );
+        }
 
         pageRes = {
           scanPageId: pageItem.page.id,
           part: pageItem.part,
           totalParts: pageItem.total,
-          status: res.status === 'success' ? 'success' : 'failed',
+          status: 'success',
           transcript: res.transcript,
           linesWithBboxes: res.linesWithBboxes,
           error: res.message || res.error,
@@ -1036,7 +1194,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           httpStatus: res.httpStatus,
           isRetryable: res.isRetryable,
           modelId: res.modelId,
-          promptVersion: res.promptVersion,
+          promptVersion: res.promptVersion || promptSnapshot?.promptVersion,
+          promptHash: res.promptHash || promptSnapshot?.promptHash,
           settingsVersion: currentSettings.version,
           hasUnreadable: res.hasUnreadable,
           ocrMode: 'local_qwen_vl',
@@ -1257,6 +1416,9 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
       }
       if (!replaced) updatedResults.push(pageRes);
 
+      const rulesRes = await loadOcrRulesSnapshot();
+      const rulesConfig = rulesRes.ok ? rulesRes.snapshot.config : undefined;
+
       const signature = computeStudentPageSignature(activeStudentIndex, appliedMatching, pages);
       const combined = combineCandidateTranscript(
         targetStudentId,
@@ -1264,7 +1426,8 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         currentSettings,
         activeMode,
         signature,
-        assignment.id
+        assignment.id,
+        rulesConfig
       );
 
       const anyIncomplete = updatedResults.some((p) => p.qwenVerificationStatus === 'failed');
@@ -1334,6 +1497,44 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
     }
 
     setIsBatchRunning(true);
+    let batchPromptSnapshot: any = null;
+    if (selectedProvider === 'local_qwen_vl') {
+      try {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = avail.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+        if (!isQwenOnline) {
+          setIsBatchRunning(false);
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088 before batch transcribing.',
+          });
+          return;
+        }
+      } catch {
+        setIsBatchRunning(false);
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088 before batch transcribing.',
+        });
+        return;
+      }
+
+      const transcriptionService = essayServices.getTranscriptionService();
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          setIsBatchRunning(false);
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+        batchPromptSnapshot = promptRes.snapshot;
+      }
+    }
+
     const controller = new BatchTranscriptionQueueController({
       tasks,
       skippedStudents,
@@ -1360,6 +1561,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
         appliedMatching,
         pages,
         assignmentId: assignment.id,
+        promptSnapshot: batchPromptSnapshot,
       });
     } finally {
       setIsBatchRunning(false);
@@ -1846,7 +2048,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                 type="button"
                 onClick={() => handleInitiateSingleEssayTranscribe(activeStudentId)}
                 disabled={isTranscribingSingle || isBatchRunning || studentPagesWithIndices.length === 0}
-                aria-label={`Start ${selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (${studentPagesWithIndices.length}) - Transcribe This Essay`}
+                aria-label={`Start ${selectedProvider === 'local_qwen_vl' ? 'Qwen VL OCR' : selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (${studentPagesWithIndices.length}) - Transcribe This Essay`}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 shadow-2xs"
               >
                 {isTranscribingSingle ? (
@@ -1854,7 +2056,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>
                       {pageStage === 'vl_running'
-                        ? 'Verifying with Qwen VL...'
+                        ? (selectedProvider === 'local_qwen_vl' ? 'Running Qwen VL OCR...' : 'Verifying with Qwen VL...')
                         : 'Running Mathpix OCR...'}
                     </span>
                   </>
@@ -1862,7 +2064,7 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>
-                      Start {selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (
+                      Start {selectedProvider === 'local_qwen_vl' ? 'Qwen VL OCR' : selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (
                       {studentPagesWithIndices.length})
                     </span>
                   </>
@@ -1956,6 +2158,33 @@ export const TranscriptVerificationPanel: React.FC<TranscriptVerificationPanelPr
           <p className="text-xs text-slate-500 mb-2">
             Preserve student spelling, punctuation, and grammar mistakes faithfully so the rubric evaluation can assess genuine student language.
           </p>
+
+          {/* Non-blocking OCR review notices banner */}
+          {currentTranscript.reviewNotices && currentTranscript.reviewNotices.length > 0 && (
+            <div className="mb-2 p-2.5 bg-amber-50/90 border border-amber-200/90 rounded-md text-xs text-amber-900 shadow-2xs">
+              <div className="flex items-center justify-between font-medium">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-semibold text-amber-900">
+                    OCR Review Notices ({currentTranscript.reviewNotices.length}):
+                  </span>
+                  <span className="text-amber-800">Non-blocking notices. Text is preserved in the transcript; edit below if needed.</span>
+                </div>
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {currentTranscript.reviewNotices.map((notice) => (
+                  <div key={notice.id} className="flex items-start gap-1.5 pl-5 text-[11px] text-amber-900">
+                    <span className="font-mono text-amber-700 font-semibold shrink-0">
+                      {notice.lineNumber ? `[Line ${notice.lineNumber}]` : '•'}
+                    </span>
+                    <span>
+                      <strong className="font-semibold">{notice.matchedText}</strong> — {notice.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <textarea
             rows={12}

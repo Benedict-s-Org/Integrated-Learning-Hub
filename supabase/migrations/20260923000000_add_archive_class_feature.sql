@@ -120,9 +120,10 @@ BEGIN
         WHERE user_id = v_student.id;
     END LOOP;
 
-    -- 2. Update students' class to the clean archived year name
+    -- 2. Clear students' class and class_number so they become Unassigned for the new academic year
     UPDATE public.users
-    SET class = v_archived_name
+    SET class = NULL,
+        class_number = NULL
     WHERE class = p_class_name OR class = v_archived_name;
 
     -- 3. In classes table:

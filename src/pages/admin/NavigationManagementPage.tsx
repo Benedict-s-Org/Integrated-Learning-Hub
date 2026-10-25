@@ -42,7 +42,7 @@ export const NavigationManagementPage: React.FC = () => {
                     .order('class_number', { ascending: true }) as any);
 
                 if (error) throw error;
-                const userData = (data as UserProfile[]).filter(u => u.role === 'admin' || !isArchivedClassName(u.class));
+                const userData = (data as UserProfile[]);
                 setUsers(userData);
                 
                 // Track initial permissions to detect changes later
@@ -243,7 +243,7 @@ export const NavigationManagementPage: React.FC = () => {
     };
 
     const classes = useMemo(() => {
-        const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter((c): c is string => Boolean(c) && !isArchivedClassName(c))));
+        const uniqueClasses = Array.from(new Set(users.map(u => u.class).filter((c): c is string => Boolean(c))));
         return uniqueClasses.sort();
     }, [users]);
 

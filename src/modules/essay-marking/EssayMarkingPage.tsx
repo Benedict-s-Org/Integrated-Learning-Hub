@@ -24,6 +24,7 @@ import {
   StructuredAssessmentComments,
   MarkingJobContext,
   StagedAiProposal,
+  StagedCandidateTranscript,
 } from './types';
 import {
   computeMatchingPreview,
@@ -78,6 +79,7 @@ import {
   isEffectiveTranscriptPresent,
   reconcileRestoredCandidates,
 } from './utils/backgroundMarkingQueue';
+import { detectReviewNotices } from './utils/ocrFormatNormalizer';
 
 export function formatCompositeFeedback(comments?: StructuredAssessmentComments | null): string {
   if (!comments) return '';
@@ -1106,11 +1108,14 @@ export const EssayMarkingPage: React.FC = () => {
         studentId,
         rawOcrText: prev[studentId]?.rawOcrText || null,
         editedText: text,
+        originalOcrText: prev[studentId]?.originalOcrText ?? prev[studentId]?.rawOcrText ?? undefined,
+        reviewNotices: detectReviewNotices(text),
         linesWithBboxes: linesWithBboxes ?? prev[studentId]?.linesWithBboxes,
         isManuallyEntered: true,
         uncertainRegions: prev[studentId]?.uncertainRegions || [],
         isVerified: false, // Editing revokes verification
         revision: nextRev,
+        completedPageIds: prev[studentId]?.completedPageIds,
       },
     }));
 
@@ -1348,7 +1353,7 @@ export const EssayMarkingPage: React.FC = () => {
   ) => {
     const newFinding: MarkingFinding = {
       ...finding,
-      id: `f-${Date.now()}`,
+      id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       decision: 'pending',
     };
     setMarkings((prev) => {
@@ -1388,6 +1393,8 @@ export const EssayMarkingPage: React.FC = () => {
               ? {
                   ...f,
                   decision,
+                  anchorReview: decision === 'accepted' || decision === 'edited' ? false : f.anchorReview,
+                  anchorReviewReason: decision === 'accepted' || decision === 'edited' ? undefined : f.anchorReviewReason,
                   teacherCustomText: customText ?? f.teacherCustomText,
                 }
               : f
@@ -1415,6 +1422,8 @@ export const EssayMarkingPage: React.FC = () => {
               ? {
                   ...f,
                   ...updatedFields,
+                  anchorReview: false,
+                  anchorReviewReason: undefined,
                   decision: (updatedFields.decision as FindingDecision) || 'edited',
                   source: 'teacher',
                   isManual: true,
@@ -1939,8 +1948,10 @@ export const EssayMarkingPage: React.FC = () => {
 
       const newTranscript: StudentTranscriptState = {
         studentId,
-        rawOcrText: candidate.transcript,
+        rawOcrText: candidate.rawTranscript || candidate.transcript,
         editedText: candidate.transcript,
+        originalOcrText: candidate.rawTranscript,
+        reviewNotices: candidate.reviewNotices,
         linesWithBboxes: candidate.linesWithBboxes,
         isManuallyEntered: false,
         uncertainRegions: [],
@@ -2068,8 +2079,10 @@ export const EssayMarkingPage: React.FC = () => {
 
       const newTranscript: StudentTranscriptState = {
         studentId,
-        rawOcrText: candidate.transcript,
+        rawOcrText: candidate.rawTranscript || candidate.transcript,
         editedText: candidate.transcript,
+        originalOcrText: candidate.rawTranscript,
+        reviewNotices: candidate.reviewNotices,
         linesWithBboxes: candidate.linesWithBboxes,
         isManuallyEntered: false,
         uncertainRegions: [],

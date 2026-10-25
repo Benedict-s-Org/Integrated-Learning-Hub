@@ -5,6 +5,7 @@ import {
   FixedTranscriptionRulesInfo,
   VerifyTranscriptionRequest,
   VerifyTranscriptionResponse,
+  OcrPromptSnapshot,
 } from './essayServiceTypes';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -301,6 +302,40 @@ export class BridgeTranscriptionService implements EssayTranscriptionService {
       return null;
     } catch {
       return null;
+    }
+  }
+
+  async getOcrPromptSnapshot(): Promise<OcrPromptSnapshot> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const res = await fetch(`${BRIDGE_BASE_URL}/api/ocr-prompt`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || data.status === 'error') {
+        const err = new Error(data?.message || `Failed to load OCR prompt (HTTP ${res.status}).`);
+        (err as any).code = data?.code || 'PROMPT_ERROR';
+        throw err;
+      }
+
+      return {
+        promptHash: data.promptHash,
+        promptVersion: data.promptVersion,
+        promptText: data.promptText,
+        filePath: data.filePath,
+      };
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error) throw err;
+      throw new Error('Failed to load OCR prompt snapshot from bridge.');
     }
   }
 }

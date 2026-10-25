@@ -280,12 +280,11 @@ describe('MarkingReviewPanel Component Rendering & Regression Tests', () => {
     const roomWord = screen.getByText('room.');
     fireEvent.click(roomWord);
 
-    // Left-click plain OCR word "room." now places an editing caret (contentEditable);
-    // it no longer opens the OCR correction modal.
+    // Left-click plain OCR word "room." mounts an in-place controlled textarea for Option B line editing;
+    // it does not open a modal or floating popover.
     expect(screen.queryByText(/修正辨識文字 \(Correct OCR\)/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/新增批改 \(Add Finding\)/i)).not.toBeInTheDocument();
-    const lineTokens = roomWord.closest('[data-line-tokens]');
-    expect(lineTokens).toHaveAttribute('contenteditable', 'true');
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
   it('Operation B: Add Finding creates manual teacher finding and checks for overlap', () => {

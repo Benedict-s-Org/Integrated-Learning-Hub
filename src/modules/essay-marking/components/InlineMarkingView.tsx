@@ -11,8 +11,10 @@ import {
   Check,
   X,
   Edit2,
+  Edit3,
   Trash2,
   AlertCircle,
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   Info,
@@ -39,7 +41,12 @@ interface InlineMarkingViewProps {
   selectedOccurrenceIndex?: number | null;
   onSelectLine?: (lineIndex: number | null) => void;
   onSelectWord?: (target: SelectedWordTarget | null) => void;
-  onTextSelection?: (selectedText: string, lineIndex: number, occurrenceIndex?: number) => void;
+  onTextSelection?: (
+    selectedText: string,
+    lineIndex: number,
+    occurrenceIndex?: number,
+    exactRange?: { startOffset: number; endOffset: number }
+  ) => void;
   onFindingDecision: (
     studentId: string,
     findingId: string,
@@ -55,10 +62,12 @@ interface InlineMarkingViewProps {
   onUpdateFindings?: (studentId: string, findings: MarkingFinding[]) => void;
   onWordClick?: (target: { lineIndex: number; wordIndex: number; text: string }) => void;
   onWordContextMenu?: (
-    target: { lineIndex: number; wordIndex: number; text: string },
+    target: { lineIndex: number; wordIndex: number; text: string; startOffset?: number; endOffset?: number },
     e: React.MouseEvent
   ) => void;
   onCanvasContextMenu?: (e: React.MouseEvent) => void;
+  revision?: number;
+  onSaveWholeTranscript?: (newText: string, baseRevision?: number) => void;
   onTranscriptTextEdit?: (lineIndex: number, newLineText: string) => void;
   onSelectionContextMenu?: (
     payload: {
@@ -90,6 +99,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
   findings,
   studentId,
   studentName = 'Student',
+  revision,
   selectedLineIndex,
   selectedWordTarget,
   selectedText,
@@ -104,16 +114,29 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
   onWordClick,
   onWordContextMenu,
   onCanvasContextMenu,
+  onSaveWholeTranscript,
   onTranscriptTextEdit,
   onSelectionContextMenu,
   onFindingContextMenu,
 }) => {
   const [showRejected, setShowRejected] = useState(false);
-  const [isUnmatchedOpen, setIsUnmatchedOpen] = useState(false);
+  const [isUnmatchedOpen, setIsUnmatchedOpen] = useState(true);
 
   // Mouse drag tracking refs to distinguish click from drag-selection
   const isDraggingRef = useRef(false);
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const lastSelectionRangeRef = useRef<{
+    startLine: number;
+    startOffset: number;
+    endLine: number;
+    endOffset: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!selectedText) {
+      lastSelectionRangeRef.current = null;
+    }
+  }, [selectedText]);
 
   // Hover Tooltip state
   const [hoveredFinding, setHoveredFinding] = useState<MarkingFinding | null>(null);
@@ -141,7 +164,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
   );
 
   const rejectedCount = findings.filter((f) => f.decision === 'rejected').length;
-  const needsReviewFindings = findings.filter((f) => f.decision === 'needs_review');
+  const needsReviewFindings = findings.filter((f) => f.decision === 'needs_review' || f.anchorReview);
 
   // Scroll to selected line or word when selected from scan or externally
   useEffect(() => {
@@ -178,6 +201,9 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
       const text = selection.toString().trim();
       if (text) {
         isDraggingRef.current = true;
+        setTimeout(() => {
+          isDraggingRef.current = false;
+        }, 120);
         let node: Node | null = selection.anchorNode;
         let lineEl: HTMLElement | null = null;
         while (node && !lineEl) {
@@ -236,10 +262,19 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
               return;
             }
 
-            onTextSelection?.(text, lineIdx, occIdx);
+            let startOffset = charOffsetInLine;
+            let endOffset = charOffsetInLine + text.length;
+            if (occurrences.length > 0 && typeof occurrences[occIdx] === 'number') {
+              startOffset = occurrences[occIdx];
+              endOffset = startOffset + text.length;
+            }
+            lastSelectionRangeRef.current = { startLine: lineIdx, startOffset, endLine: lineIdx, endOffset };
+            onTextSelection?.(text, lineIdx, occIdx, { startOffset, endOffset });
           }
         }
       }
+    } else {
+      lastSelectionRangeRef.current = null;
     }
   };
 
@@ -499,117 +534,70 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
     handleClosePopover();
   };
 
-  // In-place line editing: IME/paste/commit state
-  const composingRef = useRef(false);
-  const pendingCommitRef = useRef(false);
-  // Bumped on Escape to force a remount that discards the current uncommitted edit.
-  const [cancelVersion, setCancelVersion] = useState(0);
+  // Whole-transcript controlled in-place editing state
+  const [isEditingWhole, setIsEditingWhole] = useState(false);
+  const [draftText, setDraftText] = useState('');
+  const draftsByStudentRef = useRef<Record<string, { text: string; baseRevision: number }>>({});
+  const wholeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const extractLinePlainText = (el: HTMLElement): string => {
-    let text = '';
-    el.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent || '';
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const elem = node as HTMLElement;
-        const orig = elem.getAttribute('data-finding-original');
-        if (orig !== null) {
-          text += orig;
-        } else {
-          text += extractLinePlainText(elem);
-        }
+  // Sync draft text on student switch: never lose an unsaved draft or apply to wrong student
+  useEffect(() => {
+    const existing = draftsByStudentRef.current[studentId];
+    if (existing) {
+      setDraftText(existing.text);
+      setIsEditingWhole(true);
+    } else {
+      setIsEditingWhole(false);
+      setDraftText('');
+    }
+  }, [studentId]);
+
+  const startWholeEdit = () => {
+    const initialText = transcript;
+    setDraftText(initialText);
+    draftsByStudentRef.current[studentId] = {
+      text: initialText,
+      baseRevision: revision ?? 0,
+    };
+    setIsEditingWhole(true);
+  };
+
+  const handleDraftChange = (newVal: string) => {
+    setDraftText(newVal);
+    if (draftsByStudentRef.current[studentId]) {
+      draftsByStudentRef.current[studentId].text = newVal;
+    }
+  };
+
+  const handleSaveWholeEdit = () => {
+    const clean = draftText.replace(/\r\n/g, '\n');
+    const oldClean = transcript.replace(/\r\n/g, '\n');
+    const baseRev = draftsByStudentRef.current[studentId]?.baseRevision ?? revision ?? 0;
+    delete draftsByStudentRef.current[studentId];
+    setIsEditingWhole(false);
+    if (clean !== oldClean) {
+      if (onSaveWholeTranscript) {
+        onSaveWholeTranscript(clean, baseRev);
+      } else if (onTranscriptTextEdit) {
+        onTranscriptTextEdit(0, clean);
       }
-    });
-    return text;
-  };
-
-  const commitLineIfChanged = (lineIndex: number, el: HTMLElement) => {
-    if (composingRef.current) {
-      pendingCommitRef.current = true;
-      return;
-    }
-    const newText = extractLinePlainText(el).replace(/\u00a0/g, ' ');
-    const oldText = alignedLines.find((l) => l.lineIndex === lineIndex)?.rawText ?? '';
-    if (newText !== oldText) {
-      onTranscriptTextEdit?.(lineIndex, newText);
     }
   };
 
-  const handleLineCompositionStart = () => {
-    composingRef.current = true;
+  const handleCancelWholeEdit = () => {
+    delete draftsByStudentRef.current[studentId];
+    setIsEditingWhole(false);
+    setDraftText('');
   };
 
-  const handleLineInput = () => {
-    // Content edits are committed on blur/Enter; nothing to do per keystroke.
-  };
-
-  const handleLineCompositionEnd = (e: React.CompositionEvent<HTMLDivElement>) => {
-    composingRef.current = false;
-    if (pendingCommitRef.current) {
-      pendingCommitRef.current = false;
-      const lineIdx = parseInt(e.currentTarget.getAttribute('data-line-tokens') || '0', 10);
-      commitLineIfChanged(lineIdx, e.currentTarget);
+  useEffect(() => {
+    if (isEditingWhole && wholeTextareaRef.current) {
+      const el = wholeTextareaRef.current;
+      el.focus();
+      el.selectionStart = el.value.length;
+      el.selectionEnd = el.value.length;
     }
-  };
-
-  const handleLineKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, lineIndex: number) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      commitLineIfChanged(lineIndex, e.currentTarget as HTMLElement);
-      (e.currentTarget as HTMLElement).blur();
-    } else if (e.key === 'Escape') {
-      // Cancel the current uncommitted edit by remounting with the committed text
-      // (no direct DOM mutation; the key change discards browser edits safely).
-      e.preventDefault();
-      setCancelVersion((v) => v + 1);
-    }
-  };
-
-  const handleLineBlur = (e: React.FocusEvent<HTMLDivElement>, lineIndex: number) => {
-    commitLineIfChanged(lineIndex, e.currentTarget);
-  };
-
-  const handleLinePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const text = e.clipboardData.getData('text/plain');
-    try {
-      document.execCommand('insertText', false, text);
-    } catch {
-      // Fallback: insert at caret via Selection API is browser-specific; no-op.
-    }
-  };
-
-  const handleLineContextMenu = (e: React.MouseEvent<HTMLDivElement>, lineIndex: number) => {
-    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-    const selectedText = sel && !sel.isCollapsed ? sel.toString() : '';
-    if (selectedText.trim()) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Determine involved findings by DOM intersection (best-effort).
-      const involvedFindingIds: string[] = [];
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        const container = e.currentTarget;
-        container.querySelectorAll('[data-finding-id]').forEach((node) => {
-          const id = node.getAttribute('data-finding-id');
-          if (id && range.intersectsNode(node)) {
-            involvedFindingIds.push(id);
-          }
-        });
-      }
-      onSelectionContextMenu?.(
-        {
-          sourceText: selectedText,
-          startLine: lineIndex,
-          startOffset: 0,
-          endLine: lineIndex,
-          endOffset: selectedText.length,
-          involvedFindingIds,
-        },
-        e
-      );
-    }
-  };
+  }, [isEditingWhole]);
 
   const getCategoryBadgeClass = (category: string) => {
     const cat = category.toLowerCase();
@@ -645,174 +633,266 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
           );
         })()}
 
-        {rejectedCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowRejected((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs"
-            title={showRejected ? 'Hide rejected suggestions' : 'Show rejected suggestions for review/undo'}
-          >
-            {showRejected ? (
-              <>
-                <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                <span>Hide Rejected ({rejectedCount})</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-3.5 h-3.5 text-slate-500" />
-                <span>Show Rejected ({rejectedCount})</span>
-              </>
-            )}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isEditingWhole && (
+            <button
+              type="button"
+              onClick={startWholeEdit}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
+              title="Edit full transcript in place (split/merge lines, correct text)"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Edit Transcript</span>
+            </button>
+          )}
+
+          {rejectedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowRejected((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs"
+              title={showRejected ? 'Hide rejected suggestions' : 'Show rejected suggestions for review/undo'}
+            >
+              {showRejected ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Hide Rejected ({rejectedCount})</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Show Rejected ({rejectedCount})</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Main Inline Text Canvas */}
-      <div
-        onMouseDown={handleMouseDownCanvas}
-        onMouseMove={handleMouseMoveCanvas}
-        onMouseUp={handleMouseUpCanvas}
-        onContextMenu={(e) => {
-          const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
-          if (sel && sel.length > 0) {
-            e.preventDefault();
-            e.stopPropagation();
-            onCanvasContextMenu?.(e);
-          }
-        }}
-        className="p-4 md:p-6 bg-white overflow-y-auto max-h-[calc(100vh-270px)] min-h-[420px] select-text"
-      >
-        {alignedLines.length === 0 || (alignedLines.length === 1 && alignedLines[0].rawText.trim() === '') ? (
-          <div className="text-center py-16 text-slate-400 text-xs">
-            <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="font-medium text-slate-600">No transcript available for {studentName}.</p>
-            <p className="text-slate-400 mt-1">Please run OCR or enter transcript text before marking.</p>
+      {isEditingWhole ? (
+        <div className="p-4 md:p-6 bg-slate-50 overflow-y-auto max-h-[calc(100vh-270px)] min-h-[420px] flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between bg-blue-50/90 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 gap-2">
+            <div className="flex items-center gap-2">
+              <Edit3 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                <strong>Editing full OCR transcript:</strong> Correct OCR text, insert or remove line breaks, and split/merge lines anywhere in the essay. Enter inserts a newline.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleCancelWholeEdit}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveWholeEdit}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Save OCR changes
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-1">
-            {alignedLines.map((line) => {
-              if (line.isEmpty) {
+
+          <textarea
+            ref={wholeTextareaRef}
+            value={draftText}
+            onChange={(e) => handleDraftChange(e.target.value)}
+            onContextMenu={(e) => e.stopPropagation()}
+            className="w-full flex-1 min-h-[380px] p-4 text-slate-900 font-serif text-[15px] leading-relaxed bg-white border border-slate-300 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            placeholder="Full transcript text..."
+            aria-label="Full OCR transcript editor"
+          />
+        </div>
+      ) : (
+        /* Main Inline Text Canvas */
+        <div
+          onMouseDown={handleMouseDownCanvas}
+          onMouseMove={handleMouseMoveCanvas}
+          onMouseUp={handleMouseUpCanvas}
+          onContextMenu={(e) => {
+            const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+            if (sel && sel.length > 0 && lastSelectionRangeRef.current) {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelectionContextMenu?.(
+                {
+                  sourceText: sel,
+                  startLine: lastSelectionRangeRef.current.startLine,
+                  startOffset: lastSelectionRangeRef.current.startOffset,
+                  endLine: lastSelectionRangeRef.current.endLine,
+                  endOffset: lastSelectionRangeRef.current.endOffset,
+                  involvedFindingIds: [],
+                },
+                e
+              );
+            } else if (onCanvasContextMenu) {
+              onCanvasContextMenu(e);
+            }
+          }}
+          className="p-4 md:p-6 bg-white overflow-y-auto max-h-[calc(100vh-270px)] min-h-[420px] select-text"
+        >
+          {alignedLines.length === 0 || (alignedLines.length === 1 && alignedLines[0].rawText.trim() === '') ? (
+            <div className="text-center py-16 text-slate-400 text-xs">
+              <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="font-medium text-slate-600">No transcript available for {studentName}.</p>
+              <p className="text-slate-400 mt-1">Please run OCR or enter transcript text before marking.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {alignedLines.map((line) => {
+                if (line.isEmpty) {
+                  return (
+                    <div
+                      key={`line-empty-${line.lineIndex}`}
+                      className="h-6 flex items-center select-none cursor-pointer hover:bg-slate-50/70 rounded"
+                      onClick={startWholeEdit}
+                      aria-hidden="true"
+                    >
+                      <span className="text-[10px] text-slate-300 font-mono w-7 text-right pr-2">
+                        ·
+                      </span>
+                    </div>
+                  );
+                }
+
+                const isSelectedLine = selectedLineIndex === line.lineIndex;
+
                 return (
                   <div
-                    key={`line-empty-${line.lineIndex}`}
-                    className="h-6 flex items-center select-none"
-                    aria-hidden="true"
-                  >
-                    <span className="text-[10px] text-slate-300 font-mono w-7 text-right pr-2">
-                      ·
-                    </span>
-                  </div>
-                );
-              }
-
-              const hasActiveMarkings = line.tokens.some(
-                (t) => t.type === 'finding' && (!t.isRejected || showRejected)
-              );
-              const isSelectedLine = selectedLineIndex === line.lineIndex;
-
-              return (
-                <div
-                  key={`line-${line.lineIndex}`}
-                  id={`inline-line-${line.lineIndex}`}
-                  data-line-index={line.lineIndex}
-                  onClick={() => onSelectLine?.(isSelectedLine ? null : line.lineIndex)}
-                  className={`relative flex items-baseline gap-2 pb-1.5 px-2 rounded-md transition-all group/line cursor-pointer ${
-                    isSelectedLine
-                      ? 'ring-2 ring-purple-500 bg-purple-50/70 border border-purple-200 shadow-2xs'
-                      : 'hover:bg-slate-50/70'
-                  } ${
-                    hasActiveMarkings ? 'pt-8' : 'pt-2.5'
-                  }`}
-                >
-                  {/* Line Number Badge (anchored to original handwritten source line) */}
-                  <span
-                    className={`shrink-0 select-none font-mono text-[11px] font-semibold w-6 text-right pt-0.5 transition-colors ${
+                    key={`line-${line.lineIndex}`}
+                    id={`inline-line-${line.lineIndex}`}
+                    data-line-index={line.lineIndex}
+                    onClick={() => {
+                      if (isReselectingRange) return;
+                      const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                      if (isDraggingRef.current || (sel && sel.length > 0)) {
+                        return;
+                      }
+                      startWholeEdit();
+                    }}
+                    className={`relative flex items-start gap-2 py-2 px-2 rounded-md transition-all group/line cursor-pointer ${
                       isSelectedLine
-                        ? 'text-purple-700 font-bold'
-                        : 'text-slate-400 group-hover/line:text-slate-600'
+                        ? 'ring-2 ring-purple-500 bg-purple-50/70 border border-purple-200 shadow-2xs'
+                        : 'hover:bg-slate-50/70'
                     }`}
-                    title={`Source Line ${line.lineIndex + 1}`}
                   >
-                    {line.lineIndex + 1}
-                  </span>
+                    {/* Line Number Badge (anchored to original handwritten source line) */}
+                    <span
+                      className={`shrink-0 select-none font-mono text-[11px] font-semibold w-6 text-right pt-0.5 transition-colors ${
+                        isSelectedLine
+                          ? 'text-purple-700 font-bold'
+                          : 'text-slate-400 group-hover/line:text-slate-600'
+                      }`}
+                      title={`Source Line ${line.lineIndex + 1}`}
+                    >
+                      {line.lineIndex + 1}
+                    </span>
 
-                  {/* Line Content: editable plain text with non-editable finding islands.
-                      The key forces a full remount after a commit so React never reconciles
-                      browser-mutated contentEditable children (prevents removeChild crash). */}
-                  <div
-                    key={`editable-${line.lineIndex}-${line.rawText}-${cancelVersion}`}
-                    data-line-tokens={line.lineIndex}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={handleLineInput}
-                    onCompositionStart={handleLineCompositionStart}
-                    onCompositionEnd={handleLineCompositionEnd}
-                    onKeyDown={(e) => handleLineKeyDown(e, line.lineIndex)}
-                    onBlur={(e) => handleLineBlur(e, line.lineIndex)}
-                    onPaste={handleLinePaste}
-                    onContextMenu={(e) => handleLineContextMenu(e, line.lineIndex)}
-                    className="flex-1 text-slate-800 text-sm md:text-[15px] font-serif leading-relaxed outline-none whitespace-pre-wrap"
-                  >
-                    {(() => {
-                      let lineWordCounter = 0;
-                      let runningCharOffset = 0;
-                      return line.tokens.map((token, tokenIdx) => {
-                        if (token.type === 'text') {
-                          const parts = token.text.split(/(\s+)/);
-                          return parts.map((part, partIdx) => {
-                            if (!part) return null;
-                            const partOffset = runningCharOffset;
-                            runningCharOffset += part.length;
+                    <div
+                      data-line-tokens={line.lineIndex}
+                      className="flex-1 flex flex-wrap items-end gap-y-1.5 text-slate-800 text-sm md:text-[15px] font-serif leading-relaxed"
+                    >
+                      {(() => {
+                        let lineWordCounter = 0;
+                        let runningCharOffset = 0;
+                        return line.tokens.map((token, tokenIdx) => {
+                          if (token.type === 'text') {
+                            const parts = token.text.split(/(\s+)/);
+                            return parts.map((part, partIdx) => {
+                              if (!part) return null;
+                              const partOffset = runningCharOffset;
+                              runningCharOffset += part.length;
 
-                            if (/^\s+$/.test(part)) {
+                              if (/^\s+$/.test(part)) {
+                                return (
+                                  <span
+                                    key={`ws-${line.lineIndex}-${tokenIdx}-${partIdx}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                                      if (isDraggingRef.current || (sel && sel.length > 0)) {
+                                        return;
+                                      }
+                                      startWholeEdit();
+                                    }}
+                                    className="whitespace-pre-wrap text-slate-800 cursor-pointer"
+                                  >
+                                    {part}
+                                  </span>
+                                );
+                              }
+                              const currentWIdx = lineWordCounter++;
+                              const cleanWord = part.trim();
+                              const isThisWordSelected =
+                                selectedWordTarget?.lineIndex === line.lineIndex &&
+                                selectedWordTarget?.wordIndex === currentWIdx;
+
                               return (
                                 <span
-                                  key={`ws-${line.lineIndex}-${tokenIdx}-${partIdx}`}
-                                  className="whitespace-pre-wrap text-slate-800"
+                                  key={`w-${line.lineIndex}-${tokenIdx}-${partIdx}-${currentWIdx}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isReselectingRange) {
+                                      handleSelectWordForReselect(line.lineIndex, cleanWord, partOffset, line.rawText);
+                                      return;
+                                    }
+                                    const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                                    if (isDraggingRef.current || (sel && sel.length > 0)) {
+                                      return;
+                                    }
+                                    startWholeEdit();
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                                    if (sel && sel.length > 0 && lastSelectionRangeRef.current) {
+                                      onSelectionContextMenu?.(
+                                        {
+                                          sourceText: sel,
+                                          startLine: lastSelectionRangeRef.current.startLine,
+                                          startOffset: lastSelectionRangeRef.current.startOffset,
+                                          endLine: lastSelectionRangeRef.current.endLine,
+                                          endOffset: lastSelectionRangeRef.current.endOffset,
+                                          involvedFindingIds: [],
+                                        },
+                                        e
+                                      );
+                                    } else {
+                                      onWordContextMenu?.(
+                                        {
+                                          lineIndex: line.lineIndex,
+                                          wordIndex: currentWIdx,
+                                          text: cleanWord,
+                                          startOffset: partOffset,
+                                          endOffset: partOffset + cleanWord.length,
+                                        },
+                                        e
+                                      );
+                                    }
+                                  }}
+                                  className={`whitespace-pre-wrap inline-block rounded transition-all cursor-pointer select-text ${
+                                    isReselectingRange
+                                      ? 'hover:bg-amber-100 hover:text-amber-900 cursor-crosshair ring-1 ring-amber-300'
+                                      : isThisWordSelected
+                                      ? 'bg-purple-200 text-purple-950 font-bold ring-2 ring-purple-600 px-1 -mx-0.5 shadow-xs z-20'
+                                      : 'hover:bg-purple-100/70 hover:text-purple-900 px-0.5 -mx-0.5'
+                                  }`}
+                                  title={
+                                    isReselectingRange
+                                      ? `Click to select "${cleanWord}" for quote (L${line.lineIndex + 1})`
+                                      : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${cleanWord} · Left-click: edit line · Right-click: add marking / correct OCR`
+                                  }
                                 >
                                   {part}
                                 </span>
                               );
-                            }
-                            const currentWIdx = lineWordCounter++;
-                            const cleanWord = part.trim();
-                            const isThisWordSelected =
-                              selectedWordTarget?.lineIndex === line.lineIndex &&
-                              selectedWordTarget?.wordIndex === currentWIdx;
-
-                            return (
-                              <span
-                                key={`w-${line.lineIndex}-${tokenIdx}-${partIdx}-${currentWIdx}`}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  onWordContextMenu?.(
-                                    {
-                                      lineIndex: line.lineIndex,
-                                      wordIndex: currentWIdx,
-                                      text: cleanWord,
-                                    },
-                                    e
-                                  );
-                                }}
-                                className={`whitespace-pre-wrap inline-block rounded transition-all cursor-pointer select-text ${
-                                  isReselectingRange
-                                    ? 'hover:bg-amber-100 hover:text-amber-900 cursor-crosshair ring-1 ring-amber-300'
-                                    : isThisWordSelected
-                                    ? 'bg-purple-200 text-purple-950 font-bold ring-2 ring-purple-600 px-1 -mx-0.5 shadow-xs z-20'
-                                    : 'hover:bg-purple-100/70 hover:text-purple-900 px-0.5 -mx-0.5'
-                                }`}
-                                title={
-                                  isReselectingRange
-                                    ? `Click to select "${cleanWord}" for quote (L${line.lineIndex + 1})`
-                                    : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${cleanWord} · Left-click: correct OCR · Right-click: add marking`
-                                }
-                              >
-                                {part}
-                              </span>
-                            );
-                          });
-                        }
+                            });
+                          }
 
                         // Finding Token
                         const findingToken = token as AlignedFindingToken;
@@ -868,18 +948,36 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                                   wordIndex: currentWIdx,
                                   text: originalText,
                                 });
+                                startWholeEdit();
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                onWordContextMenu?.(
-                                  {
-                                    lineIndex: line.lineIndex,
-                                    wordIndex: currentWIdx,
-                                    text: originalText,
-                                  },
-                                  e
-                                );
+                                const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                                if (sel && sel.length > 0 && lastSelectionRangeRef.current) {
+                                  onSelectionContextMenu?.(
+                                    {
+                                      sourceText: sel,
+                                      startLine: lastSelectionRangeRef.current.startLine,
+                                      startOffset: lastSelectionRangeRef.current.startOffset,
+                                      endLine: lastSelectionRangeRef.current.endLine,
+                                      endOffset: lastSelectionRangeRef.current.endOffset,
+                                      involvedFindingIds: [],
+                                    },
+                                    e
+                                  );
+                                } else {
+                                  onWordContextMenu?.(
+                                    {
+                                      lineIndex: line.lineIndex,
+                                      wordIndex: currentWIdx,
+                                      text: originalText,
+                                      startOffset: tokenOffset,
+                                      endOffset: tokenOffset + originalText.length,
+                                    },
+                                    e
+                                  );
+                                }
                               }}
                               className={`whitespace-pre-wrap text-slate-800 inline-block rounded transition-all cursor-pointer ${
                                 isReselectingRange
@@ -891,7 +989,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                               title={
                                 isReselectingRange
                                   ? `Click to select "${originalText}" for quote (L${line.lineIndex + 1})`
-                                  : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${originalText} · Left-click: correct OCR · Right-click: add marking`
+                                  : `L${line.lineIndex + 1} W${currentWIdx + 1}: ${originalText} · Left-click: edit line · Right-click: add marking / correct OCR`
                               }
                             >
                               {originalText}
@@ -944,10 +1042,9 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                         return (
                           <span
                             key={`fnd-${finding.id}-${tokenIdx}-${currentWIdx}`}
-                            contentEditable={false}
                             data-finding-id={finding.id}
                             data-finding-original={originalText}
-                            className={`relative inline-block align-baseline mx-0.5 group cursor-pointer transition-all ${
+                            className={`inline-flex flex-col items-center justify-end align-bottom mx-1 group cursor-pointer transition-all ${
                               isReselectingRange
                                 ? 'hover:bg-amber-100/80 cursor-crosshair ring-1 ring-amber-400 rounded'
                                 : isFindingWordSelected
@@ -958,6 +1055,10 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                               if (isReselectingRange) {
                                 e.stopPropagation();
                                 handleSelectWordForReselect(line.lineIndex, originalText, tokenOffset, line.rawText);
+                                return;
+                              }
+                              const sel = typeof window !== 'undefined' ? window.getSelection()?.toString().trim() : '';
+                              if (isDraggingRef.current || (sel && sel.length > 0)) {
                                 return;
                               }
                               e.stopPropagation();
@@ -985,8 +1086,8 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                             role="button"
                             aria-label={`${feedbackType}: ${originalText}, suggested: ${formattedSuggestion}`}
                           >
-                            {/* Top: Suggested Correction / Improvement / Clarity Floating Directly Above */}
-                            <span className="absolute bottom-[calc(100%+4px)] left-1/2 -translate-x-1/2 pointer-events-none select-none z-10">
+                            {/* Top: Suggested Correction / Improvement / Clarity in flow */}
+                            <span className="mb-1 pointer-events-none select-none">
                               <span
                                 className={`inline-block font-sans font-bold text-xs leading-none whitespace-nowrap px-1.5 py-0.5 rounded transition-all shadow-2xs ${
                                   isCorrection
@@ -1069,9 +1170,9 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                     </span>
                   </div>
 
-                  {f.reviewReason && (
+                  {(f.anchorReviewReason || f.reviewReason) && (
                     <p className="text-amber-800 text-[11px] bg-amber-50/60 p-1 rounded border border-amber-100">
-                      <strong>原因：</strong>{f.reviewReason}
+                      <strong>原因：</strong>{f.anchorReviewReason || f.reviewReason}
                     </p>
                   )}
 
@@ -1174,6 +1275,11 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
                     </div>
 
                     <p className="text-slate-600 text-[11px]">{f.teacherCustomText || f.explanation}</p>
+                    {(f.anchorReviewReason || f.reviewReason) && (
+                      <p className="text-amber-800 text-[11px] bg-amber-50/60 p-1 rounded border border-amber-100">
+                        <strong>原因：</strong>{f.anchorReviewReason || f.reviewReason}
+                      </p>
+                    )}
 
                     <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                       {f.feedbackType === 'improvement' || f.feedbackType === 'clarity' ? (
@@ -1216,6 +1322,7 @@ export const InlineMarkingView: React.FC<InlineMarkingViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Floating Hover Tooltip (rendered via React Portal to prevent clipping) */}
       {hoveredFinding && tooltipPos && typeof document !== 'undefined' && createPortal(

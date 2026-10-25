@@ -207,8 +207,8 @@ describe('Step 4: Verify Script - Mathpix OCR & Mode Selector Requirements', () 
       expect(select.value).toBe('mathpix_only');
 
       const options = Array.from(select.options).map((opt) => opt.text);
-      expect(options).toContain('A. Mathpix OCR Only');
-      expect(options).toContain('B. Mathpix OCR + Qwen VL Verify');
+      expect(options).toContain('Mathpix OCR');
+      expect(options).toContain('Qwen VL OCR — Local only');
 
       // Verify explanation for Option A
       expect(

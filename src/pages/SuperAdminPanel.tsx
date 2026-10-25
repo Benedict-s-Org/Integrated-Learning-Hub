@@ -79,7 +79,7 @@ export function SuperAdminPanel() {
         if (error) {
             console.error('Error fetching users:', error);
         } else if (data) {
-            const allUsers = (data as ManagedUser[]).filter(u => u.role === 'admin' || !isArchivedClassName(u.class));
+            const allUsers = (data as ManagedUser[]);
             setUsers(allUsers);
 
             // Build admin summaries

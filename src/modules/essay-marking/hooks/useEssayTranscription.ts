@@ -22,6 +22,7 @@ import {
   computeStudentPageSignature,
   resolveWritingAreasForPage,
 } from '../utils/transcriptionBatchQueue';
+import { loadOcrRulesSnapshot } from '../utils/ocrRulesLoader';
 
 export type ConfirmDialogType =
   | { type: 'pre_flight_transcribe'; targetStudentId: string }
@@ -233,6 +234,42 @@ export function useEssayTranscription({
 
     const modeToUse = forcedMode || selectedProvider;
 
+    // In local Qwen VL mode, check service health on 18088 and validate prompt snapshot before starting
+    if (modeToUse === 'local_qwen_vl') {
+      try {
+        const status = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = status.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+
+        if (!isQwenOnline) {
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+          });
+          return;
+        }
+      } catch {
+        setQwenStatus('error');
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+        });
+        return;
+      }
+
+      const transcriptionService = essayServices.getTranscriptionService();
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+      }
+    }
+
     // In combined mode, check Qwen availability before starting Mathpix
     if (modeToUse === 'mathpix_qwen_verify') {
       try {
@@ -285,7 +322,65 @@ export function useEssayTranscription({
     const transcriptionService = essayServices.getTranscriptionService();
     const pageResults: PageTranscriptionResult[] = [];
 
-    setPageStage('ocr_running');
+    // Pre-flight check: validate OCR rules snapshot before running OCR
+    const rulesRes = await loadOcrRulesSnapshot();
+    if (!rulesRes.ok) {
+      inFlightRef.current = false;
+      setIsTranscribingSingle(false);
+      setPageStage('failed');
+      setNotice({
+        type: 'error',
+        text: `OCR Rules Error: ${rulesRes.error}`,
+      });
+      return;
+    }
+
+    setPageStage(activeMode === 'local_qwen_vl' ? 'vl_running' : 'ocr_running');
+
+    // For Qwen VL Local Only mode, check service health and load one immutable prompt snapshot for this action
+    let actionPromptSnapshot: any = null;
+    if (activeMode === 'local_qwen_vl') {
+      try {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = avail.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+        if (!isQwenOnline) {
+          inFlightRef.current = false;
+          setIsTranscribingSingle(false);
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+          });
+          return;
+        }
+      } catch {
+        setQwenStatus('error');
+        inFlightRef.current = false;
+        setIsTranscribingSingle(false);
+        setPageStage('failed');
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.',
+        });
+        return;
+      }
+
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          inFlightRef.current = false;
+          setIsTranscribingSingle(false);
+          setPageStage('failed');
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+        actionPromptSnapshot = promptRes.snapshot;
+      }
+    }
 
     try {
       for (const item of studentPagesWithIndices) {
@@ -299,7 +394,99 @@ export function useEssayTranscription({
             transcript: '',
             isBlank: true,
             ocrMode: activeMode,
+            promptVersion: actionPromptSnapshot?.promptVersion,
+            promptHash: actionPromptSnapshot?.promptHash,
           });
+          continue;
+        }
+
+        // Qwen VL OCR — Local only: call local endpoint on port 18088 via bridge.
+        // Invariant: ZERO calls to Mathpix. No silent fallback.
+        if (activeMode === 'local_qwen_vl') {
+          setPageStage('vl_running');
+          const areaResolution = resolveWritingAreasForPage(
+            item.page,
+            item.part,
+            templateRegions
+          );
+
+          if (areaResolution.hasError) {
+            setPageStage('failed');
+            setNotice({
+              type: 'error',
+              text: `Page ${item.part}: ${areaResolution.errorMessage || 'Invalid OCR region'}`,
+            });
+            pageResults.push({
+              scanPageId: item.page.id,
+              part: item.part,
+              totalParts: item.total,
+              status: 'failed',
+              error: areaResolution.errorMessage || 'Invalid OCR region',
+              errorCode: 'INVALID_OCR_REGION',
+              ocrMode: 'local_qwen_vl',
+              promptVersion: actionPromptSnapshot?.promptVersion,
+              promptHash: actionPromptSnapshot?.promptHash,
+            });
+            continue;
+          }
+
+          setNotice({
+            type: 'info',
+            text: `Contacting Qwen VL OCR (Port 18088) for Page ${item.part} of ${item.total}...`,
+          });
+
+          const res = await transcriptionService.transcribePage({
+            scanPageId: item.page.id,
+            imageUrls: [item.page.previewUrl],
+            pageNumber: item.part,
+            totalParts: item.total,
+            studentId: targetStudentId,
+            assignmentId: assignment.id,
+            regions: areaResolution.regions,
+            readingOrder: currentSettings.readingOrder,
+            settings: currentSettings,
+            promptSnapshot: actionPromptSnapshot || undefined,
+          });
+
+          if (res.status === 'success') {
+            pageResults.push({
+              scanPageId: item.page.id,
+              part: item.part,
+              totalParts: item.total,
+              status: 'success',
+              transcript: res.transcript,
+              linesWithBboxes: res.linesWithBboxes || [],
+              ocrMode: 'local_qwen_vl',
+              modelId: res.modelId,
+              promptVersion: res.promptVersion || actionPromptSnapshot?.promptVersion,
+              promptHash: res.promptHash || actionPromptSnapshot?.promptHash,
+              settingsVersion: res.settingsVersion || currentSettings.version,
+              hasUnreadable: res.hasUnreadable,
+            });
+          } else {
+            const errDetail =
+              res.message ||
+              res.error ||
+              (res.code ? `Transcription error: ${res.code}` : 'Qwen VL OCR failed');
+            setPageStage('failed');
+            setNotice({
+              type: 'error',
+              text: `Page ${item.part}: ${errDetail}. Explicit retry is available.`,
+            });
+            pageResults.push({
+              scanPageId: item.page.id,
+              part: item.part,
+              totalParts: item.total,
+              status: 'failed',
+              error: errDetail,
+              errorCode: res.code,
+              httpStatus: res.httpStatus,
+              isRetryable: res.isRetryable ?? true,
+              ocrMode: 'local_qwen_vl',
+              promptVersion: actionPromptSnapshot?.promptVersion,
+              promptHash: actionPromptSnapshot?.promptHash,
+            });
+          }
           continue;
         }
 
@@ -576,7 +763,8 @@ export function useEssayTranscription({
         currentSettings,
         activeMode,
         initialSignature,
-        assignment.id
+        assignment.id,
+        rulesRes.snapshot.config
       );
 
       const anyQwenIncomplete = pageResults.some((p) => p.qwenVerificationStatus === 'failed');
@@ -595,7 +783,9 @@ export function useEssayTranscription({
         setNotice({
           type: 'success',
           text:
-            activeMode === 'mathpix_qwen_verify'
+            activeMode === 'local_qwen_vl'
+              ? 'Qwen VL OCR transcript generated. Ready for teacher review.'
+              : activeMode === 'mathpix_qwen_verify'
               ? 'Candidate transcript generated and verified with Qwen VL. Ready for teacher review.'
               : 'Mathpix OCR transcript generated. Ready for teacher review.',
         });
@@ -611,6 +801,8 @@ export function useEssayTranscription({
         combined.qwenChanges = firstResult.qwenChanges;
         combined.qwenVerificationStatus = firstResult.qwenVerificationStatus;
         combined.ocrMode = activeMode;
+        combined.promptVersion = firstResult.promptVersion;
+        combined.promptHash = firstResult.promptHash;
         combined.isDryRun = firstResult.isDryRun;
       }
 
@@ -780,6 +972,70 @@ export function useEssayTranscription({
           isBlank: true,
           ocrMode: activeMode,
         };
+      } else if (activeMode === 'local_qwen_vl') {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        if (avail.visualVerification?.status !== 'available') {
+          throw new Error(
+            'Qwen VL OCR service is offline on port 18088. Please ensure the local Qwen VL model is running on port 18088, then retry.'
+          );
+        }
+
+        let promptSnapshot: any = null;
+        if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+          const promptRes = await transcriptionService.getOcrPromptSnapshot();
+          if (!promptRes.ok || !promptRes.snapshot) {
+            throw new Error(
+              `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}`
+            );
+          }
+          promptSnapshot = promptRes.snapshot;
+        }
+
+        const areaResolution = resolveWritingAreasForPage(
+          pageItem.page,
+          pageItem.part,
+          templateRegions
+        );
+
+        if (areaResolution.hasError) {
+          throw new Error(areaResolution.errorMessage || 'Invalid OCR region');
+        }
+
+        const res = await transcriptionService.transcribePage({
+          scanPageId: pageItem.page.id,
+          imageUrls: [pageItem.page.previewUrl],
+          pageNumber: pageItem.part,
+          totalParts: pageItem.total,
+          studentId: targetStudentId,
+          assignmentId: assignment.id,
+          regions: areaResolution.regions,
+          readingOrder: currentSettings.readingOrder,
+          settings: currentSettings,
+          promptSnapshot: promptSnapshot || undefined,
+        });
+
+        if (res.status !== 'success') {
+          throw new Error(
+            res.message ||
+              res.error ||
+              (res.code ? `Transcription error: ${res.code}` : 'Qwen VL OCR retry failed')
+          );
+        }
+
+        pageRes = {
+          scanPageId: pageItem.page.id,
+          part: pageItem.part,
+          totalParts: pageItem.total,
+          status: 'success',
+          transcript: res.transcript,
+          linesWithBboxes: res.linesWithBboxes || [],
+          ocrMode: 'local_qwen_vl',
+          modelId: res.modelId,
+          promptVersion: res.promptVersion || promptSnapshot?.promptVersion,
+          promptHash: res.promptHash || promptSnapshot?.promptHash,
+          settingsVersion: currentSettings.version,
+          hasUnreadable: res.hasUnreadable,
+        };
       } else {
         const singleAreaResolution = resolveWritingAreasForPage(pageItem.page, pageItem.part, templateRegions);
         if (singleAreaResolution.hasError) {
@@ -891,13 +1147,17 @@ export function useEssayTranscription({
         updatedPageResults.push(pageRes);
       }
 
+      const rulesRes = await loadOcrRulesSnapshot();
+      const rulesConfig = rulesRes.ok ? rulesRes.snapshot.config : undefined;
+
       const merged = combineCandidateTranscript(
         targetStudentId,
         updatedPageResults,
         currentSettings,
         activeMode,
         existingCandidate?.pageSignature || currentStudentSignature,
-        assignment.id
+        assignment.id,
+        rulesConfig
       );
 
       handleCandidateOutcome(targetStudentId, merged);
@@ -1024,6 +1284,44 @@ export function useEssayTranscription({
     }
 
     setIsBatchRunning(true);
+    let batchPromptSnapshot: any = null;
+    if (selectedProvider === 'local_qwen_vl') {
+      try {
+        const avail = await essayServices.getAvailabilityService().checkStatus();
+        const isQwenOnline = avail.visualVerification?.status === 'available';
+        setQwenStatus(isQwenOnline ? 'available' : 'error');
+        if (!isQwenOnline) {
+          setIsBatchRunning(false);
+          setNotice({
+            type: 'error',
+            text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088 before batch transcribing.',
+          });
+          return;
+        }
+      } catch {
+        setIsBatchRunning(false);
+        setNotice({
+          type: 'error',
+          text: 'Qwen VL OCR service is offline or unreachable on port 18088. Please ensure the local Qwen VL model is running on port 18088 before batch transcribing.',
+        });
+        return;
+      }
+
+      const transcriptionService = essayServices.getTranscriptionService();
+      if (typeof transcriptionService.getOcrPromptSnapshot === 'function') {
+        const promptRes = await transcriptionService.getOcrPromptSnapshot();
+        if (!promptRes.ok || !promptRes.snapshot) {
+          setIsBatchRunning(false);
+          setNotice({
+            type: 'error',
+            text: `Qwen VL OCR prompt error: ${promptRes.error || 'Failed to load authoritative OCR prompt'}. Prompt edits must be valid before OCR starts.`,
+          });
+          return;
+        }
+        batchPromptSnapshot = promptRes.snapshot;
+      }
+    }
+
     const controller = new BatchTranscriptionQueueController({
       tasks,
       skippedStudents,
@@ -1047,6 +1345,7 @@ export function useEssayTranscription({
         appliedMatching,
         pages,
         assignmentId: assignment.id,
+        promptSnapshot: batchPromptSnapshot,
       });
     } finally {
       setIsBatchRunning(false);

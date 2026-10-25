@@ -52,6 +52,7 @@ export const StagedCandidateBox: React.FC<StagedCandidateBoxProps> = ({
 }) => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isChangesOpen, setIsChangesOpen] = useState(false);
+  const [isNoticesOpen, setIsNoticesOpen] = useState(false);
   const wordCount = candidate.transcript.trim()
     ? candidate.transcript.trim().split(/\s+/).filter(Boolean).length
     : 0;
@@ -180,6 +181,37 @@ export const StagedCandidateBox: React.FC<StagedCandidateBoxProps> = ({
         </div>
       )}
 
+      {/* OCR Review Notices Accordion */}
+      {candidate.reviewNotices && candidate.reviewNotices.length > 0 && (
+        <div className="border border-amber-200 bg-amber-50/70 rounded p-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setIsNoticesOpen(!isNoticesOpen)}
+            className="flex items-center justify-between w-full text-amber-900 font-semibold text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              <span>{candidate.reviewNotices.length} Review Notices Detected (Non-blocking)</span>
+            </div>
+            {isNoticesOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {isNoticesOpen && (
+            <div className="mt-2 space-y-1 pt-1.5 border-t border-amber-200/60 text-[11px] text-amber-950">
+              {candidate.reviewNotices.map((notice) => (
+                <div key={notice.id} className="flex items-start gap-1.5">
+                  <span className="font-mono text-amber-700 shrink-0">
+                    {notice.lineNumber ? `[L${notice.lineNumber}]` : '•'}
+                  </span>
+                  <span>
+                    <strong>{notice.matchedText}</strong>: {notice.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Candidate Text Content / Page Errors */}
       <div className="p-2.5 bg-white border border-purple-100 rounded text-xs text-slate-800 font-serif leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap break-words select-text shadow-2xs">
         {candidate.pageResults && candidate.pageResults.length > 0 ? (
@@ -285,7 +317,7 @@ export const StagedCandidateBox: React.FC<StagedCandidateBoxProps> = ({
                             <span className="shrink-0 w-6 select-none text-[10px] text-slate-400 font-mono pt-0.5">
                               L{globalIdx + 1}
                             </span>
-                            <span className="flex-1 break-words">
+                            <span className="flex-1 break-words whitespace-pre-wrap">
                               {lineText || <span className="italic text-slate-400 font-sans text-[11px] select-none">(blank line)</span>}
                             </span>
                           </div>

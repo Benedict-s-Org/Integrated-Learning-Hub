@@ -53,10 +53,39 @@ export const isArchivedClassName = (name?: string | null, archivedList?: string[
   if (!name) return false;
   const trimmed = name.trim().toLowerCase();
   if (archivedList && archivedList.some(a => a.trim().toLowerCase() === trimmed)) return true;
-  // Year patterns: (2526), (2025-2026), (2425), 2526, etc.
-  if (/\(\s*\d{2,4}(?:\s*[-/]?\s*\d{2,4})?[^)]*\)/.test(trimmed)) return true;
-  if (/\b\d{4}\b/.test(trimmed) && (trimmed.includes('2526') || trimmed.includes('2425') || trimmed.includes('2627'))) return true;
-  if (trimmed.includes('archive') || trimmed.includes('已封存')) return true;
+  if (trimmed.includes('archive') || trimmed.includes('已封存') || trimmed.includes('封存')) return true;
+
+  // Determine current academic year start year in Hong Kong (academic year starts Sept 1)
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentAcademicYearStart = currentMonth < 9 ? currentYear - 1 : currentYear;
+
+  // 1. Match full year format like 2024-2025 or (2024-2025)
+  const fullYearMatch = trimmed.match(/\b(20\d{2})\s*[-/]\s*(20\d{2})\b/);
+  if (fullYearMatch) {
+    const startYear = parseInt(fullYearMatch[1], 10);
+    return startYear < currentAcademicYearStart;
+  }
+
+  // 2. Match 4-digit short year format like 2425, 2526, 2627
+  // Format: (2526) or \b2526\b
+  const shortYearMatch = trimmed.match(/(?:\(|\b)(\d{2})(\d{2})(?:\)|\b)/);
+  if (shortYearMatch) {
+    const y1 = parseInt(shortYearMatch[1], 10);
+    const y2 = parseInt(shortYearMatch[2], 10);
+    // In HK school year convention, 2526 means 2025-2026 where y2 == (y1 + 1) % 100
+    if ((y1 + 1) % 100 === y2) {
+      const startYear = 2000 + y1;
+      return startYear < currentAcademicYearStart;
+    }
+  }
+
+  // Fallback check for known past archived years
+  if (trimmed.includes('2425') || trimmed.includes('2526') || trimmed.includes('2324')) {
+    return true;
+  }
+
   return false;
 };
 

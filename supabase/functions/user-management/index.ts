@@ -517,6 +517,70 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ success: errors.length === 0, results, errors }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    if (action === "bulk-update-class-numbers") {
+      const { adminUserId, updates, syncAuthMetadata = false }: BulkUpdateClassNumbersRequest = await req.json();
+
+      const callerRole = await getAuthenticatedRole(adminUserId);
+      if (!callerRole || (callerRole !== 'admin' && callerRole !== 'class_staff')) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: corsHeaders });
+      }
+
+      if (!updates || !Array.isArray(updates)) {
+        return new Response(JSON.stringify({ error: "Invalid updates format" }), { status: 400, headers: corsHeaders });
+      }
+
+      console.log(`[user-management] Bulk updating class numbers for ${updates.length} users`);
+
+      const results = [];
+      const errors = [];
+
+      for (const update of updates) {
+        try {
+          const uId = (update as any).userId || (update as any).id;
+          const cNum = (update as any).classNumber !== undefined ? (update as any).classNumber : (update as any).class_number;
+
+          const updatePayload: any = { class_number: cNum };
+          if (update.class !== undefined) {
+            updatePayload.class = update.class || null;
+          }
+
+          const { error: dbError } = await supabase
+            .from("users")
+            .update(updatePayload)
+            .eq("id", uId);
+
+          if (dbError) throw dbError;
+
+          if (syncAuthMetadata) {
+            const { error: authError } = await supabase.auth.admin.updateUserById(uId, {
+              user_metadata: {
+                class_number: cNum,
+                ...(update.class ? { class: update.class } : {})
+              }
+            });
+            if (authError) {
+              console.error(`Auth sync failed for ${uId}:`, authError);
+            }
+          }
+
+          results.push({ userId: uId, success: true });
+        } catch (err: any) {
+          console.error(`Failed to update user ${(update as any).userId || (update as any).id}:`, err);
+          errors.push({ userId: (update as any).userId || (update as any).id, error: err.message });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: errors.length === 0,
+          message: `Processed ${updates.length} users. ${results.length} success, ${errors.length} failed.`,
+          results,
+          errors
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "delete-user") {
       const { adminUserId, userIdToDelete } = await req.json();
       const { data: canDelete } = await supabase.rpc("can_delete_user", { caller_user_id: adminUserId, target_user_id: userIdToDelete });

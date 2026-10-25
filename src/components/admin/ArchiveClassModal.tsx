@@ -144,9 +144,10 @@ BEGIN
         WHERE user_id = v_student.id;
     END LOOP;
 
-    -- Update students' class to the clean archived year name
+    -- Clear students' class and class_number so they become Unassigned for the new academic year
     UPDATE public.users
-    SET class = v_archived_name
+    SET class = NULL,
+        class_number = NULL
     WHERE class = p_class_name OR class = v_archived_name;
 
     -- In classes table:
@@ -359,6 +360,15 @@ export function ArchiveClassModal({
       }
 
       console.log('[ArchiveClass] Successfully archived class:', rpcResult);
+
+      // Ensure in database that students of the archived class have their class and class_number cleared
+      try {
+        await (supabase as any).from('users')
+          .update({ class: null, class_number: null })
+          .or(`class.eq.${className},class.eq.${targetArchivedName}`);
+      } catch (clearErr) {
+        console.warn('Post-archive student unassign sync note:', clearErr);
+      }
 
       // 4. Move to success step
       setStep(3);

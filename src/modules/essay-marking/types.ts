@@ -300,6 +300,7 @@ export interface PageTranscriptionResult {
   isRetryable?: boolean;
   modelId?: string;
   promptVersion?: string;
+  promptHash?: string;
   settingsVersion?: string;
   hasUnreadable?: boolean;
   ocrMode?: TranscriptionProvider;
@@ -324,6 +325,7 @@ export interface StagedCandidateTranscript {
   provider: TranscriptionProvider;
   modelId?: string;
   promptVersion: string;
+  promptHash?: string;
   settingsVersion: string;
   pageSignature: string;
   status: 'candidate_ready' | 'partially_transcribed' | 'failed';
@@ -340,6 +342,18 @@ export interface StagedCandidateTranscript {
   unreadableWords?: string[];
   isDryRun?: boolean;
   isEntireScriptBlank?: boolean;
+  rawTranscript?: string;
+  reviewNotices?: OcrReviewNotice[];
+}
+
+export interface OcrReviewNotice {
+  id: string;
+  type: 'suspicious_syntax' | 'skip_line_marker' | 'worksheet_boilerplate';
+  message: string;
+  matchedText: string;
+  lineIndex?: number;
+  lineNumber?: number;
+  sourceContext?: string;
 }
 
 export interface UncertainRegion {
@@ -355,6 +369,8 @@ export interface StudentTranscriptState {
   studentId: string;
   rawOcrText: string | null;
   editedText: string;
+  originalOcrText?: string;
+  reviewNotices?: OcrReviewNotice[];
   linesWithBboxes?: LineWithBbox[];
   isManuallyEntered: boolean;
   uncertainRegions: UncertainRegion[];

@@ -8,6 +8,59 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEBUG_DIR = path.resolve(__dirname, '../.debug/linebreak-trace');
 const DEFAULT_PROMPT_FILE = path.resolve(__dirname, '../prompts/essay-marking.md');
+export const DEFAULT_OCR_PROMPT_FILE = path.resolve(__dirname, '../prompts/qwen-vl-ocr-prompt.md');
+
+/**
+ * Loads the editable Qwen VL OCR prompt file and validates its content.
+ * Follows bridge prompt-loading conventions.
+ * If <!-- SECTION: OCR_PROMPT --> is present, extracts only the model instruction section.
+ *
+ * @param {string} [customPath]
+ * @returns {{
+ *   promptText: string,
+ *   promptHash: string,
+ *   promptVersion: string,
+ *   filePath: string,
+ * }}
+ */
+export function loadEditableOcrPrompt(customPath) {
+  const filePath = customPath || DEFAULT_OCR_PROMPT_FILE;
+  if (!fs.existsSync(filePath)) {
+    const err = new Error(`OCR prompt file is missing at "${filePath}". Cannot proceed with unconfigured prompt.`);
+    err.code = 'PROMPT_FILE_MISSING';
+    throw err;
+  }
+
+  const raw = fs.readFileSync(filePath, 'utf8');
+  if (!raw || !raw.trim()) {
+    const err = new Error(`OCR prompt file at "${filePath}" is empty. Cannot proceed.`);
+    err.code = 'PROMPT_FILE_EMPTY';
+    throw err;
+  }
+
+  let promptText = raw.trim();
+  const markerRegex = /(?:^|\r?\n)\s*<!--\s*SECTION:\s*OCR_PROMPT\s*-->\s*(?:\r?\n|$)/;
+  if (markerRegex.test(promptText)) {
+    const parts = promptText.split(markerRegex);
+    promptText = parts[parts.length - 1]?.trim() || '';
+  }
+
+  if (!promptText) {
+    const err = new Error(`OCR prompt section '<!-- SECTION: OCR_PROMPT -->' at "${filePath}" is empty. Cannot proceed.`);
+    err.code = 'PROMPT_FILE_EMPTY';
+    throw err;
+  }
+
+  const promptHash = crypto.createHash('sha256').update(promptText).digest('hex').slice(0, 12);
+  const promptVersion = `qwen-vl-ocr-${promptHash}`;
+
+  return {
+    promptText,
+    promptHash,
+    promptVersion,
+    filePath,
+  };
+}
 
 function getMetrics(text) {
   if (typeof text !== 'string') {
@@ -496,8 +549,8 @@ export function parseModelJsonLines(rawContent) {
 export function normalizeTranscriptLineBreaks(text) {
   if (typeof text !== 'string' || !text) return '';
 
-  // Normalize CRLF to LF and preserve all other characters verbatim
-  return text.replace(/\r\n/g, '\n');
+  // Normalize CRLF (\r\n) or CR (\r) to LF (\n) and preserve all other characters verbatim
+  return text.replace(/\r\n?/g, '\n');
 }
 
 /**
@@ -534,10 +587,32 @@ export async function transcribePageWithLocalVL({
   regions = [],
   readingOrder = [],
   settings = {},
+  promptSnapshot = null,
   endpoint = config.qwenVlEndpoint,
   signal,
 }) {
   const modelId = await getActiveModelId(endpoint);
+
+  // Load or use provided prompt snapshot
+  let activePromptInfo;
+  if (promptSnapshot && promptSnapshot.promptText && typeof promptSnapshot.promptText === 'string') {
+    const pText = promptSnapshot.promptText.trim();
+    if (!pText) {
+      const err = new Error('Provided OCR prompt snapshot is empty. Cannot proceed.');
+      err.code = 'PROMPT_FILE_EMPTY';
+      throw err;
+    }
+    const pHash =
+      promptSnapshot.promptHash ||
+      crypto.createHash('sha256').update(pText).digest('hex').slice(0, 12);
+    activePromptInfo = {
+      promptText: pText,
+      promptHash: pHash,
+      promptVersion: promptSnapshot.promptVersion || `qwen-vl-ocr-${pHash}`,
+    };
+  } else {
+    activePromptInfo = loadEditableOcrPrompt();
+  }
 
   // Filter and order writing areas
   const writingAreas = regions.filter((r) => r.type === 'writing_area' || !r.type);
@@ -593,11 +668,7 @@ export async function transcribePageWithLocalVL({
   }
 
   const isWordBbox = Boolean(settings.includeWordBboxes);
-  const systemMessage = `You are an objective, precise, and faithful optical character recognition assistant for Hong Kong primary school handwriting worksheets.
-Your duty is to transcribe the student's handwritten response exactly as written into JSON format only:
-${isWordBbox ? '{"lines": [{"text": "...", "bbox": [x1, y1, x2, y2], "words": [{"text": "...", "bbox": [wx1, wy1, wx2, wy2]}]}]}' : '{"lines": [{"text": "...", "bbox": [x1, y1, x2, y2]}]}'}
-
-${FIXED_TRANSCRIPTION_RULES_TEXT}
+  const systemMessage = `${activePromptInfo.promptText}
 
 Format Contract:
 Output JSON ONLY matching ${isWordBbox ? '{"lines": [{"text": string, "bbox": [number, number, number, number] | null, "words": [{"text": string, "bbox": [number, number, number, number]}]}]}' : '{"lines": [{"text": string, "bbox": [number, number, number, number] | null}]}'}. One object item for each physical handwritten line, in natural reading order.${isWordBbox ? ' For each word, include its individual tight bounding box in 0-1000 normalized coordinates.' : ''} Use {"text": "", "bbox": null} for a blank line between clearly separate paragraphs. Do not add conversational text, markdown commentary, or introductory phrases outside the JSON.`;
@@ -684,8 +755,8 @@ Please transcribe the handwritten text faithfully now ${isWordBbox ? 'with line 
   }
 
   // Join the items with "\n". Keep the text of each line exactly as returned.
-  // Do not autocorrect. Do not trim inside a line.
-  const rawText = lines.map((l) => l.text).join('\n');
+  // Do not autocorrect. Do not trim inside a line. Normalize CRLF/CR to LF.
+  const rawText = normalizeTranscriptLineBreaks(lines.map((l) => l.text).join('\n'));
 
   if (isTrace) {
     try {
@@ -727,8 +798,9 @@ Please transcribe the handwritten text faithfully now ${isWordBbox ? 'with line 
     linesWithBboxes: lines,
     hasUnreadable,
     modelId,
-    promptVersion: FIXED_TRANSCRIPTION_RULES_VERSION,
-    provider: 'Local Qwen VL',
+    promptVersion: activePromptInfo.promptVersion,
+    promptHash: activePromptInfo.promptHash,
+    provider: 'local_qwen_vl',
     wordCount: words.length,
     rawLinesCount: lines.length,
   };

@@ -69,16 +69,18 @@ export const TranscriptionToolbar: React.FC<TranscriptionToolbarProps> = ({
 
   // Normalized provider mode for display
   const currentMode =
-    provider === 'mathpix_only'
-      ? 'mathpix_only'
-      : provider === 'mathpix_qwen_verify' || provider === 'local_qwen_vl'
+    provider === 'local_qwen_vl'
+      ? 'local_qwen_vl'
+      : provider === 'mathpix_qwen_verify'
       ? 'mathpix_qwen_verify'
       : 'mathpix_only';
 
   const modeExplanation =
-    currentMode === 'mathpix_only'
-      ? 'Send the selected page to Mathpix for handwriting recognition. Converts to transcript for manual teacher verification without calling local vision models.'
-      : 'Run Mathpix OCR first, then send the page image and Mathpix transcript to Qwen VL (port 18088) to verify transcription accuracy. Preserves handwritten student errors.';
+    currentMode === 'local_qwen_vl'
+      ? 'Direct local OCR using Qwen VL on port 18088. Transcribes student handwriting locally without sending scans to Mathpix or consuming external API quota.'
+      : currentMode === 'mathpix_qwen_verify'
+      ? 'Run Mathpix OCR first, then send the page image and Mathpix transcript to Qwen VL (port 18088) to verify transcription accuracy. Preserves handwritten student errors.'
+      : 'Send the selected page to Mathpix for handwriting recognition. Converts to transcript for manual teacher verification without calling local vision models.';
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs space-y-3">
@@ -95,8 +97,9 @@ export const TranscriptionToolbar: React.FC<TranscriptionToolbarProps> = ({
             onChange={(e) => onSelectProvider(e.target.value as TranscriptionProvider)}
             className="text-xs font-semibold border border-slate-300 rounded-md py-1.5 px-2.5 bg-white text-slate-800 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-blue-500 min-w-[240px]"
           >
-            <option value="mathpix_only">A. Mathpix OCR Only</option>
-            <option value="mathpix_qwen_verify">B. Mathpix OCR + Qwen VL Verify</option>
+            <option value="mathpix_only">Mathpix OCR</option>
+            <option value="local_qwen_vl">Qwen VL OCR — Local only</option>
+            <option value="mathpix_qwen_verify">Mathpix OCR + Qwen VL Verify</option>
           </select>
         </div>
 
@@ -151,39 +154,47 @@ export const TranscriptionToolbar: React.FC<TranscriptionToolbarProps> = ({
           <div className="flex items-start gap-1.5 text-slate-700">
             <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
             <span>
-              <strong>{currentMode === 'mathpix_only' ? 'Mathpix OCR Only:' : 'Mathpix OCR + Qwen VL Verify:'}</strong>{' '}
+              <strong>
+                {currentMode === 'local_qwen_vl'
+                  ? 'Qwen VL OCR — Local only:'
+                  : currentMode === 'mathpix_qwen_verify'
+                  ? 'Mathpix OCR + Qwen VL Verify:'
+                  : 'Mathpix OCR:'}
+              </strong>{' '}
               {modeExplanation}
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isDryRun ? (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded shadow-2xs"
-                title="Safety Gate: DRY_RUN mode blocks live paid API calls to Mathpix."
-              >
-                <ShieldAlert className="w-3 h-3 text-amber-700" />
-                <span>DRY_RUN Safety Active</span>
-              </span>
-            ) : isMathpixConfigured ? (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded shadow-2xs"
-                title="Mathpix credentials configured. Paid live OCR is authorized."
-              >
-                <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                <span>Mathpix Live Active</span>
-              </span>
-            ) : (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-800 bg-rose-100/90 border border-rose-300 px-2 py-0.5 rounded shadow-2xs"
-                title="Mathpix credentials are not configured in the bridge .env."
-              >
-                <AlertCircle className="w-3 h-3 text-rose-700" />
-                <span>Mathpix Not Configured</span>
-              </span>
+            {currentMode !== 'local_qwen_vl' && (
+              isDryRun ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded shadow-2xs"
+                  title="Safety Gate: DRY_RUN mode blocks live paid API calls to Mathpix."
+                >
+                  <ShieldAlert className="w-3 h-3 text-amber-700" />
+                  <span>DRY_RUN Safety Active</span>
+                </span>
+              ) : isMathpixConfigured ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded shadow-2xs"
+                  title="Mathpix credentials configured. Paid live OCR is authorized."
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                  <span>Mathpix Live Active</span>
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-800 bg-rose-100/90 border border-rose-300 px-2 py-0.5 rounded shadow-2xs"
+                  title="Mathpix credentials are not configured in the bridge .env."
+                >
+                  <AlertCircle className="w-3 h-3 text-rose-700" />
+                  <span>Mathpix Not Configured</span>
+                </span>
+              )
             )}
 
-            {currentMode === 'mathpix_qwen_verify' && (
+            {(currentMode === 'local_qwen_vl' || currentMode === 'mathpix_qwen_verify') && (
               <span
                 className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border shadow-2xs ${
                   qwenStatus === 'available'
@@ -192,7 +203,7 @@ export const TranscriptionToolbar: React.FC<TranscriptionToolbarProps> = ({
                 }`}
                 title={
                   qwenStatus === 'available'
-                    ? 'Qwen VL on port 18088 is online and ready for verification.'
+                    ? 'Qwen VL on port 18088 is online and ready for OCR.'
                     : 'Qwen VL on port 18088 is unreachable or offline.'
                 }
               >
@@ -227,7 +238,7 @@ export const TranscriptionToolbar: React.FC<TranscriptionToolbarProps> = ({
             ) : pageStage === 'vl_running' ? (
               <span className="inline-flex items-center gap-1 text-purple-700 font-semibold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
                 <Loader2 className="w-3 h-3 animate-spin text-purple-600" />
-                <span>Qwen VL Verification Running...</span>
+                <span>{currentMode === 'local_qwen_vl' ? 'Qwen VL OCR Running...' : 'Qwen VL Verification Running...'}</span>
               </span>
             ) : pageStage === 'verification_pending' ? (
               <span className="inline-flex items-center gap-1 text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">

@@ -123,8 +123,8 @@ describe('Unified Verify & Review Marking: OCR Restoration & Eligibility Rules',
     expect(screen.getByText('Transcription Settings')).toBeInTheDocument();
 
     // Mode options in select
-    expect(screen.getByText('A. Mathpix OCR Only')).toBeInTheDocument();
-    expect(screen.getByText('B. Mathpix OCR + Qwen VL Verify')).toBeInTheDocument();
+    expect(screen.getByText('Mathpix OCR')).toBeInTheDocument();
+    expect(screen.getByText('Qwen VL OCR — Local only')).toBeInTheDocument();
 
     // Action button for student
     expect(screen.getByText(/Start Mathpix OCR/i)).toBeInTheDocument();

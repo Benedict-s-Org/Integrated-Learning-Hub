@@ -15,6 +15,7 @@ import {
   verifyTranscriptionWithLocalVL,
   markEssayWithLocalVL,
   loadEditableMarkingInstructions,
+  loadEditableOcrPrompt,
   FIXED_TRANSCRIPTION_RULES_VERSION,
   FIXED_TRANSCRIPTION_RULES_TEXT,
   FIXED_TRANSCRIPTION_RULES_SUMMARY,
@@ -191,6 +192,29 @@ app.get('/api/transcription-rules', (_req, res) => {
     rulesText: FIXED_TRANSCRIPTION_RULES_TEXT,
     rulesSummary: FIXED_TRANSCRIPTION_RULES_SUMMARY,
   });
+});
+
+// 4d. Active Editable Qwen VL OCR Prompt Endpoint
+// Allows Learning Hub to read and validate the prompt snapshot before starting an action.
+app.get('/api/ocr-prompt', (_req, res) => {
+  try {
+    const promptInfo = loadEditableOcrPrompt();
+    res.json({
+      status: 'ok',
+      promptHash: promptInfo.promptHash,
+      promptVersion: promptInfo.promptVersion,
+      promptText: promptInfo.promptText,
+      filePath: promptInfo.filePath,
+    });
+  } catch (err) {
+    const code = err.code || 'PROMPT_FILE_ERROR';
+    const status = code === 'PROMPT_FILE_MISSING' || code === 'PROMPT_FILE_EMPTY' ? 500 : 400;
+    res.status(status).json({
+      status: 'error',
+      code,
+      message: err.message,
+    });
+  }
 });
 
 // 5. Protected OCR Endpoint
@@ -396,7 +420,7 @@ app.post('/api/recognize-identity', requireTeacherAuth, async (req, res) => {
 // - Reuses serial isVlModelBusy guard to prevent concurrent GPU overload.
 // - Enforces fixed faithful transcription rules v1.0.
 app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
-  const { scanPageId, studentId, assignmentId, pageNumber, totalParts, regions, readingOrder, settings } = req.body;
+  const { scanPageId, studentId, assignmentId, pageNumber, totalParts, regions, readingOrder, settings, promptSnapshot } = req.body;
 
   if (!scanPageId) {
     return res.status(400).json({
@@ -476,6 +500,7 @@ app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
       regions: Array.isArray(regions) ? regions : [],
       readingOrder: Array.isArray(readingOrder) ? readingOrder : [],
       settings: settings && typeof settings === 'object' ? settings : {},
+      promptSnapshot: promptSnapshot && typeof promptSnapshot === 'object' ? promptSnapshot : null,
       endpoint: config.qwenVlEndpoint,
       signal: controller.signal,
     });
@@ -498,6 +523,7 @@ app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
       provider: 'local_qwen_vl',
       modelId: result.modelId,
       promptVersion: result.promptVersion,
+      promptHash: result.promptHash,
       settingsVersion: settings?.version || 'v1.0',
       hasUnreadable: result.hasUnreadable,
       wordCount: result.wordCount,
@@ -506,6 +532,7 @@ app.post('/api/transcribe-page', requireTeacherAuth, async (req, res) => {
         modelId: result.modelId,
         timestamp: Date.now(),
         promptVersion: result.promptVersion,
+        promptHash: result.promptHash,
         scanPageId,
         studentId,
       },

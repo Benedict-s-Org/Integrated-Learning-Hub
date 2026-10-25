@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Plus,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   Loader2,
   RefreshCw,
@@ -42,7 +43,14 @@ import { resolveScanPageImageUrl, getFallbackScanImageUrl } from '../utils/scanI
 import { BatchMarkingQueueProgress } from '../utils/markingBatchQueue';
 import { BatchMarkingProgressBanner } from './BatchMarkingProgressBanner';
 import { AiMarkingFreshness } from '../utils/backgroundMarkingQueue';
-import { remapFindingsThroughEdit, TranscriptEditOperation } from '../utils/markingTextAlignment';
+import {
+  remapFindingsThroughEdit,
+  remapFindingsThroughEdits,
+  computeTranscriptEdits,
+  TranscriptEditOperation,
+  findAllOccurrences,
+  buildTranscriptParagraphStructure,
+} from '../utils/markingTextAlignment';
 import { TranscriptionToolbar } from './TranscriptionToolbar';
 import { StagedCandidateBox } from './StagedCandidateBox';
 import { TranscriptionSettingsModal } from './TranscriptionSettingsModal';
@@ -218,6 +226,12 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     involvedFindingIds: string[];
   } | null>(null);
   const [correctionText, setCorrectionText] = useState('');
+  const [selectedRange, setSelectedRange] = useState<{
+    startLine: number;
+    startOffset: number;
+    endLine: number;
+    endOffset: number;
+  } | null>(null);
 
   const [isRubricOpen, setIsRubricOpen] = useState(false);
   const [serviceStatus, setServiceStatus] = useState<ServiceAvailabilityStatus | null>(null);
@@ -349,7 +363,10 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     isVerified: false,
   };
 
-  const transcriptText = currentTranscript.editedText || currentTranscript.rawOcrText || '';
+  const transcriptText =
+    typeof currentTranscript.editedText === 'string'
+      ? currentTranscript.editedText
+      : (currentTranscript.rawOcrText ?? '');
 
   // Extract lines with normalized bboxes for the active page
   const currentLinesWithBboxes = currentTranscript.linesWithBboxes || [];
@@ -383,10 +400,24 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
       setSelectedText(target.text);
       setNewFindingOriginal(target.text);
       setNewFindingLineIndex(target.lineIndex);
+      const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+      const lineStr = lines[target.lineIndex] ?? '';
+      const start = lineStr.indexOf(target.text);
+      if (start >= 0) {
+        setSelectedRange({
+          startLine: target.lineIndex,
+          startOffset: start,
+          endLine: target.lineIndex,
+          endOffset: start + target.text.length,
+        });
+      } else {
+        setSelectedRange(null);
+      }
       checkOverlap(target.text, target.lineIndex);
     } else {
       setSelectedLineIndex(null);
       setSelectedText('');
+      setSelectedRange(null);
       setOverlapWarning(null);
     }
   };
@@ -397,16 +428,44 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     setSelectedOccurrenceIndex(null);
     if (lineIndex === null) {
       setSelectedText('');
+      setSelectedRange(null);
     }
   };
 
-  const handleTextSelection = (text: string, lineIndex: number, occurrenceIndex: number = 0) => {
+  const handleTextSelection = (
+    text: string,
+    lineIndex: number,
+    occurrenceIndex: number = 0,
+    exactRange?: { startOffset: number; endOffset: number }
+  ) => {
     setSelectedText(text);
     setSelectedLineIndex(lineIndex);
     setSelectedOccurrenceIndex(occurrenceIndex);
     setSelectedWordTarget(null);
     setNewFindingOriginal(text);
     setNewFindingLineIndex(lineIndex);
+    if (exactRange) {
+      setSelectedRange({
+        startLine: lineIndex,
+        startOffset: exactRange.startOffset,
+        endLine: lineIndex,
+        endOffset: exactRange.endOffset,
+      });
+    } else {
+      const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+      const lineStr = lines[lineIndex] ?? '';
+      const start = lineStr.indexOf(text);
+      if (start >= 0) {
+        setSelectedRange({
+          startLine: lineIndex,
+          startOffset: start,
+          endLine: lineIndex,
+          endOffset: start + text.length,
+        });
+      } else {
+        setSelectedRange(null);
+      }
+    }
     checkOverlap(text, lineIndex);
   };
 
@@ -415,6 +474,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     setSelectedWordTarget(null);
     setSelectedOccurrenceIndex(null);
     setSelectedText('');
+    setSelectedRange(null);
     if (typeof window !== 'undefined') {
       window.getSelection()?.removeAllRanges();
     }
@@ -436,67 +496,93 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     handleOpenCorrectOcrModal(target.lineIndex, target.text, target.wordIndex);
   };
 
-  const handleOpenAddFindingForPhrase = (phrase: string, lineIndex: number) => {
+  const handleOpenAddFindingForPhrase = (
+    phrase: string,
+    lineIndex: number,
+    range?: { startOffset: number; endOffset: number },
+    occurrenceIndex?: number
+  ) => {
     setNewFindingFeedbackType('correction');
     setNewFindingOriginal(phrase);
     setNewFindingReplacement('');
     setNewFindingExplanation('');
     setNewFindingLineIndex(lineIndex);
-    checkOverlap(phrase, lineIndex);
+    if (range) {
+      setSelectedRange({
+        startLine: lineIndex,
+        startOffset: range.startOffset,
+        endLine: lineIndex,
+        endOffset: range.endOffset,
+      });
+    }
+    if (typeof occurrenceIndex === 'number') {
+      setSelectedOccurrenceIndex(occurrenceIndex);
+    }
+    checkOverlap(phrase, lineIndex, range);
     setShowAddFindingModal(true);
+    setContextMenu(null);
   };
 
   const handleWordContextMenu = (
-    target: { lineIndex: number; wordIndex: number; text: string },
+    target: { lineIndex: number; wordIndex: number; text: string; startOffset?: number; endOffset?: number },
     e: React.MouseEvent
   ) => {
     e.preventDefault();
-    if (selectedText && selectedText.trim()) {
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        kind: 'selection',
-        sourceText: selectedText,
-        lineIndex: selectedLineIndex,
-        findingId: null,
-        selectionRange: {
-          startLine: selectedLineIndex ?? 0,
-          startOffset: 0,
-          endLine: selectedLineIndex ?? 0,
-          endOffset: selectedText.length,
-          revision: currentTranscript.revision ?? 0,
-        },
-      });
+    const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    if (selectedText && selectedText.trim() && selectedLineIndex === target.lineIndex) {
+      const lineStr = lines[selectedLineIndex ?? 0] ?? '';
+      const startOffset = selectedRange ? selectedRange.startOffset : Math.max(0, lineStr.indexOf(selectedText));
+      const endOffset = selectedRange ? selectedRange.endOffset : (startOffset + selectedText.length);
+      const occurrences = findAllOccurrences(lineStr, selectedText);
+      let occIdx = selectedOccurrenceIndex ?? 0;
+      if (typeof selectedOccurrenceIndex !== 'number' && occurrences.length > 0) {
+        const matchIdx = occurrences.indexOf(startOffset);
+        occIdx = matchIdx !== -1 ? matchIdx : 0;
+      }
+      handleOpenAddFindingForPhrase(
+        selectedText,
+        selectedLineIndex ?? 0,
+        { startOffset, endOffset },
+        occIdx
+      );
     } else {
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        kind: 'plain',
-        sourceText: target.text,
-        lineIndex: target.lineIndex,
-        findingId: null,
-      });
+      const lineStr = lines[target.lineIndex] ?? '';
+      const occurrences = findAllOccurrences(lineStr, target.text);
+      let startOffset = typeof target.startOffset === 'number' ? target.startOffset : Math.max(0, lineStr.indexOf(target.text));
+      let endOffset = typeof target.endOffset === 'number' ? target.endOffset : (startOffset + target.text.length);
+      let occIdx = 0;
+      if (occurrences.length > 0) {
+        const matchIdx = occurrences.indexOf(startOffset);
+        if (matchIdx !== -1) {
+          occIdx = matchIdx;
+        } else if (target.wordIndex < occurrences.length) {
+          occIdx = target.wordIndex;
+          startOffset = occurrences[occIdx];
+          endOffset = startOffset + target.text.length;
+        }
+      }
+      handleOpenAddFindingForPhrase(
+        target.text,
+        target.lineIndex,
+        { startOffset, endOffset },
+        occIdx
+      );
     }
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent) => {
     if (selectedText && selectedText.trim()) {
       e.preventDefault();
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        kind: 'selection',
-        sourceText: selectedText,
-        lineIndex: selectedLineIndex,
-        findingId: null,
-        selectionRange: {
-          startLine: selectedLineIndex ?? 0,
-          startOffset: 0,
-          endLine: selectedLineIndex ?? 0,
-          endOffset: selectedText.length,
-          revision: currentTranscript.revision ?? 0,
-        },
-      });
+      const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+      const lineStr = lines[selectedLineIndex ?? 0] ?? '';
+      const startOffset = selectedRange ? selectedRange.startOffset : Math.max(0, lineStr.indexOf(selectedText));
+      const endOffset = selectedRange ? selectedRange.endOffset : (startOffset + selectedText.length);
+      handleOpenAddFindingForPhrase(
+        selectedText,
+        selectedLineIndex ?? 0,
+        { startOffset, endOffset },
+        selectedOccurrenceIndex ?? undefined
+      );
     }
   };
 
@@ -601,6 +687,64 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     applyRemapFindings(newTranscript, edit);
   };
 
+  const handleSaveWholeTranscript = (newTranscriptText: string, baseRevision?: number) => {
+    const oldText = transcriptText.replace(/\r\n/g, '\n');
+    const newText = newTranscriptText.replace(/\r\n/g, '\n');
+    if (oldText === newText) return;
+
+    const currentRev = currentTranscript.revision ?? 0;
+    if (typeof baseRevision === 'number' && baseRevision < currentRev) {
+      console.warn('Transcript has been updated since draft was started. Base revision:', baseRevision, 'Current:', currentRev);
+    }
+
+    const edits = computeTranscriptEdits(oldText, newText);
+
+    // Preserve newlines and rebuild lines model
+    const newLines = newText.split('\n');
+    const updatedLinesWithBboxes: LineWithBbox[] = newLines.map((text, i) => {
+      const existing = currentLinesWithBboxes[i];
+      if (existing) {
+        return { ...existing, text };
+      }
+      return {
+        text,
+        pageNumber: activePageItem?.part || 1,
+        scanPageId: activePageItem?.page?.id,
+        box: [0, 0, 100, 100] as [number, number, number, number],
+      };
+    });
+
+    if (onUpdateTranscriptText) {
+      onUpdateTranscriptText(activeStudentId, newText, updatedLinesWithBboxes);
+    }
+
+    const remap = remapFindingsThroughEdits(oldText, newText, currentMarking.findings, edits);
+    const outcomeById = new Map(remap.map((o) => [o.findingId, o]));
+    let hasChanges = false;
+    const updatedFindings = currentMarking.findings.map((f) => {
+      const outcome = outcomeById.get(f.id);
+      if (!outcome) return f;
+      if (outcome.status === 'mapped' && outcome.mapped) {
+        hasChanges = true;
+        return {
+          ...f,
+          lineIndex: outcome.mapped.lineIndex,
+          occurrenceIndex: outcome.mapped.occurrenceIndex,
+          paragraphIndex: outcome.mapped.paragraphIndex,
+          startIndex: outcome.mapped.startIndex,
+          endIndex: outcome.mapped.endIndex,
+          anchorReview: false,
+          anchorReviewReason: undefined,
+        };
+      }
+      hasChanges = true;
+      return { ...f, anchorReview: true, anchorReviewReason: outcome.anchorReviewReason };
+    });
+    if (hasChanges && onUpdateFindings) {
+      onUpdateFindings(activeStudentId, updatedFindings);
+    }
+  };
+
   const handleSelectionContextMenu = (
     payload: {
       sourceText: string;
@@ -612,25 +756,50 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     },
     e: React.MouseEvent
   ) => {
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      kind: 'selection',
-      sourceText: payload.sourceText,
-      lineIndex: payload.startLine,
-      findingId: null,
-      selectionRange: {
-        startLine: payload.startLine,
-        startOffset: payload.startOffset,
-        endLine: payload.endLine,
-        endOffset: payload.endOffset,
-        revision: currentTranscript.revision ?? 0,
-      },
-    });
+    e.preventDefault();
+    const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    const lineStr = lines[payload.startLine] ?? '';
+    const occurrences = findAllOccurrences(lineStr, payload.sourceText);
+    let occIdx = 0;
+    if (occurrences.length > 0) {
+      const matchIdx = occurrences.indexOf(payload.startOffset);
+      if (matchIdx !== -1) {
+        occIdx = matchIdx;
+      } else {
+        let minDiff = Infinity;
+        occurrences.forEach((o, i) => {
+          const diff = Math.abs(o - payload.startOffset);
+          if (diff < minDiff) {
+            minDiff = diff;
+            occIdx = i;
+          }
+        });
+      }
+    }
+    handleOpenAddFindingForPhrase(
+      payload.sourceText,
+      payload.startLine,
+      { startOffset: payload.startOffset, endOffset: payload.endOffset },
+      occIdx
+    );
   };
 
   const handleFindingContextMenu = (findingId: string, e: React.MouseEvent) => {
     const f = currentMarking.findings.find((x) => x.id === findingId);
+    const lineIndex = f?.lineIndex ?? 0;
+    const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    const lineStr = lines[lineIndex] ?? '';
+    const startOffset =
+      f && typeof f.startIndex === 'number' && f.startIndex >= 0
+        ? f.startIndex
+        : f
+        ? Math.max(0, lineStr.indexOf(f.originalText))
+        : 0;
+    const endOffset =
+      f && typeof f.endIndex === 'number' && f.endIndex > startOffset
+        ? f.endIndex
+        : startOffset + (f?.originalText.length ?? 0);
+
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -638,6 +807,13 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
       sourceText: f?.originalText ?? '',
       lineIndex: f?.lineIndex ?? null,
       findingId,
+      selectionRange: {
+        startLine: lineIndex,
+        startOffset,
+        endLine: lineIndex,
+        endOffset,
+        revision: currentTranscript.revision ?? 0,
+      },
     });
   };
 
@@ -646,7 +822,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     setCorrectionEditor({
       sourceText: contextMenu.sourceText,
       range: contextMenu.selectionRange,
-      involvedFindingIds: [],
+      involvedFindingIds: contextMenu.findingId ? [contextMenu.findingId] : [],
     });
     setCorrectionText(contextMenu.sourceText);
     setContextMenu(null);
@@ -658,26 +834,61 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     const currentLines = transcriptText.replace(/\r\n/g, '\n').split('\n');
     const lineIdx = range.startLine;
     const oldLine = currentLines[lineIdx] ?? '';
-    if (oldLine.slice(range.startOffset, range.endOffset) !== sourceText) {
-      // Range changed since snapshot; abort (do not roll back already-saved edits).
-      setCorrectionEditor(null);
-      return;
+
+    let startOffset = range.startOffset;
+    let endOffset = range.endOffset;
+
+    if (oldLine.slice(startOffset, endOffset) !== sourceText) {
+      const idx = oldLine.indexOf(sourceText);
+      if (idx !== -1) {
+        startOffset = idx;
+        endOffset = idx + sourceText.length;
+      } else {
+        // Range changed and sourceText not found on this line; abort
+        setCorrectionEditor(null);
+        return;
+      }
     }
-    const newLine = oldLine.slice(0, range.startOffset) + correctionText + oldLine.slice(range.endOffset);
+
+    const newLine = oldLine.slice(0, startOffset) + correctionText + oldLine.slice(endOffset);
     handleTranscriptTextEdit(lineIdx, newLine);
     setCorrectionEditor(null);
   };
 
 
-  const checkOverlap = (original: string, lineIdx: number | null) => {
+  const checkOverlap = (
+    original: string,
+    lineIdx: number | null,
+    range?: { startOffset: number; endOffset: number }
+  ) => {
     if (!original.trim() || lineIdx === null) {
       setOverlapWarning(null);
       return;
     }
+    const lines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    const lineStr = lines[lineIdx] ?? '';
+
     const overlapping = currentMarking.findings.find((f) => {
       if (f.decision === 'rejected') return false;
       if (typeof f.lineIndex === 'number' && f.lineIndex === lineIdx) {
-        return f.originalText.includes(original) || original.includes(f.originalText);
+        if (range) {
+          let fStart = typeof f.startIndex === 'number' ? f.startIndex : -1;
+          let fEnd = typeof f.endIndex === 'number' ? f.endIndex : -1;
+
+          if (fStart === -1 && f.originalText) {
+            const occs = findAllOccurrences(lineStr, f.originalText);
+            const occIdx = typeof f.occurrenceIndex === 'number' ? f.occurrenceIndex : 0;
+            if (occs[occIdx] !== undefined) {
+              fStart = occs[occIdx];
+              fEnd = fStart + f.originalText.length;
+            }
+          }
+
+          if (fStart !== -1 && fEnd !== -1) {
+            return range.startOffset < fEnd && range.endOffset > fStart;
+          }
+        }
+        return false;
       }
       return false;
     });
@@ -691,6 +902,23 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     }
   };
 
+  const handleCloseAddFindingModal = () => {
+    setShowAddFindingModal(false);
+    setOverlapWarning(null);
+    setSelectedRange(null);
+    setSelectedLineIndex(null);
+    setSelectedOccurrenceIndex(null);
+    setSelectedWordTarget(null);
+    setSelectedText('');
+    setNewFindingOriginal('');
+    setNewFindingReplacement('');
+    setNewFindingExplanation('');
+    setNewFindingLineIndex(null);
+    if (typeof window !== 'undefined') {
+      window.getSelection()?.removeAllRanges();
+    }
+  };
+
   const handleOpenAddFindingModal = () => {
     const targetLine = selectedLineIndex;
     const prefillOriginal = selectedText || '';
@@ -699,7 +927,11 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     setNewFindingReplacement('');
     setNewFindingExplanation('');
     setNewFindingLineIndex(targetLine);
-    checkOverlap(prefillOriginal, targetLine);
+    checkOverlap(
+      prefillOriginal,
+      targetLine,
+      selectedRange ? { startOffset: selectedRange.startOffset, endOffset: selectedRange.endOffset } : undefined
+    );
     setShowAddFindingModal(true);
   };
 
@@ -721,6 +953,20 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     e.preventDefault();
     if (!newFindingOriginal.trim() || !newFindingReplacement.trim() || overlapWarning) return;
 
+    const rawLines = transcriptText.replace(/\r\n/g, '\n').split('\n');
+    const structure = buildTranscriptParagraphStructure(rawLines);
+    let paraIdx: number | undefined;
+    if (typeof newFindingLineIndex === 'number') {
+      structure.paragraphs.forEach((para, pIdx) => {
+        if (para.some((l) => l.rawLineIndex === newFindingLineIndex)) {
+          paraIdx = pIdx;
+        }
+      });
+    }
+
+    const startOff = selectedRange ? selectedRange.startOffset : undefined;
+    const endOff = selectedRange ? selectedRange.endOffset : undefined;
+
     onAddFinding(activeStudentId, {
       type: newFindingType,
       feedbackType: newFindingFeedbackType,
@@ -728,20 +974,17 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
       replacementText: newFindingReplacement.trim(),
       explanation: newFindingExplanation.trim(),
       lineIndex: newFindingLineIndex ?? undefined,
+      paragraphIndex: paraIdx,
       occurrenceIndex: selectedOccurrenceIndex ?? undefined,
+      startIndex: startOff,
+      endIndex: endOff,
+      charStart: startOff,
+      charEnd: endOff,
       isManual: true,
       source: 'teacher',
     });
 
-    setNewFindingFeedbackType('correction');
-    setNewFindingOriginal('');
-    setNewFindingReplacement('');
-    setNewFindingExplanation('');
-    setNewFindingLineIndex(null);
-    setSelectedOccurrenceIndex(null);
-    setOverlapWarning(null);
-    setShowAddFindingModal(false);
-    setSelectedText('');
+    handleCloseAddFindingModal();
   };
 
   // Pointer hover magnification for the active scan image
@@ -1267,7 +1510,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                 type="button"
                 onClick={() => transcription.handleInitiateSingleEssayTranscribe(activeStudentId)}
                 disabled={transcription.isTranscribingSingle || isBatchRunning || transcription.studentPagesWithIndices.length === 0}
-                aria-label={`Start ${transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (${transcription.studentPagesWithIndices.length}) - Transcribe This Essay`}
+                aria-label={`Start ${transcription.selectedProvider === 'local_qwen_vl' ? 'Qwen VL OCR' : transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (${transcription.studentPagesWithIndices.length}) - Transcribe This Essay`}
                 className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50 shadow-2xs"
               >
                 {transcription.isTranscribingSingle ? (
@@ -1275,7 +1518,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>
                       {transcription.pageStage === 'vl_running'
-                        ? 'Verifying with Qwen VL...'
+                        ? (transcription.selectedProvider === 'local_qwen_vl' ? 'Running Qwen VL OCR...' : 'Verifying with Qwen VL...')
                         : 'Running Mathpix OCR...'}
                     </span>
                   </>
@@ -1283,7 +1526,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>
-                      Start {transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (
+                      Start {transcription.selectedProvider === 'local_qwen_vl' ? 'Qwen VL OCR' : transcription.selectedProvider === 'mathpix_only' ? 'Mathpix OCR' : 'Mathpix + Qwen'} (
                       {transcription.studentPagesWithIndices.length})
                     </span>
                   </>
@@ -1627,6 +1870,33 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
             )}
           </div>
 
+          {/* Non-blocking OCR review notices banner */}
+          {currentTranscript.reviewNotices && currentTranscript.reviewNotices.length > 0 && (
+            <div className="mb-2 p-2.5 bg-amber-50/90 border border-amber-200/90 rounded-md text-xs text-amber-900 shadow-2xs">
+              <div className="flex items-center justify-between font-medium">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-semibold text-amber-900">
+                    OCR Review Notices ({currentTranscript.reviewNotices.length}):
+                  </span>
+                  <span className="text-amber-800">Non-blocking notices. Text is preserved in the transcript; click to edit.</span>
+                </div>
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {currentTranscript.reviewNotices.map((notice) => (
+                  <div key={notice.id} className="flex items-start gap-1.5 pl-5 text-[11px] text-amber-900">
+                    <span className="font-mono text-amber-700 font-semibold shrink-0">
+                      {notice.lineNumber ? `[Line ${notice.lineNumber}]` : '•'}
+                    </span>
+                    <span>
+                      <strong className="font-semibold">{notice.matchedText}</strong> — {notice.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Full-Text Inline Marking Canvas */}
           <div className="flex-1 border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs flex flex-col">
             <InlineMarkingView
@@ -1645,6 +1915,8 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
               onWordContextMenu={handleWordContextMenu}
               onCanvasContextMenu={handleCanvasContextMenu}
               onTranscriptTextEdit={handleTranscriptTextEdit}
+              revision={currentTranscript.revision ?? 0}
+              onSaveWholeTranscript={handleSaveWholeTranscript}
               onSelectionContextMenu={handleSelectionContextMenu}
               onFindingContextMenu={handleFindingContextMenu}
               onFindingDecision={onFindingDecision}
@@ -2007,10 +2279,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setShowAddFindingModal(false);
-                  setOverlapWarning(null);
-                }}
+                onClick={handleCloseAddFindingModal}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded"
               >
                 <X className="w-4 h-4" />
@@ -2169,10 +2438,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddFindingModal(false);
-                    setOverlapWarning(null);
-                  }}
+                  onClick={handleCloseAddFindingModal}
                   className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-xs"
                 >
                   取消
@@ -2519,8 +2785,8 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
         </div>
       )}
 
-      {/* Selection / word / finding context menu */}
-      {contextMenu && (
+      {/* Finding context menu: Correct OCR source text */}
+      {contextMenu && contextMenu.kind === 'finding' && (
         <div className="fixed inset-0 z-[99990]" onMouseDown={() => setContextMenu(null)}>
           <div
             className="absolute w-60 bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs text-slate-700"
@@ -2530,70 +2796,15 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {contextMenu.kind !== 'finding' && (
-              <>
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-                  onClick={() => {
-                    if (contextMenu.kind === 'selection') {
-                      openCorrectionEditorForSelection();
-                    } else {
-                      setCorrectionEditor({
-                        sourceText: contextMenu.sourceText,
-                        range: {
-                          startLine: contextMenu.lineIndex ?? 0,
-                          startOffset: 0,
-                          endLine: contextMenu.lineIndex ?? 0,
-                          endOffset: contextMenu.sourceText.length,
-                          revision: currentTranscript.revision ?? 0,
-                        },
-                        involvedFindingIds: [],
-                      });
-                      setCorrectionText(contextMenu.sourceText);
-                      setContextMenu(null);
-                    }
-                  }}
-                >
-                  <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Correct OCR text
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-                  onClick={() => {
-                    handleOpenAddFindingForPhrase(contextMenu.sourceText, contextMenu.lineIndex ?? 0);
-                    setContextMenu(null);
-                  }}
-                >
-                  <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Add manual finding
-                </button>
-              </>
-            )}
-            {contextMenu.kind === 'finding' && (
-              <>
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
-                  onClick={() => {
-                    setCorrectionEditor({
-                      sourceText: contextMenu.sourceText,
-                      range: {
-                        startLine: contextMenu.lineIndex ?? 0,
-                        startOffset: 0,
-                        endLine: contextMenu.lineIndex ?? 0,
-                        endOffset: contextMenu.sourceText.length,
-                        revision: currentTranscript.revision ?? 0,
-                      },
-                      involvedFindingIds: contextMenu.findingId ? [contextMenu.findingId] : [],
-                    });
-                    setCorrectionText(contextMenu.sourceText);
-                    setContextMenu(null);
-                  }}
-                >
-                  <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Correct OCR source text
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+              onClick={() => {
+                openCorrectionEditorForSelection();
+              }}
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Correct OCR source text
+            </button>
           </div>
         </div>
       )}

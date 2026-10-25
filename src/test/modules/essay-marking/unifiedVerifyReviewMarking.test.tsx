@@ -185,10 +185,11 @@ describe('Unified Verify & Review Marking Workflow (Requirements A - J)', () => 
     const roomWord = screen.getByText('room.');
     fireEvent.click(roomWord);
 
-    // Left-click plain OCR word "room." now places an editing caret (no OCR modal)
+    // Left-click plain OCR word "room." mounts an in-place controlled textarea for Option B line editing;
+    // it does not open a modal or floating popover.
     expect(screen.queryByText(/修正辨識文字 \(Correct OCR\)/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/新增批改 \(Add Finding\)/i)).not.toBeInTheDocument();
-    expect(roomWord.closest('[data-line-tokens]')).toHaveAttribute('contenteditable', 'true');
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
   // C. RIGHT-CLICK ADD FINDING
@@ -219,8 +220,8 @@ describe('Unified Verify & Review Marking Workflow (Requirements A - J)', () => 
     const roomWord = screen.getByText('room.');
     fireEvent.contextMenu(roomWord);
 
-    // Right-click no longer opens the Add Finding modal directly (context menu instead).
-    expect(screen.queryByText(/新增批改 \(Add Finding\)/i)).not.toBeInTheDocument();
+    // Right-click plain OCR word opens the Add Finding modal directly without intermediate menu.
+    expect(screen.getByText(/新增批改 \(Add Finding\)/i)).toBeInTheDocument();
   });
 
   // D. PHRASE SELECTION
@@ -270,7 +271,7 @@ describe('Unified Verify & Review Marking Workflow (Requirements A - J)', () => 
       anchorNode: lineEl,
       rangeCount: 0,
     };
-    vi.spyOn(window, 'getSelection').mockReturnValue(windowSelectionMock as any);
+    const getSelSpy = vi.spyOn(window, 'getSelection').mockReturnValue(windowSelectionMock as any);
 
     // Simulate drag selection mouseup on canvas
     fireEvent.mouseUp(lineEl);
@@ -278,8 +279,11 @@ describe('Unified Verify & Review Marking Workflow (Requirements A - J)', () => 
     // Right-click on word "one"
     fireEvent.contextMenu(oneWord);
 
-    // Right-click no longer opens the Add Finding modal directly.
-    expect(screen.queryByText(/新增批改 \(Add Finding\)/i)).not.toBeInTheDocument();
+    // Right-click opens the Add Finding modal directly prefilled with selected phrase.
+    expect(screen.getByText(/新增批改 \(Add Finding\)/i)).toBeInTheDocument();
+
+    // Clean up spy
+    getSelSpy.mockRestore();
   });
 
   // E. EXISTING FINDINGS

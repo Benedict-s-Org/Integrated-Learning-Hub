@@ -149,8 +149,6 @@ export function wouldCreateHole(chunks: Chunk[], newChunk: Chunk): boolean {
   
   if (chunks.length === 0) return false;
   
-  const _existing = new Set(chunks.map(c => `${c.cx},${c.cy}`));
-  
   // Check if new chunk is adjacent to any existing chunk
   const isAdjacent = chunks.some(c => {
     const dx = Math.abs(c.cx - newChunk.cx);
@@ -197,9 +195,7 @@ export function calculateWallSegments(activeTiles: Set<string>): WallSegment[] {
   
   // Group edges by direction and position
   const leftEdges = edges.filter(e => e.direction === 'left');
-  const _rightEdges = edges.filter(e => e.direction === 'right');
   const upEdges = edges.filter(e => e.direction === 'up');
-  const _downEdges = edges.filter(e => e.direction === 'down');
   
   // Process left edges (these become left-wall segments in isometric view)
   // Sort by x, then y

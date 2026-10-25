@@ -141,12 +141,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       setUsers(
         (data.users || [])
-          .filter((u: any) => u.role === 'admin' || !isArchivedClassName(u.class))
-          .map((u: any) => ({
-            ...u,
-            class_number: profileMap[u.id],
-            qr_token: qrTokenMap[u.id]
-          }))
+          .map((u: any) => {
+            const isArchived = isArchivedClassName(u.class);
+            return {
+              ...u,
+              class: isArchived ? null : u.class,
+              class_number: isArchived ? null : profileMap[u.id],
+              qr_token: qrTokenMap[u.id]
+            };
+          })
       );
     } finally {
       setLoading(false);
@@ -519,7 +522,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const filteredAndSortedUsers = users
-    .filter(user => filterClass === 'all' || user.class === filterClass)
+    .filter(user => {
+      if (filterClass === 'all') return true;
+      if (filterClass === 'unassigned') return !user.class;
+      return user.class === filterClass;
+    })
     .sort((a, b) => {
       let comparison = 0;
       if (sortBy === 'username') {
@@ -536,7 +543,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
 
   const uniqueClasses = Array.from(
-    new Set(users.map(u => u.class).filter((c): c is string => Boolean(c) && !isArchivedClassName(c)))
+    new Set(users.map(u => u.class).filter((c): c is string => Boolean(c)))
   ) as string[];
 
   return (
@@ -715,7 +722,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               onChange={(e) => setFilterClass(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="all">All Classes</option>
+              <option value="all">所有學生 (All Classes)</option>
+              <option value="unassigned">未編班 / 待分配 (Unassigned)</option>
               {uniqueClasses.sort().map(cls => (
                 <option key={cls} value={cls}>{cls}</option>
               ))}

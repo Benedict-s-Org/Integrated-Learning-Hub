@@ -173,6 +173,13 @@ export interface ServiceAvailabilityService {
   checkMarkingModelStatus?(): Promise<MarkingModelHealthStatus>;
 }
 
+export interface OcrPromptSnapshot {
+  promptHash: string;
+  promptVersion: string;
+  promptText: string;
+  filePath?: string;
+}
+
 export interface TranscribePageRequest {
   scanPageId: string;
   studentId: string;
@@ -186,6 +193,7 @@ export interface TranscribePageRequest {
   writingAreas?: TemplateRegion[]; // writingAreas convenience/compatibility
   readingOrder?: string[];
   settings: AssignmentTranscriptionSettings;
+  promptSnapshot?: OcrPromptSnapshot | null;
   classId?: string;
 }
 
@@ -210,6 +218,7 @@ export interface TranscribePageResponse {
   provider?: string;
   modelId?: string;
   promptVersion?: string;
+  promptHash?: string;
   settingsVersion?: string;
   hasUnreadable?: boolean;
   wordCount?: number;
@@ -224,6 +233,7 @@ export interface TranscribePageResponse {
     modelId?: string;
     timestamp: number;
     promptVersion: string;
+    promptHash?: string;
     scanPageId: string;
     studentId: string;
   };
@@ -264,4 +274,5 @@ export interface EssayTranscriptionService {
   transcribePage(request: TranscribePageRequest): Promise<TranscribePageResponse>;
   verifyTranscription?(request: VerifyTranscriptionRequest): Promise<VerifyTranscriptionResponse>;
   getActiveRules?(): Promise<FixedTranscriptionRulesInfo | null>;
+  getOcrPromptSnapshot?(): Promise<OcrPromptSnapshot>;
 }
