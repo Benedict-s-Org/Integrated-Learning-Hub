@@ -86,7 +86,13 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
   - `showMorningDuties`: Toggled to show morning checklist (default on between 7-9 AM HK time).
 - **Core Components**: `BroadcastQuickBar` (sticky top-of-content), `UserGrid`, `AdminActionToolbar`.
 - **Integrated Logic**: `BroadcastQuickBar` is positioned at the top of the `max-w-7xl` container and is `sticky top-0`. It only renders when there are active messages or students selected.
-- **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. Guest mode uses token from URL parameter. **Default class is set to '3A'**.
+- **Gotchas**: Uses `useDocumentPiP` for picture-in-picture. `UserWithCoins` extended type has non-standard fields (`daily_real_earned`, `virtual_coins`) loaded via user_room_data view/RPCs. **Default class is set to '3A'**.
+- **Magic links (guest Class Dashboard)**:
+  - Spec: `docs/superpowers/specs/2026-10-28-class-dashboard-magic-links-design.md`
+  - Route: `/class-dash/<token>` (`ClassDashGuestPage`) — no login; Mon–Fri 07:30–15:30 HKT; locked to `target_class`
+  - Table: `shared_links` (rebuilt); Edge Function: `class-dash` (`validate` / `manage` / `bootstrap` / `action`)
+  - Admin UI: `ClassDashLinkPanel` on Class Dashboard (logged-in, class selected) — Generate / Copy / Regenerate / Disable
+  - Writes proxied via Edge Function (no broad anon RLS); archive class auto-disables links
 
 ### Broadcast & Notifications (L62-L72)
 - **Files**: `src/components/admin/notifications/BroadcastQuickBar.tsx`, `src/pages/admin/BroadcastManagementPage.tsx`

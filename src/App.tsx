@@ -303,7 +303,7 @@ function AppContent() {
       'spaceDesign', 'mapEditor', 'themeDesigner', 'avatarAssetManager', 'uiBuilder',
       'examFormatter', 'essayMarking', 'vocabImagePicker', 'phonicsDashboard', 'adminHomeworkMakeup'
     ];
-    if (adminOrStaffPages.includes(appState.page) && !new URLSearchParams(window.location.search).get('token')) {
+    if (adminOrStaffPages.includes(appState.page)) {
       setAppState({ page: 'new', step: 'input' });
       return;
     }
@@ -1357,7 +1357,7 @@ function AppContent() {
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
       <div className="flex min-h-screen bg-background">
-        {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+        {!['scanner'].includes(appState.page) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
             onPageChange={handlePageChange}
@@ -1380,7 +1380,7 @@ function AppContent() {
             onOpenMemory={toggleMemoryPanel}
           />
         )}
-        {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
+        {!['scanner'].includes(appState.page) && (
           <MobileTabBar
             currentPage={getCurrentPage()}
             onPageChange={handlePageChange}
@@ -1405,9 +1405,9 @@ function AppContent() {
           />
         )}
         <main
-          className={`flex-1 w-full transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20")}`}
+          className={`flex-1 w-full transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20"))}`}
           style={{
-            '--nav-width': isMobileEmulator || ['scanner'].includes(appState.page) || (appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token'))
+            '--nav-width': isMobileEmulator || ['scanner'].includes(appState.page)
               ? '0px'
               : isNavOpen
                 ? '256px' // w-64
@@ -1663,6 +1663,7 @@ const MemoryPalacePage = lazy(() => import('./pages/MemoryPalacePage').then(m =>
 const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => ({ default: m.FlowithTestPage })));
 const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').then(m => ({ default: m.IPadInteractiveZone })));
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
+const ClassDashGuestPage = lazy(() => import('./pages/ClassDashGuestPage'));
 const MorningDutiesPage = lazy(() => import('./components/MorningDuties/MorningDutiesPage').then(m => ({ default: m.MorningDutiesPage })));
 const EnglishHomeworkPage = lazy(() => import('./pages/EnglishHomeworkPage').then(m => ({ default: m.EnglishHomeworkPage })));
 
@@ -1969,6 +1970,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <MorningDutiesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/class-dash/:token"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <ClassDashGuestPage />
               </Suspense>
             }
           />

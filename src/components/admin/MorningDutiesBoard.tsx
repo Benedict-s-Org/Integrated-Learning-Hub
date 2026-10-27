@@ -4,6 +4,7 @@ import { getHKTodayString } from '@/utils/dateUtils';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { runClassDashAction } from '@/services/classDashLinkService';
 
 interface UserWithCoins {
     id: string;
@@ -34,10 +35,12 @@ interface MorningDutiesBoardProps {
     stageTextOverride?: string | null;
     onConfirmStage?: () => void;
     refreshTrigger?: number;
+    guestToken?: string;
+    initialMorningLogs?: any[];
 }
 
 export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ 
-    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage, refreshTrigger
+    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage, refreshTrigger, guestToken, initialMorningLogs
 }) => {
     const today = getHKTodayString();
     
@@ -95,9 +98,11 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
 
     useEffect(() => {
         fetchLogs();
-        fetchHomeworkOptions();
-        fetchExemptionReasons();
-    }, [activeClass, refreshTrigger]);
+        if (!guestToken) {
+            fetchHomeworkOptions();
+            fetchExemptionReasons();
+        }
+    }, [activeClass, refreshTrigger, guestToken, initialMorningLogs]);
 
     const fetchExemptionReasons = async () => {
         const { data } = await supabase
@@ -112,21 +117,29 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
         }
     };
 
+    const applyLogRows = (rows: any[] | null | undefined) => {
+        if (!rows) return;
+        const logMap: Record<string, MorningDutyLog> = {};
+        rows.forEach((log) => {
+            logMap[log.student_id] = log;
+        });
+        setLogs(logMap);
+    };
+
     const fetchLogs = async () => {
         if (!activeClass || activeClass === 'all') return;
+        if (guestToken) {
+            // Guest refreshes come from parent bootstrap; seed from initial props when present.
+            if (initialMorningLogs) applyLogRows(initialMorningLogs);
+            return;
+        }
         const { data } = await supabase
             .from('morning_duty_logs')
             .select('*')
             .eq('class', activeClass)
             .eq('log_date', today);
         
-        if (data) {
-            const logMap: Record<string, MorningDutyLog> = {};
-            data.forEach(log => {
-                logMap[log.student_id] = log;
-            });
-            setLogs(logMap);
-        }
+        applyLogRows(data);
     };
 
     const fetchHomeworkOptions = async () => {
@@ -199,14 +212,23 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
 
     const saveLogStatus = async (status: 'submitted' | 'missing' | 'absent', items?: Record<string, string[]>) => {
         try {
-            await supabase.rpc('upsert_morning_duty_log', {
-                p_log_date: today,
-                p_student_id: selectedStudent!.id,
-                p_status: status,
-                p_set_by: 'teacher',
-                p_missing_items: items || null,
-                p_event_type: 'status_change'
-            });
+            if (guestToken) {
+                await runClassDashAction(guestToken, 'morning_duty', {
+                    p_date: today,
+                    student_id: selectedStudent!.id,
+                    p_status: status,
+                    p_missing_items: items || null,
+                });
+            } else {
+                await supabase.rpc('upsert_morning_duty_log', {
+                    p_log_date: today,
+                    p_student_id: selectedStudent!.id,
+                    p_status: status,
+                    p_set_by: 'teacher',
+                    p_missing_items: items || null,
+                    p_event_type: 'status_change'
+                });
+            }
             await fetchLogs();
             onStatusChange();
         } catch (e: any) {

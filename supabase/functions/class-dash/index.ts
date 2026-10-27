@@ -342,12 +342,19 @@ async function handleBootstrap(
     .eq("date", today)
     .maybeSingle();
 
+  const { data: morningLogs } = await sb
+    .from("morning_duty_logs")
+    .select("*")
+    .eq("class", targetClass)
+    .eq("log_date", today);
+
   return json({
     target_class: targetClass,
     valid_until: access.valid_until,
     link_id: access.link.id,
     users: enriched,
     daily_homework: homework || null,
+    morning_duty_logs: morningLogs || [],
   });
 }
 
@@ -446,26 +453,43 @@ async function handleAction(
       if (!(await assertStudentInClass(sb, studentId, targetClass))) {
         return json({ error: "access_denied", message: "Student not in class" }, 403);
       }
-      const { data, error } = await sb.rpc("upsert_morning_duty_log", {
-        p_date: payload.p_date || payload.date,
-        p_student_id: studentId,
-        p_class: targetClass,
-        p_status: payload.p_status || payload.status || null,
-        p_handbook_status: payload.p_handbook_status || payload.handbook_status || null,
-        p_missing_items: payload.p_missing_items || payload.missing_items || null,
-        p_is_late: payload.p_is_late ?? payload.is_late ?? null,
-        p_pin_unlocked: payload.p_pin_unlocked ?? payload.pin_unlocked ?? null,
-        p_arrived_at: payload.p_arrived_at || payload.arrived_at || null,
-        p_notes: payload.p_notes || payload.notes || null,
-        p_updated_by: sourceMeta,
-      });
+      const logDate = String(payload.p_date || payload.p_log_date || payload.date || "");
+      const status = String(payload.p_status || payload.status || "submitted");
+      if (!logDate) return json({ error: "action_rejected", message: "date required" }, 400);
+
+      const { error } = await sb.from("morning_duty_logs").upsert(
+        {
+          log_date: logDate,
+          student_id: studentId,
+          class: targetClass,
+          status,
+          missing_items: payload.p_missing_items || payload.missing_items || null,
+          notes: `${payload.p_notes || payload.notes || ""} [${sourceMeta}]`.trim(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "log_date,student_id" },
+      );
       if (error) return json({ error: "action_rejected", message: error.message }, 500);
-      return json({ success: true, data });
+      return json({ success: true });
     }
 
     if (action === "revert_homework_record") {
       const { error } = await sb.rpc("revert_homework_record", {
         p_record_ids: payload.p_record_ids || payload.recordIds,
+      });
+      if (error) return json({ error: "action_rejected", message: error.message }, 500);
+      return json({ success: true });
+    }
+
+    if (action === "deduct_toilet_coins") {
+      const userId = String(payload.userId || "");
+      if (!userId) return json({ error: "action_rejected", message: "userId required" }, 400);
+      if (!(await assertStudentInClass(sb, userId, targetClass))) {
+        return json({ error: "access_denied", message: "Student not in class" }, 403);
+      }
+      const { error } = await sb.rpc("deduct_toilet_coins", {
+        p_user_id: userId,
+        p_amount: Number(payload.amount ?? 20),
       });
       if (error) return json({ error: "action_rejected", message: error.message }, 500);
       return json({ success: true });

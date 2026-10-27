@@ -30,6 +30,9 @@ import { useMorningDutyScheduler, MorningDutySettings } from '@/hooks/useMorning
 import { PipWindow } from '@/components/common/PipWindow';
 import { BroadcastBoard } from '@/components/admin/BroadcastBoard';
 import { NotificationTemplateModal } from '@/components/admin/notifications/NotificationTemplateModal';
+import { useClassDashGuest } from '@/context/ClassDashGuestContext';
+import { ClassDashLinkPanel } from '@/components/admin/ClassDashLinkPanel';
+import { bootstrapClassDash, runClassDashAction } from '@/services/classDashLinkService';
 import {
     DndContext,
     closestCenter,
@@ -139,6 +142,8 @@ const SortableTab = React.memo(SortableTabComponent, (prevProps, nextProps) => {
 
 export function ClassDashboardPage() {
     const { user: currentUser, isAdmin, isStaff, session } = useAuth();
+    const guest = useClassDashGuest();
+    const isGuest = guest.isGuest;
     const navigate = useNavigate();
     const { theme } = useDashboardTheme();
 
@@ -150,6 +155,7 @@ export function ClassDashboardPage() {
     const [dailyHomeworkMap, setDailyHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
     const [tomorrowHomeworkMap, setTomorrowHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
     const [morningDutyRefreshCounter, setMorningDutyRefreshCounter] = useState(0);
+    const [guestMorningLogs, setGuestMorningLogs] = useState<any[]>([]);
 
     const fetchDailyHomework = async () => {
         const todayDate = getHKTodayString();
@@ -183,17 +189,24 @@ export function ClassDashboardPage() {
     const handleSetupDailyHomework = async (className: string, assignments: Record<string, string[]>) => {
         const todayDate = getHKTodayString();
         try {
-            const { error } = await supabase
-                .from('daily_homework')
-                .upsert({
+            if (isGuest && guest.token) {
+                await runClassDashAction(guest.token, 'upsert_daily_homework', {
                     date: todayDate,
-                    class_name: className,
-                    assignments: assignments
-                }, {
-                    onConflict: 'date,class_name'
+                    assignments,
                 });
+            } else {
+                const { error } = await supabase
+                    .from('daily_homework')
+                    .upsert({
+                        date: todayDate,
+                        class_name: className,
+                        assignments: assignments
+                    }, {
+                        onConflict: 'date,class_name'
+                    });
 
-            if (error) throw error;
+                if (error) throw error;
+            }
             
             setDailyHomeworkMap(prev => ({
                 ...prev,
@@ -209,17 +222,24 @@ export function ClassDashboardPage() {
     const handleSetupTomorrowHomework = async (className: string, assignments: Record<string, string[]>) => {
         const tomorrowDate = getHKTomorrowString();
         try {
-            const { error } = await supabase
-                .from('daily_homework')
-                .upsert({
+            if (isGuest && guest.token) {
+                await runClassDashAction(guest.token, 'upsert_daily_homework', {
                     date: tomorrowDate,
-                    class_name: className,
-                    assignments: assignments
-                }, {
-                    onConflict: 'date,class_name'
+                    assignments,
                 });
+            } else {
+                const { error } = await supabase
+                    .from('daily_homework')
+                    .upsert({
+                        date: tomorrowDate,
+                        class_name: className,
+                        assignments: assignments
+                    }, {
+                        onConflict: 'date,class_name'
+                    });
 
-            if (error) throw error;
+                if (error) throw error;
+            }
             
             setTomorrowHomeworkMap(prev => ({
                 ...prev,
@@ -425,7 +445,13 @@ export function ClassDashboardPage() {
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
     const [isEditMode, setIsEditMode] = useState(false);
-    const [activeClass, setActiveClass] = useState<string>('3A');
+    const [activeClass, setActiveClass] = useState<string>(() => guest.targetClass || '3A');
+
+    useEffect(() => {
+        if (isGuest && guest.targetClass) {
+            setActiveClass(guest.targetClass);
+        }
+    }, [isGuest, guest.targetClass]);
 
     // PiP State
     const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
@@ -514,10 +540,83 @@ export function ClassDashboardPage() {
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [consequenceCounts, setConsequenceCounts] = useState<Record<string, number>>({});
 
+    const awardCoinsGuestAware = async (params: {
+        userId: string;
+        amount: number;
+        reason: string;
+        type: 'reward' | 'consequence';
+        batchId?: string;
+        skipDailyCount?: boolean;
+    }) => {
+        if (isGuest && guest.token) {
+            try {
+                await runClassDashAction(guest.token, 'award_coins', params);
+                return { success: true as const };
+            } catch (error) {
+                return { success: false as const, error };
+            }
+        }
+        return coinService.awardCoins(params);
+    };
+
+    const deductToiletGuestAware = async (userId: string) => {
+        if (isGuest && guest.token) {
+            try {
+                await runClassDashAction(guest.token, 'deduct_toilet_coins', { userId, amount: 20 });
+                return { success: true as const };
+            } catch (error) {
+                return { success: false as const, error };
+            }
+        }
+        return coinService.deductToiletCoins(userId);
+    };
+
     const fetchUsers = async (options?: { silent?: boolean, forceRefresh?: boolean }) => {
         if (!options?.silent) setIsLoading(true);
         console.time('fetchUsers-total');
         try {
+            if (isGuest && guest.token && guest.targetClass) {
+                const boot = await bootstrapClassDash(guest.token);
+                const today = getHKTodayString();
+                const counts: Record<string, number> = {};
+                const finalUsers: UserWithCoins[] = (boot.users || []).map((u: any) => {
+                    if (u.consequence_count) counts[u.id] = u.consequence_count;
+                    const dc = u.daily_counts || {};
+                    const isToday = dc.date === today;
+                    return {
+                        id: u.id,
+                        display_name: u.display_name || u.username,
+                        avatar_url: u.avatar_url,
+                        coins: u.coins || 0,
+                        virtual_coins: u.virtual_coins || 0,
+                        toilet_coins: u.toilet_coins ?? 100,
+                        daily_real_earned: isToday ? (dc.real_earned_amount || dc.real_earned || 0) : 0,
+                        daily_reward_count: isToday ? (dc.real_earned_count ?? dc.count ?? 0) : 0,
+                        class: u.class || guest.targetClass,
+                        class_number: u.class_number || null,
+                        email: u.username || '',
+                        created_at: u.created_at || new Date().toISOString(),
+                        is_admin: false,
+                        morning_status: u.morning_status || 'todo',
+                        last_morning_update: u.last_morning_update,
+                        equipped_item_ids: u.equipped_item_ids || [],
+                        custom_offsets: u.custom_offsets,
+                        ecas: u.ecas || [],
+                    };
+                });
+                setConsequenceCounts(counts);
+                setGroupedUsers({ [guest.targetClass!]: finalUsers });
+                setOrderedClasses([{ id: guest.targetClass!, name: guest.targetClass! }]);
+                setActiveClass(guest.targetClass!);
+                if (boot.daily_homework?.assignments) {
+                    setDailyHomeworkMap({ [guest.targetClass!]: boot.daily_homework.assignments });
+                }
+                setGuestMorningLogs((boot as any).morning_duty_logs || []);
+                setIsLoading(false);
+                console.timeEnd('fetchUsers-total');
+                return;
+            }
+
             let usersData: any[] = [];
             let classData: { id: string, name: string }[] = [];
             let activityData: { id: string, name: string }[] = [];
@@ -777,7 +876,7 @@ export function ClassDashboardPage() {
                 const batchId = crypto.randomUUID();
                 for (const userId of userIds) {
                     if (reason === REWARD_REASONS.TOILET_BREAK) {
-                        const result = await coinService.deductToiletCoins(userId);
+                        const result = await deductToiletGuestAware(userId);
                         if (!result.success) {
                             console.error(`Failed to deduct toilet coins from ${userId}:`, result.error);
                             alert(`Database error when deducting toilet coins from ${userId}: ${result.error.message}`);
@@ -790,7 +889,7 @@ export function ClassDashboardPage() {
                     const canProceed = await ensureOneHomeworkRecordPerDay(userId, reason || REWARD_REASONS.CLASS_REWARD);
                     if (!canProceed) continue;
 
-                    const result = await coinService.awardCoins({
+                    const result = await awardCoinsGuestAware({
                         userId,
                         amount,
                         reason: reason || REWARD_REASONS.CLASS_REWARD,
@@ -825,7 +924,7 @@ export function ClassDashboardPage() {
         try {
             const batchId = crypto.randomUUID();
             for (const award of awards) {
-                const result = await coinService.awardCoins({
+                const result = await awardCoinsGuestAware({
                     userId: award.userId,
                     amount: award.amount,
                     reason: award.reason || REWARD_REASONS.DICTATION_BONUS,
@@ -984,7 +1083,7 @@ export function ClassDashboardPage() {
                 if (error) throw error;
             } else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) {
                 // Standard coin award
-                const result = await coinService.awardCoins({
+                const result = await awardCoinsGuestAware({
                     userId: studentId,
                     amount: amount,
                     reason: reason,
@@ -1004,7 +1103,7 @@ export function ClassDashboardPage() {
                     .eq('log_date', today);
             } else {
                 // Standard coin award for anything else
-                const result = await coinService.awardCoins({
+                const result = await awardCoinsGuestAware({
                     userId: studentId,
                     amount: amount,
                     reason: reason,
@@ -1026,7 +1125,7 @@ export function ClassDashboardPage() {
 
     const handleQuickAward = async (userId: string, amount: number = 10, reason: string = REWARD_REASONS.ANSWER_QUESTION) => {
         try {
-            const result = await coinService.awardCoins({
+            const result = await awardCoinsGuestAware({
                 userId,
                 amount,
                 reason,
@@ -1051,15 +1150,23 @@ export function ClassDashboardPage() {
         if (!isAllowedTime) {
             // Free time logic - Do not deduct coins, just log a neutral record
             try {
-                const { error } = await supabase.rpc('insert_audited_student_record', {
-                    p_student_id: student.id,
-                    p_message: 'Toilet/Break (Recess/After School)',
-                    p_type: 'neutral',
-                    p_class_id: activeClass === 'all' ? (student.class || 'Unknown') : activeClass,
-                    p_reason: 'Free time Break'
-                });
-
-                if (error) throw error;
+                if (isGuest && guest.token) {
+                    await runClassDashAction(guest.token, 'insert_record', {
+                        studentId: student.id,
+                        message: 'Toilet/Break (Recess/After School)',
+                        type: 'neutral',
+                        record_type: 'log',
+                    });
+                } else {
+                    const { error } = await supabase.rpc('insert_audited_student_record', {
+                        p_student_id: student.id,
+                        p_message: 'Toilet/Break (Recess/After School)',
+                        p_type: 'neutral',
+                        p_class_id: activeClass === 'all' ? (student.class || 'Unknown') : activeClass,
+                        p_reason: 'Free time Break'
+                    });
+                    if (error) throw error;
+                }
                 playSuccessSound();
                 return;
             } catch (err: any) {
@@ -1091,7 +1198,7 @@ export function ClassDashboardPage() {
                 return newGrouped;
             });
 
-            const result = await coinService.deductToiletCoins(student.id);
+            const result = await deductToiletGuestAware(student.id);
             if (!result.success) {
                 // Revert on failure
                 await fetchUsers({ silent: true, forceRefresh: true });
@@ -1254,7 +1361,7 @@ export function ClassDashboardPage() {
         }
     };
 
-    if (!isStaff) {
+    if (!isStaff && !isGuest) {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
     }
 
@@ -1267,15 +1374,23 @@ export function ClassDashboardPage() {
             }}
         >
             <div className="max-w-7xl mx-auto space-y-6">
-                <BroadcastQuickBar
-                    selectedCount={selectedStudentIds.length}
-                    className={activeClass}
-                    onClearSelection={() => setSelectedStudentIds([])}
-                    onOpenManage={() => setShowNotificationTemplateModal(true)}
-                    onOpenLiveBoard={() => setShowBroadcastBoard(true)}
-                    onOpenBroadcast={() => setShowSendNotificationModal(true)}
-                    onRefresh={fetchUsers}
-                />
+                {isGuest && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 font-medium">
+                        Class Dashboard · {guest.targetClass} · Guest access
+                        {guest.validUntil ? ` · open until ${new Date(guest.validUntil).toLocaleTimeString('en-GB', { timeZone: 'Asia/Hong_Kong', hour: '2-digit', minute: '2-digit' })} HKT` : ''}
+                    </div>
+                )}
+                {!isGuest && (
+                    <BroadcastQuickBar
+                        selectedCount={selectedStudentIds.length}
+                        className={activeClass}
+                        onClearSelection={() => setSelectedStudentIds([])}
+                        onOpenManage={() => setShowNotificationTemplateModal(true)}
+                        onOpenLiveBoard={() => setShowBroadcastBoard(true)}
+                        onOpenBroadcast={() => setShowSendNotificationModal(true)}
+                        onRefresh={fetchUsers}
+                    />
+                )}
 
                 {/* Modern Cycle & Date Header */}
                 <div className="relative overflow-hidden bg-white/40 backdrop-blur-xl border border-white/60 p-6 md:p-8 rounded-[2.5rem] shadow-2xl shadow-blue-500/5 animate-in fade-in slide-in-from-top-4 duration-1000">
@@ -1382,30 +1497,36 @@ export function ClassDashboardPage() {
                                 className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
                             >
                                 <BookOpen size={18} className="text-blue-500" />
-                                今日功課設定 (Setup Homework)
+                                Setup Homework
                             </button>
                         )}
-                        <button
-                            onClick={() => navigate('/admin/progress-log')}
-                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
-                        >
-                            <History size={18} className="text-slate-400" />
-                            Progress Log
-                        </button>
-                        <button
-                            onClick={() => setShowBroadcastBoard(true)}
-                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
-                        >
-                            <Zap size={18} className="text-slate-400" />
-                            Broadcast
-                        </button>
-                        <button
-                            onClick={() => setShowNotificationTemplateModal(true)}
-                            className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md transition-all text-sm"
-                        >
-                            <Settings2 size={18} className="text-blue-100" />
-                            Manage Broadcast
-                        </button>
+                        {!isGuest && (
+                            <button
+                                onClick={() => navigate('/admin/progress-log')}
+                                className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                            >
+                                <History size={18} className="text-slate-400" />
+                                Progress Log
+                            </button>
+                        )}
+                        {!isGuest && (
+                            <button
+                                onClick={() => setShowBroadcastBoard(true)}
+                                className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                            >
+                                <Zap size={18} className="text-slate-400" />
+                                Broadcast
+                            </button>
+                        )}
+                        {!isGuest && (
+                            <button
+                                onClick={() => setShowNotificationTemplateModal(true)}
+                                className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md transition-all text-sm"
+                            >
+                                <Settings2 size={18} className="text-blue-100" />
+                                Manage Broadcast
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowMorningDuties(!showMorningDuties)}
                             className={`flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 border rounded-xl font-semibold shadow-sm transition-all text-sm
@@ -1564,6 +1685,11 @@ export function ClassDashboardPage() {
                     </div>
                 )}
 
+                {!isGuest && isAdmin && activeClass !== 'all' && (
+                    <ClassDashLinkPanel className={activeClass} />
+                )}
+
+                {!isGuest && (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
                         <button
@@ -1616,7 +1742,9 @@ export function ClassDashboardPage() {
                         </div>
                     )}
                 </div>
+                )}
 
+                {!isGuest && (
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
                     {viewMode === 'classes' && (
                         <button
@@ -1661,6 +1789,19 @@ export function ClassDashboardPage() {
                         </SortableContext>
                     </DndContext>
                 </div>
+                )}
+
+                {isGuest && guest.targetClass && (
+                    <div className="mb-6">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-blue-600 text-white shadow-md">
+                            <Users size={16} />
+                            {guest.targetClass}
+                            <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-white/20">
+                                {groupedUsers[guest.targetClass]?.length || 0}
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 <div className="space-y-4 md:space-y-8">
                     {isLoading ? (
@@ -1848,6 +1989,8 @@ export function ClassDashboardPage() {
                                 }
                             }}
                             refreshTrigger={morningDutyRefreshCounter}
+                            guestToken={isGuest ? guest.token : undefined}
+                            initialMorningLogs={isGuest ? guestMorningLogs : undefined}
                         />
                     </div>
                 )}
@@ -1946,6 +2089,8 @@ export function ClassDashboardPage() {
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}
                             refreshTrigger={morningDutyRefreshCounter}
+                            guestToken={isGuest ? guest.token : undefined}
+                            initialMorningLogs={isGuest ? guestMorningLogs : undefined}
                         />
                     </div>
                 </PipWindow>
