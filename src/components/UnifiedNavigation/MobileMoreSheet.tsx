@@ -4,7 +4,7 @@ import {
     TrendingUp, LayoutGrid, ClipboardList, BookMarked,
     Shield, PenTool, Upload, Settings, Map, Sparkles, FolderUp,
     Layout, Palette, Bell, Database, FolderKanban,
-    ShoppingBag, Globe, Sofa, MapPin, History, Smartphone,
+    Smartphone,
     LogOut, LogIn, User, X,
     LucideIcon,
 } from 'lucide-react';
@@ -37,10 +37,6 @@ interface MobileMoreSheetProps {
     userRole?: string;
     pendingCount?: number;
     onOpenNotifications?: () => void;
-    // Community
-    onShop?: () => void;
-    onCity?: () => void;
-    onRegion?: () => void;
     onOpenStudio?: () => void;
     onOpenUploader?: () => void;
     onOpenEditor?: () => void;
@@ -48,9 +44,6 @@ interface MobileMoreSheetProps {
     onOpenThemeDesigner?: () => void;
     onOpenMapEditor?: () => void;
     onOpenAssetUpload?: () => void;
-    onOpenFurniture?: () => void;
-    onOpenHistory?: () => void;
-    onOpenMemory?: () => void;
 }
 
 export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
@@ -65,9 +58,6 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     userRole,
     pendingCount = 0,
     onOpenNotifications,
-    onShop,
-    onCity,
-    onRegion,
     onOpenStudio,
     onOpenUploader,
     onOpenEditor,
@@ -75,9 +65,6 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     onOpenThemeDesigner,
     onOpenMapEditor,
     onOpenAssetUpload,
-    onOpenFurniture,
-    onOpenHistory,
-    onOpenMemory,
 }) => {
     const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode, user } = useAuth();
     const { isItemVisible } = useNavigationSettings();
@@ -117,21 +104,6 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
         sections.push({
             title: 'Learning',
             items: learningItems,
-        });
-    }
-
-    // ─── Community Section (when in learningHub) ────────────────
-    if (currentPage === 'learningHub') {
-        sections.push({
-            title: 'Community',
-            items: [
-                { icon: ShoppingBag, label: 'Shop', onClick: () => onShop?.() },
-                { icon: Building2, label: 'City Map', onClick: () => onCity?.() },
-                { icon: Globe, label: 'Region Map', onClick: () => onRegion?.() },
-                { icon: Sofa, label: 'Furniture', onClick: () => onOpenFurniture?.() },
-                { icon: MapPin, label: 'Memory Points', onClick: () => onOpenMemory?.() },
-                { icon: History, label: 'Room History', onClick: () => onOpenHistory?.() },
-            ],
         });
     }
 

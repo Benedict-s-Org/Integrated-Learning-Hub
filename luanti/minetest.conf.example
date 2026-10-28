@@ -1,0 +1,17 @@
+# Copy to minetest.conf and fill in values for your environment.
+
+server_name = Learning Community
+server_description = Tuen Mun Learning Community (Stage 1)
+port = 30000
+name = serveradmin
+creative_mode = false
+enable_damage = false
+
+# Required for lh_auth outbound HTTP
+secure.http_mods = lh_auth
+
+# Learning Hub bridge
+lh_auth.sync_url = https://YOUR_PROJECT.supabase.co/functions/v1/luanti-auth/auth-sync
+lh_auth.record_login_url = https://YOUR_PROJECT.supabase.co/functions/v1/luanti-auth/record-login
+lh_auth.service_secret = REPLACE_WITH_LUANTI_SERVICE_SECRET
+lh_auth.poll_interval = 2

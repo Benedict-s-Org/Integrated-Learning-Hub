@@ -23,10 +23,6 @@ import {
     Settings,
     Heart,
     Building2,
-    ShoppingBag,
-    Globe,
-    Sofa,
-    MapPin,
     History,
     PenTool,
     Upload,
@@ -57,10 +53,6 @@ interface UnifiedNavigationProps {
     isNavOpen: boolean;
     onToggle: () => void;
     onLogin?: () => void;
-    // Community controls (when in learningHub)
-    onShop?: () => void;
-    onCity?: () => void;
-    onRegion?: () => void;
     onOpenStudio?: () => void;
     onOpenUploader?: () => void;
     onOpenEditor?: () => void;
@@ -68,9 +60,6 @@ interface UnifiedNavigationProps {
     onOpenThemeDesigner?: () => void;
     onOpenMapEditor?: () => void;
     onOpenAssetUpload?: () => void;
-    onOpenFurniture?: () => void;
-    onOpenHistory?: () => void;
-    onOpenMemory?: () => void;
     pendingCount?: number;
     onOpenNotifications?: () => void;
 }
@@ -81,9 +70,6 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     isNavOpen,
     onToggle,
     onLogin,
-    onShop,
-    onCity,
-    onRegion,
     onOpenStudio,
     onOpenUploader,
     onOpenEditor,
@@ -91,16 +77,12 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
     onOpenThemeDesigner,
     onOpenMapEditor,
     onOpenAssetUpload,
-    onOpenFurniture,
-    onOpenHistory,
-    onOpenMemory,
     pendingCount = 0,
     onOpenNotifications,
 }) => {
     const { user, signOut, toggleViewMode, isUserView, isAdmin, isStaff, isMobileEmulator, setIsMobileEmulator, realIsSuperAdmin } = useAuth();
     const { isItemVisible } = useNavigationSettings();
     const navigate = useNavigate();
-    const isInCommunity = currentPage === 'learningHub';
 
     return (
         <>
@@ -272,48 +254,6 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             />
                         )}
                     </NavSection>
-
-                    {/* My Learning Community Section - Only visible when in community */}
-                    {isInCommunity && user && (
-                        <NavSection
-                            title="My Learning Community"
-                            icon={Building2}
-                            iconColor="text-amber-500"
-                            bgColor="bg-amber-50"
-                            isCollapsed={!isNavOpen}
-                        >
-                            <NavItem
-                                icon={ShoppingBag}
-                                label="Shop"
-                                onClick={onShop}
-                            />
-                            <NavItem
-                                icon={Building2}
-                                label="City Map"
-                                onClick={onCity}
-                            />
-                            <NavItem
-                                icon={Globe}
-                                label="Region Map"
-                                onClick={onRegion}
-                            />
-                            <NavItem
-                                icon={Sofa}
-                                label="Furniture"
-                                onClick={onOpenFurniture}
-                            />
-                            <NavItem
-                                icon={MapPin}
-                                label="Memory Points"
-                                onClick={onOpenMemory}
-                            />
-                            <NavItem
-                                icon={History}
-                                label="Room History"
-                                onClick={onOpenHistory}
-                            />
-                        </NavSection>
-                    )}
 
                     {/* My Progress Section */}
                     {user && (

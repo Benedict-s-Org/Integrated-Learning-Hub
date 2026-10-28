@@ -12,7 +12,8 @@
 | **Homework Records** | `AdminHomeworkRecordPage.tsx` - Bulk assignment marking & coin awards. | L73-L77 |
 | **Super Admin** | `SuperAdminPanel.tsx` - Granular roles & student re-assignment. | L78-L83 |
 | **Unified Assignments** | `UnifiedAssignments.tsx` - Automated student To-Do lists. | L84-L88 |
-| **Memory Palace** | `MemoryPalacePage.tsx` - Isometric customization & memory attachments. | L89-L95 |
+| **Learning Community (Luanti)** | `LearningCommunityPage.tsx` + `luanti-auth` — Hub join credentials; isometric Memory Palace retired from student entry (Stage 1). | L89-L98 |
+| **Memory Palace (legacy)** | `MemoryPalacePage.tsx` — Isometric room/city/region kept in repo for admin tooling until Stage 4 archive. | L99-L105 |
 | **Phonics Ecosystem** | `PhonicsDashboard.tsx` - Unified tool for audio generation and Sound Wall management. | L96-L101 |
 | **Memorization / Saved** | `SavedContent.tsx` - Difficulty-gated memorization texts. | L102-L108 |
 | **Coin Service** | `coinService.ts` - Central coin reward & revert logic. | L109-L115 |
@@ -124,11 +125,20 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Mechanism**: Sorts by due date. Overdue items are flagged visually. If clicked, directly routes the `AppState` state machine into that specific module (Spelling, Proofreading, Memorization).
 - **Assignment Distribution Filters**: All teacher assign interfaces (`MemorizationAssignment.tsx`, `ProofreadingAssignment.tsx`, `SavedPractices.tsx`, `PracticeAssignment.tsx`, `ReadingAssignmentModal.tsx`, `SetAssignmentModal.tsx`, `StudyPlanModal.tsx`) feature standardized class and search filters (supporting "All Classes", individual classes, and "Unassigned" users) with filtered selection controls.
 
-### Memory Palace (L77-L82)
-- **Path**: `src/pages/MemoryPalacePage.tsx`
-- **Concept**: An isometric virtual room where students spend coins to place furniture and attach "Memories" to them.
+### Learning Community → Luanti (Stage 1)
+- **Student entry**: Nav `learningHub` → `src/pages/LearningCommunityPage.tsx` (replaces isometric Memory Palace for students).
+- **Design / plan**: `docs/superpowers/specs/2026-10-28-luanti-learning-community-design.md`, `docs/superpowers/plans/2026-10-28-luanti-community-stage1.md`.
+- **Tables**: `luanti_accounts`, `luanti_join_secrets`, `admin_audit_log` (migration `20261028000000_luanti_community_foundation.sql`).
+- **Edge Function**: `supabase/functions/luanti-auth` — `mint-join` (JWT), `auth-sync` / `record-login` (service secret).
+- **Client service**: `src/services/luantiAuthService.ts`.
+- **Luanti**: `luanti/docker-compose.yml`, mod `luanti/mods/lh_auth` polls auth-sync and registers a custom auth handler.
+- **Env**: `LUANTI_SERVICE_SECRET`, `LUANTI_SERVER_HOST`/`PORT`, optional `VITE_LUANTI_SERVER_HOST`/`VITE_LUANTI_SERVER_PORT`.
+- **Later stages**: economy/shop (2), private plots (3), Tuen Mun OSM/DEM (4), admin hardening (5).
+
+### Memory Palace (legacy isometric)
+- **Path**: `src/pages/MemoryPalacePage.tsx` (no longer routed from `learningHub`).
+- **Concept**: Legacy isometric room/city/region. Provider may still wrap the app for admin creative tools until Stage 4 cleanup.
 - **Key Hooks**: `useMemoryPalaceContext`, `useInventory`.
-- **Interactions**: Clicking an entity triggers `handleEntityMemoryClick`, either opening existing notes or prompting to create one. Relies on `MemoryContentModal` for rendering the actual text/content attachments.
 - **Related Pages**: `SpaceDesignCenter.tsx`, `AssetUploadCenter.tsx` for admin uploading of base furniture PNGs.
 
 ### Phonics Ecosystem (L127-L132)

@@ -1156,7 +1156,7 @@ function AppContent() {
               return <AvatarBuilderPage />;
             case 'learningHub':
               return (
-                <MemoryPalacePage onExit={() => setAppState({ page: 'new', step: 'input' })} />
+                <LearningCommunityPage onExit={() => setAppState({ page: 'new', step: 'input' })} />
               );
             case 'spacedRepetition':
               return <SpacedRepetitionPage />;
@@ -1364,10 +1364,6 @@ function AppContent() {
             onLogin={handleLogin}
             isNavOpen={isNavOpen}
             onToggle={() => setIsNavOpen(!isNavOpen)}
-            // Memory Palace Handlers
-            onShop={toggleShop}
-            onCity={() => setView('map')}
-            onRegion={() => setView('region')}
             onOpenStudio={toggleStudio}
             onOpenUploader={toggleUploader}
             onOpenEditor={toggleEditor}
@@ -1375,9 +1371,6 @@ function AppContent() {
             onOpenThemeDesigner={toggleThemeDesigner}
             onOpenMapEditor={toggleMapEditor}
             onOpenAssetUpload={toggleAssetUpload}
-            onOpenFurniture={toggleFurniturePanel}
-            onOpenHistory={toggleHistoryPanel}
-            onOpenMemory={toggleMemoryPanel}
           />
         )}
         {!['scanner'].includes(appState.page) && !(appState.page === 'classDashboard' && new URLSearchParams(window.location.search).get('token')) && (
@@ -1389,9 +1382,6 @@ function AppContent() {
             onSignOut={signOut}
             userName={user?.display_name || user?.username}
             userRole={user?.role}
-            onShop={toggleShop}
-            onCity={() => setView('map')}
-            onRegion={() => setView('region')}
             onOpenStudio={toggleStudio}
             onOpenUploader={toggleUploader}
             onOpenEditor={toggleEditor}
@@ -1399,9 +1389,6 @@ function AppContent() {
             onOpenThemeDesigner={toggleThemeDesigner}
             onOpenMapEditor={toggleMapEditor}
             onOpenAssetUpload={toggleAssetUpload}
-            onOpenFurniture={toggleFurniturePanel}
-            onOpenHistory={toggleHistoryPanel}
-            onOpenMemory={toggleMemoryPanel}
           />
         )}
         <main
@@ -1659,7 +1646,7 @@ const NotionDatabaseConfigPage = lazy(() => import('./pages/admin/NotionDatabase
 
 const SpacedRepetitionPage = lazy(() => import('./components/SpacedRepetition/SpacedRepetitionPage').then(m => ({ default: m.SpacedRepetitionPage })));
 const NotionHub = lazy(() => import('./components/NotionHub/NotionHub').then(m => ({ default: m.NotionHub })));
-const MemoryPalacePage = lazy(() => import('./pages/MemoryPalacePage').then(m => ({ default: m.MemoryPalacePage })));
+const LearningCommunityPage = lazy(() => import('./pages/LearningCommunityPage').then(m => ({ default: m.LearningCommunityPage })));
 const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => ({ default: m.FlowithTestPage })));
 const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').then(m => ({ default: m.IPadInteractiveZone })));
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
