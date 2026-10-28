@@ -1,0 +1,14 @@
+services:
+  luanti:
+    image: ghcr.io/luanti-org/luanti:latest
+    container_name: learning-community-luanti
+    ports:
+      - "${LUANTI_SERVER_PORT:-30000}:30000/udp"
+      - "${LUANTI_SERVER_PORT:-30000}:30000/tcp"
+    volumes:
+      - ./world:/var/lib/luanti/.minetest/worlds/world
+      - ./mods/lh_auth:/var/lib/luanti/.minetest/worlds/world/worldmods/lh_auth
+      - ./minetest.conf:/etc/luanti/minetest.conf:ro
+    environment:
+      - LUANTI_GAMEID=minetest
+    restart: unless-stopped

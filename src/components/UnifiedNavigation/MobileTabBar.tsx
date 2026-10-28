@@ -69,10 +69,6 @@ interface MobileTabBarProps {
     userRole?: string;
     pendingCount?: number;
     onOpenNotifications?: () => void;
-    // Community actions (passed to More sheet)
-    onShop?: () => void;
-    onCity?: () => void;
-    onRegion?: () => void;
     onOpenStudio?: () => void;
     onOpenUploader?: () => void;
     onOpenEditor?: () => void;
@@ -80,9 +76,6 @@ interface MobileTabBarProps {
     onOpenThemeDesigner?: () => void;
     onOpenMapEditor?: () => void;
     onOpenAssetUpload?: () => void;
-    onOpenFurniture?: () => void;
-    onOpenHistory?: () => void;
-    onOpenMemory?: () => void;
 }
 
 export const MobileTabBar: React.FC<MobileTabBarProps> = ({
@@ -96,9 +89,6 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
     userRole,
     pendingCount = 0,
     onOpenNotifications,
-    onShop,
-    onCity,
-    onRegion,
     onOpenStudio,
     onOpenUploader,
     onOpenEditor,
@@ -106,9 +96,6 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
     onOpenThemeDesigner,
     onOpenMapEditor,
     onOpenAssetUpload,
-    onOpenFurniture,
-    onOpenHistory,
-    onOpenMemory,
 }) => {
     const { isMobileEmulator, isAdmin: authIsAdmin, isUserView } = useAuth();
     const [isMoreOpen, setIsMoreOpen] = useState(false);
@@ -192,9 +179,6 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
                 userRole={userRole}
                 pendingCount={pendingCount}
                 onOpenNotifications={() => { onOpenNotifications?.(); setIsMoreOpen(false); }}
-                onShop={() => { onShop?.(); setIsMoreOpen(false); }}
-                onCity={() => { onCity?.(); setIsMoreOpen(false); }}
-                onRegion={() => { onRegion?.(); setIsMoreOpen(false); }}
                 onOpenStudio={() => { onOpenStudio?.(); setIsMoreOpen(false); }}
                 onOpenUploader={() => { onOpenUploader?.(); setIsMoreOpen(false); }}
                 onOpenEditor={() => { onOpenEditor?.(); setIsMoreOpen(false); }}
@@ -202,9 +186,6 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({
                 onOpenThemeDesigner={() => { onOpenThemeDesigner?.(); setIsMoreOpen(false); }}
                 onOpenMapEditor={() => { onOpenMapEditor?.(); setIsMoreOpen(false); }}
                 onOpenAssetUpload={() => { onOpenAssetUpload?.(); setIsMoreOpen(false); }}
-                onOpenFurniture={() => { onOpenFurniture?.(); setIsMoreOpen(false); }}
-                onOpenHistory={() => { onOpenHistory?.(); setIsMoreOpen(false); }}
-                onOpenMemory={() => { onOpenMemory?.(); setIsMoreOpen(false); }}
             />
         </>
     );
