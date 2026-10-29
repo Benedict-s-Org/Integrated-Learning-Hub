@@ -33,6 +33,15 @@ An item label is `Subject · Item`, plus ` · pages` when that class and date st
 
 Clicking a name calls `toggle_homework_makeup` and crosses that name out. Clicking again clears it. When every name on an item is crossed, the whole row is green and crossed. When every item on a date is crossed, that date moves below every date that still has an open item. Open dates sort earliest first. Cleared dates also sort earliest first, after the open dates.
 
+The Class Dashboard live announcement and the live board show the same open records, earliest date first:
+
+```
+29 Oct 2026
+英文 · WS1: Amy, Ben
+```
+
+Students already marked handed in are left off that announcement.
+
 ## Part 2 — English homework
 
 A database-style board of English work assigned from Class Dashboard (`今日功課設定` / `設定明日功課`), not the static `english_materials` catalogue.

@@ -136,3 +136,41 @@ export function buildMissingLedger(
   const cleared = groups.filter((group) => group.complete).sort((a, b) => a.date.localeCompare(b.date));
   return [...open, ...cleared];
 }
+
+export function formatAnnouncementDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  return new Intl.DateTimeFormat('en-HK', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Hong_Kong',
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+export type MissingAnnouncementBlock = {
+  date: string;
+  isoDate: string;
+  lines: string[];
+};
+
+/** Open missing homework only, as "Date" then "Homework item: Student 1, Student 2". */
+export function openMissingAnnouncement(groups: LedgerDateGroup[]): MissingAnnouncementBlock[] {
+  return groups
+    .filter((group) => !group.complete)
+    .map((group) => ({
+      isoDate: group.date,
+      date: formatAnnouncementDate(group.date),
+      lines: group.items.flatMap((item) => {
+        const names = item.students.filter((student) => !student.submitted).map((student) => student.name);
+        if (names.length === 0) return [];
+        const label = [item.subject, item.item, item.detail].filter(Boolean).join(' · ');
+        return [`${label}: ${names.join(', ')}`];
+      }),
+    }))
+    .filter((block) => block.lines.length > 0);
+}
+
+export function formatMissingAnnouncement(block: MissingAnnouncementBlock): string {
+  return [block.date, ...block.lines].join('\n');
+}

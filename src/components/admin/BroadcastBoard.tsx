@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, X, Maximize2, Minimize2, Loader2, Calendar, Trophy, Zap, CheckCircle2, MessageSquareWarning } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getHKTodayString } from '@/utils/dateUtils';
-import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
+import { buildMissingLedger, makeupKey, openMissingAnnouncement, type MissingAnnouncementBlock } from '@/lib/homework/missingLedger';
+import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 const formatHKDate = (dateStr: string) => {
     try {
@@ -36,14 +37,13 @@ interface ActiveDisplayElement {
 
 export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, className }) => {
     const today = getHKTodayString();
-    const [missingHomework, setMissingHomework] = useState<{ name: string, items: string[] }[]>([]);
+    const [missingHomework, setMissingHomework] = useState<MissingAnnouncementBlock[]>([]);
     const [recessAlert, setRecessAlert] = useState<string[]>([]);
     const [dynamicBroadcasts, setDynamicBroadcasts] = useState<ActiveDisplayElement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [activeOptionCount, setActiveOptionCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
-    const [activeForClass, setActiveForClass] = useState<string[]>([]);
 
     const currentClassUpper = className.trim().toUpperCase();
     const isAllClasses = currentClassUpper === 'ALL';
@@ -112,12 +112,10 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
             if (directConfigData) {
                 const settings = typeof directConfigData.value === 'string' ? JSON.parse(directConfigData.value) : directConfigData.value;
                 currentActiveForClass = settings.active_options?.[className] || [];
-                setActiveForClass(currentActiveForClass);
                 setActiveOptionCount(currentActiveForClass.length);
             }
 
-            let missing: { name: string, items: string[] }[] = [];
-            let negativeCounts: Record<string, { name: string, count: number }> = {};
+            const negativeCounts: Record<string, { name: string, count: number }> = {};
 
             const getRecordVisibilityInfo = (r: any) => {
                 const targetClasses = (r.target_classes || []).map((c: string) => (c || '').trim().toUpperCase());
@@ -148,30 +146,40 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
             });
             setRecessAlert(Object.values(negativeCounts).filter(s => s.count >= 3).map((s: any) => s.name));
 
-            // Process Missing Homework
-            if (currentActiveForClass.includes('preset_missing_hw') || isAllClasses) {
-                const missingMap: Record<string, { name: string, items: Set<string> }> = {};
-                recordData.forEach((r: any) => {
-                    if (!r.student_id) return;
-                    const { visible } = getRecordVisibilityInfo(r);
-                    if (!visible) return;
-                    const name = r.student?.display_name || 'Unknown student';
-                    const cleanMessage = stripCoinSuffix(r.message);
-                    if (cleanMessage.startsWith('功課:')) {
-                        const hwStr = cleanMessage.replace('功課:', '').trim();
-                        if (!missingMap[r.student_id]) missingMap[r.student_id] = { name, items: new Set() };
-                        missingMap[r.student_id].items.add(hwStr);
-                    } else if (MISSING_HOMEWORK_TITLES.includes(cleanMessage)) {
-                        if (!missingMap[r.student_id]) missingMap[r.student_id] = { name, items: new Set() };
-                        if (missingMap[r.student_id].items.size === 0) missingMap[r.student_id].items.add('Pending / 欠功課');
-                    }
+            const { data: dutyLogs } = await supabase
+                .from('morning_duty_logs')
+                .select('id, log_date, class, student_id, missing_items, student:users(display_name, class, class_number)')
+                .not('missing_items', 'is', null);
+            const visibleLogs = (dutyLogs || []).filter((log: any) => {
+                const studentClass = log.class || log.student?.class || '';
+                if (studentClass && isArchivedClassName(studentClass)) return false;
+                if (!log.missing_items || Object.keys(log.missing_items).length === 0) return false;
+                if (isAllClasses) return true;
+                return String(studentClass).trim().toUpperCase() === currentClassUpper;
+            });
+            const madeUp = new Set<string>();
+            const logIds = visibleLogs.map((log: any) => log.id).filter(Boolean);
+            if (logIds.length > 0) {
+                const { data: actions } = await supabase
+                    .from('homework_makeup_actions')
+                    .select('log_id, subject, item, is_made_up')
+                    .in('log_id', logIds);
+                (actions || []).forEach((action: any) => {
+                    if (action.is_made_up) madeUp.add(makeupKey(action.log_id, action.subject, action.item));
                 });
-                Object.values(missingMap).forEach(m => {
-                    if (m.items.size > 1 && m.items.has('Pending / 欠功課')) m.items.delete('Pending / 欠功課');
-                });
-                missing = Object.values(missingMap).map(m => ({ name: m.name, items: Array.from(m.items) }));
             }
-            setMissingHomework(missing);
+            setMissingHomework(openMissingAnnouncement(buildMissingLedger(
+                visibleLogs.map((log: any) => ({
+                    id: log.id,
+                    logDate: log.log_date,
+                    className: log.class || log.student?.class || '',
+                    studentId: log.student_id,
+                    studentName: log.student?.display_name || 'Unknown',
+                    classNumber: Number(log.student?.class_number) || 0,
+                    missingItems: log.missing_items || {},
+                })),
+                madeUp,
+            )));
 
             // Process Announcements
             const announcementGroups: Record<string, { 
@@ -419,7 +427,7 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                         </div>
 
                         <div className="lg:col-span-4 flex flex-col gap-6">
-                            {(activeForClass.includes('preset_missing_hw') || isAllClasses) && missingHomework.length > 0 && (
+                            {missingHomework.length > 0 && (
                                 <div className="bg-red-600/5 border-2 border-red-500/20 rounded-[2.5rem] p-8 overflow-hidden relative group">
                                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
                                         <AlertCircle size={60} />
@@ -432,17 +440,12 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                                             <h3 className="text-xl font-black text-white uppercase italic tracking-widest">Missing Records</h3>
                                         </div>
                                         <div className="space-y-6">
-                                            {missingHomework.map((student, idx) => (
-                                                <div key={idx} className="flex flex-col gap-3 group/item">
-                                                    <span className="text-white font-black text-2xl flex items-center gap-2 group-hover/item:text-red-400 transition-colors tracking-tight">
-                                                        <span className="w-2 h-2 rounded-full bg-red-600" />
-                                                        {student.name}
-                                                    </span>
-                                                    <div className="flex flex-wrap gap-1.5 pl-4">
-                                                        {student.items.map((item, iidx) => (
-                                                            <span key={iidx} className="px-3 py-1 bg-red-600/10 text-red-500 text-[10px] font-black rounded-lg uppercase tracking-wider border border-red-500/10">{item}</span>
-                                                        ))}
-                                                    </div>
+                                            {missingHomework.map((block) => (
+                                                <div key={block.isoDate} className="flex flex-col gap-2">
+                                                    <span className="text-white font-black text-2xl tracking-tight">{block.date}</span>
+                                                    {block.lines.map((line) => (
+                                                        <p key={line} className="text-red-100 text-lg font-bold leading-snug">{line}</p>
+                                                    ))}
                                                 </div>
                                             ))}
                                         </div>
