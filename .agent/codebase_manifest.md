@@ -117,7 +117,7 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 ### Homework Management
 - **Path**: `src/pages/admin/AdminHomeworkManagementPage.tsx` at `/admin/homework-record`
 - **Parts**: Missing records (from `morning_duty_logs` and `homework_makeup_actions`), English homework checkboxes (`english_homework_checks`), and Settings. Settings embeds `AdminHomeworkRecordPage`, which still writes `student_records` and can award coins.
-- **Daily list**: `daily_homework.assignments` stores `{ name, detail }` and still accepts a plain name list. The Class Dashboard setup modal has a pages, chapter, or range box. Spec: `docs/superpowers/specs/2026-10-29-homework-management-design.md`.
+- **Daily list**: `daily_homework.assignments` stores `{ name, detail }` and still accepts a plain name list. Today’s and tomorrow’s setup each show a pages, chapter, or range box under every item. Homework Summary opens on the class that has homework for the selected date. Spec: `docs/superpowers/specs/2026-10-29-homework-management-design.md`.
 
 ### Super Admin (L66-L70)
 - **Path**: `src/pages/SuperAdminPanel.tsx`

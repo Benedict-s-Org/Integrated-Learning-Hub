@@ -12,9 +12,12 @@ import {
   Calendar, 
   RefreshCw, 
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Search
 } from 'lucide-react';
-import { parseSubjectAssignments, toNameMap } from '@/lib/homework/assignments';
+import { parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
+import { homeworkDb } from '@/lib/homework/client';
+import { classesWithAssignments, listedSummaryClasses, pickSummaryClass, type HomeworkClassRow, type SummaryClassRow } from '@/lib/homework/summaryClass';
 import { getHKTodayString, formatHKDate } from '@/utils/dateUtils';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -49,14 +52,15 @@ export default function AdminHomeworkSummaryPage() {
 
   // Filter States
   const [selectedDate, setSelectedDate] = useState<string>(getHKTodayString());
-  const [selectedClass, setSelectedClass] = useState<string>('3A');
+  const [selectedClass, setSelectedClass] = useState<string>('');
   const [classes, setClasses] = useState<string[]>([]);
+  const [classesWithHomework, setClassesWithHomework] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'homework' | 'student'>('homework');
   const [studentSearch, setStudentSearch] = useState<string>('');
 
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
-  const [dailyHomework, setDailyHomework] = useState<Record<string, string[]>>({});
+  const [dailyHomework, setDailyHomework] = useState<SubjectAssignmentMap>({});
   const [records, setRecords] = useState<StudentRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -99,29 +103,36 @@ export default function AdminHomeworkSummaryPage() {
 
     const fetchClasses = async () => {
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('class')
-          .not('class', 'is', null);
+        const today = getHKTodayString();
+        const [usersRes, classesRes, homeworkRes] = await Promise.all([
+          homeworkDb.from('users').select('class').not('class', 'is', null),
+          homeworkDb.from('classes').select('name, is_archived'),
+          homeworkDb.from('daily_homework').select('class_name, assignments, updated_at').eq('date', today),
+        ]);
 
-        if (error) throw error;
+        if (usersRes.error) throw usersRes.error;
+        if (homeworkRes.error) throw homeworkRes.error;
 
-        const uniqueClasses = Array.from(
-          new Set(
-            data
-              .map((u: any) => u.class)
-              .filter((c: string | null): c is string => !!c && c !== 'Unassigned' && !isArchivedClassName(c))
-          )
-        ).sort();
+        const withHomework = classesWithAssignments((homeworkRes.data || []) as HomeworkClassRow[]);
+        const uniqueClasses = listedSummaryClasses(
+          ((usersRes.data || []) as Array<{ class: string | null }>).map((row) => row.class),
+          classesRes.error ? [] : ((classesRes.data || []) as SummaryClassRow[]),
+          withHomework,
+          isArchivedClassName,
+        );
+        const requested = new URLSearchParams(window.location.search).get('class');
 
         setClasses(uniqueClasses);
-        if (uniqueClasses.includes('3A')) {
-          setSelectedClass('3A');
-        } else if (uniqueClasses.length > 0) {
-          setSelectedClass(uniqueClasses[0]);
-        }
+        setClassesWithHomework(withHomework);
+        setSelectedClass((current) => (
+          current && uniqueClasses.includes(current)
+            ? current
+            : pickSummaryClass(uniqueClasses, withHomework, requested)
+        ));
+        if (uniqueClasses.length === 0) setIsLoading(false);
       } catch (err) {
         console.error('Error fetching classes:', err);
+        setIsLoading(false);
       }
     };
 
@@ -147,16 +158,18 @@ export default function AdminHomeworkSummaryPage() {
       if (studentsError) throw studentsError;
       setStudents((studentsData || []) as Student[]);
 
-      // 2. Fetch Homework Config
-      const { data: configData, error: configError } = await supabase
+      // 2. Fetch Homework Config for every class on this date
+      const { data: homeworkRows, error: configError } = await homeworkDb
         .from('daily_homework')
-        .select('assignments')
-        .eq('class_name', selectedClass)
-        .eq('date', selectedDate)
-        .maybeSingle();
+        .select('class_name, assignments, updated_at')
+        .eq('date', selectedDate);
 
       if (configError) throw configError;
-      setDailyHomework(toNameMap(parseSubjectAssignments(configData?.assignments)));
+      const rows = (homeworkRows || []) as HomeworkClassRow[];
+      const withHomework = classesWithAssignments(rows);
+      setClassesWithHomework(withHomework);
+      const configRow = rows.find((row) => row.class_name === selectedClass);
+      setDailyHomework(parseSubjectAssignments(configRow?.assignments));
 
       // 3. Fetch Student Records for the day
       const { data: recordsData, error: recordsError } = await supabase
@@ -186,20 +199,20 @@ export default function AdminHomeworkSummaryPage() {
   // Process mapping of Student -> latest record
   const latestStudentRecords = useMemo(() => {
     const map: Record<string, StudentRecord> = {};
+    const studentIds = new Set(students.map((student) => student.id));
     const sorted = [...records].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     sorted.forEach(rec => {
-      if (!map[rec.student_id]) {
-        map[rec.student_id] = rec;
-      }
+      if (!studentIds.has(rec.student_id) || map[rec.student_id]) return;
+      map[rec.student_id] = rec;
     });
     return map;
-  }, [records]);
+  }, [records, students]);
 
   // Process Homework Items List
   const homeworkItemsList = useMemo(() => {
-    const list: { subject: string; item: string }[] = [];
+    const list: { subject: string; item: string; detail: string }[] = [];
     const subjects = Object.keys(dailyHomework).sort((a, b) => {
       const idxA = SUBJECT_ORDER.indexOf(a);
       const idxB = SUBJECT_ORDER.indexOf(b);
@@ -211,7 +224,7 @@ export default function AdminHomeworkSummaryPage() {
     subjects.forEach(subject => {
       const items = dailyHomework[subject] || [];
       items.forEach(item => {
-        list.push({ subject, item });
+        list.push({ subject, item: item.name, detail: item.detail });
       });
     });
 
@@ -219,6 +232,11 @@ export default function AdminHomeworkSummaryPage() {
   }, [dailyHomework]);
 
   // Map each homework item to students who missed it
+  const hasSubmissionRecords = useMemo(
+    () => students.some((student) => latestStudentRecords[student.id]),
+    [students, latestStudentRecords],
+  );
+
   const missingStudentsMap = useMemo(() => {
     const map: Record<string, Student[]> = {};
     
@@ -409,21 +427,35 @@ export default function AdminHomeworkSummaryPage() {
               {homeworkItemsList.length === 0 ? (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-sm">
                   <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-black text-slate-700 mb-2">今天暫無功課設定</h3>
+                  <h3 className="text-lg font-black text-slate-700 mb-2">No homework is set for {selectedClass || 'this class'}</h3>
                   <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
-                    {formatHKDate(getHKDateStartISO(selectedDate))} {selectedClass} 班今天尚未有配置的提交功課清單。
+                    {formatHKDate(getHKDateStartISO(selectedDate))} has no homework list for this class.
                   </p>
+                  {classesWithHomework.filter((name) => name !== selectedClass).length > 0 && (
+                    <div className="mb-6 flex flex-wrap justify-center gap-2">
+                      {classesWithHomework.filter((name) => name !== selectedClass).map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setSelectedClass(name)}
+                          className="px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-black"
+                        >
+                          Open {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={() => navigate('/')}
                     className="px-5 py-3 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95 text-xs tracking-wider flex items-center gap-2 mx-auto"
                   >
-                    前往班務儀表板設定 (Go to Class Dashboard)
+                    Go to Class Dashboard
                     <ChevronRight size={14} />
                   </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {homeworkItemsList.map(({ subject, item }) => {
+                  {homeworkItemsList.map(({ subject, item, detail }) => {
                     const key = `${subject}:${item}`;
                     const missingList = missingStudentsMap[key] || [];
                     const hasMissing = missingList.length > 0;
@@ -435,24 +467,35 @@ export default function AdminHomeworkSummaryPage() {
                         className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[180px] transition-all hover:shadow-md hover:scale-[1.01]`}
                       >
                         {/* Card Header */}
-                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                          <div className="flex items-center gap-2">
+                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <span className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border}`}>
                               {subject}
                             </span>
-                            <span className="font-black text-sm text-slate-800 tracking-tight">{item}</span>
+                            <span className="font-black text-sm text-slate-800 tracking-tight">
+                              {item}
+                              {detail ? <span className="ml-1 font-semibold text-slate-500">{detail}</span> : null}
+                            </span>
                           </div>
                           <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
-                            hasMissing ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-green-50 text-green-600 border border-green-100'
+                            !hasSubmissionRecords
+                              ? 'bg-slate-50 text-slate-500 border border-slate-200'
+                              : hasMissing
+                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                : 'bg-green-50 text-green-600 border border-green-100'
                           }`}>
-                            {hasMissing ? `欠 ${missingList.length} 人` : '全交齊'}
+                            {!hasSubmissionRecords ? 'No records yet' : hasMissing ? `${missingList.length} missing` : 'All submitted'}
                           </span>
                         </div>
 
                         {/* Card Content: Missing Students */}
                         <div className="p-5 flex-1 flex flex-col justify-center">
-                          {hasMissing ? (
+                          {!hasSubmissionRecords ? (
+                            <div className="flex flex-col items-center justify-center text-center space-y-2 py-4">
+                              <span className="text-xs text-slate-400 font-bold">No one has been marked yet</span>
+                            </div>
+                          ) : hasMissing ? (
                             <div className="flex flex-wrap gap-2">
                               {missingList.map(student => (
                                 <div

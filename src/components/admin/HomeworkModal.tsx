@@ -334,7 +334,7 @@ export function HomeworkModal({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                     <div>
@@ -381,9 +381,7 @@ export function HomeworkModal({
                                     {studentName === '明日功課設定' ? '設定明日提交功課 (Setup Tomorrow\'s Homework)' : '設定今日提交功課 (Setup Today\'s Homework)'}
                                 </h4>
                                 <p className="text-[10px] text-blue-600 font-bold">
-                                    {studentName === '明日功課設定' 
-                                        ? '請勾選明天需要提交的功課項目。' 
-                                        : '你是今天第一位提交功課的同學，請勾選今天需要提交的功課項目。'}
+                                    Tick the items to hand in. Each item has a box for the pages, chapter, or range.
                                 </p>
                             </div>
 
@@ -418,11 +416,11 @@ export function HomeworkModal({
                                                     {items.map(item => {
                                                         const isChecked = setupSelectedItems[subject]?.includes(item);
                                                         return (
-                                                            <div key={item} className="flex items-center gap-2">
+                                                            <div key={item} className={`rounded-xl border p-2 ${isChecked ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleToggleSetupItem(subject, item)}
-                                                                    className={`min-w-0 flex-1 p-2 rounded-xl border text-[10px] font-bold transition-all text-left flex items-center justify-between gap-1
+                                                                    className={`w-full p-2 rounded-lg border text-[10px] font-bold transition-all text-left flex items-center justify-between gap-1
                                                                         ${isChecked 
                                                                             ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
                                                                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
@@ -430,25 +428,30 @@ export function HomeworkModal({
                                                                     <span className="truncate">{item}</span>
                                                                     {isChecked && <Check size={12} className="shrink-0 text-white" />}
                                                                 </button>
-                                                                {isChecked && (
-                                                                    <input
-                                                                        type="text"
-                                                                        aria-label={`Pages, chapter, or range for ${item}`}
-                                                                        placeholder="Pages, chapter, or range"
-                                                                        value={setupDetails[subject]?.[item] ?? ''}
-                                                                        onChange={(event) => {
-                                                                            const value = event.target.value;
-                                                                            setSetupDetails(prev => ({
-                                                                                ...prev,
-                                                                                [subject]: {
-                                                                                    ...(prev[subject] || {}),
-                                                                                    [item]: value,
-                                                                                },
-                                                                            }));
-                                                                        }}
-                                                                        className="w-40 shrink-0 rounded-xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-bold text-slate-700 outline-none focus:border-blue-400"
-                                                                    />
-                                                                )}
+                                                                <input
+                                                                    type="text"
+                                                                    aria-label={`Pages, chapter, or range for ${item}`}
+                                                                    placeholder="Pages, chapter, or range"
+                                                                    value={setupDetails[subject]?.[item] ?? ''}
+                                                                    onChange={(event) => {
+                                                                        const value = event.target.value;
+                                                                        setSetupDetails(prev => ({
+                                                                            ...prev,
+                                                                            [subject]: {
+                                                                                ...(prev[subject] || {}),
+                                                                                [item]: value,
+                                                                            },
+                                                                        }));
+                                                                        if (value.trim()) {
+                                                                            setSetupSelectedItems(prev => {
+                                                                                const current = prev[subject] || [];
+                                                                                if (current.includes(item)) return prev;
+                                                                                return { ...prev, [subject]: [...current, item] };
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-400"
+                                                                />
                                                             </div>
                                                         );
                                                     })}
