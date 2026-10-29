@@ -551,7 +551,7 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                                                     title={page.title}
                                                     onClick={() => {
                                                         if (page.isMissingHomeworkSummary) {
-                                                            navigate(`/admin/homework-makeup?class=${className}&focusDate=${page.targetDate || getHKTodayString()}`);
+                                                            navigate(`/admin/homework-record?tab=missing&class=${className}&focusDate=${page.targetDate || getHKTodayString()}`);
                                                         }
                                                     }}
                                                 >

@@ -411,7 +411,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                             {isItemVisible('homeworkRecord') && (
                                 <NavItem
                                     icon={ClipboardList}
-                                    label="Homework Record"
+                                    label="Homework Management"
                                     isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
                                     onClick={() => navigate('/admin/homework-record')}
                                 />

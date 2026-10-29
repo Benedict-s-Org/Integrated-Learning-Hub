@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: NavigationSettings = {
     {id: "adminUsers", label: "Admin Panel", visible: false},
     {id: "adminAnalytics", label: "Analytics Dashboard (Beta)", visible: false},
     {id: "superAdmin", label: "Super Admin Panel", visible: false},
-    {id: "homeworkRecord", label: "Homework Record", visible: false},
+    {id: "homeworkRecord", label: "Homework Management", visible: false},
     {id: "timetable", label: "Timetable Management", visible: false},
     {id: "broadcast", label: "Broadcast Management", visible: false},
     {id: "progressLog", label: "Progress Log (Coin History)", visible: false},

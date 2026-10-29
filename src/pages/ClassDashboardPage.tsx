@@ -24,6 +24,7 @@ export { isArchivedClassName };
 import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizationModal';
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
+import { parseSubjectAssignments, saveAssignments, toNameMap, toNameMapsByClass, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { useMorningDutyScheduler, MorningDutySettings } from '@/hooks/useMorningDutyScheduler';
@@ -152,8 +153,9 @@ export function ClassDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [showAwardModal, setShowAwardModal] = useState(false);
     const [selectedForAward, setSelectedForAward] = useState<string[]>([]); // For legacy CoinAwardModal
-    const [dailyHomeworkMap, setDailyHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
-    const [tomorrowHomeworkMap, setTomorrowHomeworkMap] = useState<Record<string, Record<string, string[]>>>({});
+    const [dailyHomeworkMap, setDailyHomeworkMap] = useState<Record<string, SubjectAssignmentMap>>({});
+    const [tomorrowHomeworkMap, setTomorrowHomeworkMap] = useState<Record<string, SubjectAssignmentMap>>({});
+    const homeworkNameMaps = useMemo(() => toNameMapsByClass(dailyHomeworkMap), [dailyHomeworkMap]);
     const [morningDutyRefreshCounter, setMorningDutyRefreshCounter] = useState(0);
     const [guestMorningLogs, setGuestMorningLogs] = useState<any[]>([]);
 
@@ -168,14 +170,14 @@ export function ClassDashboardPage() {
             
             if (error) throw error;
             
-            const todayMap: Record<string, Record<string, string[]>> = {};
-            const tomorrowMap: Record<string, Record<string, string[]>> = {};
+            const todayMap: Record<string, SubjectAssignmentMap> = {};
+            const tomorrowMap: Record<string, SubjectAssignmentMap> = {};
             data?.forEach((row: any) => {
                 if (row.class_name && row.assignments) {
                     if (row.date === todayDate) {
-                        todayMap[row.class_name] = row.assignments;
+                        todayMap[row.class_name] = parseSubjectAssignments(row.assignments);
                     } else if (row.date === tomorrowDate) {
-                        tomorrowMap[row.class_name] = row.assignments;
+                        tomorrowMap[row.class_name] = parseSubjectAssignments(row.assignments);
                     }
                 }
             });
@@ -186,13 +188,14 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleSetupDailyHomework = async (className: string, assignments: Record<string, string[]>) => {
+    const handleSetupDailyHomework = async (className: string, assignments: SubjectAssignmentMap | Record<string, string[]>) => {
         const todayDate = getHKTodayString();
+        const merged = saveAssignments(dailyHomeworkMap[className], assignments);
         try {
             if (isGuest && guest.token) {
                 await runClassDashAction(guest.token, 'upsert_daily_homework', {
                     date: todayDate,
-                    assignments,
+                    assignments: merged,
                 });
             } else {
                 const { error } = await supabase
@@ -200,7 +203,7 @@ export function ClassDashboardPage() {
                     .upsert({
                         date: todayDate,
                         class_name: className,
-                        assignments: assignments
+                        assignments: merged
                     }, {
                         onConflict: 'date,class_name'
                     });
@@ -210,7 +213,7 @@ export function ClassDashboardPage() {
             
             setDailyHomeworkMap(prev => ({
                 ...prev,
-                [className]: assignments
+                [className]: merged
             }));
         } catch (err: any) {
             console.error('Failed to setup daily homework:', err);
@@ -219,13 +222,14 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleSetupTomorrowHomework = async (className: string, assignments: Record<string, string[]>) => {
+    const handleSetupTomorrowHomework = async (className: string, assignments: SubjectAssignmentMap | Record<string, string[]>) => {
         const tomorrowDate = getHKTomorrowString();
+        const merged = saveAssignments(tomorrowHomeworkMap[className], assignments);
         try {
             if (isGuest && guest.token) {
                 await runClassDashAction(guest.token, 'upsert_daily_homework', {
                     date: tomorrowDate,
-                    assignments,
+                    assignments: merged,
                 });
             } else {
                 const { error } = await supabase
@@ -233,7 +237,7 @@ export function ClassDashboardPage() {
                     .upsert({
                         date: tomorrowDate,
                         class_name: className,
-                        assignments: assignments
+                        assignments: merged
                     }, {
                         onConflict: 'date,class_name'
                     });
@@ -243,7 +247,7 @@ export function ClassDashboardPage() {
             
             setTomorrowHomeworkMap(prev => ({
                 ...prev,
-                [className]: assignments
+                [className]: merged
             }));
         } catch (err: any) {
             console.error('Failed to setup tomorrow\'s homework:', err);
@@ -609,7 +613,7 @@ export function ClassDashboardPage() {
                 setOrderedClasses([{ id: guest.targetClass!, name: guest.targetClass! }]);
                 setActiveClass(guest.targetClass!);
                 if (boot.daily_homework?.assignments) {
-                    setDailyHomeworkMap({ [guest.targetClass!]: boot.daily_homework.assignments });
+                    setDailyHomeworkMap({ [guest.targetClass!]: parseSubjectAssignments(boot.daily_homework.assignments) });
                 }
                 setGuestMorningLogs((boot as any).morning_duty_logs || []);
                 setIsLoading(false);
@@ -1977,7 +1981,7 @@ export function ClassDashboardPage() {
                                 });
                                 return Array.from(uniqueUsersMap.values());
                             })()}
-                            dailyHomeworkMap={dailyHomeworkMap}
+                            dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
                             onStatusChange={fetchUsers}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
@@ -2082,7 +2086,7 @@ export function ClassDashboardPage() {
                                 });
                                 return Array.from(uniqueUsersMap.values());
                             })()}
-                            dailyHomeworkMap={dailyHomeworkMap}
+                            dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
                             onStatusChange={fetchUsers}
                             isPipView={true}
@@ -2120,12 +2124,21 @@ export function ClassDashboardPage() {
                         ? true
                         : (selectedHomeworkStudent?.morning_status !== 'review')
                 }
+                assignmentDetails={
+                    selectedHomeworkStudentId === 'admin-setup'
+                        ? dailyHomeworkMap[activeClass]
+                        : selectedHomeworkStudentId === 'admin-setup-tomorrow'
+                        ? tomorrowHomeworkMap[activeClass]
+                        : undefined
+                }
                 dailyHomeworkItems={
                     selectedHomeworkStudentId === 'admin-setup'
-                        ? (dailyHomeworkMap[activeClass] || undefined)
+                        ? (toNameMap(dailyHomeworkMap[activeClass]))
                         : selectedHomeworkStudentId === 'admin-setup-tomorrow'
-                        ? (tomorrowHomeworkMap[activeClass] || undefined)
-                        : (selectedHomeworkStudent?.class ? dailyHomeworkMap[selectedHomeworkStudent.class] : undefined)
+                        ? (toNameMap(tomorrowHomeworkMap[activeClass]))
+                        : (selectedHomeworkStudent?.class && dailyHomeworkMap[selectedHomeworkStudent.class]
+                            ? toNameMap(dailyHomeworkMap[selectedHomeworkStudent.class])
+                            : undefined)
                 }
                 isFirstStudent={
                     selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow'
