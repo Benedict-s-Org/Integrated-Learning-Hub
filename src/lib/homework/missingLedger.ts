@@ -206,6 +206,33 @@ export function parseEnglishCheckLogId(id: string): { studentId: string; date: s
   return { studentId, date };
 }
 
+export function handedInKey(studentId: string, date: string, subject: string, item: string): string {
+  return `${studentId}\0${date}\0${subject}\0${item}`;
+}
+
+/** A Handed in tick counts as submitted on a morning-duty row for the same student and item. */
+export function submittedKeysWithHandedIn(
+  logs: MissingLogInput[],
+  madeUpKeys: ReadonlySet<string>,
+  handedInKeys: ReadonlySet<string>,
+): Set<string> {
+  const next = new Set(madeUpKeys);
+  for (const log of logs) {
+    if (parseEnglishCheckLogId(log.id)) continue;
+    for (const [subject, items] of Object.entries(log.missingItems || {})) {
+      if (!Array.isArray(items)) continue;
+      for (const rawItem of items) {
+        const item = typeof rawItem === 'string' ? rawItem.trim() : '';
+        if (!item) continue;
+        if (handedInKeys.has(handedInKey(log.studentId, log.logDate, subject, item))) {
+          next.add(makeupKey(log.id, subject, item));
+        }
+      }
+    }
+  }
+  return next;
+}
+
 /**
  * After a teacher ticks Handed in for an item, every classmate without that tick
  * is missing that item. Items with no ticks at all stay off the list.

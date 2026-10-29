@@ -7,8 +7,8 @@ import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
-import { fetchEnglishMissingLogs } from '@/lib/homework/englishMissing';
-import { buildMissingLedger, makeupKey, openMissingAnnouncement } from '@/lib/homework/missingLedger';
+import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
+import { buildMissingLedger, makeupKey, openMissingAnnouncement, submittedKeysWithHandedIn, type MissingLogInput } from '@/lib/homework/missingLedger';
 
 interface BroadcastQuickBarProps {
     selectedCount: number;
@@ -348,7 +348,8 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                 if (isAllClasses) return true;
                 return String(logClass).trim().toUpperCase() === currentClassUpper;
             });
-            const englishLogs = (await fetchEnglishMissingLogs(isAllClasses ? undefined : className)).filter((log) => {
+            const englishState = await fetchEnglishHomeworkState(isAllClasses ? undefined : className);
+            const englishLogs = englishState.logs.filter((log) => {
                 if (!log.className || isArchivedClassName(log.className)) return false;
                 if (isAllClasses) return true;
                 return log.className.trim().toUpperCase() === currentClassUpper;
@@ -367,20 +368,21 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                     });
                 }
 
+                const missingLogs: MissingLogInput[] = [
+                    ...filteredHomework.map((log: any) => ({
+                        id: log.id,
+                        logDate: log.log_date,
+                        className: log.class || log.student?.class || '',
+                        studentId: log.student_id,
+                        studentName: log.student?.display_name || 'Unknown',
+                        classNumber: Number(log.student?.class_number) || 0,
+                        missingItems: log.missing_items || {},
+                    })),
+                    ...englishLogs,
+                ];
                 const announcement = openMissingAnnouncement(buildMissingLedger(
-                    [
-                        ...filteredHomework.map((log: any) => ({
-                            id: log.id,
-                            logDate: log.log_date,
-                            className: log.class || log.student?.class || '',
-                            studentId: log.student_id,
-                            studentName: log.student?.display_name || 'Unknown',
-                            classNumber: Number(log.student?.class_number) || 0,
-                            missingItems: log.missing_items || {},
-                        })),
-                        ...englishLogs,
-                    ],
-                    madeUp,
+                    missingLogs,
+                    submittedKeysWithHandedIn(missingLogs, madeUp, englishState.handedInKeys),
                 ));
 
                     announcement.forEach((block) => {

@@ -2,10 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAssignments,
   detailFor,
+  listHomeworkTargets,
   parseSubjectAssignments,
   saveAssignments,
   toNameMap,
 } from '@/lib/homework/assignments';
+
+describe('listHomeworkTargets', () => {
+  it('lists every saved item, including a plain name list', () => {
+    expect(listHomeworkTargets({
+      英文: ['WS1'],
+      中文: [{ name: '詞語', detail: 'p.3' }],
+    })).toEqual([
+      { subject: '英文', name: 'WS1', detail: '' },
+      { subject: '中文', name: '詞語', detail: 'p.3' },
+    ]);
+  });
+});
 
 describe('parseSubjectAssignments', () => {
   it('reads the legacy subject-to-name-list shape', () => {

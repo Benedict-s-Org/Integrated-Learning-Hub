@@ -1,5 +1,7 @@
+import { listHomeworkTargets } from '@/lib/homework/assignments';
 import { homeworkDb } from '@/lib/homework/client';
 import {
+  handedInKey,
   missingLogsFromEnglishMarks,
   type EnglishMark,
   type MissingLogInput,
@@ -22,7 +24,12 @@ type MarkRow = {
   handed_in: boolean;
 };
 
-export async function fetchEnglishMissingLogs(className?: string): Promise<MissingLogInput[]> {
+export type EnglishHomeworkState = {
+  logs: MissingLogInput[];
+  handedInKeys: Set<string>;
+};
+
+export async function fetchEnglishHomeworkState(className?: string): Promise<EnglishHomeworkState> {
   let studentQuery = homeworkDb
     .from('users')
     .select('id, display_name, class, class_number')
@@ -55,5 +62,75 @@ export async function fetchEnglishMissingLogs(className?: string): Promise<Missi
     studentId: row.student_id,
     handedIn: row.handed_in,
   }));
-  return missingLogsFromEnglishMarks(students, marks);
+  const handedInKeys = new Set<string>();
+  for (const mark of marks) {
+    if (!mark.handedIn) continue;
+    handedInKeys.add(handedInKey(mark.studentId, mark.date, mark.subject, mark.item));
+  }
+  return { logs: missingLogsFromEnglishMarks(students, marks), handedInKeys };
+}
+
+export async function fetchEnglishMissingLogs(className?: string): Promise<MissingLogInput[]> {
+  const state = await fetchEnglishHomeworkState(className);
+  return state.logs;
+}
+
+type SavedCheck = {
+  subject: string;
+  item_name: string;
+  detail: string | null;
+  needs_correction: boolean;
+  is_complete: boolean;
+};
+
+/** 交齊功課: this student handed in every item on that day's homework list. */
+export async function markListedHomeworkHandedIn(args: {
+  className: string;
+  date: string;
+  studentId: string;
+}): Promise<void> {
+  const className = args.className.trim();
+  if (!className || className === 'all' || !args.studentId || !args.date) return;
+
+  const [homeworkRes, checksRes] = await Promise.all([
+    homeworkDb
+      .from('daily_homework')
+      .select('assignments')
+      .eq('class_name', className)
+      .eq('date', args.date),
+    homeworkDb
+      .from('english_homework_checks')
+      .select('subject, item_name, detail, needs_correction, is_complete')
+      .eq('class_name', className)
+      .eq('record_date', args.date)
+      .eq('student_id', args.studentId),
+  ]);
+  if (homeworkRes.error) throw new Error(homeworkRes.error.message);
+  if (checksRes.error) throw new Error(checksRes.error.message);
+
+  const homeworkRows = (Array.isArray(homeworkRes.data) ? homeworkRes.data : []) as { assignments: unknown }[];
+  const targets = listHomeworkTargets(homeworkRows[0]?.assignments);
+  if (targets.length === 0) return;
+
+  const saved = (Array.isArray(checksRes.data) ? checksRes.data : []) as SavedCheck[];
+  const results = await Promise.all(targets.map((target) => {
+    const prior = saved.find((row) => (
+      row.subject === target.subject
+      && row.item_name === target.name
+      && (row.detail || '') === target.detail
+    ));
+    return homeworkDb.rpc('set_english_homework_check', {
+      p_class: className,
+      p_date: args.date,
+      p_subject: target.subject,
+      p_item: target.name,
+      p_detail: target.detail,
+      p_student_id: args.studentId,
+      p_handed_in: true,
+      p_needs_correction: prior?.needs_correction ?? false,
+      p_is_complete: prior?.is_complete ?? false,
+    });
+  }));
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(failed.error.message);
 }

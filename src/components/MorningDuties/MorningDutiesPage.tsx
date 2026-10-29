@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
+import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
 
 interface RosterStudent {
     id: string;
@@ -357,6 +358,20 @@ export function MorningDutiesPage() {
             });
 
             if (error) throw error;
+
+            if (newStatus === 'submitted') {
+                try {
+                    await markListedHomeworkHandedIn({
+                        className: student.class || selectedClass,
+                        date: todayStr,
+                        studentId: student.id,
+                    });
+                } catch (markErr: unknown) {
+                    console.error('Failed to mark listed homework handed in', markErr);
+                    const message = markErr instanceof Error ? markErr.message : 'Unknown error';
+                    alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+                }
+            }
 
             playSuccessSound();
             setSelectedStudentForClick(null);

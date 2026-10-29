@@ -37,6 +37,8 @@ import { BulkQRCodeExport } from '@/components/admin/BulkQRCodeExport';
 import { BulkUserCreationModal } from '@/components/admin/BulkUserCreationModal';
 import { BulkUserEditModal } from '@/components/admin/BulkUserEditModal';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
+import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
+import { getHKTodayString } from '@/utils/dateUtils';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -749,6 +751,20 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
       });
 
       if (!result.success) throw result.error;
+      if (reason === '完成班務（交齊功課）') {
+        const student = users.find((user) => user.id === studentId);
+        try {
+          await markListedHomeworkHandedIn({
+            className: student?.class_name || '',
+            date: getHKTodayString(),
+            studentId,
+          });
+        } catch (markErr: unknown) {
+          console.error('Failed to mark listed homework handed in', markErr);
+          const message = markErr instanceof Error ? markErr.message : 'Unknown error';
+          alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+        }
+      }
       fetchUsers();
     } catch (err) {
       console.error('Error recording homework:', err);
