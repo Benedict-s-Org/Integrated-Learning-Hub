@@ -334,7 +334,7 @@ export function HomeworkModal({
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className={`bg-white rounded-3xl shadow-2xl w-full overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] ${isSetupMode ? 'max-w-5xl' : 'max-w-xl'}`}>
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                     <div>
@@ -412,15 +412,15 @@ export function HomeworkModal({
                                             </div>
 
                                             {items.length > 0 ? (
-                                                <div className="space-y-2">
+                                                <div className="grid grid-cols-4 gap-2">
                                                     {items.map(item => {
                                                         const isChecked = setupSelectedItems[subject]?.includes(item);
                                                         return (
-                                                            <div key={item} className={`rounded-xl border p-2 ${isChecked ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                                            <div key={item} className={`min-w-0 rounded-xl border p-1.5 ${isChecked ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleToggleSetupItem(subject, item)}
-                                                                    className={`w-full p-2 rounded-lg border text-[10px] font-bold transition-all text-left flex items-center justify-between gap-1
+                                                                    className={`w-full px-2 py-1.5 rounded-lg border text-[11px] font-bold transition-all text-left flex items-center justify-between gap-1
                                                                         ${isChecked 
                                                                             ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
                                                                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
@@ -431,7 +431,7 @@ export function HomeworkModal({
                                                                 <input
                                                                     type="text"
                                                                     aria-label={`Pages, chapter, or range for ${item}`}
-                                                                    placeholder="Pages, chapter, or range"
+                                                                    placeholder="Pages or range"
                                                                     value={setupDetails[subject]?.[item] ?? ''}
                                                                     onChange={(event) => {
                                                                         const value = event.target.value;
@@ -450,7 +450,7 @@ export function HomeworkModal({
                                                                             });
                                                                         }
                                                                     }}
-                                                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-700 outline-none focus:border-blue-400"
+                                                                    className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 outline-none focus:border-blue-400"
                                                                 />
                                                             </div>
                                                         );
