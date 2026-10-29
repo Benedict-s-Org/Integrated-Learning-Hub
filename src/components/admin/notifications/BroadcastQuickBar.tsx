@@ -7,6 +7,7 @@ import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
+import { fetchEnglishMissingLogs } from '@/lib/homework/englishMissing';
 import { buildMissingLedger, makeupKey, openMissingAnnouncement } from '@/lib/homework/missingLedger';
 
 interface BroadcastQuickBarProps {
@@ -340,30 +341,35 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
             
             console.log('[DEBUG-MissingHW] Result - Error:', hwError, 'Data Length:', homeworkData?.length);
 
-            if (homeworkData && homeworkData.length > 0) {
-                const filteredHomework = homeworkData.filter((log: any) => {
-                    const logClass = log.class || log.student?.class || '';
-                    if (!logClass || isArchivedClassName(logClass)) return false;
-                    if (!log.missing_items || Object.keys(log.missing_items).length === 0) return false;
-                    if (isAllClasses) return true;
-                    return String(logClass).trim().toUpperCase() === currentClassUpper;
-                });
+            const filteredHomework = (homeworkData || []).filter((log: any) => {
+                const logClass = log.class || log.student?.class || '';
+                if (!logClass || isArchivedClassName(logClass)) return false;
+                if (!log.missing_items || Object.keys(log.missing_items).length === 0) return false;
+                if (isAllClasses) return true;
+                return String(logClass).trim().toUpperCase() === currentClassUpper;
+            });
+            const englishLogs = (await fetchEnglishMissingLogs(isAllClasses ? undefined : className)).filter((log) => {
+                if (!log.className || isArchivedClassName(log.className)) return false;
+                if (isAllClasses) return true;
+                return log.className.trim().toUpperCase() === currentClassUpper;
+            });
 
-                if (filteredHomework.length > 0) {
-                    const madeUp = new Set<string>();
-                    const logIds = filteredHomework.map((log: any) => log.id).filter(Boolean);
-                    if (logIds.length > 0) {
-                        const { data: actions } = await supabase
-                            .from('homework_makeup_actions')
-                            .select('log_id, subject, item, is_made_up')
-                            .in('log_id', logIds);
-                        (actions || []).forEach((action: any) => {
-                            if (action.is_made_up) madeUp.add(makeupKey(action.log_id, action.subject, action.item));
-                        });
-                    }
+            if (filteredHomework.length > 0 || englishLogs.length > 0) {
+                const madeUp = new Set<string>();
+                const logIds = filteredHomework.map((log: any) => log.id).filter(Boolean);
+                if (logIds.length > 0) {
+                    const { data: actions } = await supabase
+                        .from('homework_makeup_actions')
+                        .select('log_id, subject, item, is_made_up')
+                        .in('log_id', logIds);
+                    (actions || []).forEach((action: any) => {
+                        if (action.is_made_up) madeUp.add(makeupKey(action.log_id, action.subject, action.item));
+                    });
+                }
 
-                    const announcement = openMissingAnnouncement(buildMissingLedger(
-                        filteredHomework.map((log: any) => ({
+                const announcement = openMissingAnnouncement(buildMissingLedger(
+                    [
+                        ...filteredHomework.map((log: any) => ({
                             id: log.id,
                             logDate: log.log_date,
                             className: log.class || log.student?.class || '',
@@ -372,8 +378,10 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                             classNumber: Number(log.student?.class_number) || 0,
                             missingItems: log.missing_items || {},
                         })),
-                        madeUp,
-                    ));
+                        ...englishLogs,
+                    ],
+                    madeUp,
+                ));
 
                     announcement.forEach((block) => {
                         block.lines.forEach((line, index) => {
@@ -390,7 +398,6 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                             };
                         });
                     });
-                }
             }
 
             // Missing homework stays at the front, earliest open date first.

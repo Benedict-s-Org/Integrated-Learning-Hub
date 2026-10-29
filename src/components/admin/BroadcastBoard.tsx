@@ -3,6 +3,7 @@ import { AlertCircle, X, Maximize2, Minimize2, Loader2, Calendar, Trophy, Zap, C
 import { supabase } from '@/integrations/supabase/client';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { BROADCAST_SOURCE } from '@/constants/broadcastConfig';
+import { fetchEnglishMissingLogs } from '@/lib/homework/englishMissing';
 import { buildMissingLedger, makeupKey, openMissingAnnouncement, type MissingAnnouncementBlock } from '@/lib/homework/missingLedger';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -157,6 +158,11 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 if (isAllClasses) return true;
                 return String(studentClass).trim().toUpperCase() === currentClassUpper;
             });
+            const englishLogs = (await fetchEnglishMissingLogs(isAllClasses ? undefined : className)).filter((log) => {
+                if (!log.className || isArchivedClassName(log.className)) return false;
+                if (isAllClasses) return true;
+                return log.className.trim().toUpperCase() === currentClassUpper;
+            });
             const madeUp = new Set<string>();
             const logIds = visibleLogs.map((log: any) => log.id).filter(Boolean);
             if (logIds.length > 0) {
@@ -169,15 +175,18 @@ export const BroadcastBoard: React.FC<BroadcastBoardProps> = ({ onClose, classNa
                 });
             }
             setMissingHomework(openMissingAnnouncement(buildMissingLedger(
-                visibleLogs.map((log: any) => ({
-                    id: log.id,
-                    logDate: log.log_date,
-                    className: log.class || log.student?.class || '',
-                    studentId: log.student_id,
-                    studentName: log.student?.display_name || 'Unknown',
-                    classNumber: Number(log.student?.class_number) || 0,
-                    missingItems: log.missing_items || {},
-                })),
+                [
+                    ...visibleLogs.map((log: any) => ({
+                        id: log.id,
+                        logDate: log.log_date,
+                        className: log.class || log.student?.class || '',
+                        studentId: log.student_id,
+                        studentName: log.student?.display_name || 'Unknown',
+                        classNumber: Number(log.student?.class_number) || 0,
+                        missingItems: log.missing_items || {},
+                    })),
+                    ...englishLogs,
+                ],
                 madeUp,
             )));
 
