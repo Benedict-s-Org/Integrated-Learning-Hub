@@ -7,6 +7,7 @@ import { useDashboardTheme } from '@/context/DashboardThemeContext';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
+import { buildMissingLedger, makeupKey, openMissingAnnouncement } from '@/lib/homework/missingLedger';
 
 interface BroadcastQuickBarProps {
     selectedCount: number;
@@ -329,9 +330,9 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
             // Fetch morning_duty_logs for all dates to build Missing Homework summary
             console.log('[DEBUG-MissingHW] Inputs - Class:', currentClassUpper, 'isAllClasses:', isAllClasses);
 
-            let homeworkQuery = supabase
+            const homeworkQuery = supabase
                 .from('morning_duty_logs')
-                .select('log_date, student_id, missing_items, student:users(display_name, class)')
+                .select('id, log_date, class, student_id, missing_items, student:users(display_name, class, class_number)')
                 .not('missing_items', 'is', null)
                 .order('log_date', { ascending: false });
             
@@ -340,63 +341,69 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
             console.log('[DEBUG-MissingHW] Result - Error:', hwError, 'Data Length:', homeworkData?.length);
 
             if (homeworkData && homeworkData.length > 0) {
-                // Filter by class manually since student is an inner relationship, and exclude archived classes
-                let filteredHomework = homeworkData.filter((log: any) => 
-                    !log.student?.class || !isArchivedClassName(log.student.class)
-                );
-                if (!isAllClasses) {
-                    filteredHomework = filteredHomework.filter((log: any) => 
-                        log.student && log.student.class && log.student.class.toUpperCase() === currentClassUpper
-                    );
-                }
-                
-                // Filter out empty objects
-                filteredHomework = filteredHomework.filter((log: any) => 
-                    log.missing_items && Object.keys(log.missing_items).length > 0
-                );
+                const filteredHomework = homeworkData.filter((log: any) => {
+                    const logClass = log.class || log.student?.class || '';
+                    if (!logClass || isArchivedClassName(logClass)) return false;
+                    if (!log.missing_items || Object.keys(log.missing_items).length === 0) return false;
+                    if (isAllClasses) return true;
+                    return String(logClass).trim().toUpperCase() === currentClassUpper;
+                });
 
                 if (filteredHomework.length > 0) {
-                    // Group by date
-                    const logsByDate: Record<string, any[]> = {};
-                    filteredHomework.forEach((log: any) => {
-                        if (!logsByDate[log.log_date]) logsByDate[log.log_date] = [];
-                        logsByDate[log.log_date].push(log);
-                    });
-
-                    Object.entries(logsByDate).forEach(([dateStr, logsForDate]) => {
-                        const lines = logsForDate.map((log: any) => {
-                            const name = log.student?.display_name || 'Unknown';
-                            const subjectParts = Object.entries(log.missing_items).map(([sub, items]) => {
-                                return `${sub}—${(items as string[]).join(', ')}`;
-                            });
-                            return `• ${name}: ${subjectParts.join('; ')}`;
+                    const madeUp = new Set<string>();
+                    const logIds = filteredHomework.map((log: any) => log.id).filter(Boolean);
+                    if (logIds.length > 0) {
+                        const { data: actions } = await supabase
+                            .from('homework_makeup_actions')
+                            .select('log_id, subject, item, is_made_up')
+                            .in('log_id', logIds);
+                        (actions || []).forEach((action: any) => {
+                            if (action.is_made_up) madeUp.add(makeupKey(action.log_id, action.subject, action.item));
                         });
-                        
-                        const titleText = `Missing Homework (${dateStr})\n${lines.join('\n')}`;
-                        
-                        // We set createdAt to now but slightly offset so newer dates are sorted higher
-                        const sortDate = new Date();
-                        // Add some milliseconds to make newer dates sort slightly higher than older dates
-                        sortDate.setMilliseconds(sortDate.getMilliseconds() + new Date(dateStr).getTime() % 100000);
+                    }
 
-                        groups[`synthetic_missing_homework_${dateStr}`] = {
-                            groupId: `synthetic_missing_homework_${dateStr}`,
-                            title: titleText,
-                            students: [], // No action buttons
-                            type: 'negative',
-                            isWholeClass: false,
-                            isMissingHomeworkSummary: true,
-                            targetDate: dateStr,
-                            createdAt: sortDate.toISOString()
-                        };
+                    const announcement = openMissingAnnouncement(buildMissingLedger(
+                        filteredHomework.map((log: any) => ({
+                            id: log.id,
+                            logDate: log.log_date,
+                            className: log.class || log.student?.class || '',
+                            studentId: log.student_id,
+                            studentName: log.student?.display_name || 'Unknown',
+                            classNumber: Number(log.student?.class_number) || 0,
+                            missingItems: log.missing_items || {},
+                        })),
+                        madeUp,
+                    ));
+
+                    announcement.forEach((block) => {
+                        block.lines.forEach((line, index) => {
+                            groups[`synthetic_missing_homework_${block.isoDate}_${index}`] = {
+                                groupId: `synthetic_missing_homework_${block.isoDate}_${index}`,
+                                title: `${block.date}\n${line}`,
+                                students: [],
+                                type: 'negative',
+                                isWholeClass: false,
+                                isMissingHomeworkSummary: true,
+                                targetDate: block.isoDate,
+                                lineIndex: index,
+                                createdAt: `${block.isoDate}T12:00:00+08:00`,
+                            };
+                        });
                     });
                 }
             }
 
-            // Convert to array and sort by latest activity
-            const sortedGroups = Object.values(groups).sort((a: any, b: any) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
+            // Missing homework stays at the front, earliest open date first.
+            const sortedGroups = Object.values(groups).sort((a: any, b: any) => {
+                if (a.isMissingHomeworkSummary && b.isMissingHomeworkSummary) {
+                    const dateCompare = String(a.targetDate).localeCompare(String(b.targetDate));
+                    if (dateCompare !== 0) return dateCompare;
+                    return (a.lineIndex || 0) - (b.lineIndex || 0);
+                }
+                if (a.isMissingHomeworkSummary) return -1;
+                if (b.isMissingHomeworkSummary) return 1;
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
 
             console.log('[DEBUG-MissingHW] Final Messages Count for Render:', sortedGroups.length);
             setMessages(sortedGroups);
@@ -538,7 +545,7 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                                             </div>
                                             
                                             <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-                                                {page.createdAt && (
+                                                {page.createdAt && !page.isMissingHomeworkSummary && (
                                                     <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 leading-none">
                                                         {formatHKDate(page.createdAt)}
                                                     </span>
@@ -551,7 +558,7 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                                                     title={page.title}
                                                     onClick={() => {
                                                         if (page.isMissingHomeworkSummary) {
-                                                            navigate(`/admin/homework-makeup?class=${className}&focusDate=${page.targetDate || getHKTodayString()}`);
+                                                            navigate(`/admin/homework-record?tab=missing&class=${className}&focusDate=${page.targetDate || getHKTodayString()}`);
                                                         }
                                                     }}
                                                 >

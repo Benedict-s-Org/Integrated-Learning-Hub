@@ -14,7 +14,7 @@ interface Student {
     class_number: number | null;
 }
 
-export default function AdminHomeworkRecordPage() {
+export default function AdminHomeworkRecordPage({ embedded = false }: { embedded?: boolean }) {
     const { user } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [classes, setClasses] = useState<string[]>([]);
@@ -326,9 +326,8 @@ export default function AdminHomeworkRecordPage() {
 
     const availableSubOptions = DEFAULT_SUB_OPTIONS[selectedSubject] || [];
 
-    return (
-        <AdminLayout title="Homework Record" icon={<ClipboardList className="w-6 h-6" />}>
-            <div className="p-4 md:p-8 max-w-7xl mx-auto font-sans">
+    const form = (
+            <div className={embedded ? "font-sans" : "p-4 md:p-8 max-w-7xl mx-auto font-sans"}>
                 <div className="bg-white rounded-[32px] border-4 border-white shadow-2xl shadow-slate-200/60 overflow-hidden flex flex-col h-auto lg:h-[900px]">
 
                     {/* Top Section: Steps 1-3 (Full Width, Vertical Stack) */}
@@ -711,6 +710,13 @@ export default function AdminHomeworkRecordPage() {
                     </div>
                 </div>
             </div>
-        </AdminLayout >
+    );
+
+    if (embedded) return form;
+
+    return (
+        <AdminLayout title="Homework Record" icon={<ClipboardList className="w-6 h-6" />}>
+            {form}
+        </AdminLayout>
     );
 }

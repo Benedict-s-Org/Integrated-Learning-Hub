@@ -73,7 +73,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
     },
     {
       path: "/admin/homework-record",
-      label: "Homework Record",
+      label: "Homework Management",
       icon: <ClipboardList size={18} className="w-4 h-4" />,
     },
     {

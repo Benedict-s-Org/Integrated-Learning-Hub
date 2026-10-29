@@ -114,10 +114,10 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Data Fetched**: Interrogates `user_room_data` and computes tracking data (house_level, coins, virtual_coins, proofreading_avg_accuracy, etc.).
 - **Features**: Filter by class, sort by specific metrics (like coins earned, total time, active periods).
 
-### Homework Records (L61-L64)
-- **Path**: `src/pages/AdminHomeworkRecordPage.tsx`
-- **Concept**: A bulk-marking tool. Admin selects multiple students and clicks specific assignment items ("ProblemOptions" like Dictation, Workbooks).
-- **Mechanism**: Saves directly to `homework_records` table and optionally dispenses coins using `coinService`. Also triggers visual and audio success indicators via `playSuccessSound`. **Default class selection is '3A'**.
+### Homework Management
+- **Path**: `src/pages/admin/AdminHomeworkManagementPage.tsx` at `/admin/homework-record`
+- **Parts**: Missing records (from `morning_duty_logs` and `homework_makeup_actions`), English homework checkboxes (`english_homework_checks`), and Settings. Settings embeds `AdminHomeworkRecordPage`, which still writes `student_records` and can award coins.
+- **Daily list**: `daily_homework.assignments` stores `{ name, detail }` and still accepts a plain name list. The Class Dashboard setup modal has a pages, chapter, or range box. Spec: `docs/superpowers/specs/2026-10-29-homework-management-design.md`.
 
 ### Super Admin (L66-L70)
 - **Path**: `src/pages/SuperAdminPanel.tsx`

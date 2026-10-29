@@ -1247,7 +1247,7 @@ function AppContent() {
                 </div>
               );
             case 'adminHomeworkRecord':
-              return <AdminHomeworkRecordPage />;
+              return <AdminHomeworkManagementPage />;
             case 'adminTimetable':
               return <AdminTimetablePage />;
             case 'broadcastManagement':
@@ -1627,7 +1627,7 @@ const SuperAdminPanel = lazy(() => import('./pages/SuperAdminPanel.tsx').then(m 
 const AdminProgressPage = lazy(() => import('./pages/AdminProgressPage.tsx').then(m => ({ default: m.AdminProgressPage })));
 const InteractiveScanQuizPage = lazy(() => import('./pages/InteractiveScanQuizPage').then(module => ({ default: module.InteractiveScanQuizPage })));
 const AdminCityEditorPage = lazy(() => import('./pages/AdminCityEditorPage.tsx'));
-const AdminHomeworkRecordPage = lazy(() => import('./pages/AdminHomeworkRecordPage.tsx'));
+const AdminHomeworkManagementPage = lazy(() => import('./pages/admin/AdminHomeworkManagementPage.tsx'));
 const AdminTimetablePage = lazy(() => import('./pages/AdminTimetablePage.tsx'));
 const RegionPage = lazy(() => import('./pages/RegionPage.tsx'));
 const PhonicsLayout = lazy(() => import('./components/phonics/PhonicsLayout.tsx').then(m => ({ default: m.PhonicsLayout })));
@@ -1857,7 +1857,7 @@ function AppRoutes() {
             path="/admin/homework-record"
             element={
               <Suspense fallback={<PageLoader />}>
-                <AdminHomeworkRecordPage />
+                <AdminHomeworkManagementPage />
               </Suspense>
             }
           />

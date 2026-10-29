@@ -130,7 +130,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
             { id: 'adminUsers', icon: Shield, label: 'Admin Panel', onClick: () => onPageChange('admin'), isActive: currentPage === 'admin' },
             { id: 'readingManagement', icon: BookOpen, label: 'Reading Practice Management', onClick: () => onPageChange('readingComprehension'), isActive: currentPage === 'readingComprehension' },
             { id: 'timetable', icon: Layout, label: 'Timetable Management', onClick: () => (window.location.href = '/admin/timetable') },
-            { id: 'homeworkRecord', icon: ClipboardList, label: 'Homework Record', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
+            { id: 'homeworkRecord', icon: ClipboardList, label: 'Homework Management', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
             { id: 'assignmentManagement', icon: FolderKanban, label: 'Assignment Management', onClick: () => onPageChange('assignmentManagement'), isActive: currentPage === 'assignmentManagement' },
             { id: 'database', icon: Database, label: 'Database', onClick: () => onPageChange('database'), isActive: currentPage === 'database' },
             { id: 'notionDatabaseConfig', icon: Database, label: 'Notion Database IDs', onClick: () => (window.location.href = '/admin/notion-db-config') },

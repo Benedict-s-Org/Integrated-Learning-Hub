@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ClipboardList
 } from 'lucide-react';
+import { parseSubjectAssignments, toNameMap } from '@/lib/homework/assignments';
 import { getHKTodayString, formatHKDate } from '@/utils/dateUtils';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -155,7 +156,7 @@ export default function AdminHomeworkSummaryPage() {
         .maybeSingle();
 
       if (configError) throw configError;
-      setDailyHomework((configData?.assignments as Record<string, string[]>) || {});
+      setDailyHomework(toNameMap(parseSubjectAssignments(configData?.assignments)));
 
       // 3. Fetch Student Records for the day
       const { data: recordsData, error: recordsError } = await supabase

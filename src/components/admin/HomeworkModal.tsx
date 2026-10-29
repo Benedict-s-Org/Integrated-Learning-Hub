@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, BookOpen, Check, ClipboardCheck, AlertCircle, FileText, Plus, Edit2, Loader2 } from 'lucide-react';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
+import { buildAssignments, detailRecord, parseSubjectAssignments, toNameMap, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { supabase } from '../../lib/supabase';
 
 interface HomeworkModalProps {
@@ -10,7 +11,8 @@ interface HomeworkModalProps {
     onRecord: (reason: string, coins?: number, items?: Record<string, string[]>) => void;
     isHandbookDisabled?: boolean;
     dailyHomeworkItems?: Record<string, string[]>;
-    onSetupDailyHomework?: (items: Record<string, string[]>) => Promise<void>;
+    assignmentDetails?: SubjectAssignmentMap;
+    onSetupDailyHomework?: (items: SubjectAssignmentMap) => Promise<void>;
     isFirstStudent?: boolean;
 }
 
@@ -25,6 +27,7 @@ export function HomeworkModal({
     onRecord,
     isHandbookDisabled = false,
     dailyHomeworkItems,
+    assignmentDetails,
     onSetupDailyHomework,
     isFirstStudent = false
 }: HomeworkModalProps) {
@@ -39,6 +42,7 @@ export function HomeworkModal({
     // Setup mode states
     const [isSetupMode, setIsSetupMode] = useState(false);
     const [setupSelectedItems, setSetupSelectedItems] = useState<Record<string, string[]>>({});
+    const [setupDetails, setSetupDetails] = useState<Record<string, Record<string, string>>>({});
     const [pendingAction, setPendingAction] = useState<'completed' | 'missing' | null>(null);
 
     // Fetch latest options from database
@@ -46,12 +50,17 @@ export function HomeworkModal({
         if (isOpen) {
             fetchHomeworkOptions();
             if (studentName === '今日功課' || studentName === '今日功課設定' || studentName === '明日功課設定') {
+                const rich = assignmentDetails && Object.keys(assignmentDetails).length > 0
+                    ? assignmentDetails
+                    : parseSubjectAssignments(dailyHomeworkItems);
                 setIsSetupMode(true);
-                setSetupSelectedItems(dailyHomeworkItems || {});
+                setSetupSelectedItems(toNameMap(rich));
+                setSetupDetails(detailRecord(rich));
                 setPendingAction(null);
             } else {
                 setIsSetupMode(false);
                 setSetupSelectedItems({});
+                setSetupDetails({});
                 setPendingAction(null);
             }
         } else {
@@ -61,9 +70,10 @@ export function HomeworkModal({
             setIsEditing(false);
             setIsSetupMode(false);
             setSetupSelectedItems({});
+            setSetupDetails({});
             setPendingAction(null);
         }
-    }, [isOpen, studentName, dailyHomeworkItems]);
+    }, [isOpen, studentName, dailyHomeworkItems, assignmentDetails]);
 
     const fetchHomeworkOptions = async () => {
         const { data, error } = await supabase
@@ -125,7 +135,7 @@ export function HomeworkModal({
         setIsSaving(true);
         try {
             if (onSetupDailyHomework) {
-                await onSetupDailyHomework(setupSelectedItems);
+                await onSetupDailyHomework(buildAssignments(setupSelectedItems, setupDetails));
             }
             setIsSetupMode(false);
             if (pendingAction === 'completed') {
@@ -404,22 +414,42 @@ export function HomeworkModal({
                                             </div>
 
                                             {items.length > 0 ? (
-                                                <div className="grid grid-cols-2 gap-2">
+                                                <div className="space-y-2">
                                                     {items.map(item => {
                                                         const isChecked = setupSelectedItems[subject]?.includes(item);
                                                         return (
-                                                            <button
-                                                                type="button"
-                                                                key={item}
-                                                                onClick={() => handleToggleSetupItem(subject, item)}
-                                                                className={`p-2 rounded-xl border text-[10px] font-bold transition-all text-left flex items-center justify-between gap-1
-                                                                    ${isChecked 
-                                                                        ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
-                                                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                                                            >
-                                                                <span className="truncate">{item}</span>
-                                                                {isChecked && <Check size={12} className="shrink-0 text-white" />}
-                                                            </button>
+                                                            <div key={item} className="flex items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleSetupItem(subject, item)}
+                                                                    className={`min-w-0 flex-1 p-2 rounded-xl border text-[10px] font-bold transition-all text-left flex items-center justify-between gap-1
+                                                                        ${isChecked 
+                                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                                                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                >
+                                                                    <span className="truncate">{item}</span>
+                                                                    {isChecked && <Check size={12} className="shrink-0 text-white" />}
+                                                                </button>
+                                                                {isChecked && (
+                                                                    <input
+                                                                        type="text"
+                                                                        aria-label={`Pages, chapter, or range for ${item}`}
+                                                                        placeholder="Pages, chapter, or range"
+                                                                        value={setupDetails[subject]?.[item] ?? ''}
+                                                                        onChange={(event) => {
+                                                                            const value = event.target.value;
+                                                                            setSetupDetails(prev => ({
+                                                                                ...prev,
+                                                                                [subject]: {
+                                                                                    ...(prev[subject] || {}),
+                                                                                    [item]: value,
+                                                                                },
+                                                                            }));
+                                                                        }}
+                                                                        className="w-40 shrink-0 rounded-xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-bold text-slate-700 outline-none focus:border-blue-400"
+                                                                    />
+                                                                )}
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
