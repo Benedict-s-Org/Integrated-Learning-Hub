@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { runClassDashAction } from '@/services/classDashLinkService';
+import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
 
 interface UserWithCoins {
     id: string;
@@ -220,7 +221,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                     p_missing_items: items || null,
                 });
             } else {
-                await supabase.rpc('upsert_morning_duty_log', {
+                const { error } = await supabase.rpc('upsert_morning_duty_log', {
                     p_log_date: today,
                     p_student_id: selectedStudent!.id,
                     p_status: status,
@@ -228,6 +229,20 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                     p_missing_items: items || null,
                     p_event_type: 'status_change'
                 });
+                if (error) throw error;
+                if (status === 'submitted' && selectedStudent) {
+                    try {
+                        await markListedHomeworkHandedIn({
+                            className: activeClass,
+                            date: today,
+                            studentId: selectedStudent.id,
+                        });
+                    } catch (markErr: unknown) {
+                        console.error('Failed to mark listed homework handed in', markErr);
+                        const message = markErr instanceof Error ? markErr.message : 'Unknown error';
+                        alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+                    }
+                }
             }
             await fetchLogs();
             onStatusChange();

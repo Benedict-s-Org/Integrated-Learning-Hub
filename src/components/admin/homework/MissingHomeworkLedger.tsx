@@ -3,10 +3,15 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { homeworkDb } from '@/lib/homework/client';
 import { detailFor, parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
+import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
 import {
   buildMissingLedger,
+  handedInKey,
   makeupKey,
+  parseEnglishCheckLogId,
+  submittedKeysWithHandedIn,
   type LedgerDateGroup,
+  type LedgerStudent,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
@@ -49,6 +54,7 @@ export function MissingHomeworkLedger() {
   const [classes, setClasses] = useState<string[]>([]);
   const [logs, setLogs] = useState<MissingLogInput[]>([]);
   const [madeUp, setMadeUp] = useState<Set<string>>(new Set());
+  const [handedInKeys, setHandedInKeys] = useState<Set<string>>(new Set());
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -91,7 +97,9 @@ export function MissingHomeworkLedger() {
             missingItems: log.missing_items || {},
           }));
 
-        const dates = [...new Set(parsedLogs.map((log) => log.logDate))];
+        const englishState = await fetchEnglishHomeworkState(classFilter === 'all' ? undefined : classFilter);
+        const combinedLogs = [...parsedLogs, ...englishState.logs];
+        const dates = [...new Set(combinedLogs.map((log) => log.logDate))];
         const detailIndex = new Map<string, SubjectAssignmentMap>();
         if (dates.length > 0) {
           const { data: homeworkRows, error: homeworkError } = await homeworkDb
@@ -109,7 +117,7 @@ export function MissingHomeworkLedger() {
           }
         }
 
-        const logIds = parsedLogs.map((log) => log.id);
+        const logIds = combinedLogs.map((log) => log.id).filter((id) => !id.startsWith('english|'));
         const nextMadeUp = new Set<string>();
         if (logIds.length > 0) {
           const { data: actions, error: actionError } = await homeworkDb
@@ -129,9 +137,10 @@ export function MissingHomeworkLedger() {
         }
 
         if (!cancelled) {
-          setLogs(parsedLogs);
+          setLogs(combinedLogs);
           setDetailsByClassDate(detailIndex);
           setMadeUp(nextMadeUp);
+          setHandedInKeys(englishState.handedInKeys);
         }
       } catch (err) {
         console.error('Failed to load missing homework ledger', err);
@@ -146,23 +155,60 @@ export function MissingHomeworkLedger() {
     };
   }, [classFilter]);
 
-  const ledger = useMemo(
-    () => buildMissingLedger(logs, madeUp, ({ date, className, subject, item }) => (
-      detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
-    )),
-    [logs, madeUp, detailsByClassDate],
+  const submittedKeys = useMemo(
+    () => submittedKeysWithHandedIn(logs, madeUp, handedInKeys),
+    [logs, madeUp, handedInKeys],
   );
 
-  const toggleStudent = async (logId: string, subject: string, item: string) => {
-    const key = makeupKey(logId, subject, item);
+  const ledger = useMemo(
+    () => buildMissingLedger(logs, submittedKeys, ({ date, className, subject, item }) => (
+      detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
+    )),
+    [logs, submittedKeys, detailsByClassDate],
+  );
+
+  const toggleStudent = async (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => {
+    const key = makeupKey(student.logId, subject, item);
+    const handedIn = !student.submitted;
     setPendingKey(key);
     try {
-      const { data, error: rpcError } = await homeworkDb.rpc('toggle_homework_makeup', {
-        p_log_id: logId,
+      const { error: rpcError } = await homeworkDb.rpc('set_english_homework_check', {
+        p_class: student.className,
+        p_date: date,
+        p_subject: subject,
+        p_item: item,
+        p_detail: detail,
+        p_student_id: student.studentId,
+        p_handed_in: handedIn,
+        p_needs_correction: false,
+        p_is_complete: false,
+      });
+      if (rpcError) throw rpcError;
+      setHandedInKeys((current) => {
+        const next = new Set(current);
+        const id = handedInKey(student.studentId, date, subject, item);
+        if (handedIn) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+
+      if (parseEnglishCheckLogId(student.logId)) {
+        setMadeUp((current) => {
+          const next = new Set(current);
+          if (handedIn) next.add(key);
+          else next.delete(key);
+          return next;
+        });
+        return;
+      }
+
+      if (madeUp.has(key) === handedIn) return;
+      const { data, error: makeupError } = await homeworkDb.rpc('toggle_homework_makeup', {
+        p_log_id: student.logId,
         p_subject: subject,
         p_item: item,
       });
-      if (rpcError) throw rpcError;
+      if (makeupError) throw makeupError;
       setMadeUp((current) => {
         const next = new Set(current);
         if (data?.is_made_up) next.add(key);
@@ -244,7 +290,7 @@ function DateBlock({
   showClearedDivider: boolean;
   focused: boolean;
   pendingKey: string | null;
-  onToggle: (logId: string, subject: string, item: string) => void;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -273,7 +319,7 @@ function DateBlock({
                     <button
                       type="button"
                       disabled={pendingKey === key}
-                      onClick={() => onToggle(student.logId, item.subject, item.item)}
+                      onClick={() => onToggle(student, item.subject, item.item, item.detail, group.date)}
                       className={`font-bold underline-offset-2 hover:underline disabled:opacity-50 ${student.submitted ? 'text-slate-400 line-through' : 'text-slate-800'}`}
                       aria-pressed={student.submitted}
                     >

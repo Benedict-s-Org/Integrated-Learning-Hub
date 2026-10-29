@@ -31,6 +31,12 @@ export function parseSubjectAssignments(raw: unknown): SubjectAssignmentMap {
   return out;
 }
 
+export function listHomeworkTargets(raw: unknown): { subject: string; name: string; detail: string }[] {
+  return Object.entries(parseSubjectAssignments(raw)).flatMap(([subject, items]) => (
+    items.map((item) => ({ subject, name: item.name, detail: item.detail }))
+  ));
+}
+
 export function toNameMap(map: SubjectAssignmentMap | null | undefined): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   if (!map) return out;

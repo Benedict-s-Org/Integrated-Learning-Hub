@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMissingLedger, formatMissingAnnouncement, makeupKey, openMissingAnnouncement, type MissingLogInput } from '@/lib/homework/missingLedger';
+import { buildMissingLedger, formatMissingAnnouncement, handedInKey, makeupKey, missingLogsFromEnglishMarks, openMissingAnnouncement, submittedKeysWithHandedIn, type MissingLogInput } from '@/lib/homework/missingLedger';
 
 const logs: MissingLogInput[] = [
   {
@@ -60,5 +60,46 @@ describe('buildMissingLedger', () => {
       `${blocks[1].date}\n中文 · 詞語: Amy\n英文 · WS1: Amy`,
     );
     expect(blocks[1].lines.join('\n')).not.toContain('Ben');
+  });
+});
+
+describe('submittedKeysWithHandedIn', () => {
+  it('crosses a morning-duty name when that student is ticked handed in', () => {
+    const keys = submittedKeysWithHandedIn(
+      logs,
+      new Set(),
+      new Set([handedInKey('amy', '2026-10-02', '英文', 'WS1')]),
+    );
+    const ledger = buildMissingLedger(logs, keys);
+    const ws1 = ledger.find((group) => group.date === '2026-10-02')?.items.find((item) => item.item === 'WS1');
+    expect(ws1?.students.find((student) => student.studentId === 'amy')?.submitted).toBe(true);
+    expect(ws1?.students.find((student) => student.studentId === 'ben')?.submitted).toBe(false);
+    const block = openMissingAnnouncement(ledger).find((item) => item.isoDate === '2026-10-02');
+    expect(block?.lines).toEqual(['中文 · 詞語: Amy', '英文 · WS1: Ben']);
+  });
+});
+
+describe('missingLogsFromEnglishMarks', () => {
+  const students = [
+    { id: 'amy', name: 'Amy', className: '4A', classNumber: 1 },
+    { id: 'ben', name: 'Ben', className: '4A', classNumber: 2 },
+    { id: 'cara', name: 'Cara', className: '4A', classNumber: 3 },
+  ];
+
+  it('lists classmates who were not ticked handed in after a record is updated', () => {
+    const logs = missingLogsFromEnglishMarks(students, [
+      { className: '4A', date: '2026-10-29', subject: '英文', item: 'Writing File', studentId: 'amy', handedIn: true },
+      { className: '4A', date: '2026-10-29', subject: '英文', item: 'WS File', studentId: 'ben', handedIn: false },
+    ]);
+    const ledger = buildMissingLedger(logs, new Set());
+    expect(ledger).toHaveLength(1);
+    const writing = ledger[0].items.find((item) => item.item === 'Writing File');
+    const worksheet = ledger[0].items.find((item) => item.item === 'WS File');
+    expect(writing?.students.map((student) => student.name)).toEqual(['Ben', 'Cara']);
+    expect(worksheet?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
+  });
+
+  it('leaves an item off the list when nobody has been marked', () => {
+    expect(missingLogsFromEnglishMarks(students, [])).toEqual([]);
   });
 });

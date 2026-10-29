@@ -91,6 +91,10 @@ export function buildMissingLedger(
           subject,
           item,
         }));
+        if (bucket.students.some((student) => student.studentId === log.studentId)) {
+          dateBuckets.set(itemKey, bucket);
+          continue;
+        }
         bucket.students.push({
           logId: log.id,
           studentId: log.studentId,
@@ -173,4 +177,114 @@ export function openMissingAnnouncement(groups: LedgerDateGroup[]): MissingAnnou
 
 export function formatMissingAnnouncement(block: MissingAnnouncementBlock): string {
   return [block.date, ...block.lines].join('\n');
+}
+
+export type EnglishMark = {
+  className: string;
+  date: string;
+  subject: string;
+  item: string;
+  studentId: string;
+  handedIn: boolean;
+};
+
+export type ClassStudent = {
+  id: string;
+  name: string;
+  className: string;
+  classNumber: number;
+};
+
+export function englishCheckLogId(studentId: string, date: string): string {
+  return `english|${studentId}|${date}`;
+}
+
+export function parseEnglishCheckLogId(id: string): { studentId: string; date: string } | null {
+  if (!id.startsWith('english|')) return null;
+  const [, studentId, date] = id.split('|');
+  if (!studentId || !date) return null;
+  return { studentId, date };
+}
+
+export function handedInKey(studentId: string, date: string, subject: string, item: string): string {
+  return `${studentId}\0${date}\0${subject}\0${item}`;
+}
+
+/** A Handed in tick counts as submitted on a morning-duty row for the same student and item. */
+export function submittedKeysWithHandedIn(
+  logs: MissingLogInput[],
+  madeUpKeys: ReadonlySet<string>,
+  handedInKeys: ReadonlySet<string>,
+): Set<string> {
+  const next = new Set(madeUpKeys);
+  for (const log of logs) {
+    if (parseEnglishCheckLogId(log.id)) continue;
+    for (const [subject, items] of Object.entries(log.missingItems || {})) {
+      if (!Array.isArray(items)) continue;
+      for (const rawItem of items) {
+        const item = typeof rawItem === 'string' ? rawItem.trim() : '';
+        if (!item) continue;
+        if (handedInKeys.has(handedInKey(log.studentId, log.logDate, subject, item))) {
+          next.add(makeupKey(log.id, subject, item));
+        }
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * After a teacher ticks Handed in for an item, every classmate without that tick
+ * is missing that item. Items with no ticks at all stay off the list.
+ */
+export function missingLogsFromEnglishMarks(
+  students: ClassStudent[],
+  marks: EnglishMark[],
+): MissingLogInput[] {
+  type Group = {
+    className: string;
+    date: string;
+    subject: string;
+    item: string;
+    handedIn: Set<string>;
+  };
+  const groups = new Map<string, Group>();
+  for (const mark of marks) {
+    const className = mark.className.trim();
+    const item = mark.item.trim();
+    if (!className || !mark.date || !mark.subject || !item || !mark.studentId) continue;
+    const key = `${className}\0${mark.date}\0${mark.subject}\0${item}`;
+    const group = groups.get(key) ?? {
+      className,
+      date: mark.date,
+      subject: mark.subject,
+      item,
+      handedIn: new Set<string>(),
+    };
+    if (mark.handedIn) group.handedIn.add(mark.studentId);
+    groups.set(key, group);
+  }
+
+  const byStudentDate = new Map<string, MissingLogInput>();
+  for (const group of groups.values()) {
+    for (const student of students) {
+      if (student.className !== group.className) continue;
+      if (group.handedIn.has(student.id)) continue;
+      const key = `${student.id}|${group.date}`;
+      const log = byStudentDate.get(key) ?? {
+        id: englishCheckLogId(student.id, group.date),
+        logDate: group.date,
+        className: student.className,
+        studentId: student.id,
+        studentName: student.name || 'Unknown',
+        classNumber: Number.isFinite(student.classNumber) ? student.classNumber : 0,
+        missingItems: {},
+      };
+      const items = log.missingItems[group.subject] ?? [];
+      if (!items.includes(group.item)) items.push(group.item);
+      log.missingItems[group.subject] = items;
+      byStudentDate.set(key, log);
+    }
+  }
+  return [...byStudentDate.values()];
 }
