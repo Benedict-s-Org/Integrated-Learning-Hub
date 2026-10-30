@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DashboardThemeProvider } from './context/DashboardThemeContext';
@@ -46,7 +46,6 @@ const VocabImagePicker = lazy(() => import('./components/admin/VocabImagePicker'
 const ProgressLogPage = lazy(() => import('./pages/ProgressLogPage').then(module => ({ default: module.ProgressLogPage })));
 const AdminHomeworkHabitPage = lazy(() => import('./pages/AdminHomeworkHabitPage'));
 const AdminHomeworkMakeupPage = lazy(() => import('./pages/admin/AdminHomeworkMakeupPage').then(module => ({ default: module.AdminHomeworkMakeupPage })));
-const AdminHomeworkSummaryPage = lazy(() => import('./pages/admin/AdminHomeworkSummaryPage'));
 const PhonicsDashboard = lazy(() => import('./components/admin/PhonicsDashboard')) as unknown as React.FC<{ onBack: () => void }>;
 const AnagramApp = lazy(() => import('./modules/anagram/AnagramApp'));
 
@@ -1652,7 +1651,6 @@ const IPadInteractiveZone = lazy(() => import('./pages/IPadInteractiveZone').the
 const ClassDashboardPage = lazy(() => import('./pages/ClassDashboardPage').then(m => ({ default: m.ClassDashboardPage })));
 const ClassDashGuestPage = lazy(() => import('./pages/ClassDashGuestPage'));
 const MorningDutiesPage = lazy(() => import('./components/MorningDuties/MorningDutiesPage').then(m => ({ default: m.MorningDutiesPage })));
-const EnglishHomeworkPage = lazy(() => import('./pages/EnglishHomeworkPage').then(m => ({ default: m.EnglishHomeworkPage })));
 
 const AdminPanel = lazy(() => import('./components/AdminPanel/AdminPanel'));
 const ContentDatabase = lazy(() => import('./components/ContentDatabase/ContentDatabase'));
@@ -1867,19 +1865,11 @@ function AppRoutes() {
           />
           <Route
             path="/admin/english-homework"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <EnglishHomeworkPage />
-              </Suspense>
-            }
+            element={<Navigate to="/admin/homework-record?tab=english" replace />}
           />
           <Route
             path="/admin/homework-summary"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <AdminHomeworkSummaryPage />
-              </Suspense>
-            }
+            element={<Navigate to="/admin/homework-record?tab=missing" replace />}
           />
           <Route
             path="/admin/audio-repo"
