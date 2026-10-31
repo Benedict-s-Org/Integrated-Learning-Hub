@@ -6,6 +6,7 @@ export interface LuantiJoinCredentials {
   serverHost: string;
   serverPort: number;
   expiresAt: string;
+  joinHintSeconds?: number;
 }
 
 function functionsBaseUrl(): string {
@@ -49,6 +50,7 @@ export const luantiAuthService = {
           30000,
       ),
       expiresAt: payload.expiresAt,
+      joinHintSeconds: Number(payload.joinHintSeconds ?? 3),
     };
   },
 };

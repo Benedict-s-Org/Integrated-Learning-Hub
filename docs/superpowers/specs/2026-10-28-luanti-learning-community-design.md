@@ -101,6 +101,15 @@ Full override policy, audit coverage, suspend/reactivate, inventory restore. Lea
 - Edge Function → student path does not require inbound HTTP into Luanti; mod polls `auth-sync`
 - Production needs `LUANTI_SERVICE_SECRET`, `VITE_LUANTI_SERVER_HOST`, `VITE_LUANTI_SERVER_PORT`
 
+## Stage 1 hardening (2026-10-29)
+
+- `lh_auth` refuses `create_auth` / client `set_password`; only Hub-minted names authenticate
+- Established login cache survives `record-login` (reconnect until expiry/remint; remint after server restart)
+- One unused join secret per account (partial unique index)
+- `supabase/config.toml` registers `luanti-auth` with `verify_jwt = false`
+- Service secret compared in constant time; expired/used secrets purged on mint/sync
+- UI asks students to wait ~3 seconds after mint before join
+
 ## Self-review
 
 - No unresolved placeholders for Stage 1 behavior  
