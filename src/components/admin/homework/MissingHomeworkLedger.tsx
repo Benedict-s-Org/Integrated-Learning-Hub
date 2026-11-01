@@ -308,26 +308,32 @@ function DateBlock({
           {group.items.map((item) => (
             <div
               key={`${item.subject}:${item.item}`}
-              className={`rounded-xl px-3 py-2 text-sm ${item.complete ? 'bg-emerald-50 text-emerald-800 line-through' : 'bg-slate-50 text-slate-700'}`}
+              className={`rounded-xl px-3 py-3 text-sm ${item.complete ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-700'}`}
             >
-              <span className="font-black">{itemLabel(item.subject, item.item, item.detail)}: </span>
-              {item.students.map((student, studentIndex) => {
-                const key = makeupKey(student.logId, item.subject, item.item);
-                return (
-                  <span key={`${student.logId}:${student.studentId}`}>
-                    {studentIndex > 0 ? ', ' : ''}
+              <p className={`mb-2 font-black ${item.complete ? 'line-through' : ''}`}>
+                {itemLabel(item.subject, item.item, item.detail)}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {item.students.map((student) => {
+                  const key = makeupKey(student.logId, item.subject, item.item);
+                  return (
                     <button
+                      key={`${student.logId}:${student.studentId}`}
                       type="button"
                       disabled={pendingKey === key}
                       onClick={() => onToggle(student, item.subject, item.item, item.detail, group.date)}
-                      className={`font-bold underline-offset-2 hover:underline disabled:opacity-50 ${student.submitted ? 'text-slate-400 line-through' : 'text-slate-800'}`}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-bold transition disabled:opacity-50 ${
+                        student.submitted
+                          ? 'border-emerald-200 bg-emerald-100 text-emerald-700 line-through'
+                          : 'border-slate-300 bg-white text-slate-800 hover:border-slate-500 hover:bg-slate-100'
+                      }`}
                       aria-pressed={student.submitted}
                     >
                       {student.name}
                     </button>
-                  </span>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
