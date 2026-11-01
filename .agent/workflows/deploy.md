@@ -5,18 +5,15 @@ description: How to deploy frontend changes and Supabase Edge Functions
 To deploy your changes to the online environment, follow these steps:
 
 ### 1. Deploy Frontend Changes
-Pushing your code to GitHub will trigger the automated deployment for the web application.
+Pushing to `main` runs the Cloud Build trigger (`cloudbuild.yaml` → Docker → Cloud Run `learning-hub`).
 
 ```bash
-# Stage all changes
-git add .
-
-# Commit changes
-git commit -m "fix: implement app-shell scrolling and normalize layouts"
-
-# Push to main branch
 git push origin main
 ```
+
+If History shows a red build, open the failed build and check the Docker step. The image runs `npx vite build` (not full `npm run build` / `tsc`), so typecheck debt should not block deploy.
+
+To redeploy without a new commit: Cloud Build → Triggers → **Run**.
 
 ### 2. Deploy Supabase Edge Functions
 If you have modified any Edge Functions (e.g., `supabase/functions/auth/index.ts`), you must deploy them separately using the Supabase CLI.
