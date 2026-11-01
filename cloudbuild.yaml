@@ -37,6 +37,6 @@ images:
 # Timeout for the build
 timeout: '1200s'
 
-# Options
+# Options — keep build logs visible in Cloud Build History
 options:
-  logging: CLOUD_LOGGING_ONLY
+  logging: LEGACY
