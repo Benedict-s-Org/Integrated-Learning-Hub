@@ -11,7 +11,7 @@ Pushing to `main` runs the Cloud Build trigger (`cloudbuild.yaml` → Docker →
 git push origin main
 ```
 
-If History shows a red build, open the failed build and check the Docker step. The image runs `npx vite build` (not full `npm run build` / `tsc`), so typecheck debt should not block deploy.
+If History shows a red build, open the failed build → **Build summary / Logs** (Cloud Logging). The image runs `npx vite build` (not full `npm run build` / `tsc`), so typecheck debt should not block deploy. Trigger service accounts must keep `logging: CLOUD_LOGGING_ONLY` in `cloudbuild.yaml`.
 
 To redeploy without a new commit: Cloud Build → Triggers → **Run**.
 

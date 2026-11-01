@@ -37,6 +37,7 @@ images:
 # Timeout for the build
 timeout: '1200s'
 
-# Options — keep build logs visible in Cloud Build History
+# User-managed trigger service accounts require CLOUD_LOGGING_ONLY (or a logs bucket).
+# LEGACY logging fails with: if build.service_account is specified...
 options:
-  logging: LEGACY
+  logging: CLOUD_LOGGING_ONLY
