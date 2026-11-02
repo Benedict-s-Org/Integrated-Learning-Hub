@@ -141,6 +141,55 @@ export function buildMissingLedger(
   return [...open, ...cleared];
 }
 
+export type HandedInRosterEntry = {
+  className: string;
+  date: string;
+  subject: string;
+  item: string;
+  studentId: string;
+  name: string;
+  classNumber: number;
+};
+
+/** Classmates who already handed an item in still belong on that item's bottom row. */
+export function attachHandedInClassmates(
+  groups: LedgerDateGroup[],
+  roster: HandedInRosterEntry[],
+): LedgerDateGroup[] {
+  return groups.map((group) => {
+    const items = group.items.map((item) => {
+      const students = [...item.students];
+      for (const entry of roster) {
+        if (entry.date !== group.date || entry.subject !== item.subject || entry.item !== item.item) continue;
+        if (students.some((student) => student.studentId === entry.studentId)) continue;
+        students.push({
+          logId: englishCheckLogId(entry.studentId, entry.date),
+          studentId: entry.studentId,
+          name: entry.name || 'Unknown',
+          className: entry.className,
+          classNumber: entry.classNumber,
+          submitted: true,
+        });
+      }
+      students.sort((a, b) => {
+        if (a.className !== b.className) return a.className.localeCompare(b.className);
+        if (a.classNumber !== b.classNumber) return a.classNumber - b.classNumber;
+        return a.name.localeCompare(b.name);
+      });
+      return {
+        ...item,
+        students,
+        complete: students.length > 0 && students.every((student) => student.submitted),
+      };
+    });
+    return {
+      ...group,
+      items,
+      complete: items.length > 0 && items.every((item) => item.complete),
+    };
+  });
+}
+
 export function formatAnnouncementDate(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   if (!year || !month || !day) return dateStr;
@@ -186,6 +235,7 @@ export type EnglishMark = {
   item: string;
   studentId: string;
   handedIn: boolean;
+  isLate?: boolean;
 };
 
 export type ClassStudent = {

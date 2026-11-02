@@ -5,17 +5,21 @@ import { homeworkDb } from '@/lib/homework/client';
 import { detailFor, parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
+import { handbookName, homeworkBadge, type HomeworkBadge } from '@/lib/homework/homeworkBadges';
 import {
+  attachHandedInClassmates,
   buildMissingLedger,
   handedInKey,
   makeupKey,
   parseEnglishCheckLogId,
   submittedKeysWithHandedIn,
+  type HandedInRosterEntry,
   type LedgerDateGroup,
   type LedgerStudent,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
+import { getHKTodayString } from '@/utils/dateUtils';
 
 type RawLog = {
   id: string;
@@ -56,6 +60,10 @@ export function MissingHomeworkLedger() {
   const [logs, setLogs] = useState<MissingLogInput[]>([]);
   const [madeUp, setMadeUp] = useState<Set<string>>(new Set());
   const [handedInKeys, setHandedInKeys] = useState<Set<string>>(new Set());
+  const [lateKeys, setLateKeys] = useState<Set<string>>(new Set());
+  const [handedInRoster, setHandedInRoster] = useState<HandedInRosterEntry[]>([]);
+  const [handbookKeys, setHandbookKeys] = useState<Set<string>>(new Set());
+  const [menu, setMenu] = useState<{ x: number; y: number; student: LedgerStudent; date: string } | null>(null);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -137,11 +145,25 @@ export function MissingHomeworkLedger() {
           }
         }
 
+        let handbookQuery = homeworkDb
+          .from('homework_handbook_marks')
+          .select('student_id, record_date');
+        if (classFilter !== 'all') handbookQuery = handbookQuery.eq('class_name', classFilter);
+        const { data: handbookRows, error: handbookError } = await handbookQuery;
+        if (handbookError) throw handbookError;
+        const nextHandbook = new Set<string>();
+        for (const row of (Array.isArray(handbookRows) ? handbookRows : []) as { student_id: string; record_date: string }[]) {
+          nextHandbook.add(`${row.student_id}|${row.record_date}`);
+        }
+
         if (!cancelled) {
           setLogs(combinedLogs);
           setDetailsByClassDate(detailIndex);
           setMadeUp(nextMadeUp);
           setHandedInKeys(englishState.handedInKeys);
+          setLateKeys(englishState.lateKeys);
+          setHandedInRoster(englishState.handedInRoster);
+          setHandbookKeys(nextHandbook);
         }
       } catch (err) {
         console.error('Failed to load missing homework ledger', err);
@@ -161,16 +183,51 @@ export function MissingHomeworkLedger() {
     [logs, madeUp, handedInKeys],
   );
 
-  const ledger = useMemo(
-    () => buildMissingLedger(logs, submittedKeys, ({ date, className, subject, item }) => (
-      detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
-    )),
-    [logs, submittedKeys, detailsByClassDate],
-  );
+  const ledger = useMemo(() => {
+    const grouped = attachHandedInClassmates(
+      buildMissingLedger(logs, submittedKeys, ({ date, className, subject, item }) => (
+        detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
+      )),
+      handedInRoster,
+    );
+    return grouped.map((group) => {
+      const items = group.items.map((item) => {
+        const students = item.students.map((student) => {
+          const id = handedInKey(student.studentId, group.date, item.subject, item.item);
+          const badge = homeworkBadge({
+            onTime: handedInKeys.has(id) && !lateKeys.has(id),
+            late: lateKeys.has(id),
+            makeup: submittedKeys.has(makeupKey(student.logId, item.subject, item.item)),
+          });
+          return { ...student, submitted: badge !== 'missing' };
+        });
+        return {
+          ...item,
+          students,
+          complete: students.length > 0 && students.every((student) => student.submitted),
+        };
+      });
+      return {
+        ...group,
+        items,
+        complete: items.length > 0 && items.every((item) => item.complete),
+      };
+    });
+  }, [logs, submittedKeys, detailsByClassDate, handedInRoster, handedInKeys, lateKeys]);
+
+  const badgeFor = (student: LedgerStudent, subject: string, item: string, date: string): HomeworkBadge => {
+    const id = handedInKey(student.studentId, date, subject, item);
+    return homeworkBadge({
+      onTime: handedInKeys.has(id) && !lateKeys.has(id),
+      late: lateKeys.has(id),
+      makeup: madeUp.has(makeupKey(student.logId, subject, item)),
+    });
+  };
 
   const toggleStudent = async (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => {
     const key = makeupKey(student.logId, subject, item);
-    const handedIn = !student.submitted;
+    const markingLate = badgeFor(student, subject, item, date) === 'missing';
+    const handedIn = markingLate;
     setPendingKey(key);
     try {
       const { error: rpcError } = await homeworkDb.rpc('set_english_homework_check', {
@@ -183,12 +240,20 @@ export function MissingHomeworkLedger() {
         p_handed_in: handedIn,
         p_needs_correction: false,
         p_is_complete: false,
+        p_is_late: markingLate,
       });
       if (rpcError) throw rpcError;
       setHandedInKeys((current) => {
         const next = new Set(current);
         const id = handedInKey(student.studentId, date, subject, item);
         if (handedIn) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+      setLateKeys((current) => {
+        const next = new Set(current);
+        const id = handedInKey(student.studentId, date, subject, item);
+        if (markingLate) next.add(id);
         else next.delete(id);
         return next;
       });
@@ -224,14 +289,46 @@ export function MissingHomeworkLedger() {
     }
   };
 
+  const toggleHandbook = async (student: LedgerStudent, date: string) => {
+    const id = `${student.studentId}|${date}`;
+    const written = !handbookKeys.has(id);
+    setMenu(null);
+    setPendingKey(id);
+    try {
+      const { error: rpcError } = await homeworkDb.rpc('set_homework_handbook', {
+        p_class: student.className,
+        p_date: date,
+        p_student_id: student.studentId,
+        p_written: written,
+      });
+      if (rpcError) throw rpcError;
+      setHandbookKeys((current) => {
+        const next = new Set(current);
+        if (written) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to update handbook mark', err);
+      setError('Could not update the handbook mark. Try again.');
+    } finally {
+      setPendingKey(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-xl font-black text-slate-800">Missing records</h2>
           <p className="text-sm font-medium text-slate-500">
-            Each line is one homework item. Click a name when that student hands it in.
+            Red names are still missing. Green names were ticked on time. Grey names were marked late here. Right-click a red name to record a handbook for today.
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+            <Legend tone="missing" label="Missing" />
+            <Legend tone="on_time" label="Handed in" />
+            <Legend tone="late" label="Late" />
+          </div>
         </div>
         <label className="text-xs font-black uppercase tracking-widest text-slate-400">
           Class
@@ -271,13 +368,56 @@ export function MissingHomeworkLedger() {
               showClearedDivider={group.complete && (index === 0 || !ledger[index - 1].complete)}
               focused={group.date === focusDate}
               pendingKey={pendingKey}
+              today={getHKTodayString()}
+              badgeFor={badgeFor}
+              handbookKeys={handbookKeys}
               onToggle={toggleStudent}
+              onMenu={setMenu}
             />
           ))}
         </div>
       )}
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default"
+            aria-label="Close handbook menu"
+            onClick={() => setMenu(null)}
+          />
+          <button
+            type="button"
+            className="fixed z-50 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-bold text-slate-800 shadow-lg"
+            style={{ left: menu.x, top: menu.y }}
+            onClick={() => toggleHandbook(menu.student, menu.date)}
+          >
+            {handbookKeys.has(`${menu.student.studentId}|${menu.date}`) ? 'Undo handbook' : 'Mark handbook written'}
+          </button>
+        </>
+      )}
     </div>
   );
+}
+
+function Legend({ tone, label }: { tone: HomeworkBadge; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${badgeClass(tone)}`}>
+      <span className={`h-2 w-2 rounded-full ${dotClass(tone)}`} />
+      {label}
+    </span>
+  );
+}
+
+function badgeClass(tone: HomeworkBadge): string {
+  if (tone === 'on_time') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (tone === 'late') return 'border-slate-300 bg-slate-100 text-slate-600';
+  return 'border-red-200 bg-red-50 text-red-700';
+}
+
+function dotClass(tone: HomeworkBadge): string {
+  if (tone === 'on_time') return 'bg-emerald-500';
+  if (tone === 'late') return 'bg-slate-400';
+  return 'bg-red-500';
 }
 
 function DateBlock({
@@ -285,13 +425,21 @@ function DateBlock({
   showClearedDivider,
   focused,
   pendingKey,
+  today,
+  badgeFor,
+  handbookKeys,
   onToggle,
+  onMenu,
 }: {
   group: LedgerDateGroup;
   showClearedDivider: boolean;
   focused: boolean;
   pendingKey: string | null;
+  today: string;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
   onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -309,30 +457,111 @@ function DateBlock({
           {group.items.map((item) => (
             <div
               key={`${item.subject}:${item.item}`}
-              className={`rounded-xl px-3 py-2 text-sm ${item.complete ? 'bg-emerald-50 text-emerald-800 line-through' : 'bg-slate-50 text-slate-700'}`}
+              className={`rounded-xl px-3 py-3 text-sm ${item.complete ? 'bg-emerald-50/60' : 'bg-slate-50'}`}
             >
-              <span className="font-black">{itemLabel(item.subject, item.item, item.detail)}: </span>
-              {item.students.map((student, studentIndex) => {
-                const key = makeupKey(student.logId, item.subject, item.item);
-                return (
-                  <span key={`${student.logId}:${student.studentId}`}>
-                    {studentIndex > 0 ? ', ' : ''}
-                    <button
-                      type="button"
-                      disabled={pendingKey === key}
-                      onClick={() => onToggle(student, item.subject, item.item, item.detail, group.date)}
-                      className={`font-bold underline-offset-2 hover:underline disabled:opacity-50 ${student.submitted ? 'text-slate-400 line-through' : 'text-slate-800'}`}
-                      aria-pressed={student.submitted}
-                    >
-                      {student.name}
-                    </button>
-                  </span>
-                );
-              })}
+              <p className={`mb-2 font-black ${item.complete ? 'text-emerald-800' : 'text-slate-800'}`}>
+                {itemLabel(item.subject, item.item, item.detail)}
+              </p>
+              <BadgeRow
+                students={item.students.filter((student) => badgeFor(student, item.subject, item.item, group.date) === 'missing')}
+                emptyLabel="Nobody missing"
+                groupDate={group.date}
+                today={today}
+                subject={item.subject}
+                itemName={item.item}
+                detail={item.detail}
+                pendingKey={pendingKey}
+                badgeFor={badgeFor}
+                handbookKeys={handbookKeys}
+                onToggle={onToggle}
+                onMenu={onMenu}
+              />
+              <div className="mt-2">
+                <BadgeRow
+                  students={item.students
+                    .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
+                    .sort((a, b) => {
+                      const rank = (student: LedgerStudent) => (
+                        badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
+                      );
+                      return rank(a) - rank(b) || a.classNumber - b.classNumber || a.name.localeCompare(b.name);
+                    })}
+                  emptyLabel="Nobody handed in"
+                  groupDate={group.date}
+                  today={today}
+                  subject={item.subject}
+                  itemName={item.item}
+                  detail={item.detail}
+                  pendingKey={pendingKey}
+                  badgeFor={badgeFor}
+                  handbookKeys={handbookKeys}
+                  onToggle={onToggle}
+                  onMenu={onMenu}
+                />
+              </div>
             </div>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function BadgeRow({
+  students,
+  emptyLabel,
+  groupDate,
+  today,
+  subject,
+  itemName,
+  detail,
+  pendingKey,
+  badgeFor,
+  handbookKeys,
+  onToggle,
+  onMenu,
+}: {
+  students: LedgerStudent[];
+  emptyLabel: string;
+  groupDate: string;
+  today: string;
+  subject: string;
+  itemName: string;
+  detail: string;
+  pendingKey: string | null;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
+}) {
+  if (students.length === 0) {
+    return <p className="text-xs font-semibold text-slate-400">{emptyLabel}</p>;
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {students.map((student) => {
+        const tone = badgeFor(student, subject, itemName, groupDate);
+        const key = makeupKey(student.logId, subject, itemName);
+        const marked = handbookKeys.has(`${student.studentId}|${groupDate}`);
+        return (
+          <button
+            key={`${student.logId}:${student.studentId}`}
+            type="button"
+            disabled={pendingKey === key}
+            aria-pressed={tone !== 'missing'}
+            onClick={() => onToggle(student, subject, itemName, detail, groupDate)}
+            onContextMenu={(event) => {
+              if (tone !== 'missing' && !marked) return;
+              event.preventDefault();
+              onMenu({ x: event.clientX, y: event.clientY, student, date: groupDate });
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${badgeClass(tone)}`}
+          >
+            <span className={`h-2 w-2 rounded-full ${dotClass(tone)}`} />
+            {handbookName(student.name, groupDate, today, marked)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
