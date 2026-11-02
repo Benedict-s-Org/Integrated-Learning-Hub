@@ -3,6 +3,7 @@ import { Save, ListChecks, Calendar, CheckCircle2, Loader2, Layout, Plus, Check,
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { getHKTodayString } from '@/utils/dateUtils';
+import { pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
@@ -84,7 +85,7 @@ export default function BroadcastManagementPage() {
             const { data: classData } = await (supabase as any).from('classes').select('name, is_archived').order('order_index');
             const classes = classData ? classData.filter((c: any) => !c.is_archived && !isArchivedClassName(c.name)).map((c: any) => c.name) : [];
             setAvailableClasses(classes);
-            if (classes.length > 0) setActiveClass(classes[0]);
+            if (classes.length > 0) setActiveClass(pickDefaultClass(classes));
 
             // Fetch students
             const { data: studentData } = await (supabase as any).from('users').select('id, display_name, class').not('class', 'is', null);

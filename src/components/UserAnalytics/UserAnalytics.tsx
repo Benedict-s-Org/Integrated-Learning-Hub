@@ -30,6 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { StudentActivityDetail } from './StudentActivityDetail';
 import { StudentProofreadingDetailModal } from './StudentProofreadingDetailModal';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '../../constants/classDefaults';
 import { isArchivedClassName } from '../../utils/archiveClassExporter';
 import * as XLSX from 'xlsx';
 
@@ -143,7 +144,7 @@ const UserAnalytics: React.FC = () => {
   
   // Scope and class filters
   const [userScope, setUserScope] = useState<UserScope>('active');
-  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
 
   // Student detail modal state
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -280,9 +281,9 @@ const UserAnalytics: React.FC = () => {
     setUserScope(newScope);
     if (selectedClass !== 'all') {
       if (newScope === 'active' && !activeClasses.includes(selectedClass)) {
-        setSelectedClass('all');
+        setSelectedClass(pickDefaultClass(activeClasses));
       } else if (newScope === 'archived' && !archivedClassList.includes(selectedClass)) {
-        setSelectedClass('all');
+        setSelectedClass(pickDefaultClass(archivedClassList));
       }
     }
   };

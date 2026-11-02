@@ -5,6 +5,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { BookOpen, Check, AlertTriangle, AlertCircle, RefreshCw, X, Plus, Clock, FileText, Bookmark, Calendar } from 'lucide-react';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { playSuccessSound } from '@/utils/audio';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type EnglishMaterial = {
@@ -39,11 +40,11 @@ type Student = {
 
 export function EnglishHomeworkPage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') || '3A');
+    const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') || PREFERRED_DEFAULT_CLASS);
     const [selectedDate, setSelectedDate] = useState<string>(getHKTodayString());
     const [activeTab, setActiveTab] = useState<'submissions' | 'followup' | 'materials'>('submissions');
     
-    const [allClasses, setAllClasses] = useState<string[]>(['3A']);
+    const [allClasses, setAllClasses] = useState<string[]>([PREFERRED_DEFAULT_CLASS]);
     const [materials, setMaterials] = useState<EnglishMaterial[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [submissions, setSubmissions] = useState<EnglishSubmission[]>([]);

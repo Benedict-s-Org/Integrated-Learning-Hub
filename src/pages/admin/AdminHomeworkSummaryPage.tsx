@@ -355,7 +355,7 @@ export default function AdminHomeworkSummaryPage() {
                     <option key={cls} value={cls}>{cls}</option>
                   ))}
                   {classes.length === 0 && (
-                    <option value="3A">3A</option>
+                    <option value="4A">4A</option>
                   )}
                 </select>
               </div>

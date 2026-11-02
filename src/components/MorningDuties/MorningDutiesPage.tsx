@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
 
@@ -87,15 +88,15 @@ export function MorningDutiesPage() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Active class state (default to 3A or URL param or user class)
+    // Active class state (default to 4A or URL param or user class)
     const [selectedClass, setSelectedClass] = useState<string>(() => {
-        return searchParams.get('class') || user?.class || '3A';
+        return searchParams.get('class') || user?.class || PREFERRED_DEFAULT_CLASS;
     });
 
     // Roster and Settings State
     const [roster, setRoster] = useState<RosterStudent[]>([]);
     const [settings, setSettings] = useState<ClassSettings | null>(null);
-    const [allAvailableClasses, setAllAvailableClasses] = useState<string[]>(['3A']);
+    const [allAvailableClasses, setAllAvailableClasses] = useState<string[]>([PREFERRED_DEFAULT_CLASS]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 

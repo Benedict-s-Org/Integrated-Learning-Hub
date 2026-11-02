@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { DEFAULT_SUB_OPTIONS, SUBJECT_NAMES } from '@/constants/rewardConfig';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
@@ -23,7 +24,7 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
     // Form State
     const [selectedSubject, setSelectedSubject] = useState<string>(SUBJECT_NAMES.ENGLISH);
     const [selectedSubOption, setSelectedSubOption] = useState<string>('');
-    const [selectedClass, setSelectedClass] = useState<string>('3A');
+    const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
     const [pageNumber, setPageNumber] = useState('');
     const [remarks, setRemarks] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -81,11 +82,8 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
                 .sort();
             setClasses(uniqueClasses);
 
-            // Prioritize '3A' as the default if it exists
-            if (uniqueClasses.includes('3A')) {
-                setSelectedClass('3A');
-            } else if (uniqueClasses.length > 0) {
-                setSelectedClass(uniqueClasses[0]);
+            if (uniqueClasses.length > 0) {
+                setSelectedClass(pickDefaultClass(uniqueClasses));
             }
 
         } catch (err) {

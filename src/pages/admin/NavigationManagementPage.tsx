@@ -16,6 +16,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigationSettings } from '@/context/NavigationSettingsContext';
 import { UserProfile } from '@/types';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 export const NavigationManagementPage: React.FC = () => {
@@ -24,7 +25,7 @@ export const NavigationManagementPage: React.FC = () => {
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterClass, setFilterClass] = useState<string>('all');
+    const [filterClass, setFilterClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const [hideInactiveColumns, setHideInactiveColumns] = useState(false);
