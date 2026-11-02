@@ -12,6 +12,7 @@ import {
   type EnglishCheckField,
   type EnglishWorkCell,
 } from '@/lib/homework/englishWork';
+import { resolveEnglishClassFilter } from '@/lib/homework/englishClassFilter';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type Student = {
@@ -57,7 +58,7 @@ function workTitle(work: Pick<EnglishWorkCell, 'subject' | 'name' | 'detail'>): 
 
 export function EnglishHomeworkBoard() {
   const [classes, setClasses] = useState<string[]>([]);
-  const [classFilter, setClassFilter] = useState('3A');
+  const [classFilter, setClassFilter] = useState('all');
   const [view, setView] = useState<'date' | 'item'>('date');
   const [dateOrder, setDateOrder] = useState<'asc' | 'desc'>('asc');
   const [works, setWorks] = useState<EnglishWorkCell[]>([]);
@@ -81,7 +82,7 @@ export function EnglishHomeworkBoard() {
         const classNames = listedClassNames((classRows || []) as { class?: string | null }[]);
         if (!cancelled) {
           setClasses(classNames);
-          setClassFilter((current) => (current === '3A' || classNames.includes(current) ? current : (classNames[0] || 'all')));
+          setClassFilter((current) => resolveEnglishClassFilter(current, classNames));
         }
 
         let homeworkQuery = homeworkDb
@@ -238,7 +239,9 @@ export function EnglishHomeworkBoard() {
         </div>
       ) : works.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center text-slate-500">
-          No English homework has been set on the Class Dashboard yet.
+          {classFilter === 'all'
+            ? 'No English homework has been set on the Class Dashboard yet.'
+            : `No English homework for class ${classFilter}. Try All classes, or set English items for this class on the Class Dashboard.`}
         </div>
       ) : view === 'date' ? (
         <div className="space-y-8">
