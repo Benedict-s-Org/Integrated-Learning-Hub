@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { coinService } from '@/services/coinService';
 import * as XLSX from 'xlsx';
+import { pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 // Simple native date formatter
@@ -150,7 +151,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
                         .filter(Boolean);
                     setClassesList(names);
                     if (names.length > 0) {
-                        setSelectedClass(names[0]);
+                        setSelectedClass(pickDefaultClass(names));
                     }
                 } else {
                     const { data: usersData } = await supabase
@@ -161,7 +162,7 @@ export function ProgressLog({ onClose, isFullPage = false, hideHeader = false }:
                         const names = Array.from(new Set(usersData.map((u: any) => u.class).filter((c: any) => Boolean(c) && !isArchivedClassName(c)))).sort() as string[];
                         setClassesList(names);
                         if (names.length > 0) {
-                            setSelectedClass(names[0]);
+                            setSelectedClass(pickDefaultClass(names));
                         }
                     }
                 }

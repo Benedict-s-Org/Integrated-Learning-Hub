@@ -1,9 +1,9 @@
-/** Keep All classes, or a class that still exists. Drop stale defaults like "3A". */
+import { resolveClassFilter } from '@/constants/classDefaults';
+
+/** Keep All classes, or a class that still exists. Otherwise prefer 4A. */
 export function resolveEnglishClassFilter(
   current: string,
   classNames: string[],
 ): string {
-  if (current === 'all') return 'all';
-  if (classNames.includes(current)) return current;
-  return 'all';
+  return resolveClassFilter(current, classNames);
 }

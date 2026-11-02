@@ -4,16 +4,16 @@ import { classesWithAssignments, listedSummaryClasses, pickSummaryClass } from '
 describe('pickSummaryClass', () => {
   const classes = ['3A(2627)', '4A', 'Test'];
 
-  it('opens the class that has homework when the old default is absent', () => {
-    expect(pickSummaryClass(classes, ['Test'], '3A')).toBe('Test');
+  it('opens 4A by default when the old class name is absent', () => {
+    expect(pickSummaryClass(classes, ['Test'], '3A')).toBe('4A');
   });
 
   it('keeps a requested class that is in the list', () => {
     expect(pickSummaryClass(classes, ['Test'], '4A')).toBe('4A');
   });
 
-  it('uses the first class when nobody has homework', () => {
-    expect(pickSummaryClass(classes, [], null)).toBe('3A(2627)');
+  it('uses 4A when nobody has homework', () => {
+    expect(pickSummaryClass(classes, [], null)).toBe('4A');
   });
 });
 

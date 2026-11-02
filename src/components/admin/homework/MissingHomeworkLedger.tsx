@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { homeworkDb } from '@/lib/homework/client';
 import { detailFor, parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
 import {
   buildMissingLedger,
@@ -47,7 +48,7 @@ function itemLabel(subject: string, item: string, detail: string): string {
 
 export function MissingHomeworkLedger() {
   const [searchParams] = useSearchParams();
-  const initialClass = searchParams.get('class') || 'all';
+  const initialClass = searchParams.get('class') || PREFERRED_DEFAULT_CLASS;
   const focusDate = searchParams.get('focusDate');
 
   const [classFilter, setClassFilter] = useState(initialClass);

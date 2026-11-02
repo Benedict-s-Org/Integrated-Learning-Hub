@@ -7,7 +7,7 @@ describe('resolveEnglishClassFilter', () => {
     expect(resolveEnglishClassFilter('Test', ['4A', 'Test'])).toBe('Test');
   });
 
-  it('drops a stale default like 3A when that class is gone', () => {
-    expect(resolveEnglishClassFilter('3A', ['3A(2627)', '4A', 'Test'])).toBe('all');
+  it('prefers 4A when a stale default like 3A is gone', () => {
+    expect(resolveEnglishClassFilter('3A', ['3A(2627)', '4A', 'Test'])).toBe('4A');
   });
 });

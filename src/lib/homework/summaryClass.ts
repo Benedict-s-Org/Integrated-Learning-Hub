@@ -1,3 +1,4 @@
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { parseSubjectAssignments } from '@/lib/homework/assignments';
 
 export type HomeworkClassRow = {
@@ -47,7 +48,7 @@ export function listedSummaryClasses(
   return [...names].sort((a, b) => a.localeCompare(b, 'en'));
 }
 
-/** Prefer a requested class, then the class that actually has homework for the date. */
+/** Prefer a requested class, then 4A, then a class that has homework for the date. */
 export function pickSummaryClass(
   classes: string[],
   classesWithHomework: string[],
@@ -55,6 +56,7 @@ export function pickSummaryClass(
 ): string {
   const requested = (preferred || '').trim();
   if (requested && classes.includes(requested)) return requested;
+  if (classes.includes(PREFERRED_DEFAULT_CLASS)) return PREFERRED_DEFAULT_CLASS;
   const withWork = classesWithHomework.find((name) => classes.includes(name));
   if (withWork) return withWork;
   return classes[0] || '';

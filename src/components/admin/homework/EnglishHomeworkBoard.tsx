@@ -12,6 +12,7 @@ import {
   type EnglishCheckField,
   type EnglishWorkCell,
 } from '@/lib/homework/englishWork';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { resolveEnglishClassFilter } from '@/lib/homework/englishClassFilter';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -58,7 +59,7 @@ function workTitle(work: Pick<EnglishWorkCell, 'subject' | 'name' | 'detail'>): 
 
 export function EnglishHomeworkBoard() {
   const [classes, setClasses] = useState<string[]>([]);
-  const [classFilter, setClassFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState(PREFERRED_DEFAULT_CLASS);
   const [view, setView] = useState<'date' | 'item'>('date');
   const [dateOrder, setDateOrder] = useState<'asc' | 'desc'>('asc');
   const [works, setWorks] = useState<EnglishWorkCell[]>([]);
