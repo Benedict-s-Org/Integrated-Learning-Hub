@@ -30,11 +30,12 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { StudentActivityDetail } from './StudentActivityDetail';
 import { StudentProofreadingDetailModal } from './StudentProofreadingDetailModal';
+import { HomeworkAnalyticsPanel } from './HomeworkAnalyticsPanel';
 import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '../../constants/classDefaults';
 import { isArchivedClassName } from '../../utils/archiveClassExporter';
 import * as XLSX from 'xlsx';
 
-type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'activity';
+type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'activity' | 'homework';
 type UserScope = 'active' | 'archived' | 'all';
 
 interface ClassAnalyticsSummary {
@@ -653,6 +654,7 @@ const UserAnalytics: React.FC = () => {
             { id: 'memorization', label: 'Memorization', icon: Clock },
             { id: 'spaced_repetition', label: 'Spaced Repetition', icon: Zap },
             { id: 'activity', label: 'Activity', icon: Activity },
+            { id: 'homework', label: 'Homework', icon: BookOpen },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1738,6 +1740,10 @@ const UserAnalytics: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'homework' && (
+          <HomeworkAnalyticsPanel students={classFilteredStudents} classFilter={selectedClass} />
         )}
       </div>
       {selectedStudentId && (

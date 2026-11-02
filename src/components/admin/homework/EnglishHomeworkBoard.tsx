@@ -181,6 +181,7 @@ export function EnglishHomeworkBoard() {
         p_handed_in: next.handedIn,
         p_needs_correction: next.correction,
         p_is_complete: next.complete,
+        p_is_late: false,
       });
       if (rpcError) throw rpcError;
     } catch (err) {

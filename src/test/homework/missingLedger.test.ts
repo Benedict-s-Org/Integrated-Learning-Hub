@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMissingLedger, formatMissingAnnouncement, handedInKey, makeupKey, missingLogsFromEnglishMarks, openMissingAnnouncement, submittedKeysWithHandedIn, type MissingLogInput } from '@/lib/homework/missingLedger';
+import { attachHandedInClassmates, buildMissingLedger, formatMissingAnnouncement, handedInKey, makeupKey, missingLogsFromEnglishMarks, openMissingAnnouncement, submittedKeysWithHandedIn, type MissingLogInput } from '@/lib/homework/missingLedger';
 
 const logs: MissingLogInput[] = [
   {
@@ -95,6 +95,16 @@ describe('missingLogsFromEnglishMarks', () => {
     expect(ledger).toHaveLength(1);
     const writing = ledger[0].items.find((item) => item.item === 'Writing File');
     const worksheet = ledger[0].items.find((item) => item.item === 'WS File');
+    const withHandedIn = attachHandedInClassmates(ledger, [{
+      className: '4A',
+      date: '2026-10-29',
+      subject: '英文',
+      item: 'Writing File',
+      studentId: 'amy',
+      name: 'Amy',
+      classNumber: 1,
+    }]);
+    expect(withHandedIn[0].items.find((item) => item.item === 'Writing File')?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
     expect(writing?.students.map((student) => student.name)).toEqual(['Ben', 'Cara']);
     expect(worksheet?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
   });
