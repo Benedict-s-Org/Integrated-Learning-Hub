@@ -6,17 +6,19 @@
 > **Levels:** P.1–P.6, 1st and 2nd term  
 > **Machine index:** [`grammar-pacing.json`](./grammar-pacing.json)
 
-This is the **local pacing reference** for the Learning System: when a grammar structure is on the school scheme. It is not a micro-skill list, not a question bank, and not an automatic taught tick.
+This is the **school curriculum** the Learning System must follow (DEC-20261105-01): which grammar a grade teaches, and in which unit. It is not a micro-skill list, not a question bank, and not an automatic taught tick.
+
+The file `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` is an external Hong Kong primary curriculum guide. It can be read for territory wording. It does not place a structure in a grade at this school.
 
 ## How the Learning System uses it
 
 | Use | Rule |
 |-----|------|
-| When a structure is in a grade | The unit below is the year the school teaches it. |
-| Taught checklist | Still teacher-ticked per grade. A schedule row is a suggestion. Untaught stays ineligible. |
+| Grade, order, grammar target | Follow the unit below. Skill authoring uses these rows. |
+| Taught checklist | The tick records progress through this curriculum. It cannot add a structure this grade’s schedule leaves out. Untaught stays ineligible. |
 | Prior-grade review | P1–P2 (and earlier units of the current grade) are the review pool. They still need a tick on the **current** grade checklist. |
-| Micro-skill IDs | Stable Hub ids. Book numbers, reader titles, and A1–B6 unit codes are links only. |
-| Excel 24-stage file | Scope taxonomy only. If it disagrees with this schedule on year placement, **this schedule wins**. |
+| Micro-skill IDs | Stable Hub ids. Book numbers, reader titles, and A1–B6 unit codes are the curriculum links. |
+| Excel guide | External Hong Kong reference only. |
 | Question writing | Write original items for the grammar target. Do not copy reader text, worksheets, or dictation lists into the bank. |
 | P5–P6 | Stored here so later banks can follow the same map. Completing P5–P6 content is still out of the current build. |
 | NSE, VIA, character strengths | School-scheme columns. They are not grammar micro-skills. |
@@ -189,7 +191,7 @@ P.6 calls the October and March papers examinations for SSPA. 1st paper: A1–A3
 
 ## First-introduction map (for skill linking)
 
-Use this when attaching an Excel stage or a sample micro-skill to a school year. The grade is the **first** year the schedule teaches that structure, not the only year it is revised.
+Use this when linking a micro-skill to a school year. The grade is the **first** year this curriculum teaches that structure. Later years may revise it. An Excel stage code is an external-guide note and does not move the year.
 
 | Structure family | First taught |
 |------------------|--------------|

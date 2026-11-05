@@ -3,7 +3,7 @@
   "subject": "English Language",
   "schoolYear": "2026-2027",
   "decision": "DEC-20261105-01",
-  "role": "Local pacing reference for when a grammar structure is taught. Not micro-skill ids. Not an automatic taught tick.",
+  "role": "The school curriculum to follow: grade, order, and grammar targets. The Hong Kong Excel file is an external guide only. Not micro-skill ids. Not an automatic taught tick.",
   "periodsPerCycle": 9,
   "deployPriority": ["P3", "P4"],
   "priorGradeReview": ["P1", "P2"],

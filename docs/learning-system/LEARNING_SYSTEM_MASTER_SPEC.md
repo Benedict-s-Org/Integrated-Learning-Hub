@@ -6,7 +6,7 @@
 ## 1. Positioning
 
 - Integrates **SRS** and **Proofreading** under one Learning System entry, sharing micro-skills, grade “taught” checklist, Assignment System, and User Analytic.
-- Content scope: school English scheme **P1–P6** is the pacing reference (DEC-20261105-01); deploy priority **P3 / P4**; P1–P2 as prior-grade review / remediation sources. P5–P6 schedules are stored; completing those banks is still out of this round.
+- Content scope follows the **school curriculum** (S.T.F.A. Lee Kam Primary School English schedules, 2026–27, P.1–P.6; DEC-20261105-01). The Hong Kong Excel guide is an external reference only. Deploy priority **P3 / P4**; P1–P2 are prior-grade review / remediation sources. P5–P6 schedules are part of the curriculum; completing those banks is still out of this round.
 - Records **grammar micro-skill performance**, not overall English ability.
 - Does **not** implement legacy mixed scoring (150 total, Tier A–D, SRS 80% + Proofreading 20%). None found active in repo as of Phase 0; if discovered later, report before deleting.
 
@@ -39,8 +39,8 @@ Order under Learning (DEC-20261102-08; supersedes Master Prompt §4.1 wording):
 
 | Source | Role |
 |--------|------|
-| S.T.F.A. Lee Kam Primary School English schedules, 2026–27, P.1–P.6 | **Local pacing reference** (DEC-20261105-01). When a structure is taught. Indexed in `data/school-curriculum-2026-27/`. Suggestion only — teachers still tick the grade checklist. |
-| `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` | Year/stage **scope** only (24 stages proposed; 143 objective rows ≠ micro-skills; M1–M16 = book chapter indexes). If year placement disagrees with the school schedule, the schedule wins. |
+| S.T.F.A. Lee Kam Primary School English schedules, 2026–27, P.1–P.6 | **The curriculum to follow** (DEC-20261105-01). Grade, order, and grammar targets come from here. Indexed in `data/school-curriculum-2026-27/`. |
+| `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` | **External** Hong Kong primary curriculum guide. 24 stages proposed; 143 objective rows ≠ micro-skills; M1–M16 = book chapter indexes. Consult for territory wording. It does not place a structure in a school grade. |
 | Longman English Grammar Practice (L.G. Alexander) | Rule / classification reference for micro-skill authoring |
 | Primary Longman Express 3e | No longer the pacing source. Do not confuse it with the Alexander book. |
 
@@ -55,7 +55,7 @@ Round-1 split scope: applicability, form choice, spelling variants, irregular fo
 - **Shared per grade** (not per student / class section). Grade key derived from `users.class` (DEC-20261102-12), e.g. `3A`→`P3`.
 - Teacher ticks taught micro-skills for that grade.
 - All channels (review, first-set, remediation) may only serve checklist-allowed skills for the student’s grade.
-- Curriculum suggestion ≠ taught; SRS due does not bypass checklist; untaught ≠ weakness; prior-grade content must also be marked taught on **current** grade checklist.
+- The taught tick records how far the class has got through the **school** curriculum. It does not add a structure that the school schedule omits for that grade. SRS due does not bypass the checklist. Untaught ≠ weakness. Prior-grade content must also be marked taught on the **current** grade checklist.
 - Shortage of eligible items → report gap; never silently serve untaught skills.
 
 ### 2.6 SRS sets
@@ -105,7 +105,7 @@ Scored LS sets: no tip/Help coaching UI during answering.
 
 ## 3. Non-goals (this round)
 
-- P5–P6 / secondary content completion. The 2026–27 P5–P6 schedules stay in the pacing reference only.
+- P5–P6 / secondary content completion. Those grades stay in the school curriculum index for later banks.
 - Structure-position and advanced meaning micro-skill systems.
 - Legacy composite scoring.
 - Replacing SM-2 with a new scheduler.
@@ -115,8 +115,8 @@ Scored LS sets: no tip/Help coaching UI during answering.
 
 | Asset | Path / status |
 |-------|----------------|
-| School schedules 2026–27 | `docs/learning-system/data/school-curriculum-2026-27/` — P.1–P.6 grammar pacing from the enclosed English teaching schedules. PDFs are not stored in git. |
-| Curriculum Excel | `C:\Users\bened\Downloads\HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` — readable; 5 sheets; 143 objectives; P1–P4 = 95 rows |
+| School curriculum 2026–27 | `docs/learning-system/data/school-curriculum-2026-27/` — the curriculum to follow. P.1–P.6 grammar from the enclosed English teaching schedules. PDFs are not stored in git. |
+| Hong Kong curriculum guide (Excel) | `C:\Users\bened\Downloads\HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` — external reference; 5 sheets; 143 objectives; P1–P4 = 95 rows |
 | Longman extract | `C:\AI\PersonalOS\Automation\logs\extracts\RUN-20261102-183433-432b7b\Longman_English_Grammar_Practice_intermediate_Self_Study_Edition.md` — OCR extract (~981 KB); copyrighted; use as reference only |
 | AI for skill drafting | **Grok not required** (DEC-20261102-07). Phase 1 samples authored from Excel + Longman structure; optional later bulk via Flowith (`claude-3-5-sonnet` / `gpt-4o`). Runtime scoring is non-LLM. |
 

@@ -19,7 +19,7 @@
 |----|----------|----------|
 | DEC-20261102-01 | Reuse modified SM-2 in `src/utils/spacedRepetitionAlgorithm.ts`; do not replace algorithm. Add eligibility filters (taught checklist + micro-skill) around selection. | Existing SRS; Master Spec §8 |
 | DEC-20261102-02 | Notion remains import → Supabase; not live continuous sync. Learning System must not invent a disconnected formal bank. | `NotionImporter`, `notion-api`, `importParsers` |
-| DEC-20261102-03 | Excel = scope only; 143 rows ≠ micro-skills; M1–M16 ≠ skill IDs. | Excel `01 Guide` |
+| DEC-20261102-03 | Excel = external HK guide only; 143 rows ≠ micro-skills; M1–M16 ≠ skill IDs. School curriculum to follow is DEC-20261105-01. | Excel `01 Guide` |
 | DEC-20261102-04 | No active 150-point / Tier A–D / 80–20 mixed scoring implementation found; do not add. | Repo scan Phase 0 |
 | DEC-20261102-05 | ~~Nav between Class Dashboard and Paragraph Memorization~~ **SUPERSEDED by DEC-20261102-08.** | — |
 | DEC-20261102-06 | Spelling SRS (`SpellingSrsContext`) is out of Learning System grammar scope. | Separate tables/context |
@@ -387,13 +387,14 @@ User will **create new Notion database(s)** already containing required properti
 - Tips and explanations appear on the **student Progress / review page** after the set (and teacher explain surfaces as needed).
 - Standalone legacy Proofreading tip-by-level behavior may remain outside the LS hub unless later scoped.
 
-### DEC-20261105-01 — School teaching schedules are the pacing reference
+### DEC-20261105-01 — School schedules are the curriculum to follow
 
-**Confirmed by user (2026-11-05):** the enclosed S.T.F.A. Lee Kam Primary School English Language schemes (P.1–P.6, both terms, 2026–27) are the reference for building the Learning System.
+**Confirmed by user (2026-11-05, clarified the same day):** the enclosed S.T.F.A. Lee Kam Primary School English Language schemes (P.1–P.6, both terms, 2026–27) are the **actual school curriculum**. The Learning System must follow them.
 
 - Indexed in `docs/learning-system/data/school-curriculum-2026-27/` (`SCHOOL_CURRICULUM_REFERENCE.md` + `grammar-pacing.json`).
-- They replace Primary Longman Express 3e as the **local pacing** source. The Excel 24-stage file stays a scope taxonomy. Where the two disagree on year placement, the school schedule wins.
-- A schedule row is when the school teaches a structure. It does **not** auto-tick `grade_taught_checklists`. Teachers still mark taught. Untaught skills stay ineligible.
+- `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` is an **external** Hong Kong primary curriculum guide. It may be read for territory wording. It does not decide grade, order, or which structures this school teaches. DEC-20261102-03 is limited to that external role.
+- They replace Primary Longman Express 3e as the school programme. Skill authoring and grade placement follow the school units.
+- A schedule row is the school’s placement of that structure. It does **not** auto-tick `grade_taught_checklists`. The tick records progress through this curriculum. A tick cannot add a structure the school schedule leaves out of that grade. Untaught skills stay ineligible.
 - Book numbers, reader titles, and A1–B6 codes are curriculum links, not micro-skill ids.
 - NSE, VIA, and character-strength columns are school-scheme context. They are not grammar micro-skills.
 - Do not copy reader text, worksheets, or dictation lists into the question bank.

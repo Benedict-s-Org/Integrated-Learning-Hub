@@ -33,10 +33,10 @@
 
 ### Tasks
 
-1. Import Excel sheets into versioned JSON/CSV under `docs/learning-system/data/` (scope reference only).
+1. Keep the Excel guide as an external Hong Kong reference. The curriculum to follow is already indexed in `data/school-curriculum-2026-27/` (DEC-20261105-01).
 2. Design tables (proposed names — adjust to naming conventions on implement):
    - `grammar_micro_skills` (stable id, chapter refs, labels, boundaries, examples, status)
-   - `grammar_skill_curriculum_links` (excel stage / year / classification)
+   - `grammar_skill_curriculum_links` (school unit id from the 2026–27 index; Excel stage only as an external-guide note)
    - `grade_taught_checklists` (grade_key → skill_id → taught_by, taught_at)
 3. Hand-author **representative sample** micro-skills (Can / Does→Negation / Does→Interrogative / 3sg form vs spelling) for granularity review — **do not mass-generate until user confirms sample**.
 4. Propose Notion property + Hub-side mapping; migration for existing `notion_page_id` rows.
@@ -183,4 +183,6 @@ That yields a verifiable vertical slice without inventing OPEN pedagogy rules.
 | 2026-11-03 | 2 | Session builder + seed question pool + Practice tab; attempts persist; 28 unit tests |
 | 2026-11-03 | 2 | Post-set skill_state + intervention; Teacher followed up panel; 35 unit tests |
 | 2026-11-03 | 4 | `learning_system` assignments migration + assign/deep-link/complete + post-set tips |
-| 2026-11-05 | — | DEC-20261105-01: school 2026–27 P.1–P.6 English schedules ingested as pacing reference (`data/school-curriculum-2026-27/`). No skill generation. |
+| 2026-11-05 | — | DEC-20261105-01: school 2026–27 P.1–P.6 English schedules are the curriculum to follow. Excel stays an external HK guide. No skill generation. |
+| 2026-11-05 | 5 | Student nav default on; SRS charts on My Progress and teacher analytics; teacher flags hidden from students |
+| 2026-11-05 | 2 | Teacher remediation pin on staff charts; one pin per student, else lowest accuracy |

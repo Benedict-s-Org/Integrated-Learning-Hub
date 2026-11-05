@@ -1,7 +1,7 @@
 # Phase 1 — Sample Micro-skills (granularity review)
 
 > **Status:** **FROZEN** 2026-11-02 (DEC-20261102-25). Seeded via migration `20261103000100_learning_system_micro_skills_and_checklist.sql` + `phase1_sample_micro_skills.json`.  
-> **Rules:** One primary skill per item · stable IDs ≠ Longman M# · Excel rows = scope links only · no copyrighted exercise copy · round-1 split = form choice / applicability / spelling variants / irregulars (not structure-position).  
+> **Rules:** One primary skill per item · stable IDs ≠ Longman M# · Excel rows = external Hong Kong guide notes only · school year follows `school-curriculum-2026-27/` (DEC-20261105-01) · no copyrighted exercise copy · round-1 split = form choice / applicability / spelling variants / irregulars (not structure-position).  
 > **Terms:** Use full English labels (e.g. third-person singular, bare infinitive, modal can) — no unexplained abbreviations.  
 > **Model policy:** DEC-20261102-07 (no Grok requirement).  
 > **DEC-20261102-23:** `can` = modal family (not present simple); third-person singular **marking** ≠ **spelling**; spelling **-s/-es/-ies** = one skill.
