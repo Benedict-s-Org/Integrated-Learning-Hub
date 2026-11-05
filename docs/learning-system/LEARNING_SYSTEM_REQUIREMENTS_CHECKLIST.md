@@ -13,7 +13,7 @@ Legend: `N/S` not started · `PARTIAL` exists but gaps · `DONE` verified · `BL
 | R-ANA-03 | Teacher vs student separation | `showTeacherFields` | DONE | Students see scores and charts only; staff see weakness, loop, pause, follow-up |
 | R-NOT-01 | Notion as question source + Micro-skill ID | Two new LS DBs (SRS + PR); extend `importParsers` | PARTIAL | DEC-20261102-13/14; user creates DBs |
 | R-CUR-01 | Excel is an external HK guide | External xlsx verified | DONE (ref) | 24 stages; 143 rows; P1–P4=95. Does not place school grades. |
-| R-CUR-02 | School 2026–27 schedules are the curriculum | `data/school-curriculum-2026-27/` | DONE (ref) | DEC-20261105-01. P.1–P.6 grammar the system must follow. Taught tick tracks progress only. |
+| R-CUR-02 | School curriculum is the major reference | `SCHOOL_CURRICULUM_REFERENCE.md` | DONE (ref) | DEC-20261105-01. P.1–P.6 grammar the system must follow. JSON is the same map. Taught tick tracks progress only. |
 | R-SKL-01 | Micro-skill taxonomy + stable IDs | `grammar_micro_skills` + seed | PARTIAL | DEC-20261102-25; 11 seed skills |
 | R-SKL-02 | Sample skills before mass gen | `phase1_sample_micro_skills.*` | DONE | Frozen DEC-20261102-25 |
 | R-CHK-02 | All channels respect taught | `eligibility.filterByTaughtSkills` | PARTIAL | Pure filter DONE; wire session builder next |
@@ -30,7 +30,7 @@ Legend: `N/S` not started · `PARTIAL` exists but gaps · `DONE` verified · `BL
 | R-CHT-02 | Two-set stacked bars | `charts.buildTwoSetBars` | DONE | |
 | R-CHT-03 | Bar → pie 20 items | `charts.buildTwentyItemPie` | DONE | |
 | R-PRF-01 | Reuse proofreading exercise | `ProofreadingPractice` et al. | PARTIAL | |
-| R-PRF-02 | Find vs correct persisted; exact correction match | Analytics-only split in `proofreadingAnalytics.ts` | PARTIAL | DEC-20261102-18 exact match; persist split at save |
+| R-PRF-02 | Find vs correct persisted; exact correction match | `proofreadingScore` saved on `user_answers` | DONE | Find-fail stores correctionCorrect false; older rows still re-derived |
 | R-PRF-03 | Not mix into SRS charts | Currently separate | DONE (keep) | Enforce when adding charts |
 | R-PRF-04 | No SRS weakness gate on PR | N/A gates today | DONE (keep) | |
 | R-LEG-01 | No 150 / Tier / 80-20 scoring | Not found in product code | DONE (absent) | Report if found later |
@@ -54,7 +54,7 @@ Legend: `N/S` not started · `PARTIAL` exists but gaps · `DONE` verified · `BL
 | Same-day multi points | DONE (unit) |
 | Bar height 10/20 = 50% | DONE (unit) |
 | Pie same 20 sums 100% | DONE (unit) |
-| PR find-fail ≠ correction success | N/S |
+| PR find-fail ≠ correction success | DONE (unit + saved flags) |
 | PR not in SRS charts | DONE (charts module SRS-only) |
 | Assignment flow | N/S |
 | Student hides teacher fields | PARTIAL (charts omit skill-state flags; follow-up tab is staff-only) |

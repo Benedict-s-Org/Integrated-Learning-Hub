@@ -39,7 +39,7 @@ Order under Learning (DEC-20261102-08; supersedes Master Prompt §4.1 wording):
 
 | Source | Role |
 |--------|------|
-| S.T.F.A. Lee Kam Primary School English schedules, 2026–27, P.1–P.6 | **The curriculum to follow** (DEC-20261105-01). Grade, order, and grammar targets come from here. Indexed in `data/school-curriculum-2026-27/`. |
+| `data/school-curriculum-2026-27/SCHOOL_CURRICULUM_REFERENCE.md` | **Major curriculum reference** (DEC-20261105-01). Grade, order, and grammar targets come from this file. `grammar-pacing.json` is the same map for code. |
 | `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` | **External** Hong Kong primary curriculum guide. 24 stages proposed; 143 objective rows ≠ micro-skills; M1–M16 = book chapter indexes. Consult for territory wording. It does not place a structure in a school grade. |
 | Longman English Grammar Practice (L.G. Alexander) | Rule / classification reference for micro-skill authoring |
 | Primary Longman Express 3e | No longer the pacing source. Do not confuse it with the Alexander book. |

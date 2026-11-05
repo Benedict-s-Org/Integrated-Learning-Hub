@@ -391,7 +391,7 @@ User will **create new Notion database(s)** already containing required properti
 
 **Confirmed by user (2026-11-05, clarified the same day):** the enclosed S.T.F.A. Lee Kam Primary School English Language schemes (P.1–P.6, both terms, 2026–27) are the **actual school curriculum**. The Learning System must follow them.
 
-- Indexed in `docs/learning-system/data/school-curriculum-2026-27/` (`SCHOOL_CURRICULUM_REFERENCE.md` + `grammar-pacing.json`).
+- `SCHOOL_CURRICULUM_REFERENCE.md` is the **major curriculum reference**. `grammar-pacing.json` beside it is the same map for code. Both live in `docs/learning-system/data/school-curriculum-2026-27/`.
 - `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` is an **external** Hong Kong primary curriculum guide. It may be read for territory wording. It does not decide grade, order, or which structures this school teaches. DEC-20261102-03 is limited to that external role.
 - They replace Primary Longman Express 3e as the school programme. Skill authoring and grade placement follow the school units.
 - A schedule row is the school’s placement of that structure. It does **not** auto-tick `grade_taught_checklists`. The tick records progress through this curriculum. A tick cannot add a structure the school schedule leaves out of that grade. Untaught skills stay ineligible.

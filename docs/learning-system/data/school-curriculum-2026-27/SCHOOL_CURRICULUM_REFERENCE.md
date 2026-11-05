@@ -1,12 +1,12 @@
 # School curriculum reference — English Language 2026–27
 
-> **Status:** Reference ingested 2026-11-05 (DEC-20261105-01).  
+> **Status:** Major curriculum reference, 2026-11-05 (DEC-20261105-01).  
 > **School:** S.T.F.A. Lee Kam Primary School  
 > **Subject:** English Language  
 > **Levels:** P.1–P.6, 1st and 2nd term  
 > **Machine index:** [`grammar-pacing.json`](./grammar-pacing.json)
 
-This is the **school curriculum** the Learning System must follow (DEC-20261105-01): which grammar a grade teaches, and in which unit. It is not a micro-skill list, not a question bank, and not an automatic taught tick.
+This file is the **major curriculum reference** for the Learning System (DEC-20261105-01). Grade, teaching order, and grammar targets are taken from here. [`grammar-pacing.json`](./grammar-pacing.json) is the same map for code. It is not a micro-skill list, not a question bank, and not an automatic taught tick. Product rules (set size, attempts, weakness, assignments) stay in the Learning System master spec.
 
 The file `HK_Primary_Grammar_24_Stage_Curriculum_EN.xlsx` is an external Hong Kong primary curriculum guide. It can be read for territory wording. It does not place a structure in a grade at this school.
 
