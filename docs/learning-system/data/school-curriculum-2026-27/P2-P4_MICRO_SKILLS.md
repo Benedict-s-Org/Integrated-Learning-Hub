@@ -165,18 +165,21 @@ P.5 has no new picture skill. Direction, place, and `Where` stay on the earlier 
 | by + reflexive | `themselves` → `ourselves` | `We finished it by ___.` `ourselves` / `themselves` / `us` / `we` | `We finished it by themselves.` | Error: `themselves`. Answer: `ourselves`. | `p5_A3_by_reflexive` | M4.5 | P4-S1-H2 by + reflexive pronoun |
 | could for past ability | `can` → `could` | `When she was five, she ___ swim.` `could` / `can` / `will` / `may` | `When she was five, she can swim.` | Error: `can`. Answer: `could`. | `p5_A3_could_past` | M11.2 | P4-S1-H2 could/couldn't for past ability |
 | used to + base verb | `living` → `live` | `She used to ___ here.` `live` / `living` / `lives` / `lived` | `She used to living here.` | Error: `living`. Answer: `live`. | `p5_A4_used_to_bare` | M11.11 | P6-S2-H2 used to for past habits |
-| present perfect has/have | `have` → `has` | `She ___ gone home.` `has` / `have` / `is` / `did` | `She have gone home.` | Error: `have`. Answer: `has`. | `p5_A5_present_perfect_has` | M9.5 | P5-S1-H2 Basic present perfect forms |
-| past participle | `went` → `gone` | `She has ___ home.` `gone` / `went` / `go` / `going` | `She has went home.` | Error: `went`. Answer: `gone`. | `p5_A5_past_participle` | M9.5 | P5-S1-H2 Common past forms and past participles |
-| already / yet | `already` → `yet` | `She has not finished ___.` `yet` / `already` / `just` / `ever` | `She has not finished already.` | Error: `already`. Answer: `yet`. | `p5_A5_already_yet` | M9.5 | P5-S1-H2 already/just/yet |
-| ever / never | `ever` → `never` | `She has ___ visited Japan.` `never` / `ever` / `yet` / `just` | `She has ever visited Japan.` | Error: `ever`. Answer: `never`. | `p5_A6_ever_never` | M9.5 | P5-S1-H2 Experience with ever/never |
+| used to, not use to | `use` → `used` | `She ___ to live here.` `used` / `use` / `uses` / `using` | `She use to live here.` | Error: `use`. Answer: `used`. | `p5_A4_used_to_form` | M11.11 | P6-S2-H2 used to for past habits |
+| present perfect: has/have | `have` → `has` | `She ___ gone home.` `has` / `have` / `is` / `did` | `She have gone home.` | Error: `have`. Answer: `has`. | `p5_A5_present_perfect` | M9.5 | P5-S1-H2 Basic present perfect forms |
+| present perfect: past participle | `went` → `gone` | `She has ___ home.` `gone` / `went` / `go` / `going` | `She has went home.` | Error: `went`. Answer: `gone`. | `p5_A5_present_perfect` | M9.5 | P5-S1-H2 Common past forms and past participles |
+| yet in a negative | `already` → `yet` | `She has not finished ___.` `yet` / `already` / `just` / `ever` | `She has not finished already.` | Error: `already`. Answer: `yet`. | `p5_A5_yet` | M9.5 | P5-S1-H2 already/just/yet |
+| already in a statement | `yet` → `already` | `She has ___ finished.` `already` / `yet` / `just` / `ever` | `She has yet finished.` | Error: `yet`. Answer: `already`. | `p5_A5_already` | M9.5 | P5-S1-H2 already/just/yet |
+| never in a statement | `ever` → `never` | `She has ___ visited Japan.` `never` / `ever` / `yet` / `just` | `She has ever visited Japan.` | Error: `ever`. Answer: `never`. | `p5_A6_never` | M9.5 | P5-S1-H2 Experience with ever/never |
+| ever in a question | `never` → `ever` | `Has she ___ visited Japan?` `ever` / `never` / `yet` / `already` | `Has she never visited Japan?` | Error: `never`. Answer: `ever`. | `p5_A6_ever` | M9.5 | P5-S1-H2 Experience with ever/never |
 | indefinite pronoun | `something` → `anything` | `I do not have ___.` `anything` / `something` / `nothing` / `everything` | `I do not have something.` | Error: `something`. Answer: `anything`. | `p5_B1_indefinite_pronoun` | M4.6 | P5-S2-H2 Integrating indefinite pronouns |
 | in / with for appearance | `in` → `with` | `The man ___ glasses is my uncle.` `with` / `in` / `on` / `of` | `The man in glasses is my uncle.` | Error: `in`. Answer: `with`. | `p5_B2_in_with_appearance` | M8.2 | P5-S1-H1 Prepositional phrases describing people/things |
 | whose | `Who` → `Whose` | `___ bag is this?` `Whose` / `Who` / `Which` / `What` | `Who bag is this?` | Error: `Who`. Answer: `Whose`. | `p5_B2_whose` | M1.7 | P5-S1-H2 Possessive pronouns and Whose |
 | How long + present perfect | `often` → `long` | `How ___ have you lived here?` `long` / `often` / `far` / `many` | `How often have you lived here?` | Error: `often`. Answer: `long`. | `p5_B3_how_long_perfect` | M13.7 | P5-S2-H1 since/for and How long |
 | for / since | `for` → `since` | `She has lived here ___ 2019.` `since` / `for` / `until` / `from` | `She has lived here for 2019.` | Error: `for`. Answer: `since`. | `p5_B3_for_since` | M9.5 | P5-S2-H1 since/for and How long |
 | -ed / -ing adjective | `bored` → `boring` | `The film is ___.` `boring` / `bored` / `bore` / `bores` | `The film is bored.` | Error: `bored`. Answer: `boring`. | `p5_B5_ed_ing_adjective` | M6.3 | P6-S1-H2 -ed/-ing adjectives |
-| when / while | `when` → `while` | `I was cooking ___ I was listening to music.` `while` / `when` / `because` / `so` | `I was cooking when I was listening to music.` | Error: `when`. Answer: `while`. | `p5_B6_when_while` | M1.8 | P5-S2-H2 when/while and interrupted events |
-| when / while | `while` → `when` | `I was cooking ___ the phone rang.` `when` / `while` / `because` / `so` | `I was cooking while the phone rang.` | Error: `while`. Answer: `when`. | `p5_B6_when_while` | M1.8 | P5-S2-H2 when/while and interrupted events |
+| while for two long actions | `when` → `while` | `I was cooking ___ I was listening to music.` `while` / `when` / `because` / `so` | `I was cooking when I was listening to music.` | Error: `when`. Answer: `while`. | `p5_B6_while_simultaneous` | M1.8 | P5-S2-H2 when/while and interrupted events |
+| when for an interruption | `while` → `when` | `I was cooking ___ the phone rang.` `when` / `while` / `because` / `so` | `I was cooking while the phone rang.` | Error: `while`. Answer: `when`. | `p5_B6_when_interrupted` | M1.8 | P5-S2-H2 when/while and interrupted events |
 
 ## P.5 reused skills
 
@@ -204,26 +207,31 @@ P.6 has no new picture skill.
 | relative where | `which` → `where` | `This is the park ___ we play.` `where` / `which` / `who` / `whose` | `This is the park which we play.` | Error: `which`. Answer: `where`. | `p6_A5_relative_where` | M1.6 | P6-S2-H1 Relative forms with where/whose |
 | each | `Both` → `Each` | `___ of the three boys has a pen.` `Each` / `Both` / `Every` / `Some` | `Both of the three boys has a pen.` | Error: `Both`. Answer: `Each`. | `p6_A6_each` | M5.6 | P6-S2-H1 each/every/another/other |
 | several | `much` → `several` | `She bought ___ books.` `several` / `much` / `a` / `any` | `She bought much books.` | Error: `much`. Answer: `several`. | `p6_A6_several` | M5.1 | P6-S2-H1 so much/so many and countability |
-| phrasal particle | `up` → `off` | `The plane took ___ at six.` `off` / `up` / `in` / `on` | `The plane took up at six.` | Error: `up`. Answer: `off`. | `p6_B1_phrasal_particle` | M8.6 | P6-S1-H2 Common phrasal verbs in texts |
+| phrasal verb preposition | `up` → `off` | `The plane took ___ at six.` `off` / `up` / `in` / `on` | `The plane took up at six.` | Error: `up`. Answer: `off`. | `p6_B1_phrasal_preposition` | M8.6 | P6-S1-H2 Common phrasal verbs in texts |
+| phrasal verb preposition | `out` → `up` | `He gave ___ smoking.` `up` / `out` / `off` / `in` | `He gave out smoking.` | Error: `out`. Answer: `up`. | `p6_B1_phrasal_preposition` | M8.6 | P6-S1-H2 Common phrasal verbs in texts |
 | unless | `if` → `unless` | `You will be late ___ you hurry.` `unless` / `if` / `because` / `so` | `You will be late if you hurry.` | Error: `if`. Answer: `unless`. | `p6_B1_unless` | M14.4 | P6-S2-H2 unless and if…not |
 | present simple passive | `spoke` → `spoken` | `English is ___ here.` `spoken` / `spoke` / `speak` / `speaking` | `English is spoke here.` | Error: `spoke`. Answer: `spoken`. | `p6_B2_passive_participle` | M12.1 | P6-S2-H1 Present simple passive |
+| past simple passive | `spoke` → `spoken` | `English was ___ here.` `spoken` / `spoke` / `speak` / `speaking` | `English was spoke here.` | Error: `spoke`. Answer: `spoken`. | `p6_B2_past_passive_participle` | M12.1 | P6-S2-H1 Past simple passive |
+| since for a reason | `so` → `since` | `She stayed home ___ it was raining.` `since` / `so` / `but` / `until` | `She stayed home so it was raining.` | Error: `so`. Answer: `since`. | `p6_B2_since_reason` | M1.9 | P6-S1-H1 Cause and result |
 | therefore | `Because` → `Therefore` | `She was sick. ___, she stayed home.` `Therefore` / `Because` / `Until` / `Before` | `She was sick. Because, she stayed home.` | Error: `Because`. Answer: `Therefore`. | `p6_B2_therefore` | M1.10 | P6-S2-H2 therefore and result links |
-| asked me to | `sitting` → `to sit` | `She asked me ___ down.` `to sit` / `sitting` / `sit` / `sat` | `She asked me sitting down.` | Error: `sitting`. Answer: `to sit`. | `p6_B3_asked_to` | M15.5 | P5-S2-H1 told/asked + person + (not) to |
+| base verb after asked me to | `sitting` → `sit` | `She asked me to ___ down.` `sit` / `sitting` / `sits` / `sat` | `She asked me to sitting down.` | Error: `sitting`. Answer: `sit`. | `p6_B3_asked_to` | M15.5 | P5-S2-H1 told/asked + person + (not) to |
 | another / other | `other` → `another` | `Can I have ___ apple?` `another` / `other` / `others` / `the` | `Can I have other apple?` | Error: `other`. Answer: `another`. | `p6_B4_another_other` | M5.7 | P6-S2-H1 each/every/another/other |
 | reflexive object | `him` → `himself` | `He hurt ___.` `himself` / `him` / `his` / `he` | `He hurt him.` | Error: `him`. Answer: `himself`. | `p6_B4_reflexive_object` | M4.5 | P6-S2-H2 Reflexive, object and reciprocal reference |
 | let + base verb | `going` → `go` | `Mum let me ___ out.` `go` / `going` / `to go` / `goes` | `Mum let me going out.` | Error: `going`. Answer: `go`. | `p6_B5_let_bare` | M16.1 | — |
-| ought to | `going` → `to go` | `You ought ___ now.` `to go` / `going` / `go` / `goes` | `You ought going now.` | Error: `going`. Answer: `to go`. | `p6_B5_ought_to` | M11.9 | P4-S2-H2 ought to and advice |
+| base verb after ought to | `going` → `go` | `You ought to ___ now.` `go` / `going` / `goes` / `went` | `You ought to going now.` | Error: `going`. Answer: `go`. | `p6_B5_ought_to` | M11.9 | P4-S2-H2 ought to and advice |
 | would rather + base verb | `staying` → `stay` | `I would rather ___ at home.` `stay` / `staying` / `to stay` / `stayed` | `I would rather staying at home.` | Error: `staying`. Answer: `stay`. | `p6_B6_would_rather` | M11.8 | — |
 | rather than | `to` → `than` | `I would rather stay at home ___ go out.` `than` / `to` / `or` / `and` | `I would rather stay at home to go out.` | Error: `to`. Answer: `than`. | `p6_B6_rather_than` | M11.8 | — |
 | neither … nor | `or` → `nor` | `Neither Tom ___ Ann was late.` `nor` / `or` / `and` / `but` | `Neither Tom or Ann was late.` | Error: `or`. Answer: `nor`. | `p6_B6_neither_nor` | M5.7 | P6-S1-H2 both…and/either…or/neither…nor |
 
 ## P.6 reused skills
 
-A1 relative `who` uses `p3_2627bk6_relative_who`. A6 `until` uses `p3_2627bk2_until`. A6 `both` uses `p4_A6_both`. B3 question words use the earlier `Who`, `Where`, `Which`, `Why`, and `How` skills. B6 `either … or` uses `p4_A6_or`. `since` for a reason stays on `p2_2627bk12_because`, because both `since` and `because` can be the correct word.
+A1 relative `who` uses `p3_2627bk6_relative_who`. A6 `until` uses `p3_2627bk2_until`. A6 `both` uses `p4_A6_both`. B3 question words use the earlier `Who`, `Where`, `Which`, `Why`, and `How` skills. B6 `either … or` uses `p4_A6_or`. `since` for a reason is `p6_B2_since_reason`. Its options do not include `because`.
+
+When both words are grammatical, the correct word is fixed by the sentence meaning. This applies to `before` / `after`, `although`, `so that`, and `unless`.
 
 ## P.6 not a skill
 
-Most phrasal verbs move two words. This list scores only a wrong particle, as in `took up` for a plane. Past simple passive is not a P.6 focus. `need to`, `I think` / `I hope` clauses, and double-object word order are not in the school P.6 focus list.
+Phrasal verbs score the preposition that combines with the verb. The verb stays. Different verbs share `p6_B1_phrasal_preposition`. `need to`, `I think` / `I hope` clauses, and double-object word order are not in the school P.6 focus list.
 
 ## Longman as the master list
 
@@ -238,8 +246,8 @@ Covered means a P.1–P.4 school skill scores that section. Partial means only o
 | M1.5 Noun clauses | — | Not covered |
 | M1.6 Relative pronouns | `p3_2627bk6_relative_who`; `p6_A1_relative_which`; `p6_A5_relative_where` | Partial |
 | M1.7 whose; defining clauses | `p5_B2_whose` | Partial |
-| M1.8 Time, place, manner clauses | `p2_2627bk6_when_time`; `p3_2627bk2_until`; `p3_2627bk16_when_cause`; `p2_2627bk14_sequence_word`; `p5_B6_when_while`; `p6_A3_before_after` | Covered |
-| M1.9 Reason and contrast | `p2_2627bk12_because`; `p2_2627bk16_but`; `p6_A3_although` | Covered |
+| M1.8 Time, place, manner clauses | `p2_2627bk6_when_time`; `p3_2627bk2_until`; `p3_2627bk16_when_cause`; `p2_2627bk14_sequence_word`; `p5_B6_while_simultaneous`; `p5_B6_when_interrupted`; `p6_A3_before_after` | Covered |
+| M1.9 Reason and contrast | `p2_2627bk12_because`; `p2_2627bk16_but`; `p6_A3_although`; `p6_B2_since_reason` | Covered |
 | M1.10 Purpose, result, comparison | `p3_2627bk16_so_result`; `p6_A2_so_that`; `p6_B2_therefore` | Covered |
 | M1.11 Present participle constructions | — | Not covered |
 | M1.12 Perfect/past participle constructions | — | Not covered |
@@ -272,11 +280,11 @@ Covered means a P.1–P.4 school skill scores that section. Partial means only o
 | M7.7–M7.8 Focus and viewpoint adverbs | — | Not covered |
 | M8.1 Prepositions and conjunctions | — | Not covered |
 | M8.2 Movement, position, time | `p1_2627bk4_in_on_under`; `p2_2627bk2_prep_time`; `p2_2627bk15_by_transport`; `p3_2627bk3_im_direction` | Covered |
-| M8.3–M8.8 Particular prepositions and phrasal verbs | `p6_A5_adj_preposition`; `p6_B1_phrasal_particle` | Partial |
+| M8.3–M8.8 Particular prepositions and phrasal verbs | `p6_A5_adj_preposition`; `p6_B1_phrasal_preposition` | Partial |
 | M9.1–M9.2 Present simple and progressive | `p2_2627bk2_present_simple_habit`; `p1_2627bk3_present_continuous_ing`; `p1_2627bk2_present_simple_third_person_singular_marking` | Covered |
 | M9.3 Simple past | `p2_2627bk6_past_regular_ed`; `p1_2627bk17_past_irregular_simple_past_common`; `p2_2627bk7_past_did_bare` | Covered |
 | M9.4 Past progressive | `p2_2627bk14_past_continuous_ing` | Covered |
-| M9.5–M9.6 Present perfect and past perfect | `p5_A5_present_perfect_has`; `p5_A5_past_participle`; `p5_A5_already_yet`; `p5_A6_ever_never`; `p5_B3_for_since` | Partial |
+| M9.5–M9.6 Present perfect and past perfect | `p5_A5_present_perfect`; `p5_A5_yet`; `p5_A5_already`; `p5_A6_never`; `p5_A6_ever`; `p5_B3_for_since` | Partial |
 | M9.7 Simple future | `p1_2627bk13_modal_will_bare` | Covered |
 | M9.8 Future progressive and future perfect | — | Not covered |
 | M9.9 Going to | `p4_B6_going_to_bare` | Partial |
@@ -296,8 +304,8 @@ Covered means a P.1–P.4 school skill scores that section. Partial means only o
 | M11.7 Wishes and it's time | `p1_2627bk6_inf_time_to` | Partial |
 | M11.8 would rather | `p6_B6_would_rather`; `p6_B6_rather_than` | Covered |
 | M11.9 Advisable / necessary | `p2_2627bk8_modal_should_bare`; `p3_2627bk5_modal_must_bare` | Partial |
-| M11.10–M11.13 Forbidden, habit, need/dare, should-clauses | `p6_B5_ought_to`; `p5_A4_used_to_bare` | Partial |
-| M12.1–M12.3 Passive and causative | `p6_B2_passive_participle` | Partial |
+| M11.10–M11.13 Forbidden, habit, need/dare, should-clauses | `p6_B5_ought_to`; `p5_A4_used_to_bare`; `p5_A4_used_to_form` | Partial |
+| M12.1–M12.3 Passive and causative | `p6_B2_passive_participle`; `p6_B2_past_passive_participle` | Partial |
 | M13.1 Yes/No questions | `p1_2627bk4_im_yes_it_is`; `p3_2627bk6_does_aux` | Partial |
 | M13.2–M13.4 Negative questions, tags, additions | — | Not covered |
 | M13.5 Who / What | `p1_2627bk1_wh_who_person` | Partial |
@@ -370,7 +378,7 @@ The question is whether the school P.1–P.4 lists score the item, not whether t
 | P2-S2-H2 Consolidating Why/because | `p2_2627bk12_why_reason`; `p2_2627bk12_because` | Covered |
 | P2-S2-H2 Introducing frequency with usually | `p4_A1_frequency_adverb` | Covered |
 | P2-S2-H2 Weather and time with it | `p1_2627bk8_im_weather_adjective` | Partial |
-| P2-S2-H2 Common phrasal verbs | `p6_B1_phrasal_particle` | Partial |
+| P2-S2-H2 Common phrasal verbs | `p6_B1_phrasal_preposition` | Partial |
 | P3-S1-H1 Ability with and/but/or | `p2_2627bk16_but`; `p4_A6_or`; `p1_2627bk7_modal_can_bare_infinitive` | Partial |
 | P3-S1-H1 good at + -ing | `p3_2627bk4_good_at_gerund` | Covered |
 | P3-S1-H1 Dates and time-period prepositions | `p3_2627bk5_ordinal_date`; `p2_2627bk2_prep_time` | Partial |
@@ -426,37 +434,37 @@ The question is whether the school P.1–P.4 lists score the item, not whether t
 | P5-S1-H1 Prepositional phrases describing people/things | `p5_B2_in_with_appearance` | Covered |
 | P5-S1-H1 Defining relative clauses with who | `p3_2627bk6_relative_who` | Covered |
 | P5-S1-H2 Possessive pronouns and Whose | `p5_B2_whose`; `p2_2627bk10_poss_adj_pronoun` | Covered |
-| P5-S1-H2 Basic present perfect forms | `p5_A5_present_perfect_has`; `p5_A5_past_participle` | Covered |
-| P5-S1-H2 already/just/yet | `p5_A5_already_yet` | Partial |
-| P5-S1-H2 Experience with ever/never | `p5_A6_ever_never` | Covered |
-| P5-S1-H2 Introducing present perfect versus simple past | `p5_A5_past_participle` | Partial |
-| P5-S1-H2 Common past forms and past participles | `p5_A5_past_participle`; `p1_2627bk17_past_irregular_simple_past_common` | Covered |
+| P5-S1-H2 Basic present perfect forms | `p5_A5_present_perfect` | Covered |
+| P5-S1-H2 already/just/yet | `p5_A5_yet`; `p5_A5_already` | Partial |
+| P5-S1-H2 Experience with ever/never | `p5_A6_never`; `p5_A6_ever` | Covered |
+| P5-S1-H2 Introducing present perfect versus simple past | `p5_A5_present_perfect` | Partial |
+| P5-S1-H2 Common past forms and past participles | `p5_A5_present_perfect`; `p1_2627bk17_past_irregular_simple_past_common` | Covered |
 | P5-S2-H1 since/for and How long | `p5_B3_for_since`; `p5_B3_how_long_perfect` | Covered |
-| P5-S2-H1 Perfect forms versus ago/past time | `p5_A5_past_participle` | Partial |
+| P5-S2-H1 Perfect forms versus ago/past time | `p5_A5_present_perfect` | Partial |
 | P5-S2-H1 told/asked + person + (not) to | `p6_B3_asked_to` | Covered |
 | P5-S2-H1 before/after/until | `p6_A3_before_after`; `p3_2627bk2_until` | Covered |
 | P5-S2-H1 Purpose to and used for + -ing | `p3_2627bk4_use_to`; `p3_2627bk4_good_at_gerund` | Partial |
 | P5-S2-H1 Common double-object patterns | — | Not covered |
 | P5-S2-H2 Past continuous | `p2_2627bk14_past_continuous_ing` | Covered |
-| P5-S2-H2 when/while and interrupted events | `p5_B6_when_while` | Covered |
+| P5-S2-H2 when/while and interrupted events | `p5_B6_while_simultaneous`; `p5_B6_when_interrupted` | Covered |
 | P5-S2-H2 Concession with although | `p6_A3_although` | Covered |
 | P5-S2-H2 How far/How long | `p5_A1_how_far`; `p5_A1_how_long_take` | Covered |
 | P5-S2-H2 Integrating indefinite pronouns | `p5_B1_indefinite_pronoun` | Partial |
 | P5-S2-H2 each other/one another | `p4_A2_each_other` | Partial |
 | P6-S1-H1 First conditional | `p6_A2_if_will` | Partial |
 | P6-S1-H1 need to/need to be | — | Not covered |
-| P6-S1-H1 Cause and result | `p2_2627bk12_because`; `p3_2627bk16_so_result`; `p6_B2_therefore` | Partial |
+| P6-S1-H1 Cause and result | `p2_2627bk12_because`; `p3_2627bk16_so_result`; `p6_B2_therefore`; `p6_B2_since_reason` | Partial |
 | P6-S1-H1 Purpose with so that | `p6_A2_so_that` | Covered |
 | P6-S1-H1 too/enough patterns | `p3_2627bk1_too_adj`; `p4_B2_enough` | Partial |
 | P6-S1-H1 I think/hope + simple content clause | — | Not covered |
 | P6-S1-H2 both…and/either…or/neither…nor | `p4_A6_both`; `p4_A6_or`; `p6_B6_neither_nor` | Partial |
 | P6-S1-H2 Relative clauses with who/which/that | `p3_2627bk6_relative_who`; `p6_A1_relative_which` | Partial |
 | P6-S1-H2 -ed/-ing adjectives | `p5_B5_ed_ing_adjective` | Covered |
-| P6-S1-H2 Common phrasal verbs in texts | `p6_B1_phrasal_particle` | Partial |
+| P6-S1-H2 Common phrasal verbs in texts | `p6_B1_phrasal_preposition` | Partial |
 | P6-S1-H2 Simple equality comparisons; suggestions/possibility | `p6_A4_as_as` | Partial |
 | P6-S1-H2 If I were…would… | `p6_A4_if_were` | Covered |
 | P6-S2-H1 Present simple passive | `p6_B2_passive_participle` | Covered |
-| P6-S2-H1 Past simple passive | — | Not covered |
+| P6-S2-H1 Past simple passive | `p6_B2_past_passive_participle` | Covered |
 | P6-S2-H1 Relative forms with where/whose | `p6_A5_relative_where`; `p5_B2_whose` | Covered |
 | P6-S2-H1 each/every/another/other | `p6_A6_each`; `p6_B4_another_other` | Partial |
 | P6-S2-H1 so much/so many and countability | `p6_A1_so_many_much` | Covered |
@@ -465,5 +473,5 @@ The question is whether the school P.1–P.4 lists score the item, not whether t
 | P6-S2-H2 therefore and result links | `p6_B2_therefore` | Covered |
 | P6-S2-H2 Common patterns with keep/stop + -ing | `p3_2627bk11_keep_gerund` | Partial |
 | P6-S2-H2 Reflexive, object and reciprocal reference | `p6_B4_reflexive_object`; `p5_A3_by_reflexive`; `p4_A2_each_other` | Covered |
-| P6-S2-H2 used to for past habits | `p5_A4_used_to_bare` | Covered |
+| P6-S2-H2 used to for past habits | `p5_A4_used_to_bare`; `p5_A4_used_to_form` | Covered |
 | P6-S2-H2 Integrated primary grammar and delayed checks | — | Not covered |

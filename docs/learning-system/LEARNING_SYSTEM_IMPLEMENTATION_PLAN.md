@@ -78,10 +78,10 @@
 
 ### Tasks
 
-1. Persist `detectionCorrect` / `correctionCorrect` at save time (not only analytics re-derive).
-2. Attach primary micro-skill on answers / Notion Feature mapping.
-3. Analytics: find vs correct vs reason codes; no SRS chart mix-in.
-4. Keep one-error-per-sentence authoring constraint.
+1. ~~Persist `detectionCorrect` / `correctionCorrect` at save time~~ **DONE** — `scoreProofreadingItem` written onto `user_answers`; analytics uses stored flags; older rows still re-derived.
+2. Attach primary micro-skill on answers / Notion Feature mapping. **Waiting on Notion.**
+3. ~~Analytics: find vs correct; no SRS chart mix-in.~~ **DONE** for the split and the chart filter. Reason-code charts stay on the existing proofreading analytics.
+4. Keep one-error-per-sentence authoring constraint. **Unchanged.**
 
 ### Acceptance
 
@@ -186,3 +186,6 @@ That yields a verifiable vertical slice without inventing OPEN pedagogy rules.
 | 2026-11-05 | — | DEC-20261105-01: school 2026–27 P.1–P.6 English schedules are the curriculum to follow. Excel stays an external HK guide. No skill generation. |
 | 2026-11-05 | 5 | Student nav default on; SRS charts on My Progress and teacher analytics; teacher flags hidden from students |
 | 2026-11-05 | 2 | Teacher remediation pin on staff charts; one pin per student, else lowest accuracy |
+| 2026-11-05 | 3 | Proofreading save stores find vs correction; find-fail cannot score as a correct correction |
+| 2026-11-10 | 1 | School P.1–P.6 list stored: 134 draft skills, 107 Excel links. Frozen 11 seeds unchanged. Checklist not auto-ticked. |
+| 2026-11-10 | 6 | Permission matrix recorded. Staff-only remediation pin and skill-state delete. Legacy SRS attempts stay out of LS charts. Assignment path checked in code. |

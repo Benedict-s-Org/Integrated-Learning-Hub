@@ -200,7 +200,7 @@ Use this when linking a micro-skill to a school year. The grade is the **first**
 | Past continuous + `until`; `Are there any`; `good at` + gerund; `use … to`; `must`; relative `who` (detail); ordinal dates; `keep` + gerund; `suggest that … should` | P3 |
 | `How often` and frequency; `each other`; comparative and superlative; `too/either`; `both`; quantifiers `plenty of/a few/a little/enough/too many/too much/more/fewer/less`; `should` advice; `be going to`; `Shall we` / `How about` + gerund | P4 |
 | `How far` / `How long does it take`; `Could you`; `could` past ability; `by` + reflexive; `used to`; present perfect with `yet/just/already/ever/never`; `for` / `since`; indefinite pronouns; `whose`; past continuous at a clock time; `while` | P5 |
-| Relative `who/which/where`; first and second conditional; `so that`; `although`; `as … as`; `unless`; passive; `therefore`; reported `asked me to`; `ought to`; `would rather`; `either … or` / `neither … nor` | P6 |
+| Relative `who/which/where`; first and second conditional; `so that`; `although`; `as … as`; `unless`; phrasal verb + preposition; passive; `since` for reason; `therefore`; reported `asked me to`; `ought to`; `would rather`; `either … or` / `neither … nor` | P6 |
 
 Sample skills already frozen (DEC-20261102-25) sit on this map as follows. Ids do not change.
 

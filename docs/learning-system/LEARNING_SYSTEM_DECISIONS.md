@@ -399,4 +399,5 @@ User will **create new Notion database(s)** already containing required properti
 - NSE, VIA, and character-strength columns are school-scheme context. They are not grammar micro-skills.
 - Do not copy reader text, worksheets, or dictation lists into the question bank.
 - P5–P6 rows are stored for later. Completing P5–P6 banks stays out of this round. Deploy priority remains P3 / P4; P1–P2 remain the prior-grade review pool.
+- 2026-11-10: the P.1–P.6 micro-skill list is in `grammar_micro_skills` as `draft` (134 ids) with 107 Excel links. Those rows stay off the taught checklist until a question bank exists. Question banks remain out of this round.
 - Cover years are inconsistent on two files (P.2 term 2 and P.5 term 1 say 2025–26). Cycle dates are the 2026–27 calendar, and that calendar is what the index uses.
