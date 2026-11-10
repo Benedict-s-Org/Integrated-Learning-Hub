@@ -9,8 +9,10 @@ import { handbookName, homeworkBadge, type HomeworkBadge } from '@/lib/homework/
 import {
   attachHandedInClassmates,
   buildMissingLedger,
+  formatLedgerStudentLabel,
   handedInKey,
   makeupKey,
+  openLedgerColumns,
   parseEnglishCheckLogId,
   submittedKeysWithHandedIn,
   type HandedInRosterEntry,
@@ -38,9 +40,9 @@ function formatLedgerDate(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   if (!year || !month || !day) return dateStr;
   return new Intl.DateTimeFormat('en-HK', {
-    weekday: 'long',
+    weekday: 'short',
     year: 'numeric',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
     timeZone: 'Asia/Hong_Kong',
   }).format(new Date(Date.UTC(year, month - 1, day)));
@@ -184,13 +186,14 @@ export function MissingHomeworkLedger() {
   );
 
   const ledger = useMemo(() => {
+    const today = getHKTodayString();
     const grouped = attachHandedInClassmates(
       buildMissingLedger(logs, submittedKeys, ({ date, className, subject, item }) => (
         detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
-      )),
+      ), today),
       handedInRoster,
     );
-    return grouped.map((group) => {
+    const withBadges = grouped.map((group) => {
       const items = group.items.map((item) => {
         const students = item.students.map((student) => {
           const id = handedInKey(student.studentId, group.date, item.subject, item.item);
@@ -213,6 +216,7 @@ export function MissingHomeworkLedger() {
         complete: items.length > 0 && items.every((item) => item.complete),
       };
     });
+    return openLedgerColumns(withBadges, today);
   }, [logs, submittedKeys, detailsByClassDate, handedInRoster, handedInKeys, lateKeys]);
 
   const badgeFor = (student: LedgerStudent, subject: string, item: string, date: string): HomeworkBadge => {
@@ -322,7 +326,7 @@ export function MissingHomeworkLedger() {
         <div>
           <h2 className="text-xl font-black text-slate-800">Missing records</h2>
           <p className="text-sm font-medium text-slate-500">
-            Red names are still missing. Green names were ticked on time. Grey names were marked late here. Right-click a red name to record a handbook for today.
+            Dates are columns — nearest to today on the left. Red names are still missing. Green names were ticked on time. Grey names were marked late here. Right-click a red name to record a handbook for today.
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
             <Legend tone="missing" label="Missing" />
@@ -355,26 +359,27 @@ export function MissingHomeworkLedger() {
           Loading records...
         </div>
       ) : ledger.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
-          <CheckCircle2 className="mx-auto mb-3 text-emerald-400" size={40} />
-          <p className="text-lg font-black text-slate-800">No missing homework</p>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
+          <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
+          <p className="text-lg font-black text-emerald-800">No missing homework</p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {ledger.map((group, index) => (
-            <DateBlock
-              key={group.date}
-              group={group}
-              showClearedDivider={group.complete && (index === 0 || !ledger[index - 1].complete)}
-              focused={group.date === focusDate}
-              pendingKey={pendingKey}
-              today={getHKTodayString()}
-              badgeFor={badgeFor}
-              handbookKeys={handbookKeys}
-              onToggle={toggleStudent}
-              onMenu={setMenu}
-            />
-          ))}
+        <div className="overflow-x-auto pb-2">
+          <div className="flex min-w-min items-start gap-4">
+            {ledger.map((group) => (
+              <DateColumn
+                key={group.date}
+                group={group}
+                focused={group.date === focusDate}
+                pendingKey={pendingKey}
+                today={getHKTodayString()}
+                badgeFor={badgeFor}
+                handbookKeys={handbookKeys}
+                onToggle={toggleStudent}
+                onMenu={setMenu}
+              />
+            ))}
+          </div>
         </div>
       )}
       {menu && (
@@ -420,9 +425,8 @@ function dotClass(tone: HomeworkBadge): string {
   return 'bg-red-500';
 }
 
-function DateBlock({
+function DateColumn({
   group,
-  showClearedDivider,
   focused,
   pendingKey,
   today,
@@ -432,7 +436,6 @@ function DateBlock({
   onMenu,
 }: {
   group: LedgerDateGroup;
-  showClearedDivider: boolean;
   focused: boolean;
   pendingKey: string | null;
   today: string;
@@ -442,29 +445,45 @@ function DateBlock({
   onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
 }) {
   return (
-    <section className="space-y-3">
-      {showClearedDivider && (
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Cleared dates</p>
-      )}
-      <div className={`rounded-2xl border bg-white p-5 ${group.complete ? 'border-emerald-200' : 'border-slate-200'} ${focused ? 'ring-2 ring-blue-400' : ''}`}>
-        <div className="mb-4 flex items-center gap-2">
-          {group.complete ? <CheckCircle2 size={18} className="text-emerald-500" /> : <AlertCircle size={18} className="text-red-400" />}
-          <h3 className={`text-lg font-black ${group.complete ? 'text-emerald-700' : 'text-slate-800'}`}>
-            {formatLedgerDate(group.date)}
-          </h3>
-        </div>
-        <div className="space-y-2">
-          {group.items.map((item) => (
-            <div
-              key={`${item.subject}:${item.item}`}
-              className={`rounded-xl px-3 py-3 text-sm ${item.complete ? 'bg-emerald-50/60' : 'bg-slate-50'}`}
-            >
-              <p className={`mb-2 font-black ${item.complete ? 'text-emerald-800' : 'text-slate-800'}`}>
-                {itemLabel(item.subject, item.item, item.detail)}
-              </p>
-              <BadgeRow
-                students={item.students.filter((student) => badgeFor(student, item.subject, item.item, group.date) === 'missing')}
-                emptyLabel="Nobody missing"
+    <section
+      className={`w-72 shrink-0 rounded-2xl border border-red-200 bg-white p-4 ${focused ? 'ring-2 ring-blue-400' : ''}`}
+    >
+      <div className="mb-3 flex items-center gap-2 border-b border-red-100 pb-2">
+        <AlertCircle size={16} className="shrink-0 text-red-400" />
+        <h3 className="text-sm font-black leading-snug text-red-700">{formatLedgerDate(group.date)}</h3>
+      </div>
+      <div className="space-y-3">
+        {group.items.map((item) => (
+          <div
+            key={`${item.subject}:${item.item}`}
+            className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-2 text-sm"
+          >
+            <p className="mb-2 font-black text-slate-800">{itemLabel(item.subject, item.item, item.detail)}</p>
+            <StudentColumn
+              students={item.students.filter((student) => badgeFor(student, item.subject, item.item, group.date) === 'missing')}
+              emptyLabel="Nobody missing"
+              groupDate={group.date}
+              today={today}
+              subject={item.subject}
+              itemName={item.item}
+              detail={item.detail}
+              pendingKey={pendingKey}
+              badgeFor={badgeFor}
+              handbookKeys={handbookKeys}
+              onToggle={onToggle}
+              onMenu={onMenu}
+            />
+            <div className="mt-2">
+              <StudentColumn
+                students={item.students
+                  .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
+                  .sort((a, b) => {
+                    const rank = (student: LedgerStudent) => (
+                      badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
+                    );
+                    return rank(a) - rank(b) || a.classNumber - b.classNumber || a.name.localeCompare(b.name);
+                  })}
+                emptyLabel="Nobody handed in"
                 groupDate={group.date}
                 today={today}
                 subject={item.subject}
@@ -476,38 +495,15 @@ function DateBlock({
                 onToggle={onToggle}
                 onMenu={onMenu}
               />
-              <div className="mt-2">
-                <BadgeRow
-                  students={item.students
-                    .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
-                    .sort((a, b) => {
-                      const rank = (student: LedgerStudent) => (
-                        badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
-                      );
-                      return rank(a) - rank(b) || a.classNumber - b.classNumber || a.name.localeCompare(b.name);
-                    })}
-                  emptyLabel="Nobody handed in"
-                  groupDate={group.date}
-                  today={today}
-                  subject={item.subject}
-                  itemName={item.item}
-                  detail={item.detail}
-                  pendingKey={pendingKey}
-                  badgeFor={badgeFor}
-                  handbookKeys={handbookKeys}
-                  onToggle={onToggle}
-                  onMenu={onMenu}
-                />
-              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </section>
   );
 }
 
-function BadgeRow({
+function StudentColumn({
   students,
   emptyLabel,
   groupDate,
@@ -538,30 +534,37 @@ function BadgeRow({
     return <p className="text-xs font-semibold text-slate-400">{emptyLabel}</p>;
   }
   return (
-    <div className="flex flex-wrap gap-2">
+    <ul className="flex flex-col gap-1.5">
       {students.map((student) => {
         const tone = badgeFor(student, subject, itemName, groupDate);
         const key = makeupKey(student.logId, subject, itemName);
         const marked = handbookKeys.has(`${student.studentId}|${groupDate}`);
+        const label = handbookName(
+          formatLedgerStudentLabel(student.classNumber, student.name),
+          groupDate,
+          today,
+          marked,
+        );
         return (
-          <button
-            key={`${student.logId}:${student.studentId}`}
-            type="button"
-            disabled={pendingKey === key}
-            aria-pressed={tone !== 'missing'}
-            onClick={() => onToggle(student, subject, itemName, detail, groupDate)}
-            onContextMenu={(event) => {
-              if (tone !== 'missing' && !marked) return;
-              event.preventDefault();
-              onMenu({ x: event.clientX, y: event.clientY, student, date: groupDate });
-            }}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${badgeClass(tone)}`}
-          >
-            <span className={`h-2 w-2 rounded-full ${dotClass(tone)}`} />
-            {handbookName(student.name, groupDate, today, marked)}
-          </button>
+          <li key={`${student.logId}:${student.studentId}`}>
+            <button
+              type="button"
+              disabled={pendingKey === key}
+              aria-pressed={tone !== 'missing'}
+              onClick={() => onToggle(student, subject, itemName, detail, groupDate)}
+              onContextMenu={(event) => {
+                if (tone !== 'missing' && !marked) return;
+                event.preventDefault();
+                onMenu({ x: event.clientX, y: event.clientY, student, date: groupDate });
+              }}
+              className={`inline-flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs font-bold disabled:opacity-50 ${badgeClass(tone)}`}
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass(tone)}`} />
+              {label}
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

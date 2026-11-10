@@ -1,4 +1,19 @@
+import { getHKTodayString } from '@/utils/dateUtils';
+
 export const HOMEWORK_SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
+
+export function formatLedgerStudentLabel(classNumber: number, name: string): string {
+  const display = (name || '').trim() || 'Unknown';
+  if (!Number.isFinite(classNumber) || classNumber <= 0) return display;
+  return `${classNumber} ${display}`;
+}
+
+function dayDistance(isoA: string, isoB: string): number {
+  const [ay, am, ad] = isoA.split('-').map(Number);
+  const [by, bm, bd] = isoB.split('-').map(Number);
+  if (!ay || !am || !ad || !by || !bm || !bd) return Number.POSITIVE_INFINITY;
+  return Math.abs(Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86_400_000));
+}
 
 export type MissingLogInput = {
   id: string;
@@ -40,6 +55,21 @@ export type DetailLookup = (args: {
   item: string;
 }) => string;
 
+/** Keep incomplete items only, nearest calendar date to today first. */
+export function openLedgerColumns(groups: LedgerDateGroup[], todayIso: string = getHKTodayString()): LedgerDateGroup[] {
+  return groups
+    .map((group) => {
+      const items = group.items.filter((item) => !item.complete);
+      return { ...group, items, complete: false };
+    })
+    .filter((group) => group.items.length > 0)
+    .sort((a, b) => {
+      const distanceDiff = dayDistance(a.date, todayIso) - dayDistance(b.date, todayIso);
+      if (distanceDiff !== 0) return distanceDiff;
+      return a.date.localeCompare(b.date);
+    });
+}
+
 export function makeupKey(logId: string, subject: string, item: string): string {
   return `${logId}::${subject}::${item}`;
 }
@@ -60,6 +90,7 @@ export function buildMissingLedger(
   logs: MissingLogInput[],
   madeUpKeys: ReadonlySet<string>,
   detailLookup: DetailLookup = () => '',
+  todayIso: string = getHKTodayString(),
 ): LedgerDateGroup[] {
   type Bucket = {
     subject: string;
@@ -129,16 +160,16 @@ export function buildMissingLedger(
       return a.item.localeCompare(b.item);
     });
 
+    const openItems = items.filter((item) => !item.complete);
+    if (openItems.length === 0) continue;
     groups.push({
       date,
-      items,
-      complete: items.length > 0 && items.every((item) => item.complete),
+      items: openItems,
+      complete: false,
     });
   }
 
-  const open = groups.filter((group) => !group.complete).sort((a, b) => a.date.localeCompare(b.date));
-  const cleared = groups.filter((group) => group.complete).sort((a, b) => a.date.localeCompare(b.date));
-  return [...open, ...cleared];
+  return openLedgerColumns(groups, todayIso);
 }
 
 export type HandedInRosterEntry = {
@@ -215,7 +246,9 @@ export function openMissingAnnouncement(groups: LedgerDateGroup[]): MissingAnnou
       isoDate: group.date,
       date: formatAnnouncementDate(group.date),
       lines: group.items.flatMap((item) => {
-        const names = item.students.filter((student) => !student.submitted).map((student) => student.name);
+        const names = item.students
+          .filter((student) => !student.submitted)
+          .map((student) => formatLedgerStudentLabel(student.classNumber, student.name));
         if (names.length === 0) return [];
         const label = [item.subject, item.item, item.detail].filter(Boolean).join(' · ');
         return [`${label}: ${names.join(', ')}`];
