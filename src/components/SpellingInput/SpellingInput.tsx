@@ -1,21 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { useAuth } from '../../context/AuthContext';
+import { parseSpellingWords } from '../../utils/spellingWordFilter';
 
 interface SpellingInputProps {
   onNext: (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => void;
   onBack?: () => void;
   onViewSaved?: () => void;
 }
-
-/** Common function words with exactly 3 letters. Longer common words are never filtered. */
-const COMMON_3_LETTER_WORDS = new Set([
-  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
-  'her', 'was', 'one', 'our', 'out', 'has', 'his', 'how', 'its', 'may',
-  'now', 'who', 'did', 'she', 'too', 'any', 'few', 'yet', 'nor', 'yes',
-  'off', 'own', 'per',
-]);
 
 const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSaved }) => {
   const { user } = useAuth();
@@ -25,38 +18,23 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
   const [wordLimit, setWordLimit] = useState<number>(20);
   const [error, setError] = useState('');
 
-  const parseWords = (input: string): string[] => {
+  const keptWords = useMemo(() => {
     if (isPhraseMode) {
-      // Split by newlines and filter empty lines
-      return input
+      return wordsInput
         .split('\n')
         .map(line => {
           return line
-            .replace(/^[\d\s\.\-\)]+/, '') // Remove leading numbers, dots, dashes, etc. (question numbers)
+            .replace(/^[\d\s.\-)]+/, '') // Remove leading numbers, dots, dashes, etc. (question numbers)
             .replace(/\.+$/, '')            // Remove trailing full stops
             .replace(/\./g, '')             // Remove any internal dots as well
             .trim();
         })
-        .filter(line => line.length > 0 && /^[a-zA-Z\s'-]+$/.test(line)); // Allow spaces, hyphens, apostrophes
+        .filter(line => line.length > 0 && /^[a-zA-Z\s'-]+$/.test(line));
     }
 
-    // Split by spaces, commas, numbers, and newlines (do not split on apostrophes —
-    // contractions like "can't" / "shouldn't" stay as one word)
-    const rawWords = input
-      .split(/[\s,\d\n]+/)
-      .map(word => word.trim().replace(/['']/g, "'")) // Normalize curly apostrophes
-      .filter(word => word.length > 0);
-
-    // Keep English words only. Drop numbers (via split), all 1–2 letter words,
-    // and common 3-letter function words. Words with 4+ letters are always kept.
-    return rawWords.filter(word => {
-      if (!/^[a-zA-Z'-]+$/.test(word)) return false;
-      const lettersOnly = (word.match(/[a-zA-Z]+/g) || []).join('').toLowerCase();
-      if (lettersOnly.length < 3) return false;
-      if (lettersOnly.length === 3 && COMMON_3_LETTER_WORDS.has(lettersOnly)) return false;
-      return true;
-    });
-  };
+    return parseSpellingWords(wordsInput);
+  }, [wordsInput, isPhraseMode]);
+  const wordCount = keptWords.length;
 
   const handleSubmit = () => {
     setError('');
@@ -66,23 +44,19 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
       return;
     }
 
-    const words = parseWords(wordsInput);
-
-    if (words.length === 0) {
+    if (keptWords.length === 0) {
       setError('Please enter at least one word');
       return;
     }
 
-    if (words.length > 100) {
+    if (keptWords.length > 100) {
       setError('Maximum 100 words allowed per list');
       return;
     }
 
     // Just proceed to preview, don't save yet
-    onNext(title.trim(), words, isPhraseMode, wordLimit);
+    onNext(title.trim(), keptWords, isPhraseMode, wordLimit);
   };
-
-  const wordCount = parseWords(wordsInput).length;
 
   useEffect(() => {
     if (user && user.role !== 'admin' && onViewSaved) {
@@ -201,9 +175,27 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg h-64 resize-none"
                 />
                 <div className="mt-2 text-sm text-gray-600">
-                  Word count: <span className="font-semibold">{wordCount}</span>
+                  Kept words: <span className="font-semibold">{wordCount}</span>
+                  {!isPhraseMode && (
+                    <span className="text-gray-400 ml-2">(short/common words like is, are, the are excluded)</span>
+                  )}
                   {wordCount > 100 && <span className="text-red-600 ml-2">(Maximum 100 words)</span>}
                 </div>
+                {!isPhraseMode && keptWords.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {keptWords.slice(0, 60).map((word, index) => (
+                      <span
+                        key={`${word}-${index}`}
+                        className="px-2 py-1 text-sm bg-blue-50 text-blue-800 rounded-md border border-blue-100"
+                      >
+                        {word}
+                      </span>
+                    ))}
+                    {keptWords.length > 60 && (
+                      <span className="px-2 py-1 text-sm text-gray-500">+{keptWords.length - 60} more</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {error && (
