@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { homeworkDb } from '@/lib/homework/client';
@@ -69,6 +69,7 @@ export function MissingHomeworkLedger() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const inFlightKeys = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -229,9 +230,39 @@ export function MissingHomeworkLedger() {
 
   const toggleStudent = async (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => {
     const key = makeupKey(student.logId, subject, item);
+    if (inFlightKeys.current.has(key) || pendingKey === key) return;
+
+    const checkId = handedInKey(student.studentId, date, subject, item);
     const markingLate = badgeFor(student, subject, item, date) === 'missing';
     const handedIn = markingLate;
+    const prevHandedIn = handedInKeys.has(checkId);
+    const prevLate = lateKeys.has(checkId);
+    const prevMadeUp = madeUp.has(key);
+
+    inFlightKeys.current.add(key);
     setPendingKey(key);
+    setError('');
+
+    // Optimistic UI so a slow round-trip does not invite a second click.
+    setHandedInKeys((current) => {
+      const next = new Set(current);
+      if (handedIn) next.add(checkId);
+      else next.delete(checkId);
+      return next;
+    });
+    setLateKeys((current) => {
+      const next = new Set(current);
+      if (markingLate) next.add(checkId);
+      else next.delete(checkId);
+      return next;
+    });
+    setMadeUp((current) => {
+      const next = new Set(current);
+      if (handedIn) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
     try {
       const { error: rpcError } = await homeworkDb.rpc('set_english_homework_check', {
         p_class: student.className,
@@ -246,48 +277,39 @@ export function MissingHomeworkLedger() {
         p_is_late: markingLate,
       });
       if (rpcError) throw rpcError;
+
+      if (parseEnglishCheckLogId(student.logId)) return;
+
+      const { error: makeupError } = await homeworkDb.rpc('set_homework_makeup', {
+        p_log_id: student.logId,
+        p_subject: subject,
+        p_item: item,
+        p_is_made_up: handedIn,
+      });
+      if (makeupError) throw makeupError;
+    } catch (err) {
+      console.error('Failed to update homework submission', err);
       setHandedInKeys((current) => {
         const next = new Set(current);
-        const id = handedInKey(student.studentId, date, subject, item);
-        if (handedIn) next.add(id);
-        else next.delete(id);
+        if (prevHandedIn) next.add(checkId);
+        else next.delete(checkId);
         return next;
       });
       setLateKeys((current) => {
         const next = new Set(current);
-        const id = handedInKey(student.studentId, date, subject, item);
-        if (markingLate) next.add(id);
-        else next.delete(id);
+        if (prevLate) next.add(checkId);
+        else next.delete(checkId);
         return next;
       });
-
-      if (parseEnglishCheckLogId(student.logId)) {
-        setMadeUp((current) => {
-          const next = new Set(current);
-          if (handedIn) next.add(key);
-          else next.delete(key);
-          return next;
-        });
-        return;
-      }
-
-      if (madeUp.has(key) === handedIn) return;
-      const { data, error: makeupError } = await homeworkDb.rpc('toggle_homework_makeup', {
-        p_log_id: student.logId,
-        p_subject: subject,
-        p_item: item,
-      });
-      if (makeupError) throw makeupError;
       setMadeUp((current) => {
         const next = new Set(current);
-        if (data?.is_made_up) next.add(key);
+        if (prevMadeUp) next.add(key);
         else next.delete(key);
         return next;
       });
-    } catch (err) {
-      console.error('Failed to update homework submission', err);
       setError('Could not update that student. Try again.');
     } finally {
+      inFlightKeys.current.delete(key);
       setPendingKey(null);
     }
   };
@@ -325,7 +347,7 @@ export function MissingHomeworkLedger() {
         <div>
           <h2 className="text-xl font-black text-slate-800">Missing records</h2>
           <p className="text-sm font-medium text-slate-500">
-            Dates are columns — nearest to today on the left. Only missing (red) names show by default; expand Handed in for green and grey names. Right-click a red name to record a handbook for today.
+            Dates are columns — nearest to today on the left. Click a red name once to mark late hand-in (it moves into Handed in). Expand that section to undo. Right-click a red name to record a handbook for today.
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
             <Legend tone="missing" label="Missing" />
