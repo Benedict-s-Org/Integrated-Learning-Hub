@@ -341,6 +341,10 @@ export const resolveAudioUrl = async (url: string): Promise<string> => {
  * Fetch high-quality audio from Google Cloud TTS via Supabase Edge Function.
  * Returns a playable URL (Base64 data URI preferred, Google Drive URL fallback).
  */
+/** Google Cloud TTS ids look like en-GB-Neural2-B — not browser voice URIs/names. */
+export const isGoogleCloudVoiceId = (voiceName?: string | null): boolean =>
+  !!voiceName && /^[a-z]{2}-[A-Z]{2}-[A-Za-z0-9-]+$/.test(voiceName);
+
 export const fetchCloudAudio = async (
   text: string,
   accent: string,
@@ -374,19 +378,36 @@ export const fetchCloudAudioRich = async (
       return null;
     }
 
+    // Never send browser voice URIs/names to Cloud TTS — causes 500s
+    const googleVoiceName = isGoogleCloudVoiceId(voiceName) ? voiceName : undefined;
+    if (voiceName && !googleVoiceName) {
+      console.warn(`[VoiceManager] Skipping non-Google voiceName="${voiceName}" for Cloud TTS`);
+    }
+
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     const response = await supabase.functions.invoke('google-tts', {
       headers: {
         'Authorization': `Bearer ${session?.access_token || anonKey}`,
         'apikey': anonKey
       },
-      body: { text, accent, voiceName, speakingRate, overwrite }
+      body: { text, accent, voiceName: googleVoiceName, speakingRate, overwrite }
     });
 
     const { data, error } = response;
 
     if (error) {
-      console.error('[VoiceManager] google-tts error:', error);
+      // Supabase wraps non-2xx; try to surface the function's JSON error body
+      let detail = error.message;
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx) {
+          const body = await ctx.clone().json();
+          if (body?.error) detail = body.error;
+        }
+      } catch {
+        /* ignore parse failures */
+      }
+      console.error('[VoiceManager] google-tts error:', detail);
       return null;
     }
 

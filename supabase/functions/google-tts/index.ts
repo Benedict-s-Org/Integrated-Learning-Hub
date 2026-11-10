@@ -40,8 +40,22 @@ const DEFAULT_SPEAKING_RATE = 0.9;
 const VOICE_FALLBACKS: Record<string, string[]> = {
   "en-GB": ["en-GB-Neural2-B", "en-GB-Neural2-A", "en-GB-Wavenet-B"],
   "en-US": ["en-US-Neural2-F", "en-US-Wavenet-F"],
-  "en-AU": ["en-AU-Neural2-A", "en-AU-Wavenet-A"],
+  "en-AU": ["en-AU-Neural2-A", "en-AU-Wavenet-A", "en-AU-Neural2-B"],
 };
+
+/** Google Cloud TTS voice ids look like en-GB-Neural2-B — not browser voice URIs. */
+function isGoogleCloudVoiceId(voiceName?: string | null): boolean {
+  return !!voiceName && /^[a-z]{2}-[A-Z]{2}-[A-Za-z0-9-]+$/.test(voiceName);
+}
+
+function languageCodeFromVoice(voiceName: string, fallbackAccent: string): string {
+  const match = voiceName.match(/^([a-z]{2}-[A-Z]{2})-/);
+  return match?.[1] || fallbackAccent;
+}
+
+function toBase64Url(value: string): string {
+  return btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
 
 /**
  * Escapes XML characters and adds breaks after punctuation for natural speech.
@@ -89,9 +103,9 @@ async function getAccessToken({ client_email, private_key }: { client_email: str
     throw new Error(`Invalid Service Account: client_email or private_key missing.`);
   }
   
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const header = toBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const now = Math.floor(Date.now() / 1000);
-  const payload = btoa(JSON.stringify({
+  const payload = toBase64Url(JSON.stringify({
     iss: client_email,
     sub: client_email,
     aud: "https://oauth2.googleapis.com/token",
@@ -103,7 +117,7 @@ async function getAccessToken({ client_email, private_key }: { client_email: str
   const keyBuffer = Uint8Array.from(atob(private_key.replace(/-----(BEGIN|END) PRIVATE KEY-----|\n/g, "")), c => c.charCodeAt(0));
   const cryptoKey = await crypto.subtle.importKey("pkcs8", keyBuffer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(`${header}.${payload}`));
-  const jwt = `${header}.${payload}.${btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")}`;
+  const jwt = `${header}.${payload}.${toBase64Url(String.fromCharCode(...new Uint8Array(signature)))}`;
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -420,8 +434,15 @@ Deno.serve(async (req: Request) => {
 
     const normalizedText = text.trim().replace(/\s+/g, " ");
     const cacheText = normalizedText.toLowerCase();
-    const effectiveVoice = voiceName || (VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"])[0] || DEFAULT_VOICE;
+    const accentFallbacks = VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"];
+    // Ignore browser voice URIs / display names — only accept Google Cloud voice ids
+    const requestedGoogleVoice = isGoogleCloudVoiceId(voiceName) ? voiceName! : null;
+    const effectiveVoice = requestedGoogleVoice || accentFallbacks[0] || DEFAULT_VOICE;
     const effectiveRate = speakingRate ?? DEFAULT_SPEAKING_RATE;
+
+    if (voiceName && !requestedGoogleVoice) {
+      console.warn(`[google-tts] Ignoring non-Google voiceName="${voiceName}", using ${effectiveVoice}`);
+    }
 
     const { data: cacheHit } = await supabaseAdmin
       .from("tts_cache")
@@ -446,6 +467,7 @@ Deno.serve(async (req: Request) => {
           speakingRate: effectiveRate,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       } catch (hitError: any) {
+        console.warn(`[google-tts] Cache hit download failed, regenerating: ${hitError?.message || hitError}`);
         // Fall through
       }
     }
@@ -460,41 +482,77 @@ Deno.serve(async (req: Request) => {
         .eq("speaking_rate", effectiveRate);
     }
 
-    const apiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
+    const apiKey = Deno.env.get("GOOGLE_TTS_API_KEY") || "";
     let googleToken: string | null = null;
-    if (!apiKey) googleToken = await getAccessToken(saJson);
+    try {
+      googleToken = await getAccessToken(saJson);
+    } catch (authErr: any) {
+      console.warn(`[google-tts] Service account token unavailable: ${authErr?.message || authErr}`);
+      if (!apiKey) throw authErr;
+    }
 
     const ssml = toSSML(normalizedText);
-    const voicesToTry = [effectiveVoice, ...(VOICE_FALLBACKS[accent] || VOICE_FALLBACKS["en-GB"]).filter(v => v !== effectiveVoice)];
+    const voicesToTry = [
+      effectiveVoice,
+      ...accentFallbacks.filter((v) => v !== effectiveVoice),
+    ];
+
+    // Prefer API key when set, but always fall back to SA bearer if key fails.
+    const authModes: Array<{ label: string; url: string; headers: Record<string, string> }> = [];
+    if (apiKey) {
+      authModes.push({
+        label: "api-key",
+        url: `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (googleToken) {
+      authModes.push({
+        label: "service-account",
+        url: "https://texttospeech.googleapis.com/v1/text:synthesize",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${googleToken}`,
+        },
+      });
+    }
 
     let ttsContent: string | null = null;
     let usedVoice = effectiveVoice;
+    const synthErrors: string[] = [];
 
-    for (const currentVoice of voicesToTry) {
-      try {
-        const url = apiKey ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}` : "https://texttospeech.googleapis.com/v1/text:synthesize";
-        const headers: any = { "Content-Type": "application/json" };
-        if (googleToken) headers["Authorization"] = `Bearer ${googleToken}`;
-
-        const res = await fetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            input: { ssml },
-            voice: { languageCode: accent, name: currentVoice },
-            audioConfig: { audioEncoding: "MP3", speakingRate: effectiveRate },
-          }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          ttsContent = data.audioContent;
-          usedVoice = currentVoice;
-          break;
+    outer: for (const mode of authModes) {
+      for (const currentVoice of voicesToTry) {
+        try {
+          const languageCode = languageCodeFromVoice(currentVoice, accent);
+          const res = await fetch(mode.url, {
+            method: "POST",
+            headers: mode.headers,
+            body: JSON.stringify({
+              input: { ssml },
+              voice: { languageCode, name: currentVoice },
+              audioConfig: { audioEncoding: "MP3", speakingRate: effectiveRate },
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.audioContent) {
+            ttsContent = data.audioContent;
+            usedVoice = currentVoice;
+            console.log(`[google-tts] Synthesized with ${mode.label} / ${currentVoice}`);
+            break outer;
+          }
+          const detail = data?.error?.message || JSON.stringify(data?.error || data).slice(0, 180);
+          synthErrors.push(`${mode.label}/${currentVoice}: HTTP ${res.status} ${detail}`);
+        } catch (e: any) {
+          synthErrors.push(`${mode.label}/${currentVoice}: ${e?.message || e}`);
         }
-      } catch (e) {}
+      }
     }
 
-    if (!ttsContent) throw new Error("TTS synthesis failed");
+    if (!ttsContent) {
+      console.error(`[google-tts] Synthesis failed:\n${synthErrors.join("\n")}`);
+      throw new Error(`TTS synthesis failed (${synthErrors[0] || "no auth modes available"})`);
+    }
 
     const hashInput = `${cacheText}|${accent}|${effectiveVoice}|${effectiveRate}`;
     const fileHash = await sha256(hashInput);
