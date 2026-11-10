@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import AccentSelector from '../AccentSelector/AccentSelector';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { findBestVoiceMatch, createUtterance, fetchCloudAudio, resolveAudioUrl } from '../../utils/voiceManager';
+import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPreviewProps {
@@ -148,18 +149,9 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
 
     if (!playableUrl) return false;
 
-    const audio = new Audio(playableUrl);
-    audio.volume = 1;
-    currentAudioRef.current = audio;
-
     try {
-      await new Promise<void>((resolve, reject) => {
-        audio.onended = () => resolve();
-        audio.onerror = () => reject(new Error('Audio element failed to load/play'));
-        audio.play().then(() => {
-          // play() resolved; wait for onended/onerror
-        }).catch(reject);
-      });
+      const audio = await playAudioUrl(playableUrl);
+      currentAudioRef.current = audio;
       currentAudioRef.current = null;
       return true;
     } catch (err) {
@@ -207,6 +199,9 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   };
 
   const handlePlayWord = (index: number) => {
+    // Unlock during the click gesture before any await inside speakWord
+    unlockAudioSync();
+
     // Stop any in-flight playback before starting a new word
     isPlayingRef.current = false;
     window.speechSynthesis.cancel();
@@ -221,6 +216,9 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
 
   const handlePlayAll = async () => {
     if (words.length === 0) return;
+
+    // Unlock during the click gesture before TTS fetches
+    unlockAudioSync();
 
     window.speechSynthesis.cancel();
     if (currentAudioRef.current) {

@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
 import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
+import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
 
 interface SpellingPracticeProps {
   title: string;
@@ -165,11 +166,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       const audioDataUri = await fetchCloudAudio(word, accentPreference, premiumVoiceId);
       if (audioDataUri) {
         console.log('[SpellingPractice] Using Google Cloud TTS audio', { premiumVoiceId });
-        const audio = new Audio(audioDataUri);
-        // Slightly slower playback was already handled in Edge Function config (speakingRate: 0.9)
-        // Set volume and play
-        audio.volume = 1;
-        await audio.play();
+        await playAudioUrl(audioDataUri);
         return; // Success!
       }
     } catch (err) {
@@ -214,6 +211,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   };
 
   const handlePlayAudio = () => {
+    // Unlock during click before async Cloud TTS fetch
+    unlockAudioSync();
     if (practiceWords[currentWordIndex]) {
       speakWord(practiceWords[currentWordIndex]);
     }
