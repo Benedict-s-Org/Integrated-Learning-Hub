@@ -20,6 +20,16 @@ export function normalizeApostrophes(word: string): string {
   return word.replace(/[\u2018\u2019\u02BC]/g, "'");
 }
 
+/** Normalize a student spelling answer for comparison (trim + case-fold). */
+export function normalizeSpellingAnswer(answer: string): string {
+  return normalizeApostrophes(answer.trim()).toLowerCase();
+}
+
+/** True when the typed/assembled answer matches the target, ignoring case. */
+export function spellingAnswersMatch(userAnswer: string, target: string): boolean {
+  return normalizeSpellingAnswer(userAnswer) === normalizeSpellingAnswer(target);
+}
+
 /**
  * Apostrophes are allowed only for shortened/contracted forms
  * (can't, shouldn't, you're…), not possessives or other ' joins.
