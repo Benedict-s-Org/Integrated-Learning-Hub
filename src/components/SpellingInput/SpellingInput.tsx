@@ -165,7 +165,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
                 <p className="text-sm text-gray-500 mb-2">
                   {isPhraseMode
                     ? "Enter each phrase on a new line. Spaces and basic punctuation are allowed."
-                    : "Enter words separated by spaces, commas, or numbers. Numbers, 1–2 letter words, and common 3-letter words (e.g. the, are, for) are filtered out. Longer words are kept. Contractions such as can't count as one word."}
+                    : "Enter words separated by spaces, commas, or numbers. Numbers, 1–2 letter words, and common 3-letter words (e.g. the, are, for) are filtered out. Only shortened contractions keep an apostrophe (e.g. can't, shouldn't)—possessives like student's are excluded."}
                 </p>
                 <textarea
                   id="words"
@@ -177,7 +177,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
                 <div className="mt-2 text-sm text-gray-600">
                   Kept words: <span className="font-semibold">{wordCount}</span>
                   {!isPhraseMode && (
-                    <span className="text-gray-400 ml-2">(short/common words like is, are, the are excluded)</span>
+                    <span className="text-gray-400 ml-2">(short/common words excluded; only shortened forms like can't keep ')</span>
                   )}
                   {wordCount > 100 && <span className="text-red-600 ml-2">(Maximum 100 words)</span>}
                 </div>

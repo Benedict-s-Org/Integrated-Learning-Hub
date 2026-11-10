@@ -10,10 +10,22 @@ describe('parseSpellingWords', () => {
     ]);
   });
 
-  it('keeps contractions as one word when they have 4+ letters', () => {
-    expect(parseSpellingWords("can't shouldn't is are")).toEqual([
+  it('keeps shortened contractions as one word', () => {
+    // I'm has only 2 letters so it is still dropped by the min-length rule
+    expect(parseSpellingWords("can't shouldn't don't you're I've I'll I'm it's")).toEqual([
       "can't",
       "shouldn't",
+      "don't",
+      "you're",
+      "I've",
+      "I'll",
+      "it's",
+    ]);
+  });
+
+  it('drops possessives and other non-shortening apostrophe forms', () => {
+    expect(parseSpellingWords("student's Mary's O'Brien rock'n'roll calendar")).toEqual([
+      'calendar',
     ]);
   });
 
