@@ -36,4 +36,13 @@ describe('parseSpellingWords', () => {
   it('is case-insensitive for common short words', () => {
     expect(parseSpellingWords('Is Are THE Cat')).toEqual(['Cat']);
   });
+
+  it('keeps only the first occurrence of duplicate words', () => {
+    expect(parseSpellingWords('apple banana Apple APPLE banana cherry')).toEqual([
+      'apple',
+      'banana',
+      'cherry',
+    ]);
+    expect(parseSpellingWords("can't don't can't")).toEqual(["can't", "don't"]);
+  });
 });
