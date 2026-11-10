@@ -325,7 +325,7 @@ export function MissingHomeworkLedger() {
         <div>
           <h2 className="text-xl font-black text-slate-800">Missing records</h2>
           <p className="text-sm font-medium text-slate-500">
-            Dates are columns — nearest to today on the left. Red names are still missing. Green names were ticked on time. Grey names were marked late here. Right-click a red name to record a handbook for today.
+            Dates are columns — nearest to today on the left. Only missing (red) names show by default; expand Handed in for green and grey names. Right-click a red name to record a handbook for today.
           </p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
             <Legend tone="missing" label="Missing" />
@@ -472,33 +472,90 @@ function DateColumn({
               onToggle={onToggle}
               onMenu={onMenu}
             />
-            <div className="mt-2">
-              <StudentColumn
-                students={item.students
-                  .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
-                  .sort((a, b) => {
-                    const rank = (student: LedgerStudent) => (
-                      badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
-                    );
-                    return rank(a) - rank(b) || a.classNumber - b.classNumber || a.name.localeCompare(b.name);
-                  })}
-                emptyLabel="Nobody handed in"
-                groupDate={group.date}
-                today={today}
-                subject={item.subject}
-                itemName={item.item}
-                detail={item.detail}
-                pendingKey={pendingKey}
-                badgeFor={badgeFor}
-                handbookKeys={handbookKeys}
-                onToggle={onToggle}
-                onMenu={onMenu}
-              />
-            </div>
+            <HandedInFold
+              students={item.students
+                .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
+                .sort((a, b) => {
+                  const rank = (student: LedgerStudent) => (
+                    badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
+                  );
+                  return rank(a) - rank(b) || a.classNumber - b.classNumber || a.name.localeCompare(b.name);
+                })}
+              groupDate={group.date}
+              today={today}
+              subject={item.subject}
+              itemName={item.item}
+              detail={item.detail}
+              pendingKey={pendingKey}
+              badgeFor={badgeFor}
+              handbookKeys={handbookKeys}
+              onToggle={onToggle}
+              onMenu={onMenu}
+            />
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+function HandedInFold({
+  students,
+  groupDate,
+  today,
+  subject,
+  itemName,
+  detail,
+  pendingKey,
+  badgeFor,
+  handbookKeys,
+  onToggle,
+  onMenu,
+}: {
+  students: LedgerStudent[];
+  groupDate: string;
+  today: string;
+  subject: string;
+  itemName: string;
+  detail: string;
+  pendingKey: string | null;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
+}) {
+  if (students.length === 0) return null;
+  const onTimeCount = students.filter((student) => badgeFor(student, subject, itemName, groupDate) === 'on_time').length;
+  const lateCount = students.length - onTimeCount;
+  const summaryParts = [
+    onTimeCount > 0 ? `${onTimeCount} handed in` : null,
+    lateCount > 0 ? `${lateCount} late` : null,
+  ].filter(Boolean);
+  return (
+    <details className="group mt-1.5 rounded-md border border-slate-200 bg-white/80 open:bg-slate-50">
+      <summary className="cursor-pointer list-none px-1.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 marker:content-none [&::-webkit-details-marker]:hidden">
+        <span className="inline-flex items-center gap-1">
+          <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
+          {summaryParts.join(' · ') || 'Handed in'}
+        </span>
+      </summary>
+      <div className="border-t border-slate-100 px-0.5 pb-1 pt-1">
+        <StudentColumn
+          students={students}
+          emptyLabel=""
+          groupDate={groupDate}
+          today={today}
+          subject={subject}
+          itemName={itemName}
+          detail={detail}
+          pendingKey={pendingKey}
+          badgeFor={badgeFor}
+          handbookKeys={handbookKeys}
+          onToggle={onToggle}
+          onMenu={onMenu}
+        />
+      </div>
+    </details>
   );
 }
 
