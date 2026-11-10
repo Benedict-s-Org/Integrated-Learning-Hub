@@ -8,6 +8,7 @@ import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
 import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
 import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
+import { spellingAnswersMatch } from '../../utils/spellingWordFilter';
 
 interface SpellingPracticeProps {
   title: string;
@@ -149,7 +150,11 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
 
 
   const initializeShuffledLetters = (word: string) => {
-    const letters = word.split('');
+    // Always present lowercase letter tiles so capitals in the target
+    // word do not force students to pick uppercase tiles.
+    const letters = word.split('').map((ch) =>
+      /[A-Za-z]/.test(ch) ? ch.toLowerCase() : ch
+    );
     setShuffledLetters(shuffleArray(letters));
   };
 
@@ -225,11 +230,11 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
 
     if (level === 1) {
       userAnswer = clickedLetters.join('');
-      correct = userAnswer.toLowerCase() === currentWord.toLowerCase();
     } else {
       userAnswer = userInput.trim();
-      correct = userAnswer.toLowerCase() === currentWord.toLowerCase();
     }
+    // Accept lowercase (or any casing) when the target keeps original capitals.
+    correct = spellingAnswersMatch(userAnswer, currentWord);
 
     setIsCorrect(correct);
     setShowFeedback(true);
@@ -622,6 +627,9 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
                           disabled={showFeedback}
                           className="w-full text-2xl text-center font-mono py-6"
                           placeholder="Type here..."
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
                           autoFocus
                         />
                       </div>
