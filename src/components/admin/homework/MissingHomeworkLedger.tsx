@@ -41,7 +41,6 @@ function formatLedgerDate(dateStr: string): string {
   if (!year || !month || !day) return dateStr;
   return new Intl.DateTimeFormat('en-HK', {
     weekday: 'short',
-    year: 'numeric',
     month: 'short',
     day: 'numeric',
     timeZone: 'Asia/Hong_Kong',
@@ -365,7 +364,7 @@ export function MissingHomeworkLedger() {
         </div>
       ) : (
         <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-min items-start gap-4">
+          <div className="flex min-w-min items-start gap-2">
             {ledger.map((group) => (
               <DateColumn
                 key={group.date}
@@ -446,19 +445,19 @@ function DateColumn({
 }) {
   return (
     <section
-      className={`w-72 shrink-0 rounded-2xl border border-red-200 bg-white p-4 ${focused ? 'ring-2 ring-blue-400' : ''}`}
+      className={`w-40 shrink-0 rounded-xl border border-red-200 bg-white p-2 ${focused ? 'ring-2 ring-blue-400' : ''}`}
     >
-      <div className="mb-3 flex items-center gap-2 border-b border-red-100 pb-2">
-        <AlertCircle size={16} className="shrink-0 text-red-400" />
-        <h3 className="text-sm font-black leading-snug text-red-700">{formatLedgerDate(group.date)}</h3>
+      <div className="mb-2 flex items-start gap-1 border-b border-red-100 pb-1.5">
+        <AlertCircle size={13} className="mt-0.5 shrink-0 text-red-400" />
+        <h3 className="text-[11px] font-black leading-snug text-red-700">{formatLedgerDate(group.date)}</h3>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {group.items.map((item) => (
           <div
             key={`${item.subject}:${item.item}`}
-            className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-2 text-sm"
+            className="rounded-lg border border-red-100 bg-red-50/40 px-1.5 py-1.5 text-xs"
           >
-            <p className="mb-2 font-black text-slate-800">{itemLabel(item.subject, item.item, item.detail)}</p>
+            <p className="mb-1.5 font-black leading-snug text-slate-800">{itemLabel(item.subject, item.item, item.detail)}</p>
             <StudentColumn
               students={item.students.filter((student) => badgeFor(student, item.subject, item.item, group.date) === 'missing')}
               emptyLabel="Nobody missing"
@@ -534,7 +533,7 @@ function StudentColumn({
     return <p className="text-xs font-semibold text-slate-400">{emptyLabel}</p>;
   }
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="flex flex-col gap-1">
       {students.map((student) => {
         const tone = badgeFor(student, subject, itemName, groupDate);
         const key = makeupKey(student.logId, subject, itemName);
@@ -557,10 +556,10 @@ function StudentColumn({
                 event.preventDefault();
                 onMenu({ x: event.clientX, y: event.clientY, student, date: groupDate });
               }}
-              className={`inline-flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs font-bold disabled:opacity-50 ${badgeClass(tone)}`}
+              className={`inline-flex w-full items-start gap-1 rounded-md border px-1.5 py-1 text-left text-[11px] font-bold leading-snug disabled:opacity-50 ${badgeClass(tone)}`}
             >
-              <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass(tone)}`} />
-              {label}
+              <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(tone)}`} />
+              <span className="min-w-0 break-words">{label}</span>
             </button>
           </li>
         );
