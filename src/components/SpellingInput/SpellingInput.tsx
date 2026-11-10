@@ -9,6 +9,14 @@ interface SpellingInputProps {
   onViewSaved?: () => void;
 }
 
+/** Common function words with exactly 3 letters. Longer common words are never filtered. */
+const COMMON_3_LETTER_WORDS = new Set([
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
+  'her', 'was', 'one', 'our', 'out', 'has', 'his', 'how', 'its', 'may',
+  'now', 'who', 'did', 'she', 'too', 'any', 'few', 'yet', 'nor', 'yes',
+  'off', 'own', 'per',
+]);
+
 const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSaved }) => {
   const { user } = useAuth();
   const [title, setTitle] = useState('');
@@ -32,11 +40,22 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
         .filter(line => line.length > 0 && /^[a-zA-Z\s'-]+$/.test(line)); // Allow spaces, hyphens, apostrophes
     }
 
-    // Split by spaces, commas, numbers, and newlines
-    const rawWords = input.split(/[\s,\d\n]+/).map(word => word.trim()).filter(word => word.length > 0);
+    // Split by spaces, commas, numbers, and newlines (do not split on apostrophes —
+    // contractions like "can't" / "shouldn't" stay as one word)
+    const rawWords = input
+      .split(/[\s,\d\n]+/)
+      .map(word => word.trim().replace(/['']/g, "'")) // Normalize curly apostrophes
+      .filter(word => word.length > 0);
 
-    // Filter to only include English words (letters, hyphens, apostrophes)
-    return rawWords.filter(word => /^[a-zA-Z'-]+$/.test(word));
+    // Keep English words only. Drop numbers (via split), all 1–2 letter words,
+    // and common 3-letter function words. Words with 4+ letters are always kept.
+    return rawWords.filter(word => {
+      if (!/^[a-zA-Z'-]+$/.test(word)) return false;
+      const lettersOnly = (word.match(/[a-zA-Z]+/g) || []).join('').toLowerCase();
+      if (lettersOnly.length < 3) return false;
+      if (lettersOnly.length === 3 && COMMON_3_LETTER_WORDS.has(lettersOnly)) return false;
+      return true;
+    });
   };
 
   const handleSubmit = () => {
@@ -172,7 +191,7 @@ const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSav
                 <p className="text-sm text-gray-500 mb-2">
                   {isPhraseMode
                     ? "Enter each phrase on a new line. Spaces and basic punctuation are allowed."
-                    : "Enter words separated by spaces, commas, or numbers. Only English words will be recognized."}
+                    : "Enter words separated by spaces, commas, or numbers. Numbers, 1–2 letter words, and common 3-letter words (e.g. the, are, for) are filtered out. Longer words are kept. Contractions such as can't count as one word."}
                 </p>
                 <textarea
                   id="words"
