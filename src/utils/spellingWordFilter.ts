@@ -44,6 +44,7 @@ export function isContractionOrPlainWord(word: string): boolean {
  * - Drops all 1–2 letter words
  * - Drops common 3-letter function words (the, are, for, ...)
  * - Keeps contractions used for shortening (can't / shouldn't); drops other ' forms
+ * - Dedupes case-insensitively (keeps the first occurrence only)
  */
 export function parseSpellingWords(input: string): string[] {
   const rawWords = input
@@ -51,14 +52,23 @@ export function parseSpellingWords(input: string): string[] {
     .map((word) => normalizeApostrophes(word.trim()))
     .filter((word) => word.length > 0);
 
-  return rawWords.filter((word) => {
-    if (!isContractionOrPlainWord(word)) return false;
+  const kept: string[] = [];
+  const seen = new Set<string>();
+
+  for (const word of rawWords) {
+    if (!isContractionOrPlainWord(word)) continue;
     const lettersOnly = (word.match(/[a-zA-Z]+/g) || []).join('').toLowerCase();
-    if (lettersOnly.length < 3) return false;
+    if (lettersOnly.length < 3) continue;
     // Common 3-letter stop list applies to plain words only (don't treat "it's" as "its")
     if (!word.includes("'") && lettersOnly.length === 3 && COMMON_3_LETTER_WORDS.has(lettersOnly)) {
-      return false;
+      continue;
     }
-    return true;
-  });
+
+    const key = word.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(word);
+  }
+
+  return kept;
 }
