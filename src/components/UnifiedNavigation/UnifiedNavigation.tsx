@@ -41,6 +41,7 @@ import {
     Crown,
     Image as ImageIcon,
     Volume2,
+    Layers,
 } from 'lucide-react';
 import { PageType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -161,6 +162,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 label="Paragraph Memorization"
                                 isActive={currentPage === 'new'}
                                 onClick={() => onPageChange('new')}
+                            />
+                        )}
+                        {isItemVisible('learningSystem') && (
+                            <NavItem
+                                icon={Layers}
+                                label="Learning System"
+                                isActive={currentPage === 'learningSystem'}
+                                onClick={() => onPageChange('learningSystem')}
                             />
                         )}
                         {isItemVisible('proofreading') && (

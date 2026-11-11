@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-    Home, FileEdit, Mic, Zap, BookOpen, Building2, Tablet, Users,
+    Home, FileEdit, Mic, Zap, BookOpen, Building2, Tablet, Users, Layers,
     TrendingUp, LayoutGrid, ClipboardList, BookMarked,
     Shield, PenTool, Upload, Settings, Map, Sparkles, FolderUp,
     Layout, Palette, Bell, Database, FolderKanban,
@@ -84,6 +84,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     // ─── Learning Section ───────────────────────────────────────
     const learningItems: MoreSheetItem[] = [
         { id: 'new', icon: Home, label: 'Paragraph Memorization', onClick: () => onPageChange('new'), isActive: currentPage === 'new' },
+        { id: 'learningSystem', icon: Layers, label: 'Learning System', onClick: () => onPageChange('learningSystem'), isActive: currentPage === 'learningSystem' },
         { id: 'proofreading', icon: FileEdit, label: 'Proofreading Exercise', onClick: () => onPageChange('proofreading'), isActive: currentPage === 'proofreading' },
         { id: 'spelling', icon: Mic, label: 'Spelling Practice', onClick: () => onPageChange('spelling'), isActive: currentPage === 'spelling' },
         { id: 'spacedRepetition', icon: Zap, label: 'Spaced Repetition', onClick: () => onPageChange('spacedRepetition'), isActive: currentPage === 'spacedRepetition' },
