@@ -92,6 +92,10 @@ export function QuickRewardToolbar({ studentId, availableRewards, onQuickAward, 
         const handleCustomUpdate = (e: any) => {
             const updatedClassId = e.detail?.classId;
             if (updatedClassId === standardizedClass || updatedClassId === 'global') {
+                if (Array.isArray(e.detail?.shortcuts)) {
+                    setInternalShortcuts(e.detail.shortcuts);
+                    return;
+                }
                 loadShortcuts();
             }
         };
