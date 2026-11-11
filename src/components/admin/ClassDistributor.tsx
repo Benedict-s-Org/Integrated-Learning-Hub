@@ -203,42 +203,32 @@ function UserItemComponent({
                 </div>
             </div>
 
-            {/* Toilet/Break & Quick Reward Toolbar for 3A */}
-            <div className="flex flex-row items-center gap-2 mt-1 w-full flex-wrap">
-                {onToiletBreakClick && user.class === '3A' && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToiletBreakClick();
-                        }}
-                        className="w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95 transition-all"
-                        title="Toilet / Break (20 Coins)"
-                    >
-                        <DoorOpen size={12} />
-                        <span className="font-black">{user.toilet_coins ?? 100}</span>
-                    </button>
-                )}
-                {onQuickAward && user.class === '3A' && (
-                    <QuickRewardToolbar 
-                        studentId={user.id} 
-                        onQuickAward={onQuickAward} 
-                        availableRewards={availableRewards || []} 
-                        className={className || user.class} 
-                        externalShortcuts={shortcuts || undefined}
-                    />
-                )}
-            </div>
-
-            {/* Quick Reward Toolbar for non-3A classes (placed above Homework) */}
-            {onQuickAward && user.class !== '3A' && (
-                <div className="mt-1 w-full">
-                    <QuickRewardToolbar 
-                        studentId={user.id} 
-                        onQuickAward={onQuickAward} 
-                        availableRewards={availableRewards || []} 
-                        className={className || user.class} 
-                        externalShortcuts={shortcuts || undefined}
-                    />
+            {/* Toilet/Break + Quick Reward Toolbar (all classes) */}
+            {(onToiletBreakClick || onQuickAward) && (
+                <div className="flex flex-row items-center gap-2 mt-1 w-full flex-wrap">
+                    {onToiletBreakClick && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToiletBreakClick();
+                            }}
+                            className="w-fit flex items-center justify-start gap-1 py-1 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs transition-all border border-amber-200 pointer-events-auto active:scale-95"
+                            title="Toilet / Break (20 Coins)"
+                        >
+                            <DoorOpen size={12} />
+                            <span className="font-bold">Toilet</span>
+                            <span className="font-black">{user.toilet_coins ?? 100}</span>
+                        </button>
+                    )}
+                    {onQuickAward && (
+                        <QuickRewardToolbar
+                            studentId={user.id}
+                            onQuickAward={onQuickAward}
+                            availableRewards={availableRewards || []}
+                            className={className || user.class}
+                            externalShortcuts={shortcuts || undefined}
+                        />
+                    )}
                 </div>
             )}
 
@@ -351,6 +341,11 @@ const arePropsEqual = (prevProps: SortableUserItemProps, nextProps: SortableUser
     if (prevProps.onToggle !== nextProps.onToggle) return false;
     if (JSON.stringify(prevProps.shortcuts) !== JSON.stringify(nextProps.shortcuts)) return false;
 
+    // Coin/title changes must re-render toolbar icons (memo previously skipped this)
+    const prevRewardsKey = (prevProps.availableRewards || []).map((r: any) => `${r.id}:${r.coins}:${r.title}:${r.icon}:${r.color}`).join('|');
+    const nextRewardsKey = (nextProps.availableRewards || []).map((r: any) => `${r.id}:${r.coins}:${r.title}:${r.icon}:${r.color}`).join('|');
+    if (prevRewardsKey !== nextRewardsKey) return false;
+
     // Check specific user fields that affect rendering
     const pUser = prevProps.user;
     const nUser = nextProps.user;
@@ -405,6 +400,19 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
 
         fetchShortcuts();
 
+        // Same-tab updates from Manage Rewards (local assign / Save to Cloud)
+        const handleShortcutsUpdated = (e: any) => {
+            const updatedClassId = e.detail?.classId;
+            const nextShortcuts = e.detail?.shortcuts;
+            if (
+                (updatedClassId === standardizedClass || updatedClassId === 'global') &&
+                Array.isArray(nextShortcuts)
+            ) {
+                setClassShortcuts(nextShortcuts);
+            }
+        };
+        window.addEventListener('quick-shortcuts-updated', handleShortcutsUpdated);
+
         // Subscribe to changes for this class
         const channel = supabase
             .channel(`class-distributor-shortcuts-${standardizedClass}`)
@@ -421,6 +429,7 @@ export function ClassDistributor({ users: initialUsers, avatarCatalog, isLoading
             .subscribe();
 
         return () => {
+            window.removeEventListener('quick-shortcuts-updated', handleShortcutsUpdated);
             supabase.removeChannel(channel);
         };
     }, [standardizedClass]);
