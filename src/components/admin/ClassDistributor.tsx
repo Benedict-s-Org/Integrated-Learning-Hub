@@ -216,6 +216,7 @@ function UserItemComponent({
                             title="Toilet / Break (20 Coins)"
                         >
                             <DoorOpen size={12} />
+                            <span className="font-bold">Toilet</span>
                             <span className="font-black">{user.toilet_coins ?? 100}</span>
                         </button>
                     )}
