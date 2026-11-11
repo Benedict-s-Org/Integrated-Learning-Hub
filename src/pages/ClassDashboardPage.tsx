@@ -1157,7 +1157,6 @@ export function ClassDashboardPage() {
     };
 
     const handleToiletBreakClick = async (student: UserWithCoins) => {
-        if (student.class === '4D') return;
         const isAllowedTime = isWithinToiletAllowanceTime();
 
 

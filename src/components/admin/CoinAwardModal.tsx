@@ -120,17 +120,20 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
         { id: 'slot-6', rewardId: null },
     ];
 
+    const notifyShortcutsUpdated = (standardizedKey: string, newShortcuts: { id: string, rewardId: string | null }[]) => {
+        // Force update of toolbars (standard storage event for other tabs, custom for current tab)
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('quick-shortcuts-updated', {
+            detail: { classId: standardizedKey, shortcuts: newShortcuts }
+        }));
+    };
+
     const saveShortcuts = (newShortcuts: { id: string, rewardId: string | null }[]) => {
         if (!activeClass) return;
         const standardizedKey = activeClass === 'all' ? 'global' : activeClass;
         setLocalShortcuts(newShortcuts);
         localStorage.setItem(`quick_reward_shortcuts_${standardizedKey}`, JSON.stringify(newShortcuts));
-        
-        // Force update of toolbars (standard storage event for other tabs, custom for current tab)
-        window.dispatchEvent(new Event('storage')); 
-        window.dispatchEvent(new CustomEvent('quick-shortcuts-updated', { 
-            detail: { classId: standardizedKey } 
-        }));
+        notifyShortcutsUpdated(standardizedKey, newShortcuts);
     };
 
     const handleSaveToCloud = async () => {
@@ -145,9 +148,11 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                     name: standardizedKey,
                     shortcuts: localShortcuts,
                     updated_at: new Date().toISOString()
-                }) as any);
+                }, { onConflict: 'name' }) as any);
             
             if (error) throw error;
+            // Ensure dashboard toolbars refresh even if realtime is delayed/unavailable
+            notifyShortcutsUpdated(standardizedKey, localShortcuts);
             alert('Shortcuts saved to cloud successfully!');
         } catch (error: any) {
             console.error('Error saving to cloud:', error);
@@ -270,7 +275,9 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
 
             setEditingId(null);
             setEditForm({});
-            fetchRewards();
+            await fetchRewards();
+            // Refresh Class Dashboard toolbars so coin amounts stay in sync
+            window.dispatchEvent(new CustomEvent('classRewardsUpdated'));
         } catch (error) {
             console.error('Error saving reward:', error);
             alert('Failed to save');
@@ -287,7 +294,8 @@ export function CoinAwardModal({ isOpen, onClose, onAward, selectedCount, select
                 .eq('id', id) as any);
 
             if (error) throw error;
-            fetchRewards();
+            await fetchRewards();
+            window.dispatchEvent(new CustomEvent('classRewardsUpdated'));
         } catch (error) {
             console.error('Delete error:', error);
             alert('Failed to delete');
