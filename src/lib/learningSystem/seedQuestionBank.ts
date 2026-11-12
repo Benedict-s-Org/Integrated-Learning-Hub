@@ -13,8 +13,8 @@ export interface LsPracticeQuestion extends LsQuestionCandidate {
   stem: string;
   options: string[];
   correctIndex: number;
-  /** Always true for seed bank until Notion import */
-  isSeedScaffold: true;
+  /** True only for the temporary repeated example. Notion SRS rows are false. */
+  isSeedScaffold: boolean;
 }
 
 export interface CurriculumYearLink {

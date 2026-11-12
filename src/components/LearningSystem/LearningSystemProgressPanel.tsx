@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { buildTwentyItemPie } from '../../lib/learningSystem/charts';
-import { fetchActiveGrammarSkills } from '../../lib/learningSystem/checklistService';
+import { fetchNotionMicroSkills } from '../../lib/learningSystem/notionCatalog';
 import { setTeacherRemediationPin } from '../../lib/learningSystem/skillStateService';
 import {
   loadLearningSystemChartModel,
@@ -57,7 +57,7 @@ export const LearningSystemProgressPanel: React.FC<{
         const chart = await loadLearningSystemChartModel(userId);
         const teacherFlags = showTeacherFields ? await loadTeacherSkillFlags(userId) : [];
         const skills = showTeacherFields
-          ? (await fetchActiveGrammarSkills()).map((skill) => ({ id: skill.id, name: skill.name }))
+          ? (await fetchNotionMicroSkills()).map((skill) => ({ id: skill.id, name: skill.name }))
           : [];
         if (cancelled) return;
         setModel(chart);

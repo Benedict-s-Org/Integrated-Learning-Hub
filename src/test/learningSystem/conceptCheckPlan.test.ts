@@ -69,20 +69,11 @@ describe('hongKongDateIso', () => {
 });
 
 describe('expandProofreadingBank', () => {
-  it('builds ten sentences that still contain the one wrong word', () => {
+  it('keeps the authored sentence and does not add a second error', () => {
     const bank = expandProofreadingBank([
-      { sentence: 'This are my brother.', error: 'are', corrected: 'is' },
+      { sentence: 'She likes I.', error: 'I', corrected: 'me' },
     ]);
-    expect(bank).toHaveLength(10);
-    expect(new Set(bank.map((item) => item.sentence)).size).toBe(10);
-    for (const item of bank) {
-      expect(item.error).toBe('are');
-      expect(item.corrected).toBe('is');
-      const hits = item.sentence
-        .split(/\s+/)
-        .filter((token) => token.replace(/[^\w']/g, '').toLowerCase() === 'are');
-      expect(hits).toHaveLength(1);
-    }
+    expect(bank).toEqual([{ sentence: 'She likes I.', error: 'I', corrected: 'me' }]);
   });
 });
 
@@ -141,27 +132,35 @@ describe('composeConceptCheck', () => {
     expect(done.questions).toHaveLength(0);
   });
 
-  it('draws one of ten sentences for each micro-skill', () => {
-    const first = composeConceptCheck({
+  it('uses a Notion proofreading row when that skill has one', () => {
+    const plan = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      rng: () => 0,
+      questionBank: new Map([
+        ['p2_2627bk11_pronoun_object', [{ sentence: 'They saw I.', error: 'I', corrected: 'me' }]],
+      ]),
+    });
+    const item = plan.allQuestions.find((q) => q.skillId === 'p2_2627bk11_pronoun_object');
+    expect(item?.sentence).toBe('They saw I.');
+    expect(item?.corrected).toBe('me');
+  });
+
+  it('uses an authored sentence with one wrong word', () => {
+    const plan = composeConceptCheck({
       skills: rows,
       gradeKey: 'P.4',
       studentYear: 4,
       isoDate: '2026-11-12',
       rng: () => 0,
     });
-    const last = composeConceptCheck({
-      skills: rows,
-      gradeKey: 'P.4',
-      studentYear: 4,
-      isoDate: '2026-11-12',
-      rng: () => 0.999,
-    });
-    const skillId = first.allQuestions[0].skillId;
-    const other = last.allQuestions.find((q) => q.skillId === skillId);
-    expect(other?.sentence).not.toBe(first.allQuestions[0].sentence);
-    expect(first.allQuestions[0].sentence.toLowerCase()).toContain(
-      first.allQuestions[0].error.toLowerCase()
-    );
+    const item = plan.allQuestions.find((q) => q.skillId === 'p2_2627bk11_pronoun_object');
+    expect(item?.sentence).toBe('She likes I.');
+    expect(item?.error).toBe('I');
+    expect(item?.corrected).toBe('me');
+    expect(plan.allQuestions.every((q) => !/yesterday morning|last night|every Monday/.test(q.sentence))).toBe(true);
   });
 
   it('repeats current-grade skills when the count rounds up', () => {

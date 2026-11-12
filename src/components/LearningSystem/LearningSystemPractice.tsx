@@ -30,6 +30,12 @@ function sentenceTokens(sentence: string): string[] {
   return sentence.split(/\s+/).filter(Boolean);
 }
 
+type ProofPageAnswer = { wordIndex: number | null; correction: string; notSure: boolean };
+
+function emptyProofAnswer(): ProofPageAnswer {
+  return { wordIndex: null, correction: '', notSure: false };
+}
+
 const GRADE_OPTIONS: LearningSystemGradeKey[] = ['P.1', 'P.2', 'P.3', 'P.4'];
 const DEFAULT_GRADE: LearningSystemGradeKey = 'P.3';
 
@@ -70,6 +76,8 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
   const [selected, setSelected] = useState<number | null>(null);
   const [correction, setCorrection] = useState('');
   const [notSure, setNotSure] = useState(false);
+  const [pageAnswers, setPageAnswers] = useState<Record<string, ProofPageAnswer>>({});
+  const [savedScores, setSavedScores] = useState<Record<string, boolean>>({});
   const [revealed, setRevealed] = useState(false);
   const [validRecorded, setValidRecorded] = useState(false);
   const [startedAt, setStartedAt] = useState<number>(0);
@@ -81,12 +89,19 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
   const [tips, setTips] = useState<{ skillId: string; name: string; tip: string }[]>([]);
   const [assignmentDone, setAssignmentDone] = useState(false);
   const autoStartedRef = React.useRef(false);
+  const submittingRef = React.useRef(false);
 
   const current: LsSessionQuestion | null = session?.questions[index] ?? null;
   const isRemediation = session?.mode === 'remediation';
 
+  const isConceptSheet =
+    session?.mode === 'concept_check' && session.questions.every(isProofreadingQuestion);
+
   const progressLabel = useMemo(() => {
     if (!session) return '';
+    if (session.mode === 'concept_check' && session.conceptProgress) {
+      return `Set ${session.conceptProgress.setIndex + 1} of ${session.conceptProgress.setCount}`;
+    }
     return `${index + 1} / ${session.questions.length}`;
   }, [index, session]);
 
@@ -117,6 +132,8 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
       setSelected(null);
       setCorrection('');
       setNotSure(false);
+      setPageAnswers({});
+      setSavedScores({});
       setRevealed(false);
       setValidRecorded(false);
       setResults([]);
@@ -198,9 +215,71 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
     }
   }, [user, session, current, selected, correction, notSure, validRecorded, revealed, isRemediation, startedAt]);
 
+  const submitConceptPage = useCallback(async () => {
+    if (!user?.id || !session || revealed || submittingRef.current) return;
+    submittingRef.current = true;
+    const questions = session.questions.filter(isProofreadingQuestion);
+    const elapsed = Date.now() - startedAt;
+    const pageResults: { questionId: string; skillId: string; correct: boolean }[] = [];
+
+    try {
+      for (const question of questions) {
+        const answer = pageAnswers[question.id] ?? emptyProofAnswer();
+        if (question.id in savedScores) {
+          pageResults.push({
+            questionId: question.id,
+            skillId: question.skillId,
+            correct: savedScores[question.id],
+          });
+          continue;
+        }
+        const incomplete =
+          !answer.notSure &&
+          (answer.wordIndex == null || answer.correction.trim().length === 0);
+        const scored = scoreProofreadingItem({
+          userWordIndex: answer.notSure ? undefined : answer.wordIndex ?? undefined,
+          userCorrection: answer.notSure ? '' : answer.correction,
+          expectedWordIndex: question.errorWordIndex,
+          expectedCorrection: question.corrected,
+          isNotSure: answer.notSure,
+          isIncomplete: incomplete,
+        });
+        await recordLearningSystemAttempt({
+          userId: user.id,
+          setId: session.setId,
+          skillId: question.skillId,
+          questionId: question.id,
+          selectedAnswer: answer.notSure ? '不知道 (Not Sure)' : answer.correction.trim(),
+          isCorrect: scored.isCorrect,
+          isValid: false,
+          isRemediation: false,
+          isDemonstration: false,
+          responseTimeMs: elapsed,
+          channel: 'proofreading',
+          detectionCorrect: scored.detectionCorrect,
+          correctionCorrect: scored.correctionCorrect,
+        });
+        pageResults.push({
+          questionId: question.id,
+          skillId: question.skillId,
+          correct: scored.isCorrect,
+        });
+        setSavedScores((prev) => ({ ...prev, [question.id]: scored.isCorrect }));
+      }
+      setResults(pageResults);
+      setRevealed(true);
+      setPhase('revealed');
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Could not save this set.');
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [user, session, revealed, pageAnswers, startedAt, savedScores]);
+
   const goNext = useCallback(async () => {
     if (!session || !user?.id) return;
-    if (index + 1 >= session.questions.length) {
+    if (session.mode === 'concept_check' || index + 1 >= session.questions.length) {
       try {
         const finalResults = results;
         const fin = await finalizeLearningSystemSet({
@@ -222,13 +301,21 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
           console.warn(tipErr);
         }
 
-        if (assignmentId) {
+        if (assignmentId && session.mode !== 'concept_check') {
           try {
             const ok = await markLearningSystemAssignmentComplete(assignmentId);
             setAssignmentDone(ok);
           } catch (asgErr) {
             console.error(asgErr);
           }
+        }
+        const moreSets =
+          session.mode === 'concept_check' &&
+          session.conceptProgress != null &&
+          session.conceptProgress.setIndex + 1 < session.conceptProgress.setCount;
+        if (moreSets) {
+          await start();
+          return;
         }
       } catch (err) {
         console.error(err);
@@ -244,7 +331,7 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
     setValidRecorded(false);
     setStartedAt(Date.now());
     setPhase('active');
-  }, [session, index, user, results, assignmentId]);
+  }, [session, index, user, results, assignmentId, start]);
 
   const correctCount = results.filter((r) => r.correct).length;
 
@@ -270,8 +357,8 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
             {assignmentId ? 'Assigned Learning System set' : 'Start practice'}
           </h2>
           <p className="text-sm text-slate-600 leading-relaxed">
-            The first proofreading draws one sentence at random from the ten written for each
-            text micro-skill taught so far. Those sentences are split into sets of 10. Regular
+            The first proofreading is one page of 10 sentences. Each sentence is drawn at random
+            from a different micro-skill. Finish that page, then the next set of 10. Regular
             practice starts after every set is finished. A P.4 class at unit A4 finishes 6 sets.
             The check does not change your review schedule.
           </p>
@@ -323,7 +410,176 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
         </div>
       )}
 
-      {(phase === 'active' || phase === 'revealed') && current && (
+      {(phase === 'active' || phase === 'revealed') && isConceptSheet && session && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-6 space-y-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {`Proofreading check · Set ${(session.conceptProgress?.setIndex ?? 0) + 1} of ${session.conceptProgress?.setCount ?? 1}`}
+            </span>
+            <p className="text-sm text-slate-600">Click the wrong word, then type the correct word.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr>
+                  <th className="border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 w-12">#</th>
+                  <th className="border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">Sentence</th>
+                  <th className="border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 w-64">Your answer</th>
+                  <th className="border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 w-40">Correct answer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {session.questions.filter(isProofreadingQuestion).map((question, rowIndex) => {
+                  const answer = pageAnswers[question.id] ?? emptyProofAnswer();
+                  const scored = revealed
+                    ? scoreProofreadingItem({
+                        userWordIndex: answer.notSure ? undefined : answer.wordIndex ?? undefined,
+                        userCorrection: answer.notSure ? '' : answer.correction,
+                        expectedWordIndex: question.errorWordIndex,
+                        expectedCorrection: question.corrected,
+                        isNotSure: answer.notSure,
+                        isIncomplete:
+                          !answer.notSure &&
+                          (answer.wordIndex == null || answer.correction.trim().length === 0),
+                      })
+                    : null;
+                  const rowTone = !scored
+                    ? ''
+                    : scored.isCorrect
+                      ? 'bg-emerald-50'
+                      : answer.notSure
+                        ? 'bg-yellow-50'
+                        : 'bg-red-50';
+                  return (
+                    <tr key={question.id} className={rowTone}>
+                      <td className="border border-slate-300 px-3 py-3 text-center text-sm font-medium text-slate-700">
+                        {rowIndex + 1}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-3">
+                        <p className="text-base leading-relaxed text-slate-900">
+                          {sentenceTokens(question.sentence).map((token, tokenIndex) => {
+                            const picked = answer.wordIndex === tokenIndex;
+                            const showError = revealed && tokenIndex === question.errorWordIndex;
+                            const showWrongPick = revealed && picked && tokenIndex !== question.errorWordIndex;
+                            return (
+                              <button
+                                key={`${question.id}-${tokenIndex}`}
+                                type="button"
+                                disabled={revealed || answer.notSure}
+                                onClick={() =>
+                                  setPageAnswers((prev) => ({
+                                    ...prev,
+                                    [question.id]: {
+                                      ...(prev[question.id] ?? emptyProofAnswer()),
+                                      wordIndex: tokenIndex,
+                                    },
+                                  }))
+                                }
+                                className={`mx-0.5 inline-block rounded px-1 py-0.5 ${
+                                  showError
+                                    ? 'bg-emerald-200 text-emerald-950'
+                                    : showWrongPick
+                                      ? 'bg-red-200 text-red-950'
+                                      : picked
+                                        ? 'bg-red-200 text-slate-900'
+                                        : revealed || answer.notSure
+                                          ? 'text-slate-900'
+                                          : 'text-slate-900 hover:bg-blue-100'
+                                }`}
+                              >
+                                {token}
+                              </button>
+                            );
+                          })}
+                        </p>
+                      </td>
+                      <td className="border border-slate-300 px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={answer.notSure ? '不知道 (Not Sure)' : answer.correction}
+                            disabled={revealed || answer.notSure}
+                            placeholder="Type correction"
+                            onChange={(event) =>
+                              setPageAnswers((prev) => ({
+                                ...prev,
+                                [question.id]: {
+                                  ...(prev[question.id] ?? emptyProofAnswer()),
+                                  correction: event.target.value,
+                                },
+                              }))
+                            }
+                            className={`w-full rounded-md border border-slate-300 px-2 py-2 text-sm ${
+                              answer.notSure ? 'bg-slate-100 italic text-slate-500' : 'bg-white'
+                            }`}
+                          />
+                          {!revealed && (
+                            <button
+                              type="button"
+                              title="I'm not sure"
+                              aria-label="I'm not sure"
+                              onClick={() =>
+                                setPageAnswers((prev) => {
+                                  const currentAnswer = prev[question.id] ?? emptyProofAnswer();
+                                  return {
+                                    ...prev,
+                                    [question.id]: { ...currentAnswer, notSure: !currentAnswer.notSure },
+                                  };
+                                })
+                              }
+                              className={`shrink-0 rounded-md border px-2 py-2 text-xs font-bold ${
+                                answer.notSure
+                                  ? 'border-yellow-300 bg-yellow-100 text-yellow-700'
+                                  : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'
+                              }`}
+                            >
+                              不知道
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="border border-slate-300 px-3 py-3 text-sm">
+                        {revealed ? (
+                          <span className="font-medium text-blue-700">{question.corrected}</span>
+                        ) : (
+                          <span className="italic text-slate-400">Hidden</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {error}
+            </div>
+          )}
+          {!revealed ? (
+            <button
+              type="button"
+              onClick={() => void submitConceptPage()}
+              className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+            >
+              Check answers
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void goNext()}
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              {session.conceptProgress &&
+              session.conceptProgress.setIndex + 1 < session.conceptProgress.setCount
+                ? 'Next set'
+                : 'Finish set'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {(phase === 'active' || phase === 'revealed') && !isConceptSheet && current && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 space-y-4 shadow-sm">
           <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <span className="rounded-full bg-slate-100 px-2.5 py-1">

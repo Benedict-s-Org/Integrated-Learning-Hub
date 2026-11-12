@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { fetchNotionMicroSkills } from './notionCatalog';
 import {
   buildSkillLinePoints,
   buildTwoSetBars,
@@ -146,14 +147,11 @@ export async function loadTeacherSkillFlags(userId: string): Promise<LsTeacherSk
 
 async function fetchSkillNames(ids: string[]): Promise<Record<string, string>> {
   if (ids.length === 0) return {};
-  const { data, error } = await (supabase as any)
-    .from('grammar_micro_skills')
-    .select('id, name')
-    .in('id', ids);
-  if (error) throw error;
+  const wanted = new Set(ids);
+  const skills = await fetchNotionMicroSkills();
   const map: Record<string, string> = {};
-  for (const row of (data || []) as { id: string; name: string }[]) {
-    map[row.id] = row.name;
+  for (const skill of skills) {
+    if (wanted.has(skill.id)) map[skill.id] = skill.name;
   }
   return map;
 }
