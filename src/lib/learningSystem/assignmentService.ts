@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { fetchNotionMicroSkills } from './notionCatalog';
 import type { LearningSystemGradeKey } from './types';
 
 export async function assignLearningSystemPractice(params: {
@@ -70,17 +71,13 @@ export async function fetchTipsForMissedSkills(
   const unique = [...new Set(skillIds)];
   if (unique.length === 0) return [];
 
-  const { data, error } = await (supabase as any)
-    .from('grammar_micro_skills')
-    .select('id, name, measures, boundary')
-    .in('id', unique);
-  if (error) throw error;
-
-  return ((data || []) as { id: string; name: string; measures: string; boundary: string | null }[]).map(
-    (row) => ({
-      skillId: row.id,
-      name: row.name,
-      tip: row.measures + (row.boundary ? ` Boundary: ${row.boundary}` : ''),
-    })
-  );
+  const wanted = new Set(unique);
+  const skills = await fetchNotionMicroSkills();
+  return skills
+    .filter((skill) => wanted.has(skill.id))
+    .map((skill) => ({
+      skillId: skill.id,
+      name: skill.name,
+      tip: skill.measures + (skill.boundary ? ` Boundary: ${skill.boundary}` : ''),
+    }));
 }

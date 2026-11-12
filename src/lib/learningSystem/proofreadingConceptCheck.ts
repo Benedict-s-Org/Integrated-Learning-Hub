@@ -36,7 +36,6 @@ export interface LsProofreadingQuestion {
   errorWordIndex: number;
 }
 
-export const PROOFREADING_BANK_SIZE = 10;
 export const CONCEPT_CHECK_SET_SIZE = 10;
 
 export interface ConceptCheckPlan {
@@ -69,24 +68,6 @@ export function conceptCheckRng(seed: string): () => number {
   };
 }
 
-const BANK_TAILS = [
-  'yesterday morning',
-  'last night',
-  'every Monday',
-  'right now',
-  'all day',
-  'quite well',
-  'once more',
-  'next week',
-  'early today',
-  'very quietly',
-  'just now',
-  'soon enough',
-  'later today',
-  'almost daily',
-  'each evening',
-];
-
 function normToken(value: string): string {
   return value.replace(/[^\w']/g, '').toLowerCase();
 }
@@ -98,42 +79,19 @@ function errorTokenCount(sentence: string, error: string): number {
   }).length;
 }
 
-function appendTail(sentence: string, tail: string): string {
-  const trimmed = sentence.trim();
-  const punct = trimmed.match(/[.?!]$/);
-  const body = punct ? trimmed.slice(0, -1) : trimmed;
-  return `${body} ${tail}${punct ? punct[0] : '.'}`;
-}
-
-/** Ten sentences for one skill. Each keeps the same wrong word and the same correction. */
-export function expandProofreadingBank(
-  pairs: ProofreadingPair[],
-  count: number = PROOFREADING_BANK_SIZE
-): ProofreadingPair[] {
+/**
+ * The sentences already written for one skill.
+ * A later 10-item bank is separate. Do not invent extra sentences here:
+ * an added phrase can create a second error.
+ */
+export function expandProofreadingBank(pairs: ProofreadingPair[]): ProofreadingPair[] {
   const out: ProofreadingPair[] = [];
   const seen = new Set<string>();
-  const push = (pair: ProofreadingPair) => {
-    if (out.length >= count || seen.has(pair.sentence)) return;
-    if (errorTokenCount(pair.sentence, pair.error) !== 1) return;
+  for (const pair of pairs) {
+    if (seen.has(pair.sentence)) continue;
+    if (errorTokenCount(pair.sentence, pair.error) !== 1) continue;
     seen.add(pair.sentence);
     out.push(pair);
-  };
-
-  for (const pair of pairs) push(pair);
-  let guard = 0;
-  while (out.length < count && guard < BANK_TAILS.length * Math.max(pairs.length, 1) * 2) {
-    const pair = pairs[guard % pairs.length];
-    const tail = BANK_TAILS[guard % BANK_TAILS.length];
-    guard += 1;
-    if (!pair) break;
-    const blocked = new Set([normToken(pair.error), normToken(pair.corrected)]);
-    const tailTokens = tail.split(/\s+/).map(normToken);
-    if (tailTokens.some((token) => blocked.has(token))) continue;
-    push({
-      sentence: appendTail(pair.sentence, tail),
-      error: pair.error,
-      corrected: pair.corrected,
-    });
   }
   return out;
 }
@@ -206,6 +164,8 @@ export function composeConceptCheck(params: {
   /** Zero-based set. Later visits continue the same draw. */
   setIndex?: number;
   rng?: () => number;
+  /** Sentences from the Notion proofreading database. Skills with no rows use the skill list sentence. */
+  questionBank?: ReadonlyMap<string, ProofreadingPair[]>;
 }): ConceptCheckPlan {
   const progress = currentProgressUnit(params.gradeKey, params.isoDate);
   const inRange: CurriculumTextSkill[] = [];
@@ -243,11 +203,12 @@ export function composeConceptCheck(params: {
   for (const skill of [...kept, ...repeated]) {
     const copyIndex = seen.get(skill.id) ?? 0;
     seen.set(skill.id, copyIndex + 1);
-    const bank = expandProofreadingBank(skill.pairs);
-    if (bank.length < PROOFREADING_BANK_SIZE) {
-      gaps.push(`Need ${PROOFREADING_BANK_SIZE} proofreading items for ${skill.id}; got ${bank.length}.`);
+    const fromDatabase = params.questionBank?.get(skill.id) ?? [];
+    const bank = fromDatabase.length > 0 ? fromDatabase : expandProofreadingBank(skill.pairs);
+    if (bank.length === 0) {
+      gaps.push(`No single-error proofreading sentence for ${skill.id}.`);
+      continue;
     }
-    if (bank.length === 0) continue;
     const draw = Math.floor(rng() * bank.length);
     const bankIndex = (draw + copyIndex) % bank.length;
     const pair = bank[bankIndex];

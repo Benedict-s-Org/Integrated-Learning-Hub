@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
-  fetchActiveGrammarSkills,
   fetchGradeTaughtChecklist,
   setSkillTaught,
 } from '../../lib/learningSystem/checklistService';
+import { fetchNotionMicroSkills } from '../../lib/learningSystem/notionCatalog';
 import type { GrammarMicroSkill, LearningSystemGradeKey } from '../../lib/learningSystem/types';
 
 const GRADE_OPTIONS: LearningSystemGradeKey[] = ['P.1', 'P.2', 'P.3', 'P.4'];
@@ -24,10 +24,10 @@ export const GradeTaughtChecklistPanel: React.FC = () => {
     setError(null);
     try {
       const [skillRows, checklistRows] = await Promise.all([
-        fetchActiveGrammarSkills(),
+        fetchNotionMicroSkills(),
         fetchGradeTaughtChecklist(gradeKey),
       ]);
-      setSkills(skillRows);
+      setSkills(skillRows.filter((skill) => skill.chapter_ref?.startsWith(gradeKey)));
       const map: Record<string, boolean> = {};
       checklistRows.forEach((row) => {
         map[row.skill_id] = row.taught;

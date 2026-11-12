@@ -3,11 +3,13 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { fetchGradeTaughtChecklist } from './checklistService';
 import {
-  fetchActiveGrammarSkills,
-  fetchGradeTaughtChecklist,
-  fetchSchoolCurriculumSkills,
-} from './checklistService';
+  fetchNotionMicroSkills,
+  fetchNotionProofreadingItems,
+  fetchNotionSrsQuestions,
+  groupProofreadingBank,
+} from './notionCatalog';
 import { hongKongDateIso } from './curriculumProgress';
 import { gradeKeyToYearLevel } from './eligibility';
 import { parseLearningSystemGradeKey } from './gradeKey';
@@ -24,11 +26,7 @@ import {
   type LsSetMode,
   type SetCompositionResult,
 } from './setComposition';
-import {
-  buildSeedQuestionPool,
-  indexPracticeQuestions,
-  type LsPracticeQuestion,
-} from './seedQuestionBank';
+import { indexPracticeQuestions, type LsPracticeQuestion } from './seedQuestionBank';
 import { evaluateSkillWeakness, pickRemediationTargetSkill } from './weakness';
 import type { LearningSystemGradeKey } from './types';
 
@@ -43,16 +41,6 @@ export interface BuiltLsSession {
   questions: LsSessionQuestion[];
   /** Present while the first-visit proofreading sets are still running. */
   conceptProgress?: { setIndex: number; setCount: number };
-}
-
-export async function fetchCurriculumYearLinks(): Promise<
-  { skill_id: string; year_level: number }[]
-> {
-  const { data, error } = await (supabase as any)
-    .from('grammar_skill_curriculum_links')
-    .select('skill_id, year_level');
-  if (error) throw error;
-  return (data || []) as { skill_id: string; year_level: number }[];
 }
 
 /** Completed practice sets. The first-visit concept check does not count. */
@@ -200,7 +188,10 @@ export async function startLearningSystemSession(params: {
 
   if (!params.assignmentId) {
     const conceptChecksDone = await countCompletedConceptChecks(params.userId);
-    const curriculumSkills = await fetchSchoolCurriculumSkills();
+    const [curriculumSkills, proofreadingItems] = await Promise.all([
+      fetchNotionMicroSkills(),
+      fetchNotionProofreadingItems(),
+    ]);
     const plan = composeConceptCheck({
       skills: curriculumSkills,
       gradeKey,
@@ -208,6 +199,7 @@ export async function startLearningSystemSession(params: {
       isoDate: hongKongDateIso(),
       setIndex: conceptChecksDone,
       rng: conceptCheckRng(params.userId),
+      questionBank: groupProofreadingBank(proofreadingItems),
     });
     if (conceptChecksDone < plan.setCount) {
       if (plan.questions.length === 0) {
@@ -251,15 +243,13 @@ export async function startLearningSystemSession(params: {
     }
   }
 
-  const [skills, checklist, yearLinks, completedSetCount, stateFlags, attempts] =
-    await Promise.all([
-      fetchActiveGrammarSkills(),
-      fetchGradeTaughtChecklist(gradeKey),
-      fetchCurriculumYearLinks(),
-      countCompletedLsSets(params.userId),
-      fetchSkillStateFlags(params.userId),
-      fetchValidOrdinaryAttempts(params.userId),
-    ]);
+  const [pool, checklist, completedSetCount, stateFlags, attempts] = await Promise.all([
+    fetchNotionSrsQuestions(),
+    fetchGradeTaughtChecklist(gradeKey),
+    countCompletedLsSets(params.userId),
+    fetchSkillStateFlags(params.userId),
+    fetchValidOrdinaryAttempts(params.userId),
+  ]);
 
   const taughtSkillIds = checklist.filter((r) => r.taught).map((r) => r.skill_id);
   if (taughtSkillIds.length === 0) {
@@ -268,7 +258,6 @@ export async function startLearningSystemSession(params: {
     );
   }
 
-  const pool = buildSeedQuestionPool({ skills, yearLinks });
   const byId = indexPracticeQuestions(pool);
 
   const remediationTargetSkillId = resolveRemediationTarget({

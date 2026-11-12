@@ -62,9 +62,9 @@ const DEFAULT_CONFIGS: Omit<DbConfigItem, 'currentValue' | 'status'>[] = [
   {
     key: 'learning_system_micro_skills_db_id',
     label: 'Learning System — Grammar Micro-skills',
-    description: 'Stable micro-skill catalog (Micro-skill ID, measures, boundary). Sync target for Hub grammar_micro_skills. Leave empty while Notion content is on hold.',
+    description: 'Source of the Learning System micro-skill list.',
     icon: Database,
-    defaultValue: ''
+    defaultValue: '9b6f9cf31a1847d6afb8600d74d3f33b'
   },
   {
     key: 'learning_system_srs_db_id',
@@ -76,9 +76,9 @@ const DEFAULT_CONFIGS: Omit<DbConfigItem, 'currentValue' | 'status'>[] = [
   {
     key: 'learning_system_proofreading_db_id',
     label: 'Learning System — Proofreading Questions',
-    description: 'LS Proofreading bank with required Micro-skill ID. Separate from the legacy proofreading_db_id.',
+    description: 'Source of Learning System proofreading questions. Separate from the legacy proofreading_db_id.',
     icon: FileText,
-    defaultValue: ''
+    defaultValue: '12fb6903584049f6b79282b166c86df4'
   },
   {
     key: 'anagram_bank_db_id',

@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { fetchNotionMicroSkills } from './notionCatalog';
 import { REMEDIATION_FOCUS_SIZE } from './remediation';
 import type { LsSetMode } from './setComposition';
 import {
@@ -269,9 +270,9 @@ export async function listOpenInterventions(): Promise<OpenInterventionRow[]> {
   const userIds = [...new Set(rows.map((r) => r.user_id))];
   const skillIds = [...new Set(rows.map((r) => r.skill_id))];
 
-  const [{ data: users }, { data: skills }] = await Promise.all([
+  const [{ data: users }, skills] = await Promise.all([
     (supabase as any).from('users').select('id, display_name, username').in('id', userIds),
-    (supabase as any).from('grammar_micro_skills').select('id, name').in('id', skillIds),
+    fetchNotionMicroSkills(),
   ]);
 
   const userMap = new Map(
@@ -279,8 +280,9 @@ export async function listOpenInterventions(): Promise<OpenInterventionRow[]> {
       (u) => [u.id, u.display_name || u.username || u.id]
     )
   );
+  const wanted = new Set(skillIds);
   const skillMap = new Map(
-    ((skills || []) as { id: string; name: string }[]).map((s) => [s.id, s.name])
+    skills.filter((skill) => wanted.has(skill.id)).map((skill) => [skill.id, skill.name])
   );
 
   return rows.map((r) => ({
