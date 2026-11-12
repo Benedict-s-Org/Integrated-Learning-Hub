@@ -60,6 +60,27 @@ const DEFAULT_CONFIGS: Omit<DbConfigItem, 'currentValue' | 'status'>[] = [
     defaultValue: '7f81157c0c29440ab35fdf4bc862fbc1'
   },
   {
+    key: 'learning_system_micro_skills_db_id',
+    label: 'Learning System — Grammar Micro-skills',
+    description: 'Stable micro-skill catalog (Micro-skill ID, measures, boundary). Sync target for Hub grammar_micro_skills. Leave empty while Notion content is on hold.',
+    icon: Database,
+    defaultValue: ''
+  },
+  {
+    key: 'learning_system_srs_db_id',
+    label: 'Learning System — SRS Questions',
+    description: 'LS SRS MCQ bank. Each row needs a Micro-skill ID. Linked to the 2026-27 Learning System SRS database.',
+    icon: FileQuestion,
+    defaultValue: 'b9e05a5fd576487db54476387789d566'
+  },
+  {
+    key: 'learning_system_proofreading_db_id',
+    label: 'Learning System — Proofreading Questions',
+    description: 'LS Proofreading bank with required Micro-skill ID. Separate from the legacy proofreading_db_id.',
+    icon: FileText,
+    defaultValue: ''
+  },
+  {
     key: 'anagram_bank_db_id',
     label: 'Anagram Question Bank',
     description: 'Bank of letters, valid scrambles, and word tiers used in the Cognitive Anagram game.',

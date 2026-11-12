@@ -91,6 +91,7 @@ type AppState =
   | { page: 'memorizationAssignments' }
   | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string; returnTo?: 'assignments' | 'memorizationAssignments' }
   | { page: 'learningHub' }
+  | { page: 'learningSystem'; assignmentId?: string; assignmentGradeKey?: string; assignmentTitle?: string }
   | { page: 'spacedRepetition' }
   | { page: 'flowithTest' }
   | { page: 'wordSnake' }
@@ -390,7 +391,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard' || page === 'adminHomeworkMakeup')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'learningSystem' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard' || page === 'adminHomeworkMakeup')) {
       alert('Please log in with an administrator account to access this page.');
       return;
     }
@@ -460,6 +461,8 @@ function AppContent() {
       setAppState({ page: 'proofreadingAssignments' });
     } else if (page === 'learningHub') {
       setAppState({ page: 'learningHub' });
+    } else if (page === 'learningSystem') {
+      setAppState({ page: 'learningSystem' });
     } else if (page === 'spacedRepetition') {
       setAppState({ page: 'spacedRepetition' });
     } else if (page === 'flowithTest') {
@@ -1134,6 +1137,14 @@ function AppContent() {
                       page: 'spacedRepetition'
                     });
                   }}
+                  onLoadLearningSystem={(assignment) => {
+                    setAppState({
+                      page: 'learningSystem',
+                      assignmentId: assignment.assignment_id,
+                      assignmentGradeKey: assignment.content_data?.grade_key ?? undefined,
+                      assignmentTitle: assignment.title,
+                    });
+                  }}
                   onLoadReading={(assignment) => {
                     setAppState({
                       page: 'readingComprehension',
@@ -1156,6 +1167,14 @@ function AppContent() {
             case 'learningHub':
               return (
                 <LearningCommunityPage onExit={() => setAppState({ page: 'new', step: 'input' })} />
+              );
+            case 'learningSystem':
+              return (
+                <LearningSystemPage
+                  assignmentId={appState.assignmentId}
+                  assignmentGradeKey={appState.assignmentGradeKey}
+                  assignmentTitle={appState.assignmentTitle}
+                />
               );
             case 'spacedRepetition':
               return <SpacedRepetitionPage />;
@@ -1287,6 +1306,9 @@ function AppContent() {
     }
     if (appState.page === 'learningHub') {
       return 'learningHub';
+    }
+    if (appState.page === 'learningSystem') {
+      return 'learningSystem';
     }
     if (appState.page === 'phonics') {
       return 'phonics';
@@ -1644,6 +1666,7 @@ const AudioManagementPage = lazy(() => import('./pages/admin/AudioManagementPage
 const NotionDatabaseConfigPage = lazy(() => import('./pages/admin/NotionDatabaseConfigPage'));
 
 const SpacedRepetitionPage = lazy(() => import('./components/SpacedRepetition/SpacedRepetitionPage').then(m => ({ default: m.SpacedRepetitionPage })));
+const LearningSystemPage = lazy(() => import('./components/LearningSystem/LearningSystemPage').then(m => ({ default: m.LearningSystemPage })));
 const NotionHub = lazy(() => import('./components/NotionHub/NotionHub').then(m => ({ default: m.NotionHub })));
 const LearningCommunityPage = lazy(() => import('./pages/LearningCommunityPage').then(m => ({ default: m.LearningCommunityPage })));
 const FlowithTestPage = lazy(() => import('./pages/FlowithTestPage').then(m => ({ default: m.FlowithTestPage })));

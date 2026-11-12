@@ -53,7 +53,7 @@ export interface AppContextType {
 export type PageType =
   | 'new' | 'saved' | 'admin' | 'assetGenerator' | 'assetUpload' | 'database'
   | 'proofreading' | 'spelling' | 'progress' | 'assignments'
-  | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub'
+  | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'learningSystem'
   | 'spacedRepetition' | 'flowithTest' | 'wordSnake' | 'classDashboard' | 'quickReward' | 'scanner' | 'notionHub' | 'phonics' | 'adminAvatarUploader' | 'avatarBuilder' | 'interactiveScanner'
   | 'shuffledGame' | 'adminHomeworkRecord' | 'adminHomeworkHabit' | 'adminHomeworkMakeup' | 'broadcastManagement' | 'adminTimetable' | 'readingComprehension' | 'adminAnalytics' | 'groupCompetition' | 'examFormatter' | 'essayMarking' | 'gripStation' | 'writingStation' | 'assessmentReport' | 'vocabImagePicker' | 'progressLog' | 'homeworkHabit' | 'phonicsDashboard' | 'audioManagement' | 'morningDuties';
 

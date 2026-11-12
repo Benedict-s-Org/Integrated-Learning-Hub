@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS: NavigationSettings = {
   learning: [
     {id: "classDashboard", label: "Class Dashboard", visible: false},
     {id: "new", label: "Paragraph Memorization", visible: false},
+    {id: "learningSystem", label: "Learning System", visible: true},
     {id: "proofreading", label: "Proofreading Exercise", visible: false},
     {id: "spelling", label: "Spelling Practice", visible: false},
     {id: "spacedRepetition", label: "Spaced Repetition", visible: true},

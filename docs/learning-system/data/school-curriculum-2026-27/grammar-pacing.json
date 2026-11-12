@@ -1,0 +1,146 @@
+{
+  "school": "S.T.F.A. Lee Kam Primary School",
+  "subject": "English Language",
+  "schoolYear": "2026-2027",
+  "decision": "DEC-20261105-01",
+  "role": "The school curriculum to follow: grade, order, and grammar targets. The Hong Kong Excel file is an external guide only. Not micro-skill ids. Not an automatic taught tick.",
+  "periodsPerCycle": 9,
+  "deployPriority": ["P3", "P4"],
+  "priorGradeReview": ["P1", "P2"],
+  "storedForLater": ["P5", "P6"],
+  "calendar": {
+    "cycles1to5": "2026-09-04/2026-10-22",
+    "term1Test": "2026-10-28/2026-11-02",
+    "cycles6to10": "2026-11-03/2027-01-07",
+    "term1Exam": "2027-01-13/2027-01-18",
+    "cycles11to15": "2027-01-20/2027-03-15",
+    "term2Test": "2027-03-19/2027-03-24",
+    "cycles16to20": "2027-03-25/2027-05-27",
+    "term2Exam": "2027-06-02/2027-06-07",
+    "endTerm": "2027-06-08/2027-06-22"
+  },
+  "grades": {
+    "P1": {
+      "format": "reader-per-cycle",
+      "units": [
+        {"id": "P1-B01", "book": "1", "cycles": "1", "module": "Me, my family and friends / My friends", "reader": "Family Fun", "grammar": ["This is my …", "Who is he/she?"]},
+        {"id": "P1-B02", "book": "2", "cycles": "2", "module": "Me, my family and my pet", "reader": "My Cat", "grammar": ["What does … like to do?", "It likes to …", "simple present for actions"]},
+        {"id": "P1-B03", "book": "3", "cycles": "3", "module": "Actions", "reader": "The Jigaree", "grammar": ["What is he/she/it doing?", "present continuous"]},
+        {"id": "P1-B04", "book": "4", "cycles": "4", "module": "My Five Senses / Looking and seeing", "reader": "Where's Your Tooth?", "grammar": ["Where's your …?", "in/on/under", "Is it …? Yes, it is. / No, it isn't."]},
+        {"id": "P1-B05", "book": "5", "cycles": "5", "module": "Favourite food", "reader": "What Would You Like?", "grammar": ["What would you like?", "Would you like …?", "a/an", "modal would for offers"]},
+        {"id": "P1-B06", "book": "6", "cycles": "6", "module": "Habits", "reader": "What Time Is It?", "grammar": ["What time is it?", "o'clock / half past", "It's time to …", "simple present for routines"]},
+        {"id": "P1-B07", "book": "7", "cycles": "7", "module": "Places and activities", "reader": "Where Are You Going?", "grammar": ["Where are you going?", "I am going to …", "modal can"]},
+        {"id": "P1-B08", "book": "8", "cycles": "8", "module": "Seeing and feeling", "reader": "What's The Weather Like Today?", "grammar": ["What's the weather like?", "It is + weather adjective"]},
+        {"id": "P1-B09", "book": "9", "cycles": "9", "module": "Guessing games", "reader": "What's In My Pocket?", "grammar": ["How does it feel?", "It's + adjective", "a/an"]},
+        {"id": "P1-B10", "book": "10", "cycles": "10", "module": "Favourite clothes", "reader": "A World of Clothing", "grammar": ["I am a … boy/girl", "I like to wear …"]},
+        {"id": "P1-B11", "book": "11", "cycles": "11", "module": "Using my eyes", "reader": "Cinderella Dressed In Yellow", "grammar": ["dress in + colour/clothes", "adjectives for people"]},
+        {"id": "P1-B12", "book": "12", "cycles": "12", "module": "Introducing myself", "reader": "My Senses", "grammar": ["I can (see) with (my eyes)", "What can you (hear)?"]},
+        {"id": "P1-B13", "book": "13", "cycles": "13", "module": "My friends", "reader": "Cat's Party", "grammar": ["Will you come …?", "Yes, I will / No, I will not"]},
+        {"id": "P1-B14", "book": "14", "cycles": "14", "module": "My family", "reader": "Who Will Be My Mother?", "grammar": ["Will you be …?", "won't"]},
+        {"id": "P1-B15", "book": "15", "cycles": "15", "module": "Animals / adventure", "reader": "Walking Through The Jungle", "grammar": ["I see + noun + -ing", "place phrases"]},
+        {"id": "P1-B16", "book": "16", "cycles": "16", "module": "Adventure", "reader": "Dan, The Flying Man", "grammar": ["I fly over …"]},
+        {"id": "P1-B17", "book": "17", "cycles": "17", "module": "Adventure", "reader": "The Monkey Bridge", "grammar": ["simple past went", "over/into", "Which", "How many"]},
+        {"id": "P1-B18", "book": "18", "cycles": "18", "module": "Places and activities", "reader": "The Dancing Fly", "grammar": ["verb + on/over/under/in"]},
+        {"id": "P1-B19", "book": "19", "cycles": "19", "module": "Animals", "reader": "Mrs. Wishy-Washy", "grammar": ["What does … look like?", "is + adjective", "has"]},
+        {"id": "P1-B20", "book": "20", "cycles": "20", "module": "Food", "reader": "The Hungry Giant", "grammar": ["Can I help you?", "May I have some …?", "some/any"]}
+      ]
+    },
+    "P2": {
+      "format": "reader-per-cycle",
+      "units": [
+        {"id": "P2-B01", "book": "1", "cycles": "1", "reader": "When Itchy Witchy Sneezes", "grammar": ["simple present for actions", "adverbs of direction"]},
+        {"id": "P2-B02", "book": "2", "cycles": "2", "reader": "Geoffrey the Dinosaur", "grammar": ["habitual simple present", "time prepositions"]},
+        {"id": "P2-B03", "book": "3", "cycles": "3", "reader": "Mr. Noisy's Helpers", "grammar": ["Who helps …?", "noun phrases for people"]},
+        {"id": "P2-B04", "book": "4", "cycles": "4", "reader": "What Next?", "grammar": ["There is/are", "prepositions of place"]},
+        {"id": "P2-B05", "book": "5", "cycles": "5", "reader": "There's a Monster in the Tree", "grammar": ["present continuous", "this/these", "like doing"]},
+        {"id": "P2-B06", "book": "6", "cycles": "6", "reader": "Mr. Noisy", "grammar": ["simple past", "manner adverbs", "when"]},
+        {"id": "P2-B07", "book": "7", "cycles": "7", "reader": "The Meanies Came to School", "grammar": ["simple past events", "place prepositions"]},
+        {"id": "P2-B08", "book": "8", "cycles": "8", "reader": "Cat and Dog at School", "grammar": ["Let's", "should", "instructions"]},
+        {"id": "P2-B09", "book": "9", "cycles": "9", "reader": "All Through the Week with Cat and Dog", "grammar": ["simple past + day/time"]},
+        {"id": "P2-B10", "book": "10", "cycles": "10", "reader": "Birthdays", "grammar": ["possessive adjectives and pronouns", "if"]},
+        {"id": "P2-B11", "book": "11", "cycles": "11", "reader": "Mum's Memory Box", "grammar": ["dates", "will for plans and wishes"]},
+        {"id": "P2-B12", "book": "12", "cycles": "12", "reader": "Celebrating Father's Day", "grammar": ["Why / because"]},
+        {"id": "P2-B13", "book": "13", "cycles": "13", "reader": "Cookie's Week", "grammar": ["There was/were", "simple past account"]},
+        {"id": "P2-B14", "book": "14", "cycles": "14", "reader": "The Backyard Mystery", "grammar": ["sequencing words", "past continuous in a sequence"]},
+        {"id": "P2-B15", "book": "15", "cycles": "15", "reader": "Granny Fixit and the Ball", "grammar": ["by + transport"]},
+        {"id": "P2-B16", "book": "16", "cycles": "16", "reader": "Good Choices for Cat and Dog", "grammar": ["but", "How much"]},
+        {"id": "P2-B17", "book": "17", "cycles": "17", "reader": "Open Your Mouth!", "grammar": ["Is it …?", "imperatives"]},
+        {"id": "P2-B18", "book": "18", "cycles": "18", "reader": "The Hungry Giant's Soup", "grammar": ["will for intention", "imperatives"]},
+        {"id": "P2-B19", "book": "19", "cycles": "19", "reader": "The Hungry Giant's Lunch", "grammar": ["How many + past", "would like to order"]},
+        {"id": "P2-B20", "book": "20", "cycles": "20", "reader": "Ratty-Tatty", "grammar": ["because", "-ing nouns for activities"]}
+      ]
+    },
+    "P3": {
+      "format": "reader-per-cycle",
+      "units": [
+        {"id": "P3-B01", "book": "1", "cycles": "1", "reader": "Mr. Whisper", "grammar": ["I'd like", "How much", "too + adjective", "quantity noun phrases"]},
+        {"id": "P3-B02", "book": "2", "cycles": "2", "reader": "You Noisy Monkey!", "grammar": ["past continuous", "until", "manner adverbs"]},
+        {"id": "P3-B03", "book": "3", "cycles": "3", "reader": "Shark in the Park", "grammar": ["place prepositions", "Are there any …?", "direction imperatives"]},
+        {"id": "P3-B04", "book": "4", "cycles": "4-5", "reader": "Animal Sounds", "grammar": ["use … to + infinitive", "good at + gerund"]},
+        {"id": "P3-B05", "book": "5", "cycles": "6", "reader": "The Hungry Giant's Birthday Cake", "grammar": ["would like", "ordinal dates", "modal must"]},
+        {"id": "P3-B06", "book": "6", "cycles": "7", "reader": "Greedy Cat's Breakfast", "grammar": ["simple past", "but/and", "relative who"]},
+        {"id": "P3-B07", "book": "7", "cycles": "8", "reader": "Celebrating Christmas", "grammar": ["simple present for festivals", "months and seasons"]},
+        {"id": "P3-B08", "book": "8", "cycles": "9-10", "reader": "Celebrations Around the World", "grammar": ["instructional imperatives"]},
+        {"id": "P3-B09", "book": "9", "cycles": "11", "reader": "The Little Red Hen", "grammar": ["Who will help me …?", "will / can't"]},
+        {"id": "P3-B10", "book": "10", "cycles": "12", "reader": "My Special Valentines", "grammar": ["on + date", "because"]},
+        {"id": "P3-B11", "book": "11", "cycles": "13", "reader": "I Have Two Enormous Wings", "grammar": ["keep + gerund"]},
+        {"id": "P3-B12", "book": "12", "cycles": "14-15", "reader": "Dear Penpal", "grammar": ["Where/What would you like to …?"]},
+        {"id": "P3-B13", "book": "13", "cycles": "16", "reader": "Miss Hunt's Magic Map", "grammar": ["habitat prepositions", "reporting verbs"]},
+        {"id": "P3-B14", "book": "14", "cycles": "17", "reader": "Rhino Helps Out", "grammar": ["dialogue punctuation"]},
+        {"id": "P3-B15", "book": "15", "cycles": "18", "reader": "Aladdin", "grammar": ["speech to dialogue"]},
+        {"id": "P3-B16", "book": "16", "cycles": "19-20", "reader": "What If Everybody Did That?", "grammar": ["When for cause", "suggest that … should", "so"]}
+      ]
+    },
+    "P4": {
+      "format": "coursebook-4A-4B",
+      "units": [
+        {"id": "P4-A1", "unit": "A1", "cycles": "1-5", "module": "Relationships", "title": "Our leisure time", "grammar": ["How often", "frequency adverbs and phrases"]},
+        {"id": "P4-A2", "unit": "A2", "cycles": "1-5", "module": "Relationships", "title": "We are different!", "grammar": ["different/same", "each other"]},
+        {"id": "P4-A3", "unit": "A3", "cycles": "1-5", "module": "Changes", "title": "Amazing friendships", "grammar": ["comparative adjectives", "superlative adjectives"]},
+        {"id": "P4-A4", "unit": "A4", "cycles": "6-10", "module": "Changes", "title": "We love reading", "grammar": ["more … than", "the most …"]},
+        {"id": "P4-A5", "unit": "A5", "cycles": "6-10", "module": "Happy days", "title": "Time to celebrate!", "grammar": ["at + festival", "wh- question words"]},
+        {"id": "P4-A6", "unit": "A6", "cycles": "6-10", "module": "Happy days", "title": "Join in the fun", "grammar": ["too/either", "both", "or"]},
+        {"id": "P4-B1", "unit": "B1", "cycles": "11-15", "module": "Food and drink", "title": "Ready for the party", "grammar": ["will", "plenty of", "a few", "a little"]},
+        {"id": "P4-B2", "unit": "B2", "cycles": "11-15", "module": "Food and drink", "title": "Stay fit", "grammar": ["enough", "too many", "too much", "more/fewer/less", "should"]},
+        {"id": "P4-B3", "unit": "B3", "cycles": "11-15", "module": "The magic of nature", "title": "A brave explorer", "grammar": ["How tall/heavy/high/long", "measurement phrases"]},
+        {"id": "P4-B4", "unit": "B4", "cycles": "16-20", "module": "The magic of nature", "title": "Reduce, reuse and recycle", "grammar": ["first/next/then/after that/finally", "manner adverbs"]},
+        {"id": "P4-B5", "unit": "B5", "cycles": "16-20", "module": "Changes", "title": "Past and present", "grammar": ["will", "Let's", "Shall we", "What/How about + gerund"]},
+        {"id": "P4-B6", "unit": "B6", "cycles": "16-20", "module": "Changes", "title": "A better me", "grammar": ["be going to", "time noun phrases"]}
+      ]
+    },
+    "P5": {
+      "format": "coursebook-A-B",
+      "units": [
+        {"id": "P5-A1", "unit": "A1", "cycles": "1-5", "module": "We Love Hong Kong", "title": "Let's go!", "grammar": ["How far", "How long does it take"]},
+        {"id": "P5-A2", "unit": "A2", "cycles": "1-5", "module": "We Love Hong Kong", "title": "Exploring Hong Kong", "grammar": ["Could you …?", "direction imperatives", "Where"]},
+        {"id": "P5-A3", "unit": "A3", "cycles": "1-5", "module": "Changes", "title": "I am older now!", "grammar": ["by + reflexive", "could for past ability"]},
+        {"id": "P5-A4", "unit": "A4", "cycles": "6-10", "module": "Changes", "title": "An offline weekend", "grammar": ["used to", "why", "because"]},
+        {"id": "P5-A5", "unit": "A5", "cycles": "6-10", "module": "Relationships", "title": "A day at the farm", "grammar": ["present perfect", "yet/just/already"]},
+        {"id": "P5-A6", "unit": "A6", "cycles": "6-10", "module": "Relationships", "title": "Give a hand", "grammar": ["ever/never", "which", "would like"]},
+        {"id": "P5-B1", "unit": "B1", "cycles": "11-15", "module": "Happy days", "title": "Colourful customs", "grammar": ["too + adjective", "indefinite pronouns"]},
+        {"id": "P5-B2", "unit": "B2", "cycles": "11-15", "module": "Happy days", "title": "Be a detective", "grammar": ["whose", "possessive pronouns"]},
+        {"id": "P5-B3", "unit": "B3", "cycles": "11-15", "module": "Relationships", "title": "Dream big", "grammar": ["How long have you …?", "for/since", "past vs present perfect"]},
+        {"id": "P5-B4", "unit": "B4", "cycles": "16-20", "module": "Relationships", "title": "A bright future", "grammar": ["-ing nouns", "to-infinitive", "good at + gerund"]},
+        {"id": "P5-B5", "unit": "B5", "cycles": "16-20", "module": "We Love Hong Kong", "title": "A time to remember", "grammar": ["past continuous", "-ed vs -ing adjectives"]},
+        {"id": "P5-B6", "unit": "B6", "cycles": "16-20", "module": "We Love Hong Kong", "title": "Be a good citizen", "grammar": ["when + past continuous", "while"]}
+      ]
+    },
+    "P6": {
+      "format": "coursebook-A-B",
+      "units": [
+        {"id": "P6-A1", "unit": "A1", "cycles": "1-5", "module": "Relationships", "title": "For a good cause", "grammar": ["so many/so much", "relative who", "relative which"]},
+        {"id": "P6-A2", "unit": "A2", "cycles": "1-5", "module": "Relationships", "title": "Lend a helping hand", "grammar": ["first conditional", "so that"]},
+        {"id": "P6-A3", "unit": "A3", "cycles": "1-5", "module": "Changes", "title": "Junior Super Chef", "grammar": ["although", "after/before"]},
+        {"id": "P6-A4", "unit": "A4", "cycles": "6-10", "module": "Changes", "title": "A film magic", "grammar": ["second conditional", "as … as"]},
+        {"id": "P6-A5", "unit": "A5", "cycles": "6-10", "module": "Happy days", "title": "The land of kangaroos", "grammar": ["adjective + preposition", "relative where"]},
+        {"id": "P6-A6", "unit": "A6", "cycles": "6-10", "module": "Happy days", "title": "International Week", "grammar": ["until", "each/both/several"]},
+        {"id": "P6-B1", "unit": "B1", "cycles": "11-15", "module": "The magic of nature", "title": "Going green", "grammar": ["phrasal verbs", "unless"]},
+        {"id": "P6-B2", "unit": "B2", "cycles": "11-15", "module": "The magic of nature", "title": "Protect them", "grammar": ["present simple passive", "since for reason", "therefore"]},
+        {"id": "P6-B3", "unit": "B3", "cycles": "11-15", "module": "Relationships", "title": "Get well soon!", "grammar": ["reported speech"]},
+        {"id": "P6-B4", "unit": "B4", "cycles": "16-20", "module": "Relationships", "title": "When an accident happens", "grammar": ["another/other", "reflexive object"]},
+        {"id": "P6-B5", "unit": "B5", "cycles": "16-20", "module": "We Love Hong Kong", "title": "Be considerate", "grammar": ["infinitive with to and bare infinitive", "ought to"]},
+        {"id": "P6-B6", "unit": "B6", "cycles": "16-20", "module": "Relationships", "title": "Friends for life", "grammar": ["would rather … than", "either … or", "neither … nor"]}
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ import {
   Calendar,
   Filter,
   Zap,
+  Layers,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -20,7 +21,7 @@ import { processText } from '../../utils/textProcessor';
 
 interface UnifiedAssignment {
   assignment_id: string;
-  assignment_type: 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading';
+  assignment_type: 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading' | 'learning_system';
   title: string;
   assigned_at: string;
   assigned_by_username: string;
@@ -32,7 +33,7 @@ interface UnifiedAssignment {
   assignment_level?: number;
 }
 
-type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading';
+type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading' | 'learning_system';
 type FilterStatus = 'all' | 'completed' | 'in_progress' | 'overdue';
 
 interface UnifiedAssignmentsProps {
@@ -40,6 +41,7 @@ interface UnifiedAssignmentsProps {
   onLoadSpelling: (practice: any) => void;
   onLoadProofreading: (assignment: any) => void;
   onLoadSpacedRepetition: (assignment: any) => void;
+  onLoadLearningSystem: (assignment: any) => void;
   onLoadReading: (assignment: any) => void;
 }
 
@@ -48,6 +50,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
   onLoadSpelling,
   onLoadProofreading,
   onLoadSpacedRepetition,
+  onLoadLearningSystem,
   onLoadReading,
 }) => {
   const { user } = useAuth();
@@ -95,6 +98,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         return <FileText size={20} className="text-green-600" />;
       case 'spaced_repetition':
         return <Zap size={20} className="text-amber-500" />;
+      case 'learning_system':
+        return <Layers size={20} className="text-teal-600" />;
       case 'reading':
         return <BookOpen size={20} className="text-indigo-600" />;
       default:
@@ -112,6 +117,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         return 'bg-green-100 text-green-700 border-green-200';
       case 'spaced_repetition':
         return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'learning_system':
+        return 'bg-teal-100 text-teal-700 border-teal-200';
       case 'reading':
         return 'bg-indigo-100 text-indigo-700 border-indigo-200';
       default:
@@ -201,6 +208,8 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       onLoadProofreading(proofreadingAssignment);
     } else if (assignment.assignment_type === 'spaced_repetition') {
       onLoadSpacedRepetition(assignment);
+    } else if (assignment.assignment_type === 'learning_system') {
+      onLoadLearningSystem(assignment);
     } else if (assignment.assignment_type === 'reading') {
       onLoadReading(assignment);
     }
@@ -292,6 +301,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                   <option value="spelling">Spelling</option>
                   <option value="proofreading">Proofreading</option>
                   <option value="spaced_repetition">Spaced Repetition</option>
+                  <option value="learning_system">Learning System</option>
                   <option value="reading">Reading</option>
                 </select>
 

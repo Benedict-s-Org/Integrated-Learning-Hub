@@ -1,0 +1,203 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { currentProgressUnit, hongKongDateIso } from '../../lib/learningSystem/curriculumProgress';
+import {
+  composeConceptCheck,
+  conceptCheckRng,
+  expandProofreadingBank,
+  roundProofreadingCount,
+} from '../../lib/learningSystem/proofreadingConceptCheck';
+
+function curriculumRows() {
+  const sql = readFileSync(
+    'supabase/migrations/20261108120000_school_curriculum_micro_skills_2026_27.sql',
+    'utf8'
+  );
+  const head = sql.split('ON CONFLICT')[0];
+  const rows = [];
+  const re =
+    /\(\s*'((?:p|ms)[^']+)',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)'/g;
+  for (const match of head.matchAll(re)) {
+    const unescape = (value: string) => value.replace(/''/g, "'");
+    rows.push({
+      id: match[1],
+      measures: unescape(match[3]),
+      boundary: unescape(match[4]),
+      chapter_ref: unescape(match[5]),
+      branch: unescape(match[7]),
+    });
+  }
+  return rows;
+}
+
+describe('roundProofreadingCount', () => {
+  it('rounds half up to the nearest ten', () => {
+    expect(roundProofreadingCount(63)).toBe(60);
+    expect(roundProofreadingCount(65)).toBe(70);
+    expect(roundProofreadingCount(64)).toBe(60);
+    expect(roundProofreadingCount(66)).toBe(70);
+    expect(roundProofreadingCount(60)).toBe(60);
+    expect(roundProofreadingCount(5)).toBe(10);
+  });
+
+  it('keeps a count that would otherwise round to zero', () => {
+    expect(roundProofreadingCount(4)).toBe(4);
+    expect(roundProofreadingCount(0)).toBe(0);
+  });
+});
+
+describe('currentProgressUnit', () => {
+  it('places a P.4 class on A4 on 12 November 2026', () => {
+    const unit = currentProgressUnit('P.4', '2026-11-12');
+    expect(unit?.code).toBe('A4');
+    expect(unit?.rank).toBe(4);
+  });
+
+  it('stays on A3 during the term-test gap before cycles 6–10', () => {
+    expect(currentProgressUnit('P.4', '2026-11-02')?.code).toBe('A3');
+  });
+
+  it('has not started P.4 before the school year', () => {
+    expect(currentProgressUnit('P.4', '2026-09-03')).toBeNull();
+  });
+});
+
+describe('hongKongDateIso', () => {
+  it('uses the Hong Kong calendar date', () => {
+    expect(hongKongDateIso(new Date('2026-11-11T20:00:00Z'))).toBe('2026-11-12');
+  });
+});
+
+describe('expandProofreadingBank', () => {
+  it('builds ten sentences that still contain the one wrong word', () => {
+    const bank = expandProofreadingBank([
+      { sentence: 'This are my brother.', error: 'are', corrected: 'is' },
+    ]);
+    expect(bank).toHaveLength(10);
+    expect(new Set(bank.map((item) => item.sentence)).size).toBe(10);
+    for (const item of bank) {
+      expect(item.error).toBe('are');
+      expect(item.corrected).toBe('is');
+      const hits = item.sentence
+        .split(/\s+/)
+        .filter((token) => token.replace(/[^\w']/g, '').toLowerCase() === 'are');
+      expect(hits).toHaveLength(1);
+    }
+  });
+});
+
+describe('composeConceptCheck', () => {
+  const rows = curriculumRows();
+
+  it('gives a P.4 student six sets of ten before regular practice', () => {
+    const plan = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      rng: conceptCheckRng('p4-student'),
+    });
+    expect(plan.gaps).toEqual([]);
+    expect(plan.textCount).toBe(63);
+    expect(plan.targetCount).toBe(60);
+    expect(plan.allQuestions).toHaveLength(60);
+    expect(plan.setCount).toBe(6);
+    expect(plan.questions).toHaveLength(10);
+    expect(new Set(plan.allQuestions.map((q) => q.skillId)).size).toBe(60);
+    expect(plan.repeatedIds).toEqual([]);
+    expect(plan.droppedIds).toEqual([
+      'p1_2627bk1_be_is_form',
+      'p1_2627bk1_wh_who_person',
+      'p1_2627bk2_inf_verb_after_to_bare',
+    ]);
+    expect(plan.allQuestions.some((q) => q.skillId === 'p4_A4_superlative_most')).toBe(true);
+    expect(plan.allQuestions.some((q) => q.skillId === 'p4_A5_which')).toBe(false);
+    expect(plan.allQuestions.some((q) => q.skillId.includes('_im_'))).toBe(false);
+    expect(plan.allQuestions.every((q) => q.errorWordIndex >= 0)).toBe(true);
+    expect(new Set(plan.questions.map((q) => q.yearLevel)).size).toBeGreaterThan(1);
+    const byYear = [...plan.allQuestions].sort((a, b) => a.yearLevel - b.yearLevel || a.skillId.localeCompare(b.skillId));
+    expect(plan.allQuestions.map((q) => q.skillId)).not.toEqual(byYear.map((q) => q.skillId));
+
+    const last = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      setIndex: 5,
+      rng: conceptCheckRng('p4-student'),
+    });
+    expect(last.questions).toHaveLength(10);
+    expect(last.questions.map((q) => q.id)).toEqual(
+      plan.allQuestions.slice(50).map((q) => q.id)
+    );
+    const done = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      setIndex: 6,
+      rng: conceptCheckRng('p4-student'),
+    });
+    expect(done.questions).toHaveLength(0);
+  });
+
+  it('draws one of ten sentences for each micro-skill', () => {
+    const first = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      rng: () => 0,
+    });
+    const last = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+      rng: () => 0.999,
+    });
+    const skillId = first.allQuestions[0].skillId;
+    const other = last.allQuestions.find((q) => q.skillId === skillId);
+    expect(other?.sentence).not.toBe(first.allQuestions[0].sentence);
+    expect(first.allQuestions[0].sentence.toLowerCase()).toContain(
+      first.allQuestions[0].error.toLowerCase()
+    );
+  });
+
+  it('repeats current-grade skills when the count rounds up', () => {
+    const plan = composeConceptCheck({
+      skills: rows,
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+    });
+    const extra = {
+      id: 'p4_A4_extra_a',
+      measures: 'Wrong word cat. Correct word cats.',
+      boundary: 'Proofreading: I see two cat.',
+      chapter_ref: 'P.4 A4',
+      branch: 'Text',
+    };
+    const extraB = {
+      id: 'p4_A4_extra_b',
+      measures: 'Wrong word dog. Correct word dogs.',
+      boundary: 'Proofreading: I see two dog.',
+      chapter_ref: 'P.4 A4',
+      branch: 'Text',
+    };
+    const rounded = composeConceptCheck({
+      skills: [...rows, extra, extraB],
+      gradeKey: 'P.4',
+      studentYear: 4,
+      isoDate: '2026-11-12',
+    });
+    expect(plan.textCount).toBe(63);
+    expect(rounded.textCount).toBe(65);
+    expect(rounded.targetCount).toBe(70);
+    expect(rounded.droppedIds).toEqual([]);
+    expect(rounded.allQuestions).toHaveLength(70);
+    expect(rounded.setCount).toBe(7);
+    expect(rounded.repeatedIds.length).toBe(5);
+    expect(rounded.repeatedIds.every((id) => id.startsWith('p4_'))).toBe(true);
+  });
+});
