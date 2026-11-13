@@ -171,6 +171,7 @@ That yields a verifiable vertical slice without inventing OPEN pedagogy rules.
 | 2026-11-02 | 0 | CLAR-06 resolved: DEC-20261102-16 — 20 ordinary attempts before re-arm |
 | 2026-11-02 | 0 | CLAR-07 resolved: DEC-20261102-17 — pause + analytics highlight + Teacher followed up |
 | 2026-11-02 | 0 | CLAR-10 resolved: DEC-20261102-18 — PR exact match only |
+| 2026-11-13 | — | DEC-20261113-01 — Corrected field comma = OR alternatives (`is,was`) |
 | 2026-11-02 | 0 | CLAR-11 resolved: DEC-20261102-19 — tips on Progress page only |
 | 2026-11-02 | 0 | CLAR-12 resolved: DEC-20261102-20 — new LS assignment type; legacy SRS completion unchanged |
 | 2026-11-02 | — | Learning System **ON HOLD**; standalone SRS assignment-completion may proceed separately |

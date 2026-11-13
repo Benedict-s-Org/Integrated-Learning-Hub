@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { scoreProofreadingItem } from '../utils/proofreadingScore';
+import {
+  formatProofreadingCorrectionAlternatives,
+  matchesProofreadingCorrection,
+  scoreProofreadingItem,
+} from '../utils/proofreadingScore';
 
 describe('scoreProofreadingItem', () => {
   it('credits correction only after a correct find and an exact match', () => {
@@ -56,5 +60,42 @@ describe('scoreProofreadingItem', () => {
         isIncomplete: true,
       })
     ).toEqual({ detectionCorrect: false, correctionCorrect: false, isCorrect: false });
+  });
+
+  it('accepts any comma-separated alternative from the Notion Corrected field', () => {
+    const base = {
+      userWordIndex: 1,
+      expectedWordIndex: 1,
+      expectedCorrection: 'is,was',
+    };
+    expect(scoreProofreadingItem({ ...base, userCorrection: 'is' }).isCorrect).toBe(true);
+    expect(scoreProofreadingItem({ ...base, userCorrection: 'WAS' }).isCorrect).toBe(true);
+    expect(scoreProofreadingItem({ ...base, userCorrection: 'are' }).isCorrect).toBe(false);
+    expect(scoreProofreadingItem({ ...base, userCorrection: 'is,was' }).isCorrect).toBe(false);
+  });
+
+  it('trims spaces around comma-separated alternatives', () => {
+    expect(
+      scoreProofreadingItem({
+        userWordIndex: 0,
+        expectedWordIndex: 0,
+        expectedCorrection: 'is, was , were',
+        userCorrection: 'were',
+      }).isCorrect
+    ).toBe(true);
+  });
+});
+
+describe('proofreading correction alternatives helpers', () => {
+  it('formats alternatives for feedback display', () => {
+    expect(formatProofreadingCorrectionAlternatives('is,was')).toBe('is / was');
+    expect(formatProofreadingCorrectionAlternatives(' went ')).toBe('went');
+  });
+
+  it('matches only listed alternatives', () => {
+    expect(matchesProofreadingCorrection('is', 'is,was')).toBe(true);
+    expect(matchesProofreadingCorrection('was', 'is, was')).toBe(true);
+    expect(matchesProofreadingCorrection('', 'is,was')).toBe(false);
+    expect(matchesProofreadingCorrection('is,was', 'is,was')).toBe(false);
   });
 });

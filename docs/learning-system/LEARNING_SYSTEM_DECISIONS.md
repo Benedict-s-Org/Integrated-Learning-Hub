@@ -158,7 +158,7 @@ User will **create new Notion database(s)** already containing required properti
 - C) Exact + AI judge for near-equivalents (model TBD)  
 - D) Other  
 
-**Status: CONFIRMED 2026-11-02 → DEC-20261102-18 (option A)**
+**Status: CONFIRMED 2026-11-02 → DEC-20261102-18 (option A); extended 2026-11-13 → DEC-20261113-01 (comma allowlist in Corrected)**
 
 ---
 
@@ -263,7 +263,7 @@ User will **create new Notion database(s)** already containing required properti
 | Choice A–D | rich text | SRS only |
 | Correct Answer | rich text/select | SRS |
 | Error | rich text | Proofreading wrong word |
-| Corrected | rich text | Proofreading correction |
+| Corrected | rich text | Proofreading correction; comma = OR alternatives (DEC-20261113-01) |
 | Micro-skill ID | rich text or select | **Required for LS** — stable Hub skill id |
 | Grade Tags | multi-select (P1–P4) | optional filter aid |
 | Explanation / Tip | rich text | optional |
@@ -314,6 +314,16 @@ User will **create new Notion database(s)** already containing required properti
 - Correction success = case-insensitive trimmed exact match to the stored correct form (current practice behavior).
 - Do not treat spelling variants / synonyms as correct unless they exactly match the key.
 - Spec note on “reasonable equivalents”: deferred; no AI judge or allowlist in this round. If needed later → new decision.
+
+### DEC-20261113-01 — Comma-separated Corrected alternatives (extends DEC-20261102-18)
+
+**Confirmed by user (2026-11-13):** in the Learning System Notion proofreading DB `Corrected` field (and shared proofreading scoring), a **comma** means OR — more than one acceptable correction.
+
+- Example: `is,was` → student answer `is` **or** `was` both count as correct (still case-insensitive trimmed exact match per alternative).
+- Spaces around commas are ignored (`is, was` same as `is,was`).
+- Do **not** invent synonyms; only listed alternatives count.
+- Feedback UI shows alternatives as `is / was`.
+- Still no AI judge. Slash `/` is display-only; teachers write commas in Notion.
 
 ### DEC-20261102-21 — SRS on Unified Assignments without completion
 
