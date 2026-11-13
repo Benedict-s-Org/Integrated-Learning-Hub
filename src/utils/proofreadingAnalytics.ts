@@ -1,4 +1,9 @@
 import { ProofreadingPracticeResult, ProofreadingAnswer } from '../types';
+import {
+  formatProofreadingCorrectionAlternatives,
+  matchesProofreadingCorrection,
+  parseProofreadingCorrectionAlternatives,
+} from './proofreadingScore';
 
 export type QuestionDiagnosticStatus = 
   | 'correct'           // Both detected correct word and provided correct correction
@@ -372,8 +377,7 @@ export function diagnoseQuestion(
     statusColor = 'text-slate-600 bg-slate-100 border-slate-300';
   } else {
     const isWordCorrect = userWordIndex === targetWordIndex;
-    const isCorrectionCorrect = 
-      userCorrection?.trim().toLowerCase() === expectedCorrection.trim().toLowerCase();
+    const isCorrectionCorrect = matchesProofreadingCorrection(userCorrection, expectedCorrection);
 
     if (isWordCorrect && isCorrectionCorrect) {
       status = 'correct';
@@ -390,7 +394,13 @@ export function diagnoseQuestion(
     }
   }
 
-  const { category, icon: categoryIcon } = inferGrammarCategory(targetWordText, expectedCorrection, tip || '');
+  const primaryExpected =
+    parseProofreadingCorrectionAlternatives(expectedCorrection)[0] || expectedCorrection;
+  const { category, icon: categoryIcon } = inferGrammarCategory(
+    targetWordText,
+    primaryExpected,
+    tip || ''
+  );
 
   return {
     lineNumber,
@@ -398,7 +408,7 @@ export function diagnoseQuestion(
     tokens,
     targetWordIndex,
     targetWordText,
-    expectedCorrection,
+    expectedCorrection: formatProofreadingCorrectionAlternatives(expectedCorrection),
     userWordIndex,
     userWordText,
     userCorrection,

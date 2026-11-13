@@ -4,6 +4,10 @@ import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../.
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
+import {
+  formatProofreadingCorrectionAlternatives,
+  matchesProofreadingCorrection,
+} from '../../utils/proofreadingScore';
 
 interface ProofreadingPreviewProps {
   sentences: string[];
@@ -128,7 +132,7 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
     const correction = corrections.get(lineNumber) || '';
 
     const wordCorrect = selectedWordIndex === correctAnswer.wordIndex;
-    const correctionCorrect = correction.trim().toLowerCase() === correctAnswer.correction.trim().toLowerCase();
+    const correctionCorrect = matchesProofreadingCorrection(correction, correctAnswer.correction);
 
     return {
       isCorrect: wordCorrect && correctionCorrect,
@@ -340,7 +344,10 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
                                     </div>
                                     {correctAnswer && (
                                       <div className="text-sm text-gray-600">
-                                        <p>Correct: {correctAnswer.correction}</p>
+                                        <p>
+                                          Correct:{' '}
+                                          {formatProofreadingCorrectionAlternatives(correctAnswer.correction)}
+                                        </p>
                                       </div>
                                     )}
                                   </div>

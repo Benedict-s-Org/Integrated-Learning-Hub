@@ -18,7 +18,10 @@ import { parseLearningSystemGradeKey, isLearningSystemGradeKey } from '../../lib
 import type { LearningSystemGradeKey } from '../../lib/learningSystem/types';
 import type { LsSessionQuestion } from '../../lib/learningSystem/sessionService';
 import type { LsProofreadingQuestion } from '../../lib/learningSystem/proofreadingConceptCheck';
-import { scoreProofreadingItem } from '../../utils/proofreadingScore';
+import {
+  formatProofreadingCorrectionAlternatives,
+  scoreProofreadingItem,
+} from '../../utils/proofreadingScore';
 
 type Phase = 'ready' | 'loading' | 'active' | 'revealed' | 'summary' | 'error';
 
@@ -540,7 +543,9 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
                       </td>
                       <td className="border border-slate-300 px-3 py-3 text-sm">
                         {revealed ? (
-                          <span className="font-medium text-blue-700">{question.corrected}</span>
+                          <span className="font-medium text-blue-700">
+                            {formatProofreadingCorrectionAlternatives(question.corrected)}
+                          </span>
                         ) : (
                           <span className="italic text-slate-400">Hidden</span>
                         )}
@@ -718,8 +723,8 @@ export const LearningSystemPractice: React.FC<LearningSystemPracticeProps> = ({
                   <XCircle className="w-4 h-4" />
                   {isProofreadingQuestion(current)
                     ? notSure
-                      ? `Not sure. The wrong word is "${current.error}" and the correct word is "${current.corrected}".`
-                      : `Not quite. The wrong word is "${current.error}" and the correct word is "${current.corrected}".`
+                      ? `Not sure. The wrong word is "${current.error}" and the correct word is "${formatProofreadingCorrectionAlternatives(current.corrected)}".`
+                      : `Not quite. The wrong word is "${current.error}" and the correct word is "${formatProofreadingCorrectionAlternatives(current.corrected)}".`
                     : 'Not quite'}
                 </span>
               )}

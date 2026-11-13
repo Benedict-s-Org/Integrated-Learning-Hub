@@ -1,7 +1,7 @@
 /**
- * Proofreading item score (DEC-20261102-18).
+ * Proofreading item score (DEC-20261102-18, extended DEC-20261113-01).
  * Correction credit requires the student found the error word first.
- * Match is trimmed, case-insensitive, and exact.
+ * Match is trimmed, case-insensitive, and exact against any comma-separated alternative.
  */
 
 export interface ProofreadingItemScore {
@@ -9,6 +9,32 @@ export interface ProofreadingItemScore {
   /** True only when the error word was found and the correction matches exactly. */
   correctionCorrect: boolean;
   isCorrect: boolean;
+}
+
+/** Split a Notion Corrected value into acceptable answers (comma = OR). */
+export function parseProofreadingCorrectionAlternatives(expectedCorrection: string): string[] {
+  return expectedCorrection
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+/** Human-readable alternatives for feedback, e.g. "is / was". */
+export function formatProofreadingCorrectionAlternatives(expectedCorrection: string): string {
+  const parts = parseProofreadingCorrectionAlternatives(expectedCorrection);
+  return parts.length > 0 ? parts.join(' / ') : expectedCorrection.trim();
+}
+
+/** Case-insensitive trimmed exact match against any comma-separated alternative. */
+export function matchesProofreadingCorrection(
+  userCorrection: string | undefined,
+  expectedCorrection: string
+): boolean {
+  const typed = (userCorrection ?? '').trim().toLowerCase();
+  if (typed.length === 0) return false;
+  return parseProofreadingCorrectionAlternatives(expectedCorrection).some(
+    (alt) => alt.toLowerCase() === typed
+  );
 }
 
 export function scoreProofreadingItem(params: {
@@ -27,9 +53,10 @@ export function scoreProofreadingItem(params: {
   }
 
   const detectionCorrect = params.userWordIndex === params.expectedWordIndex;
-  const typed = (params.userCorrection ?? '').trim().toLowerCase();
-  const expected = params.expectedCorrection.trim().toLowerCase();
-  const textMatches = typed.length > 0 && typed === expected;
+  const textMatches = matchesProofreadingCorrection(
+    params.userCorrection,
+    params.expectedCorrection
+  );
   const correctionCorrect = detectionCorrect && textMatches;
 
   return {

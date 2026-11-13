@@ -30,7 +30,7 @@ Legend: `N/S` not started · `PARTIAL` exists but gaps · `DONE` verified · `BL
 | R-CHT-02 | Two-set stacked bars | `charts.buildTwoSetBars` | DONE | |
 | R-CHT-03 | Bar → pie 20 items | `charts.buildTwentyItemPie` | DONE | |
 | R-PRF-01 | Reuse proofreading exercise | `ProofreadingPractice` et al. | PARTIAL | |
-| R-PRF-02 | Find vs correct persisted; exact correction match | `proofreadingScore` saved on `user_answers` | DONE | Find-fail stores correctionCorrect false; older rows still re-derived |
+| R-PRF-02 | Find vs correct persisted; exact correction match (comma = OR alternatives) | `proofreadingScore` saved on `user_answers` | DONE | Find-fail stores correctionCorrect false; older rows still re-derived; DEC-20261113-01 |
 | R-PRF-03 | Not mix into SRS charts | Currently separate | DONE (keep) | Enforce when adding charts |
 | R-PRF-04 | No SRS weakness gate on PR | N/A gates today | DONE (keep) | |
 | R-LEG-01 | No 150 / Tier / 80-20 scoring | Not found in product code | DONE (absent) | Report if found later |

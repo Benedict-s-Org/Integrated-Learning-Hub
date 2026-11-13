@@ -7,6 +7,10 @@ import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../.
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
+import {
+  formatProofreadingCorrectionAlternatives,
+  matchesProofreadingCorrection,
+} from '../../utils/proofreadingScore';
 
 interface ProofreadingPracticeProps {
   sentences: string[];
@@ -196,7 +200,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
 
     const isCorrect =
       userSelectedWord === correctAnswer.wordIndex &&
-      userCorrection?.trim().toLowerCase() === correctAnswer.correction.trim().toLowerCase();
+      matchesProofreadingCorrection(userCorrection, correctAnswer.correction);
 
     return isCorrect ? 'correct' : 'incorrect';
   };
@@ -561,7 +565,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                             <td className="border border-gray-300 px-4 py-3 text-center">
                               {showResults && correctAnswer ? (
                                 <span className="text-blue-700 font-medium">
-                                  {correctAnswer.correction}
+                                  {formatProofreadingCorrectionAlternatives(correctAnswer.correction)}
                                 </span>
                               ) : (
                                 <span className="text-gray-400 italic">Hidden</span>
@@ -720,7 +724,7 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
                             <div className="pt-2 border-t border-gray-200">
                               <label className="block text-xs font-medium text-gray-500 mb-1">Correct Answer:</label>
                               <span className="text-blue-700 font-medium">
-                                {correctAnswer.correction}
+                                {formatProofreadingCorrectionAlternatives(correctAnswer.correction)}
                               </span>
                             </div>
                           )}
