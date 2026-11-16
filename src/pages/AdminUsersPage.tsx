@@ -38,6 +38,7 @@ import { BulkUserCreationModal } from '@/components/admin/BulkUserCreationModal'
 import { BulkUserEditModal } from '@/components/admin/BulkUserEditModal';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
@@ -95,7 +96,7 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
   const [showAwardModal, setShowAwardModal] = useState(false);
   const [selectedForAward, setSelectedForAward] = useState<string[]>([]);
   const [qrUser, setQrUser] = useState<{ id: string; name: string; qrToken: string } | null>(null);
-  const [filterClass, setFilterClass] = useState<string>('all');
+  const [filterClass, setFilterClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
   const [showAllStudents, setShowAllStudents] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);

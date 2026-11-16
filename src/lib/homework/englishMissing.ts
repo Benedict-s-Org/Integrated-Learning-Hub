@@ -4,6 +4,7 @@ import {
   handedInKey,
   missingLogsFromEnglishMarks,
   type EnglishMark,
+  type HandedInRosterEntry,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
@@ -22,11 +23,14 @@ type MarkRow = {
   item_name: string;
   student_id: string;
   handed_in: boolean;
+  is_late?: boolean | null;
 };
 
 export type EnglishHomeworkState = {
   logs: MissingLogInput[];
   handedInKeys: Set<string>;
+  lateKeys: Set<string>;
+  handedInRoster: HandedInRosterEntry[];
 };
 
 export async function fetchEnglishHomeworkState(className?: string): Promise<EnglishHomeworkState> {
@@ -36,7 +40,7 @@ export async function fetchEnglishHomeworkState(className?: string): Promise<Eng
     .eq('role', 'user');
   let markQuery = homeworkDb
     .from('english_homework_checks')
-    .select('class_name, record_date, subject, item_name, student_id, handed_in');
+      .select('class_name, record_date, subject, item_name, student_id, handed_in, is_late');
   if (className && className !== 'all') {
     studentQuery = studentQuery.eq('class', className);
     markQuery = markQuery.eq('class_name', className);
@@ -61,13 +65,31 @@ export async function fetchEnglishHomeworkState(className?: string): Promise<Eng
     item: row.item_name,
     studentId: row.student_id,
     handedIn: row.handed_in,
+    isLate: Boolean(row.is_late),
   }));
   const handedInKeys = new Set<string>();
+  const lateKeys = new Set<string>();
   for (const mark of marks) {
     if (!mark.handedIn) continue;
-    handedInKeys.add(handedInKey(mark.studentId, mark.date, mark.subject, mark.item));
+    const key = handedInKey(mark.studentId, mark.date, mark.subject, mark.item);
+    handedInKeys.add(key);
+    if (mark.isLate) lateKeys.add(key);
   }
-  return { logs: missingLogsFromEnglishMarks(students, marks), handedInKeys };
+  const handedInRoster: HandedInRosterEntry[] = [];
+  for (const mark of marks) {
+    if (!mark.handedIn) continue;
+    const student = students.find((row) => row.id === mark.studentId);
+    handedInRoster.push({
+      className: mark.className,
+      date: mark.date,
+      subject: mark.subject,
+      item: mark.item,
+      studentId: mark.studentId,
+      name: student?.name || 'Unknown',
+      classNumber: student?.classNumber || 0,
+    });
+  }
+  return { logs: missingLogsFromEnglishMarks(students, marks), handedInKeys, lateKeys, handedInRoster };
 }
 
 export async function fetchEnglishMissingLogs(className?: string): Promise<MissingLogInput[]> {
@@ -129,6 +151,7 @@ export async function markListedHomeworkHandedIn(args: {
       p_handed_in: true,
       p_needs_correction: prior?.needs_correction ?? false,
       p_is_complete: prior?.is_complete ?? false,
+      p_is_late: false,
     });
   }));
   const failed = results.find((result) => result.error);

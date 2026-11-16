@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { CalendarDays, Save, RefreshCw, BookOpen, UserCheck, Coffee, Utensils, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type TimetableData = Record<string, string>; // key: "lessonNum_dayIndex"
 
 export default function AdminTimetablePage() {
     const [classes, setClasses] = useState<string[]>([]);
-    const [selectedClass, setSelectedClass] = useState<string>('3A');
+    const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
     const [timetable, setTimetable] = useState<TimetableData>({});
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -31,10 +32,8 @@ export default function AdminTimetablePage() {
                 .filter((c: any): c is string => !!c && !isArchivedClassName(c))
                 .sort();
             setClasses(uniqueClasses as string[]);
-            if (uniqueClasses.includes('3A')) {
-                setSelectedClass('3A');
-            } else if (uniqueClasses.length > 0) {
-                setSelectedClass(uniqueClasses[0] as string);
+            if (uniqueClasses.length > 0) {
+                setSelectedClass(pickDefaultClass(uniqueClasses as string[]));
             }
         }
     };

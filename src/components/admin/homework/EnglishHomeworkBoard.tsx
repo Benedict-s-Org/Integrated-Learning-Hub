@@ -13,6 +13,8 @@ import {
   type EnglishCheckField,
   type EnglishWorkCell,
 } from '@/lib/homework/englishWork';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
+import { resolveEnglishClassFilter } from '@/lib/homework/englishClassFilter';
 import { fetchManagedClassIds, filterClassNameList } from '@/lib/staff/managedClasses';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -60,7 +62,7 @@ function workTitle(work: Pick<EnglishWorkCell, 'subject' | 'name' | 'detail'>): 
 export function EnglishHomeworkBoard() {
   const { user, isAdmin, session } = useAuth();
   const [classes, setClasses] = useState<string[]>([]);
-  const [classFilter, setClassFilter] = useState('3A');
+  const [classFilter, setClassFilter] = useState(PREFERRED_DEFAULT_CLASS);
   const [view, setView] = useState<'date' | 'item'>('date');
   const [dateOrder, setDateOrder] = useState<'asc' | 'desc'>('asc');
   const [works, setWorks] = useState<EnglishWorkCell[]>([]);
@@ -86,9 +88,10 @@ export function EnglishHomeworkBoard() {
           const managed = await fetchManagedClassIds(user.id, session?.access_token);
           classNames = filterClassNameList(classNames, managed, false);
         }
-        const effectiveFilter = (!isAdmin && (classFilter === 'all' || !classNames.includes(classFilter)))
+        const resolved = resolveEnglishClassFilter(classFilter, classNames);
+        const effectiveFilter = (!isAdmin && (resolved === 'all' || !classNames.includes(resolved)))
           ? (classNames[0] || '')
-          : classFilter;
+          : resolved;
         if (!cancelled) {
           setClasses(classNames);
           if (effectiveFilter !== classFilter) setClassFilter(effectiveFilter);
@@ -197,6 +200,7 @@ export function EnglishHomeworkBoard() {
         p_handed_in: next.handedIn,
         p_needs_correction: next.correction,
         p_is_complete: next.complete,
+        p_is_late: false,
       });
       if (rpcError) throw rpcError;
     } catch (err) {
@@ -256,7 +260,9 @@ export function EnglishHomeworkBoard() {
         </div>
       ) : works.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center text-slate-500">
-          No English homework has been set on the Class Dashboard yet.
+          {classFilter === 'all'
+            ? 'No English homework has been set on the Class Dashboard yet.'
+            : `No English homework for class ${classFilter}. Try All classes, or set English items for this class on the Class Dashboard.`}
         </div>
       ) : view === 'date' ? (
         <div className="space-y-8">

@@ -24,17 +24,20 @@ import {
   XCircle,
   HelpCircle,
   MinusCircle,
+  Lightbulb,
   Layers,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { StudentActivityDetail } from './StudentActivityDetail';
 import { StudentProofreadingDetailModal } from './StudentProofreadingDetailModal';
+import { HomeworkAnalyticsPanel } from './HomeworkAnalyticsPanel';
 import { LearningSystemProgressPanel } from '../LearningSystem/LearningSystemProgressPanel';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '../../constants/classDefaults';
 import { isArchivedClassName } from '../../utils/archiveClassExporter';
 import * as XLSX from 'xlsx';
 
-type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'learning_system' | 'activity';
+type TabType = 'overview' | 'students' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'learning_system' | 'activity' | 'homework';
 type UserScope = 'active' | 'archived' | 'all';
 
 interface ClassAnalyticsSummary {
@@ -138,14 +141,14 @@ interface PerformanceDistribution {
 const UserAnalytics: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [lsStudentId, setLsStudentId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Scope and class filters
   const [userScope, setUserScope] = useState<UserScope>('active');
-  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
+  const [lsStudentId, setLsStudentId] = useState<string>('');
 
   // Student detail modal state
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -282,9 +285,9 @@ const UserAnalytics: React.FC = () => {
     setUserScope(newScope);
     if (selectedClass !== 'all') {
       if (newScope === 'active' && !activeClasses.includes(selectedClass)) {
-        setSelectedClass('all');
+        setSelectedClass(pickDefaultClass(activeClasses));
       } else if (newScope === 'archived' && !archivedClassList.includes(selectedClass)) {
-        setSelectedClass('all');
+        setSelectedClass(pickDefaultClass(archivedClassList));
       }
     }
   };
@@ -655,6 +658,7 @@ const UserAnalytics: React.FC = () => {
             { id: 'spaced_repetition', label: 'Spaced Repetition', icon: Zap },
             { id: 'learning_system', label: 'Learning System', icon: Layers },
             { id: 'activity', label: 'Activity', icon: Activity },
+            { id: 'homework', label: 'Homework', icon: BookOpen },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1685,32 +1689,6 @@ const UserAnalytics: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'learning_system' && (
-          <div className="space-y-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Student</label>
-              <select
-                className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 bg-white text-sm"
-                value={lsStudentId || classFilteredStudents[0]?.user_id || ''}
-                onChange={(e) => setLsStudentId(e.target.value)}
-              >
-                {classFilteredStudents.length === 0 && <option value="">No students</option>}
-                {classFilteredStudents.map((student) => (
-                  <option key={student.user_id} value={student.user_id}>
-                    {(student.display_name || student.username) + (student.class ? ` (${student.class})` : '')}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {(lsStudentId || classFilteredStudents[0]?.user_id) && (
-              <LearningSystemProgressPanel
-                userId={lsStudentId || classFilteredStudents[0].user_id}
-                showTeacherFields
-              />
-            )}
-          </div>
-        )}
-
         {activeTab === 'activity' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
@@ -1766,6 +1744,36 @@ const UserAnalytics: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'learning_system' && (
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Student</label>
+              <select
+                className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 bg-white text-sm"
+                value={lsStudentId || classFilteredStudents[0]?.user_id || ''}
+                onChange={(e) => setLsStudentId(e.target.value)}
+              >
+                {classFilteredStudents.length === 0 && <option value="">No students</option>}
+                {classFilteredStudents.map((student) => (
+                  <option key={student.user_id} value={student.user_id}>
+                    {(student.display_name || student.username) + (student.class ? ` (${student.class})` : '')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(lsStudentId || classFilteredStudents[0]?.user_id) && (
+              <LearningSystemProgressPanel
+                userId={lsStudentId || classFilteredStudents[0].user_id}
+                showTeacherFields
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'homework' && (
+          <HomeworkAnalyticsPanel students={classFilteredStudents} classFilter={selectedClass} />
         )}
       </div>
       {selectedStudentId && (

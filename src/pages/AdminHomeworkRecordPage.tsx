@@ -6,6 +6,7 @@ import { DEFAULT_SUB_OPTIONS, SUBJECT_NAMES } from '@/constants/rewardConfig';
 import { useAuth } from '@/context/AuthContext';
 import { fetchManagedClassIds, filterClassNameList } from '@/lib/staff/managedClasses';
 import { playSuccessSound } from '@/utils/audio';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
@@ -24,7 +25,7 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
     // Form State
     const [selectedSubject, setSelectedSubject] = useState<string>(SUBJECT_NAMES.ENGLISH);
     const [selectedSubOption, setSelectedSubOption] = useState<string>('');
-    const [selectedClass, setSelectedClass] = useState<string>('3A');
+    const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
     const [pageNumber, setPageNumber] = useState('');
     const [remarks, setRemarks] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
@@ -90,12 +91,10 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
             setStudents(studentsData);
             setClasses(uniqueClasses);
 
-            if (uniqueClasses.includes(selectedClass)) {
-                // keep current selection
-            } else if (isAdmin && uniqueClasses.includes('3A')) {
-                setSelectedClass('3A');
-            } else if (uniqueClasses.length > 0) {
-                setSelectedClass(uniqueClasses[0]);
+            if (uniqueClasses.length > 0) {
+                setSelectedClass((current) => (
+                    uniqueClasses.includes(current) ? current : pickDefaultClass(uniqueClasses)
+                ));
             }
 
         } catch (err) {

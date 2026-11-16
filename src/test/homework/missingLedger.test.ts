@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attachHandedInClassmates,
   buildMissingLedger,
   buildMissingTally,
   classifyHomeworkMark,
@@ -119,6 +120,16 @@ describe('missingLogsFromEnglishMarks', () => {
     expect(ledger).toHaveLength(1);
     const writing = ledger[0].items.find((item) => item.item === 'Writing File');
     const worksheet = ledger[0].items.find((item) => item.item === 'WS File');
+    const withHandedIn = attachHandedInClassmates(ledger, [{
+      className: '4A',
+      date: '2026-10-29',
+      subject: '英文',
+      item: 'Writing File',
+      studentId: 'amy',
+      name: 'Amy',
+      classNumber: 1,
+    }]);
+    expect(withHandedIn[0].items.find((item) => item.item === 'Writing File')?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
     expect(writing?.students.map((student) => student.name)).toEqual(['Ben', 'Cara']);
     expect(worksheet?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
   });
@@ -179,22 +190,5 @@ describe('missing tally', () => {
     expect(tally.find((row) => row.name === 'Belle')).toMatchObject({ missing: 0, absent: 1 });
     expect(sortMissingTally(tally, 'count').map((row) => row.name)).toEqual(['Kylie', 'Sophie', 'Erin', 'Belle']);
     expect(sortMissingTally(tally, 'number').map((row) => row.classNumber)).toEqual([4, 10, 12, 19]);
-
-    const logs = appearances.map((row) => ({
-      id: row.logId,
-      logDate: row.date,
-      className: row.className,
-      studentId: row.studentId,
-      studentName: row.name,
-      classNumber: row.classNumber,
-      missingItems: { [row.subject]: [row.item] },
-    }));
-    const ledger = buildMissingLedger(logs, new Set(), () => '', '2026-11-16', ({ studentId, date, subject, item }) => (
-      appearances.find((row) => row.studentId === studentId && row.date === date && row.subject === subject && row.item === item)?.mark || 'missing'
-    ));
-    const announced = openMissingAnnouncement(ledger);
-    expect(announced[0]?.lines.join('\n') || '').toContain('Kylie');
-    expect(announced[0]?.lines.join('\n') || '').not.toContain('Belle');
-    expect(announced[0]?.lines.join('\n') || '').not.toContain('Test');
   });
 });

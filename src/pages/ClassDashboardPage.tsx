@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { getHKTodayString, getHKTomorrowString, getHKTodayStartISO, isHKMorningTime, isWithinToiletAllowanceTime } from '@/utils/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -453,7 +454,7 @@ export function ClassDashboardPage() {
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
     const [isEditMode, setIsEditMode] = useState(false);
-    const [activeClass, setActiveClass] = useState<string>(() => guest.targetClass || '3A');
+    const [activeClass, setActiveClass] = useState<string>(() => guest.targetClass || PREFERRED_DEFAULT_CLASS);
 
     useEffect(() => {
         if (isGuest && guest.targetClass) {
@@ -802,7 +803,7 @@ export function ClassDashboardPage() {
             setOrderedActivities(activityData);
 
             if (scopedClasses.length > 0 && (!scopedClasses.some(c => c.name === activeClass) || isArchivedClassName(activeClass, currentArchivedList))) {
-                setActiveClass(scopedClasses[0].name);
+                setActiveClass(pickDefaultClass(scopedClasses.map((c: { name: string }) => c.name)));
             }
 
             const grouped: Record<string, UserWithCoins[]> = {};
@@ -846,11 +847,14 @@ export function ClassDashboardPage() {
         }
     }, [isStaff, currentUser?.id, managedClassesReady, managedClassIds]);
 
-    // Initial class selection for class_staff or if activeClass is archived
+    // Initial class selection for class_staff or if activeClass is archived / missing
     useEffect(() => {
-        if (isStaff && orderedClasses.length > 0 && (activeClass === '3A' || isArchivedClassName(activeClass, archivedClasses))) {
-            if (!isAdmin || isArchivedClassName(activeClass, archivedClasses)) {
-                setActiveClass(orderedClasses[0].name);
+        if (!isStaff || orderedClasses.length === 0) return;
+        const names = orderedClasses.map((c) => c.name);
+        const missing = !names.includes(activeClass);
+        if (missing || isArchivedClassName(activeClass, archivedClasses)) {
+            if (!isAdmin || isArchivedClassName(activeClass, archivedClasses) || missing) {
+                setActiveClass(pickDefaultClass(names));
             }
         }
     }, [isStaff, isAdmin, orderedClasses, activeClass, archivedClasses]);
@@ -1699,7 +1703,6 @@ export function ClassDashboardPage() {
                                 Set Tomorrow's Homework
                             </button>
                         )}
-
                         {isAdmin && (
                             <>
                                 <button
@@ -2028,9 +2031,9 @@ export function ClassDashboardPage() {
                             </div>
                         </div>
                         <MorningDutiesBoard
-                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass}
+                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (pickDefaultClass(orderedClasses.map((c) => c.name))) : activeClass}
                             users={(() => {
-                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass;
+                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (pickDefaultClass(orderedClasses.map((c) => c.name))) : activeClass;
                                 const rawUsers = groupedUsers[targetClass] || [];
                                 const uniqueUsersMap = new Map();
                                 rawUsers.forEach(u => {
@@ -2133,9 +2136,9 @@ export function ClassDashboardPage() {
                 <PipWindow pipWindow={pipWindow}>
                     <div className="w-full h-screen bg-slate-50 overflow-hidden">
                         <MorningDutiesBoard
-                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass}
+                            activeClass={(activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (pickDefaultClass(orderedClasses.map((c) => c.name))) : activeClass}
                             users={(() => {
-                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (orderedClasses[0]?.name || '3A') : activeClass;
+                                const targetClass = (activeClass === 'all' || isArchivedClassName(activeClass, archivedClasses)) ? (pickDefaultClass(orderedClasses.map((c) => c.name))) : activeClass;
                                 const rawUsers = groupedUsers[targetClass] || [];
                                 const uniqueUsersMap = new Map();
                                 rawUsers.forEach(u => {

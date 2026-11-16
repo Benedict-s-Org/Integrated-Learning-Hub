@@ -114,6 +114,9 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Data Fetched**: Interrogates `user_room_data` and computes tracking data (house_level, coins, virtual_coins, proofreading_avg_accuracy, etc.).
 - **Features**: Filter by class, sort by specific metrics (like coins earned, total time, active periods).
 
+### Default class
+- Preferred default class for Class Dashboard, homework pages, and other class filters is `4A` (`src/constants/classDefaults.ts`).
+
 ### Homework Management
 - **Path**: `src/pages/admin/AdminHomeworkManagementPage.tsx` at `/admin/homework-record`
 - **Sidebar**: One left-bar item, Homework Management. `/admin/english-homework` and `/admin/homework-summary` redirect into its tabs.
@@ -141,6 +144,7 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Client service**: `src/services/luantiAuthService.ts`.
 - **Luanti**: `luanti/docker-compose.yml`, mod `luanti/mods/lh_auth` polls auth-sync and registers a custom auth handler.
 - **Env**: `LUANTI_SERVICE_SECRET`, `LUANTI_SERVER_HOST`/`PORT`, optional `VITE_LUANTI_SERVER_HOST`/`VITE_LUANTI_SERVER_PORT`.
+- **Hardening**: Hub-only `create_auth`; established auth cache for reconnect; one unused secret index; `config.toml` `luanti-auth`; constant-time secret compare; join wait hint (~3s).
 - **Later stages**: economy/shop (2), private plots (3), Tuen Mun OSM/DEM (4), admin hardening (5).
 
 ### Memory Palace (legacy isometric)

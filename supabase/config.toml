@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.image-search]
 verify_jwt = false
+
+[functions.luanti-auth]
+verify_jwt = false

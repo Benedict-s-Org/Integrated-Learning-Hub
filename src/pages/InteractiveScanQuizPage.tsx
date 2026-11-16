@@ -14,6 +14,7 @@ import { FileImporter } from '../components/SpacedRepetition/FileImporter';
 import { NotionImporter } from '../components/SpacedRepetition/NotionImporter';
 import { ImportedQuestion } from '../utils/importParsers';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 // Inject custom dictionary
@@ -105,7 +106,7 @@ export function InteractiveScanQuizPage() {
                 .filter((c: any): c is string => !!c && !isArchivedClassName(c))
                 .sort();
             setClasses(uniqueClasses as string[]);
-            if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0] as string);
+            if (uniqueClasses.length > 0) setSelectedClass(pickDefaultClass(uniqueClasses as string[]));
         }
     };
 

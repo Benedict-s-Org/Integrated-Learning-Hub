@@ -10,12 +10,28 @@ const corsHeaders: Record<string, string> = {
 
 const JOIN_TTL_MS = 10 * 60 * 1000;
 const USERNAME_MAX = 20;
+const SECRET_PURGE_USED_AFTER_MS = 24 * 60 * 60 * 1000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+/** Constant-time string compare for service secrets. */
+function secretsEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  const len = Math.max(aBytes.length, bBytes.length);
+  let diff = aBytes.length ^ bBytes.length;
+  for (let i = 0; i < len; i++) {
+    const av = i < aBytes.length ? aBytes[i] : 0;
+    const bv = i < bBytes.length ? bBytes[i] : 0;
+    diff |= av ^ bv;
+  }
+  return diff === 0;
 }
 
 function sanitizeLuantiUsername(raw: string): string {
@@ -27,6 +43,25 @@ function sanitizeLuantiUsername(raw: string): string {
   const trimmed = (base || "player").slice(0, USERNAME_MAX);
   if (/^[a-z]/.test(trimmed)) return trimmed;
   return (`p_${trimmed}`).slice(0, USERNAME_MAX);
+}
+
+function randomSuffix(length = 4): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += alphabet[bytes[i] % alphabet.length];
+  }
+  return out;
+}
+
+/** Prefer base name; on collision use base truncated + _ + random suffix (max 20). */
+function allocateUsernameCandidate(preferred: string, attempt: number): string {
+  if (attempt === 0) return preferred.slice(0, USERNAME_MAX);
+  const suffix = `_${randomSuffix(4)}`;
+  const maxBase = USERNAME_MAX - suffix.length;
+  const base = preferred.slice(0, Math.max(1, maxBase));
+  return `${base}${suffix}`.slice(0, USERNAME_MAX);
 }
 
 function randomPassword(length = 20): string {
@@ -74,6 +109,19 @@ function privilegesForRole(role: string | null | undefined): Record<string, bool
     shout: true,
     home: true,
   };
+}
+
+async function purgeStaleSecrets(
+  admin: ReturnType<typeof createClient>,
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const usedCutoff = new Date(Date.now() - SECRET_PURGE_USED_AFTER_MS).toISOString();
+  await admin.from("luanti_join_secrets").delete().lt("expires_at", nowIso);
+  await admin
+    .from("luanti_join_secrets")
+    .delete()
+    .not("used_at", "is", null)
+    .lt("used_at", usedCutoff);
 }
 
 Deno.serve(async (req: Request) => {
@@ -126,6 +174,8 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Learning Community access denied" }, 403);
       }
 
+      await purgeStaleSecrets(admin);
+
       const preferred = sanitizeLuantiUsername(
         profile.username || profile.display_name || authData.user.email?.split("@")[0] || "player",
       );
@@ -143,8 +193,8 @@ Deno.serve(async (req: Request) => {
         }
         account = existing;
       } else {
-        let candidate = preferred;
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 12; i++) {
+          const candidate = allocateUsernameCandidate(preferred, i);
           const { data: created, error: createError } = await admin
             .from("luanti_accounts")
             .insert({
@@ -159,17 +209,17 @@ Deno.serve(async (req: Request) => {
             account = created;
             break;
           }
-          candidate = sanitizeLuantiUsername(`${preferred}${i + 1}`);
         }
         if (!account) {
           return json({ error: "Could not allocate Luanti username" }, 500);
         }
       }
 
-      // Invalidate prior unused secrets
+      const nowIso = new Date().toISOString();
+      // Invalidate prior unused secrets (one active secret policy)
       await admin
         .from("luanti_join_secrets")
-        .update({ used_at: new Date().toISOString() })
+        .update({ used_at: nowIso })
         .eq("luanti_account_id", account.id)
         .is("used_at", null);
 
@@ -201,14 +251,17 @@ Deno.serve(async (req: Request) => {
         serverHost,
         serverPort,
         expiresAt,
+        joinHintSeconds: 3,
       });
     }
 
     if (action === "auth-sync" && req.method === "GET") {
       const provided = req.headers.get("X-Luanti-Service-Secret") || "";
-      if (!serviceSecret || provided !== serviceSecret) {
+      if (!serviceSecret || !secretsEqual(provided, serviceSecret)) {
         return json({ error: "Unauthorized" }, 401);
       }
+
+      await purgeStaleSecrets(admin);
 
       const nowIso = new Date().toISOString();
       const { data: secrets, error } = await admin
@@ -265,7 +318,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "record-login" && req.method === "POST") {
       const provided = req.headers.get("X-Luanti-Service-Secret") || "";
-      if (!serviceSecret || provided !== serviceSecret) {
+      if (!serviceSecret || !secretsEqual(provided, serviceSecret)) {
         return json({ error: "Unauthorized" }, 401);
       }
 

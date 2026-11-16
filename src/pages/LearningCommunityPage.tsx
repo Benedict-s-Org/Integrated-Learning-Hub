@@ -130,7 +130,10 @@ export function LearningCommunityPage({ onExit }: LearningCommunityPageProps) {
         <li>Install or open the Luanti client on your device.</li>
         <li>Generate join credentials below (valid for about 10 minutes).</li>
         <li>Add a server using the host, port, username, and password shown.</li>
-        <li>Join. If the password expired, generate a new one here and try again.</li>
+        <li>
+          Wait about 3 seconds so the game server can sync your password, then join.
+        </li>
+        <li>If the password expired or join fails, generate a new one here and try again.</li>
       </ol>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -190,8 +193,9 @@ export function LearningCommunityPage({ onExit }: LearningCommunityPageProps) {
                 mono
               />
               <p className="text-xs text-slate-500">
-                Expires at {formatExpiry(credentials.expiresAt)} (Hong Kong time). Generating again
-                invalidates the previous password.
+                Expires at {formatExpiry(credentials.expiresAt)} (Hong Kong time). Wait about 3
+                seconds after generating before you join. Generating again invalidates the previous
+                password. After you join, you can reconnect with the same password until it expires.
               </p>
             </>
           )}

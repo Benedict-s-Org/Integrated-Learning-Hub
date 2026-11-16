@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Trophy, Activity, Users, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface ClassSummary {
@@ -80,7 +81,7 @@ export function AdminAnalyticsPage() {
   const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   
-  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
 
   const fetchAnalytics = async (silently = false) => {
     if (!silently) setLoading(true);
@@ -111,7 +112,7 @@ export function AdminAnalyticsPage() {
       setClassSummaries(validSummaries.sort((a: any, b: any) => a.class_name.localeCompare(b.class_name)));
       
       if (selectedClass !== 'all' && (!validSummaries.find((s: any) => s.class_name === selectedClass) || isArchivedClassName(selectedClass))) {
-          setSelectedClass('all');
+          setSelectedClass(pickDefaultClass(validSummaries.map((s: any) => s.class_name)));
       }
 
       // 2. Fetch All Students Performance (Filtered: Hide archived students)

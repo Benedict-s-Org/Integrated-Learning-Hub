@@ -25,8 +25,6 @@ export type MissingLogInput = {
   missingItems: Record<string, string[]>;
 };
 
-export type HomeworkMark = 'missing' | 'unclicked' | 'absent' | 'exempt';
-
 export type LedgerStudent = {
   logId: string;
   studentId: string;
@@ -34,7 +32,6 @@ export type LedgerStudent = {
   className: string;
   classNumber: number;
   submitted: boolean;
-  mark: HomeworkMark;
 };
 
 export type LedgerItem = {
@@ -58,6 +55,21 @@ export type DetailLookup = (args: {
   item: string;
 }) => string;
 
+/** Keep incomplete items only, nearest calendar date to today first. */
+export function openLedgerColumns(groups: LedgerDateGroup[], todayIso: string = getHKTodayString()): LedgerDateGroup[] {
+  return groups
+    .map((group) => {
+      const items = group.items.filter((item) => !item.complete);
+      return { ...group, items, complete: false };
+    })
+    .filter((group) => group.items.length > 0)
+    .sort((a, b) => {
+      const distanceDiff = dayDistance(a.date, todayIso) - dayDistance(b.date, todayIso);
+      if (distanceDiff !== 0) return distanceDiff;
+      return a.date.localeCompare(b.date);
+    });
+}
+
 export function makeupKey(logId: string, subject: string, item: string): string {
   return `${logId}::${subject}::${item}`;
 }
@@ -74,20 +86,11 @@ function uniqueDetail(details: string[]): string {
   return filled.join(' / ');
 }
 
-export type MarkLookup = (args: {
-  date: string;
-  className: string;
-  subject: string;
-  item: string;
-  studentId: string;
-}) => HomeworkMark;
-
 export function buildMissingLedger(
   logs: MissingLogInput[],
   madeUpKeys: ReadonlySet<string>,
   detailLookup: DetailLookup = () => '',
   todayIso: string = getHKTodayString(),
-  markLookup: MarkLookup = () => 'missing',
 ): LedgerDateGroup[] {
   type Bucket = {
     subject: string;
@@ -130,13 +133,6 @@ export function buildMissingLedger(
           className: log.className,
           classNumber: Number.isFinite(log.classNumber) ? log.classNumber : 0,
           submitted: madeUpKeys.has(makeupKey(log.id, subject, item)),
-          mark: markLookup({
-            date: log.logDate,
-            className: log.className,
-            subject,
-            item,
-            studentId: log.studentId,
-          }),
         });
         dateBuckets.set(itemKey, bucket);
       }
@@ -173,10 +169,55 @@ export function buildMissingLedger(
     });
   }
 
-  return groups.sort((a, b) => {
-    const distanceDiff = dayDistance(a.date, todayIso) - dayDistance(b.date, todayIso);
-    if (distanceDiff !== 0) return distanceDiff;
-    return a.date.localeCompare(b.date);
+  return openLedgerColumns(groups, todayIso);
+}
+
+export type HandedInRosterEntry = {
+  className: string;
+  date: string;
+  subject: string;
+  item: string;
+  studentId: string;
+  name: string;
+  classNumber: number;
+};
+
+/** Classmates who already handed an item in still belong on that item's bottom row. */
+export function attachHandedInClassmates(
+  groups: LedgerDateGroup[],
+  roster: HandedInRosterEntry[],
+): LedgerDateGroup[] {
+  return groups.map((group) => {
+    const items = group.items.map((item) => {
+      const students = [...item.students];
+      for (const entry of roster) {
+        if (entry.date !== group.date || entry.subject !== item.subject || entry.item !== item.item) continue;
+        if (students.some((student) => student.studentId === entry.studentId)) continue;
+        students.push({
+          logId: englishCheckLogId(entry.studentId, entry.date),
+          studentId: entry.studentId,
+          name: entry.name || 'Unknown',
+          className: entry.className,
+          classNumber: entry.classNumber,
+          submitted: true,
+        });
+      }
+      students.sort((a, b) => {
+        if (a.className !== b.className) return a.className.localeCompare(b.className);
+        if (a.classNumber !== b.classNumber) return a.classNumber - b.classNumber;
+        return a.name.localeCompare(b.name);
+      });
+      return {
+        ...item,
+        students,
+        complete: students.length > 0 && students.every((student) => student.submitted),
+      };
+    });
+    return {
+      ...group,
+      items,
+      complete: items.length > 0 && items.every((item) => item.complete),
+    };
   });
 }
 
@@ -206,7 +247,7 @@ export function openMissingAnnouncement(groups: LedgerDateGroup[]): MissingAnnou
       date: formatAnnouncementDate(group.date),
       lines: group.items.flatMap((item) => {
         const names = item.students
-          .filter((student) => !student.submitted && student.mark === 'missing')
+          .filter((student) => !student.submitted)
           .map((student) => formatLedgerStudentLabel(student.classNumber, student.name));
         if (names.length === 0) return [];
         const label = [item.subject, item.item, item.detail].filter(Boolean).join(' · ');
@@ -227,6 +268,7 @@ export type EnglishMark = {
   item: string;
   studentId: string;
   handedIn: boolean;
+  isLate?: boolean;
 };
 
 export type ClassStudent = {
@@ -329,6 +371,8 @@ export function missingLogsFromEnglishMarks(
   }
   return [...byStudentDate.values()];
 }
+
+export type HomeworkMark = 'missing' | 'unclicked' | 'absent' | 'exempt';
 
 export function isTestUsername(username: string | null | undefined): boolean {
   return (username ?? '').toLowerCase().includes('test');
@@ -502,3 +546,4 @@ export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number')
   ));
   return copy;
 }
+

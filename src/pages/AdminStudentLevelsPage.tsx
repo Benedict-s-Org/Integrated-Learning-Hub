@@ -14,6 +14,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface StudentLevelInfo {
@@ -41,7 +42,7 @@ export const AdminStudentLevelsPage: React.FC = () => {
   const { user: currentUser, session } = useAuth();
   const [students, setStudents] = useState<StudentLevelInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterClass, setFilterClass] = useState<string>('all');
+  const [filterClass, setFilterClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);

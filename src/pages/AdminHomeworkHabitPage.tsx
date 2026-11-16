@@ -17,6 +17,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { playSuccessSound } from '@/utils/audio';
+import { PREFERRED_DEFAULT_CLASS, pickDefaultClass } from '@/constants/classDefaults';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 interface Student {
@@ -43,7 +44,7 @@ export default function AdminHomeworkHabitPage() {
     const [isSaving, setIsSaving] = useState(false);
 
     // Form Selection State
-    const [selectedClass, setSelectedClass] = useState<string>('3A');
+    const [selectedClass, setSelectedClass] = useState<string>(PREFERRED_DEFAULT_CLASS);
     const [homeworkTitle, setHomeworkTitle] = useState('');
     const [assignedDate, setAssignedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [studentSearch, setStudentSearch] = useState('');
@@ -84,10 +85,8 @@ export default function AdminHomeworkHabitPage() {
                 .sort();
             setClasses(uniqueClasses);
 
-            if (uniqueClasses.includes('3A')) {
-                setSelectedClass('3A');
-            } else if (uniqueClasses.length > 0) {
-                setSelectedClass(uniqueClasses[0]);
+            if (uniqueClasses.length > 0) {
+                setSelectedClass(pickDefaultClass(uniqueClasses));
             }
 
             // Fetch Habit Options from homework_problem_options

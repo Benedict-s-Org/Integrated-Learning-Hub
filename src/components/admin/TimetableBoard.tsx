@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarDays, Clock, BookOpen, UserCheck, Coffee, Utensils, LogOut, Loader2, Activity } from 'lucide-react';
+import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { getHKDayOfWeek } from '@/utils/dateUtils';
 
 interface TimetableEntry {
@@ -9,7 +10,7 @@ interface TimetableEntry {
 }
 
 interface TimetableBoardProps {
-    className?: string; // Target class, e.g., "3A"
+    className?: string; // Target class, e.g., "4A"
 }
 
 interface CycleData {
@@ -20,7 +21,7 @@ interface CycleData {
     date: string;
 }
 
-export const TimetableBoard: React.FC<TimetableBoardProps> = ({ className = '3A' }) => {
+export const TimetableBoard: React.FC<TimetableBoardProps> = ({ className = PREFERRED_DEFAULT_CLASS }) => {
     const [cycleData, setCycleData] = useState<CycleData | null>(null);
     const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
     const [loading, setLoading] = useState(true);
