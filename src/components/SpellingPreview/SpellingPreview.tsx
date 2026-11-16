@@ -36,6 +36,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   const isPlayingRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const playbackGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) {
@@ -75,7 +76,20 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     }
   };
 
+  const stopInFlightPlayback = () => {
+    playbackGenerationRef.current += 1;
+    isPlayingRef.current = false;
+    window.speechSynthesis.cancel();
+    utteranceRef.current = null;
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setIsPlaying(false);
+  };
+
   const handleVoiceChange = async (accent: string, voiceName: string, voiceLang: string, voiceURI: string) => {
+    stopInFlightPlayback();
     setConfirmedAudio({});
     setCurrentAccent(accent);
     setCurrentVoiceURI(voiceURI);
@@ -165,24 +179,26 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   };
 
   const playAndConfirmWord = async (word: string, index: number): Promise<boolean> => {
+    const generation = playbackGenerationRef.current;
     const rich = await fetchCloudAudioRich(word, currentAccent, currentVoiceURI);
-    if (!isPlayingRef.current) return false;
+    if (!isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
 
+    const driveFileId = rich?.driveFileId?.trim() ?? '';
     const canConfirm =
       isGoogleCloudVoiceId(currentVoiceURI) &&
       !!rich?.audioContent &&
-      !!rich.driveFileId;
+      !!driveFileId;
 
     if (!canConfirm) return false;
 
     const played = await playCloudAudio(rich.audioContent);
-    if (!played || !isPlayingRef.current) return false;
+    if (!played || !isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
 
     setConfirmedAudio((prev) => ({
       ...prev,
       [index]: {
         word,
-        drive_file_id: rich.driveFileId,
+        drive_file_id: driveFileId,
         accent: currentAccent,
         voice_name: currentVoiceURI!,
       },
@@ -223,12 +239,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     unlockAudioSync();
 
     // Stop any in-flight playback before starting a new word
-    isPlayingRef.current = false;
-    window.speechSynthesis.cancel();
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
+    stopInFlightPlayback();
 
     setCurrentWordIndex(index);
     speakWord(words[index], index);
@@ -240,11 +251,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     // Unlock during the click gesture before TTS fetches
     unlockAudioSync();
 
-    window.speechSynthesis.cancel();
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
+    stopInFlightPlayback();
 
     setIsPlaying(true);
     isPlayingRef.current = true;
@@ -276,14 +283,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   };
 
   const handleStopAll = () => {
-    isPlayingRef.current = false;
-    window.speechSynthesis.cancel();
-    utteranceRef.current = null;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    setIsPlaying(false);
+    stopInFlightPlayback();
   };
 
   const wordAudioPayload = words.map((_, i) => confirmedAudio[i]);

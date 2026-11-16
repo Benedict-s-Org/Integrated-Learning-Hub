@@ -207,4 +207,34 @@ describe('SpellingPreview word audio confirmation', () => {
     });
     expect(screen.getByRole('button', { name: /save practice/i })).toBeDisabled();
   });
+
+  it('does not confirm in-flight playback after the voice changes', async () => {
+    let resolvePlay: (value: HTMLAudioElement) => void = () => {};
+    vi.mocked(playAudioUrl).mockImplementation(
+      () =>
+        new Promise<HTMLAudioElement>((resolve) => {
+          resolvePlay = resolve;
+        })
+    );
+
+    const user = userEvent.setup();
+    renderPreview();
+
+    await user.click(await screen.findByRole('button', { name: /play all/i }));
+    await waitFor(() => {
+      expect(playAudioUrl).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /switch voice/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Audio confirmed 0/2')).toBeInTheDocument();
+    });
+    expect(window.speechSynthesis.cancel).toHaveBeenCalled();
+
+    resolvePlay({} as HTMLAudioElement);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(screen.getByText('Audio confirmed 0/2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save practice/i })).toBeDisabled();
+  });
 });
