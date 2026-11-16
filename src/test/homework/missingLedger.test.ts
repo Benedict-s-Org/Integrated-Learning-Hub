@@ -284,4 +284,48 @@ describe('missing tally', () => {
     expect(tally.find((row) => row.name === 'Erin')).toMatchObject({ missing: 3, unclicked: 0 });
     expect(tally.find((row) => row.name === 'Sophie')).toMatchObject({ missing: 0, unclicked: 4 });
   });
+
+  it('lets exempt rows count as handed in once submitted', () => {
+    const ledger = enrichLedgerWithDutyMarks(
+      [],
+      [
+        {
+          date: '2026-11-10',
+          className: '4A',
+          subject: '中文',
+          item: '小練筆',
+          studentId: 'erin',
+          name: 'Erin',
+          classNumber: 12,
+          mark: 'exempt',
+          logId: 'log-erin',
+          submitted: true,
+        },
+        {
+          date: '2026-11-10',
+          className: '4A',
+          subject: '數學',
+          item: 'WS',
+          studentId: 'erin',
+          name: 'Erin',
+          classNumber: 12,
+          mark: 'exempt',
+          logId: 'log-erin',
+          submitted: false,
+        },
+      ],
+      () => '',
+      '2026-11-10',
+    );
+    const erin = ledger
+      .flatMap((group) => group.items.flatMap((item) => item.students))
+      .filter((student) => student.name === 'Erin');
+    expect(erin).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mark: 'exempt', submitted: true }),
+      expect.objectContaining({ mark: 'exempt', submitted: false }),
+    ]));
+    expect(buildMissingTallyFromLedger(roster, ledger).find((row) => row.name === 'Erin')).toMatchObject({
+      exempt: 1,
+    });
+  });
 });

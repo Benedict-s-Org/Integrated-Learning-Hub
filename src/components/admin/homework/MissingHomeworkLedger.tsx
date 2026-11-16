@@ -349,11 +349,12 @@ export function MissingHomeworkLedger() {
     const key = makeupKey(student.logId, subject, item);
     if (inFlightKeys.current.has(key) || pendingKey === key) return;
 
-    if (student.mark === 'absent' || student.mark === 'exempt') return;
+    if (student.mark === 'absent') return;
 
     const checkId = handedInKey(student.studentId, date, subject, item);
     const tallyField = student.mark === 'unclicked' ? 'unclicked' : 'missing';
-    const markingLate = tallyField === 'missing' && badgeFor(student, subject, item, date) === 'missing';
+    const openTone = badgeFor(student, subject, item, date) === 'missing';
+    const markingLate = tallyField === 'missing' && openTone;
     const handedIn = markingLate || (tallyField === 'unclicked' && !student.submitted);
     const prevHandedIn = handedInKeys.has(checkId);
     const prevLate = lateKeys.has(checkId);
@@ -481,7 +482,7 @@ export function MissingHomeworkLedger() {
           <div>
             <h2 className="text-xl font-black text-slate-800">Missing records</h2>
             <p className="text-sm font-medium text-slate-500">
-              Dates are columns — nearest to today on the left. Click a red name once to mark late hand-in (it moves into Handed in). Expand that section to undo. Right-click a red name to record a handbook for today.
+              Dates are columns — nearest to today on the left. Click a red name once to mark late hand-in (it moves into Handed in). Click EXEMPT to mark that work handed in the same way. Expand Handed in to undo. Right-click a red name to record a handbook for today. Absent stays locked.
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
               <Legend tone="missing" label="Missing" />
@@ -693,7 +694,8 @@ function DateColumn({
             <StudentColumn
               students={item.students.filter((student) => {
                 const mark = student.mark || 'missing';
-                if (mark === 'absent' || mark === 'exempt' || mark === 'unclicked') return true;
+                if (mark === 'absent' || mark === 'unclicked') return true;
+                if (mark === 'exempt') return badgeFor(student, item.subject, item.item, group.date) === 'missing';
                 return badgeFor(student, item.subject, item.item, group.date) === 'missing';
               })}
               emptyLabel="Nobody missing"
@@ -712,7 +714,8 @@ function DateColumn({
               students={item.students
                 .filter((student) => {
                   const mark = student.mark || 'missing';
-                  if (mark === 'absent' || mark === 'exempt' || mark === 'unclicked') return false;
+                  if (mark === 'absent' || mark === 'unclicked') return false;
+                  if (mark === 'exempt') return badgeFor(student, item.subject, item.item, group.date) !== 'missing';
                   return badgeFor(student, item.subject, item.item, group.date) !== 'missing';
                 })
                 .sort((a, b) => {
@@ -842,16 +845,35 @@ function StudentColumn({
           today,
           marked,
         );
-        if (mark === 'absent' || mark === 'exempt') {
+        if (mark === 'absent') {
           return (
             <li key={`${student.logId}:${student.studentId}`}>
               <div className="inline-flex w-full items-start gap-1 rounded-md border border-yellow-300 bg-yellow-300 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-yellow-950">
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-700" />
                 <span className="min-w-0 break-words">
                   {label}{' '}
-                  <span className="text-[9px] tracking-wide">{mark === 'absent' ? 'ABSENT' : 'EXEMPT'}</span>
+                  <span className="text-[9px] tracking-wide">ABSENT</span>
                 </span>
               </div>
+            </li>
+          );
+        }
+        if (mark === 'exempt' && tone === 'missing') {
+          return (
+            <li key={`${student.logId}:${student.studentId}`}>
+              <button
+                type="button"
+                disabled={pendingKey === key}
+                aria-pressed={false}
+                onClick={() => onToggle(student, subject, itemName, detail, groupDate)}
+                className="inline-flex w-full items-start gap-1 rounded-md border border-yellow-300 bg-yellow-300 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-yellow-950 disabled:opacity-50"
+              >
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-700" />
+                <span className="min-w-0 break-words">
+                  {label}{' '}
+                  <span className="text-[9px] tracking-wide">EXEMPT</span>
+                </span>
+              </button>
             </li>
           );
         }
