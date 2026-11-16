@@ -295,6 +295,11 @@ export const createUtterance = (
  */
 const playbackCache = new Map<string, string>();
 
+/** Build a Google Drive uc download URL from a file ID (for DB storage / resolveAudioUrl). */
+export function driveFileToProxyUrl(driveFileId: string): string {
+  return `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+}
+
 export const resolveAudioUrl = async (url: string): Promise<string> => {
   if (!url) return '';
   if (url.startsWith('data:')) return url; // Already Base64
@@ -369,7 +374,7 @@ export const fetchCloudAudioRich = async (
   voiceName?: string,
   speakingRate?: number,
   overwrite?: boolean
-): Promise<{ audioUrl: string; audioContent: string } | null> => {
+): Promise<{ audioUrl: string; audioContent: string; driveFileId: string } | null> => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -418,7 +423,10 @@ export const fetchCloudAudioRich = async (
 
     return {
       audioUrl: data.audioUrl || '',
-      audioContent: data.audioContent ? `data:audio/mp3;base64,${data.audioContent}` : (data.audioUrl || '')
+      audioContent: data.audioContent
+        ? `data:audio/mp3;base64,${data.audioContent}`
+        : (data.audioUrl || ''),
+      driveFileId: typeof data.driveFileId === 'string' ? data.driveFileId : '',
     };
   } catch (error) {
     console.error('[VoiceManager] fetchCloudAudio failed:', error);
