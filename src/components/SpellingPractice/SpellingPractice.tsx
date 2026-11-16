@@ -20,6 +20,25 @@ function isRealPracticeId(practiceId?: string): practiceId is string {
   return !!practiceId && practiceId !== 'srs-review' && PRACTICE_ID_UUID.test(practiceId);
 }
 
+function isAutoplayBlocked(err: unknown): boolean {
+  const name =
+    err && typeof err === 'object' && 'name' in err
+      ? String((err as { name?: unknown }).name ?? '')
+      : '';
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : err && typeof err === 'object' && 'message' in err
+          ? String((err as { message?: unknown }).message ?? '')
+          : '';
+  if (name === 'NotAllowedError') return true;
+  return /NotAllowedError|not allowed by the user agent|didn.?t interact|user gesture|autoplay/i.test(
+    `${name} ${message}`
+  );
+}
+
 interface SpellingPracticeProps {
   title: string;
   words: string[];
@@ -264,8 +283,12 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
         }
         await playAudioUrl(playable);
         setAudioError(null);
-      } catch {
-        setAudioError('Audio unavailable for this word');
+      } catch (err) {
+        if (isAutoplayBlocked(err)) {
+          setAudioError('Press Play Word to hear the audio.');
+        } else {
+          setAudioError('Audio unavailable for this word');
+        }
       }
       return;
     }

@@ -183,6 +183,36 @@ describe('SpellingPractice bound playback', () => {
     expect(fetchCloudAudio).not.toHaveBeenCalled();
   });
 
+  it('asks the learner to press Play Word when autoplay is blocked', async () => {
+    vi.mocked(playAudioUrl).mockRejectedValueOnce(
+      Object.assign(new Error('play() failed because the user did not interact with the document first.'), {
+        name: 'NotAllowedError',
+      })
+    );
+
+    renderPractice({
+      wordAudio: [binding('cat'), binding('dog')],
+    });
+
+    expect(await screen.findByText('Press Play Word to hear the audio.')).toBeInTheDocument();
+    expect(screen.queryByText('Audio unavailable for this word')).not.toBeInTheDocument();
+    expect(fetchCloudAudio).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
+  });
+
+  it('shows unavailable when bound audio fails to load', async () => {
+    vi.mocked(playAudioUrl).mockRejectedValueOnce(new Error('Audio element failed to load/play'));
+
+    renderPractice({
+      wordAudio: [binding('cat'), binding('dog')],
+    });
+
+    expect(await screen.findByText('Audio unavailable for this word')).toBeInTheDocument();
+    expect(screen.queryByText('Press Play Word to hear the audio.')).not.toBeInTheDocument();
+    expect(fetchCloudAudio).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
+  });
+
   it('disables play when bindings are non-empty but incomplete', async () => {
     renderPractice({
       wordAudio: [binding('cat')],
