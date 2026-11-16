@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SpacedRepetitionHub } from './SpacedRepetitionHub';
 import { ImportSourceSelector } from './ImportSourceSelector';
 import { ManualQuestionEntry } from './ManualQuestionEntry';
@@ -30,7 +30,16 @@ type PageState =
   | { view: 'edit'; setId: string; initialData: { title: string; description: string; questions: any[] } }
   | { view: 'analytics' };
 
-export const SpacedRepetitionPage: React.FC = () => {
+interface SpacedRepetitionPageProps {
+  /** When opening from Unified Assignments, open prep for this set */
+  focusSetId?: string;
+  focusSetTitle?: string;
+}
+
+export const SpacedRepetitionPage: React.FC<SpacedRepetitionPageProps> = ({
+  focusSetId,
+  focusSetTitle,
+}) => {
   const { user } = useAuth();
   const {
     createSet,
@@ -56,6 +65,15 @@ export const SpacedRepetitionPage: React.FC = () => {
   const [customSize, setCustomSize] = useState<number>(10);
   const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
   const [masterModeSetId, setMasterModeSetId] = useState<string | null>(null);
+  const consumedFocusSetRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!focusSetId) return;
+    if (consumedFocusSetRef.current === focusSetId) return;
+    consumedFocusSetRef.current = focusSetId;
+    setExcludedQuestionIds([]);
+    setPrepSession({ setId: focusSetId, setTitle: focusSetTitle });
+  }, [focusSetId, focusSetTitle]);
 
   // If user is not logged in or authorized
   if (!user) return <Login />;

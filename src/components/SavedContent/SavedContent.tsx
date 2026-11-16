@@ -10,9 +10,10 @@ import MemorizationAssignment from '../MemorizationAssignment/MemorizationAssign
 interface SavedContentProps {
   onLoadContent: (content: MemorizationState) => void;
   onCreateNew: () => void;
+  onEditContent: (content: SavedContentType) => void;
 }
 
-const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew }) => {
+const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew, onEditContent }) => {
   const { savedContents, updateSavedContentTitle, deleteSavedContent, publishSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user } = useAuth();
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -250,6 +251,15 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew 
                         >
                           <Play size={16} />
                           <span>Practice</span>
+                        </button>
+
+                        <button
+                          onClick={() => onEditContent(content)}
+                          className="flex items-center space-x-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                          data-source-tsx="SavedContent Edit Button|src/components/SavedContent/SavedContent.tsx"
+                        >
+                          <Edit2 size={16} />
+                          <span>Edit</span>
                         </button>
 
                         {user?.role === 'admin' && (

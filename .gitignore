@@ -62,4 +62,7 @@ bridges/**/.debug/
 # Local workbench backups (not source)
 .backups/
 
+# EGM design artifacts (briefs, drafts, review reports)
+.dev/docs/
+
 supabase/.temp/

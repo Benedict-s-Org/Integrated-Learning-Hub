@@ -51,7 +51,7 @@ interface SpacedRepetitionContextType {
   saveActiveSession: (setId: string, sessionState: any) => Promise<boolean>;
   fetchActiveSession: (setId: string) => Promise<any | null>;
   clearActiveSession: (setId: string) => Promise<void>;
-  assignSet: (setId: string, userIds: string[], dueDate?: string) => Promise<boolean>;
+  assignSet: (setId: string, userIds: string[], dueDate?: string | null) => Promise<boolean>;
   fetchAllStudents: () => Promise<any[]>;
   fetchStudyPlansAndAssignments: () => Promise<void>;
   createStudyPlanTemplate: (title: string, setIds: string[], targetDate: string, strategy: 'balanced' | 'sequential') => Promise<SpacedRepetitionStudyPlan | null>;
@@ -747,14 +747,15 @@ export const SpacedRepetitionProvider: React.FC<SpacedRepetitionProviderProps> =
     }
   };
 
-  const assignSet = async (setId: string, userIds: string[], dueDate?: string): Promise<boolean> => {
+  const assignSet = async (setId: string, userIds: string[], _dueDate?: string | null): Promise<boolean> => {
     if (!userId) return false;
     try {
+      // Ongoing practice: never store a due date (DEC-20261102-22)
       const assignments = userIds.map(uId => ({
         set_id: setId,
         user_id: uId,
         assigned_by: userId,
-        due_date: dueDate || null
+        due_date: null
       }));
 
       const { error } = await (supabase as any)

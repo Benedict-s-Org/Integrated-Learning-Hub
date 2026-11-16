@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
@@ -8,12 +8,18 @@ interface TextInputProps {
   initialText?: string;
   initialTitle?: string;
   onViewSaved?: () => void;
+  isEditing?: boolean;
 }
 
-const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, initialTitle, onViewSaved }) => {
+const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, initialTitle, onViewSaved, isEditing = false }) => {
   const [title, setTitle] = useState(initialTitle || '');
   const [text, setText] = useState(initialText || '');
   const { user } = useAuth();
+
+  useEffect(() => {
+    setTitle(initialTitle || '');
+    setText(initialText || '');
+  }, [initialTitle, initialText]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +56,7 @@ const TextInput: React.FC<TextInputProps> = ({ onNext, initialText, initialTitle
               className="text-xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6 text-center"
               data-source-tsx="TextInput Title|src/components/TextInput/TextInput.tsx"
             >
-              Enter Your Text
+              {isEditing ? 'Edit Saved Content' : 'Enter Your Text'}
             </h1>
 
             <form onSubmit={handleSubmit} className="space-y-6">

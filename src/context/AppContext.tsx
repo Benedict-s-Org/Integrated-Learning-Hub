@@ -228,6 +228,73 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   }, [userId]);
 
+  const updateSavedContent = useCallback(async (
+    id: string,
+    content: {
+      title: string;
+      originalText: string;
+      selectedWordIndices: number[];
+      practiceMode?: SavedContent['practiceMode'];
+    }
+  ): Promise<boolean> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    const trimmedTitle = content.title.trim();
+    if (!trimmedTitle || !content.originalText.trim()) {
+      console.error('Title and original text are required');
+      return false;
+    }
+
+    try {
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const { data, error } = await supabase.functions.invoke('memorization-content/update-content', {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+          'apikey': anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contentId: id,
+          userId,
+          title: trimmedTitle,
+          originalText: content.originalText,
+          selectedWordIndices: content.selectedWordIndices,
+          practiceMode: content.practiceMode || 'memorization',
+        }),
+      });
+
+      if (error || !data?.success || !data.content) {
+        console.error('Failed to update saved content:', error || data);
+        return false;
+      }
+
+      const updated = data.content;
+      setSavedContents(prev =>
+        prev.map(item =>
+          item.id === id
+            ? {
+                ...item,
+                title: updated.title,
+                originalText: updated.originalText,
+                selectedWordIndices: updated.selectedWordIndices,
+                practiceMode: updated.practiceMode || content.practiceMode || item.practiceMode,
+                isPublished: updated.isPublished ?? item.isPublished,
+                publicId: updated.publicId ?? item.publicId,
+              }
+            : item
+        )
+      );
+
+      return true;
+    } catch (error) {
+      console.error('Failed to update saved content:', error);
+      return false;
+    }
+  }, [userId, session]);
+
   const updateSavedContentTitle = useCallback(async (id: string, title: string): Promise<boolean> => {
     if (!userId) {
       console.error('User not authenticated');
@@ -598,6 +665,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     savedContents,
     addSavedContent,
     updateSavedContentTitle,
+    updateSavedContent,
     deleteSavedContent,
     publishSavedContent,
     fetchPublicContent,
@@ -619,6 +687,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     savedContents,
     addSavedContent,
     updateSavedContentTitle,
+    updateSavedContent,
     deleteSavedContent,
     publishSavedContent,
     fetchPublicContent,

@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   attachHandedInClassmates,
   buildMissingLedger,
+  buildMissingTally,
+  classifyHomeworkMark,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
   handedInKey,
+  isTestUsername,
+  listHomeworkAppearances,
   makeupKey,
   missingLogsFromEnglishMarks,
   openMissingAnnouncement,
+  sortMissingTally,
   submittedKeysWithHandedIn,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
@@ -131,5 +136,59 @@ describe('missingLogsFromEnglishMarks', () => {
 
   it('leaves an item off the list when nobody has been marked', () => {
     expect(missingLogsFromEnglishMarks(students, [])).toEqual([]);
+  });
+});
+
+describe('missing tally', () => {
+  const roster = [
+    { id: 'kylie', name: 'Kylie', className: '4A', classNumber: 4, username: 'kylie' },
+    { id: 'belle', name: 'Belle', className: '4A', classNumber: 19, username: 'belle' },
+    { id: 'tester', name: 'Test Pupil', className: '4A', classNumber: 7, username: 'test_4a' },
+    { id: 'erin', name: 'Erin', className: '4A', classNumber: 12, username: 'erin' },
+    { id: 'sophie', name: 'Sophie', className: '4A', classNumber: 10, username: 'sophie' },
+  ];
+
+  it('rejects usernames that contain test, in any case', () => {
+    expect(isTestUsername('test_4a')).toBe(true);
+    expect(isTestUsername('4ATest')).toBe(true);
+    expect(isTestUsername('erin')).toBe(false);
+    expect(isTestUsername(null)).toBe(false);
+  });
+
+  it('keeps a real missing record apart from a row nobody clicked', () => {
+    expect(classifyHomeworkMark({ dutyStatus: 'missing', inMissingItems: true, handedIn: false })).toBe('missing');
+    expect(classifyHomeworkMark({ dutyStatus: 'todo', inMissingItems: false, handedIn: false })).toBe('unclicked');
+    expect(classifyHomeworkMark({ dutyStatus: '', inMissingItems: false, handedIn: false })).toBe('unclicked');
+    expect(classifyHomeworkMark({ dutyStatus: 'absent', inMissingItems: true, handedIn: false })).toBe('absent');
+    expect(classifyHomeworkMark({ dutyStatus: 'exempted', inMissingItems: false, handedIn: false })).toBe('exempt');
+    expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: false, handedIn: true })).toBe('hidden');
+  });
+
+  it('counts missing and not-clicked separately, and drops test accounts', () => {
+    const appearances = listHomeworkAppearances(
+      roster,
+      [
+        { studentId: 'kylie', date: '2026-11-16', status: 'missing', missingItems: { 中文: ['小練筆'] }, logId: 'log-kylie' },
+        { studentId: 'belle', date: '2026-11-16', status: 'absent', missingItems: {}, logId: 'log-belle' },
+        { studentId: 'erin', date: '2026-11-16', status: 'exempted', missingItems: {}, logId: 'log-erin' },
+        { studentId: 'tester', date: '2026-11-16', status: 'missing', missingItems: { 中文: ['小練筆'] }, logId: 'log-test' },
+      ],
+      [{ date: '2026-11-16', className: '4A', subject: '中文', item: '小練筆' }],
+      new Set(),
+      new Set(),
+    );
+    expect(appearances.map((row) => `${row.name}:${row.mark}`).sort()).toEqual([
+      'Belle:absent',
+      'Erin:exempt',
+      'Kylie:missing',
+      'Sophie:unclicked',
+    ]);
+    const tally = buildMissingTally(roster, appearances);
+    expect(tally.map((row) => row.name)).toEqual(['Kylie', 'Belle', 'Erin', 'Sophie']);
+    expect(tally.find((row) => row.name === 'Kylie')).toMatchObject({ missing: 1, unclicked: 0 });
+    expect(tally.find((row) => row.name === 'Sophie')).toMatchObject({ missing: 0, unclicked: 1 });
+    expect(tally.find((row) => row.name === 'Belle')).toMatchObject({ missing: 0, absent: 1 });
+    expect(sortMissingTally(tally, 'count').map((row) => row.name)).toEqual(['Kylie', 'Sophie', 'Erin', 'Belle']);
+    expect(sortMissingTally(tally, 'number').map((row) => row.classNumber)).toEqual([4, 10, 12, 19]);
   });
 });

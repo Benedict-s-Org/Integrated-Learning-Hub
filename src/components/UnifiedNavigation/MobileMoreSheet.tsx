@@ -66,7 +66,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     onOpenMapEditor,
     onOpenAssetUpload,
 }) => {
-    const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode, user } = useAuth();
+    const { isMobileEmulator, setIsMobileEmulator, isUserView, toggleViewMode, user, isStaff } = useAuth();
     const { isItemVisible } = useNavigationSettings();
     // Lock body scroll when sheet is open
     useEffect(() => {
@@ -113,7 +113,7 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
         { id: 'progress', icon: TrendingUp, label: isAdmin ? 'User Analytics' : 'Progress', onClick: () => onPageChange('progress'), isActive: currentPage === 'progress' },
         { id: 'saved', icon: BookMarked, label: 'Saved Content', onClick: () => onPageChange('saved'), isActive: currentPage === 'saved' },
     ];
-    if (isAdmin) {
+    if (isStaff) {
         progressItems.push({ id: 'classDashboard', icon: LayoutGrid, label: 'Class Dashboard', onClick: () => onPageChange('classDashboard'), isActive: currentPage === 'classDashboard' });
     }
     if (!isAdmin) {
@@ -123,6 +123,17 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({
     const filteredProgressItems = progressItems.filter(item => isItemVisible(item.id));
     if (filteredProgressItems.length > 0) {
         sections.push({ title: 'My Progress', items: filteredProgressItems });
+    }
+
+    // ─── Class Staff Teaching ───────────────────────────────────
+    if (isStaff && !isAdmin && !isUserView) {
+        const staffItems: (MoreSheetItem & { id: string })[] = [
+            { id: 'homeworkRecord', icon: ClipboardList, label: 'Homework Management', onClick: () => onPageChange('adminHomeworkRecord'), isActive: currentPage === 'adminHomeworkRecord' },
+        ];
+        const filteredStaffItems = staffItems.filter(item => isItemVisible(item.id));
+        if (filteredStaffItems.length > 0) {
+            sections.push({ title: 'Teaching', items: filteredStaffItems });
+        }
     }
 
     // ─── Admin Section ──────────────────────────────────────────

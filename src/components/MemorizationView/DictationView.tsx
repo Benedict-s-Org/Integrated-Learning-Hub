@@ -151,8 +151,15 @@ const DictationView: React.FC<DictationViewProps> = ({
     };
 
     const renderWord = (word: Word, idx: number) => {
-        if (word.isParagraphBreak) return <div key={idx} className="w-full h-8" />;
-        if (word.text === '\n') return <br key={idx} />;
+        if (word.isParagraphBreak) return <div key={`para-break-${idx}`} className="block w-full h-8" aria-hidden="true" />;
+        if (word.text === '\n' || word.text === '\r\n') return <br key={`br-${idx}`} />;
+        if (word.isPunctuation) {
+            return (
+                <span key={`punct-${idx}`} className="text-gray-800">
+                    {word.text}
+                </span>
+            );
+        }
 
         const isSelected = selectedIndices.includes(word.index);
         const isMasked = isSelected && !word.isPunctuation && (

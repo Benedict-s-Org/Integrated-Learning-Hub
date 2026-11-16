@@ -292,7 +292,8 @@ export function UserEditModal({ user, isOpen, onClose, onSuccess, adminUserId }:
       if (avatarUrl !== user.avatar_url) {
         updateData.avatarUrl = avatarUrl || null;
       }
-      if (role !== (user.is_admin ? 'admin' : 'user')) {
+      const currentRole = (user as any).role || (user.is_admin ? 'admin' : 'user');
+      if (role !== currentRole) {
         updateData.role = role;
       }
 

@@ -7,6 +7,7 @@ import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../.
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
+import { scoreProofreadingItem } from '../../utils/proofreadingScore';
 
 interface ProofreadingPracticeProps {
   sentences: string[];
@@ -241,12 +242,25 @@ const ProofreadingPractice: React.FC<ProofreadingPracticeProps> = ({
     const userAnswersList = parsedSentences.map((sentence) => {
       const lineNumber = sentence.lineNumber;
       const status = getQuestionStatus(lineNumber);
+      const expected = correctAnswers.get(lineNumber);
+      const score = expected
+        ? scoreProofreadingItem({
+            userWordIndex: selectedWords.get(lineNumber),
+            userCorrection: corrections.get(lineNumber) || '',
+            expectedWordIndex: expected.wordIndex,
+            expectedCorrection: expected.correction,
+            isNotSure: notSureLines.has(lineNumber),
+            isIncomplete: status === 'incomplete',
+          })
+        : { detectionCorrect: false, correctionCorrect: false, isCorrect: false };
       return {
         lineNumber,
         wordIndex: selectedWords.get(lineNumber),
         correction: corrections.get(lineNumber) || '',
         isNotSure: notSureLines.has(lineNumber),
         isIncomplete: status === 'incomplete',
+        detectionCorrect: score.detectionCorrect,
+        correctionCorrect: score.correctionCorrect,
       };
     });
 

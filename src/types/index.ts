@@ -29,10 +29,18 @@ export interface MemorizationState {
   practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
 }
 
+export type SavedContentUpdatePayload = {
+  title: string;
+  originalText: string;
+  selectedWordIndices: number[];
+  practiceMode?: SavedContent['practiceMode'];
+};
+
 export interface AppContextType {
   savedContents: SavedContent[];
   addSavedContent: (content: Omit<SavedContent, 'id' | 'createdAt'>) => Promise<boolean>;
   updateSavedContentTitle: (id: string, title: string) => Promise<boolean>;
+  updateSavedContent: (id: string, content: SavedContentUpdatePayload) => Promise<boolean>;
   deleteSavedContent: (id: string) => Promise<void>;
   publishSavedContent: (id: string) => Promise<string | null>;
   fetchPublicContent: (publicId: string) => Promise<MemorizationState | null>;
@@ -208,12 +216,16 @@ export interface ProofreadingPracticeResult {
   user_id: string;
   sentences: string[];
   correct_answers: ProofreadingAnswer[];
-  user_answers: {
+    user_answers: {
     lineNumber: number;
     wordIndex?: number;
     correction?: string;
     isNotSure?: boolean;
     isIncomplete?: boolean;
+    /** Saved at submit time. Absent on older rows. */
+    detectionCorrect?: boolean;
+    /** True only when the find was correct and the correction matched exactly. */
+    correctionCorrect?: boolean;
   }[];
   correct_count: number;
   total_count: number;

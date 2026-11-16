@@ -20,14 +20,83 @@ interface MemorizationViewProps {
   onViewSaved: () => void;
   isPublicView?: boolean;
   assignmentId?: string;
+  editingContentId?: string;
 }
 
 type DifficultyLevel = 1 | 2 | 3;
 
+const BOXES_FONT_FAMILY = '"Boxes Longlegs Short f1", sans-serif';
+
+const isChineseChar = (char: string): boolean => {
+  const code = char.charCodeAt(0);
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x20000 && code <= 0x2a6df) ||
+    (code >= 0x2a700 && code <= 0x2b73f) ||
+    (code >= 0x2b740 && code <= 0x2b81f) ||
+    (code >= 0x2b820 && code <= 0x2ceaf) ||
+    (code >= 0x2ceb0 && code <= 0x2ebef) ||
+    (code >= 0x30000 && code <= 0x3134f)
+  );
+};
+
+const containsChineseChars = (text: string): boolean => {
+  return Array.from(text).some(char => isChineseChar(char));
+};
+
+const isEnglishWord = (text: string): boolean => {
+  return /^[A-Za-z]+$/.test(text);
+};
+
+/** English letters that the difficulty level covers. The box font draws these letters as boxes. */
+const isEnglishLetterCovered = (word: string, index: number, level: DifficultyLevel): boolean => {
+  if (!isEnglishWord(word)) return false;
+  if (word.length <= 2 || level === 3) return true;
+  if (level === 2) return index > 0;
+  return index > 0 && index < word.length - 1;
+};
+
+const coveredWordAriaLabel = (word: string, level: DifficultyLevel): string | undefined => {
+  if (isEnglishWord(word)) {
+    const covered = Array.from(word).map((_, index) => isEnglishLetterCovered(word, index, level));
+    if (!covered.some(Boolean)) return undefined;
+    if (covered.every(Boolean)) return 'Hidden word';
+    if (level === 2) return `Hidden word starting with ${word[0]}`;
+    return `Hidden word starting with ${word[0]} and ending with ${word[word.length - 1]}`;
+  }
+  if (containsChineseChars(word)) return 'Hidden word';
+  return undefined;
+};
+
+const HiddenWordText: React.FC<{ word: string; level: DifficultyLevel }> = ({ word, level }) => {
+  if (!isEnglishWord(word)) {
+    if (containsChineseChars(word)) {
+      return <>{'*'.repeat(word.length)}</>;
+    }
+    return <>{word}</>;
+  }
+
+  return (
+    <>
+      {Array.from(word).map((char, index) => {
+        if (!isEnglishLetterCovered(word, index, level)) {
+          return <span key={index}>{char}</span>;
+        }
+        return (
+          <span key={index} style={{ fontFamily: BOXES_FONT_FAMILY }}>
+            {char}
+          </span>
+        );
+      })}
+    </>
+  );
+};
+
 const MemorizationView: React.FC<MemorizationViewProps> = ({
-  words, selectedIndices, originalText, title, onBack, onSave, onViewSaved, isPublicView = false, assignmentId
+  words, selectedIndices, originalText, title, onBack, onSave, onViewSaved, isPublicView = false, assignmentId, editingContentId
 }) => {
-  const { addSavedContent, saveLimit, currentSaveCount } = useAppContext();
+  const { addSavedContent, updateSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
 
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
@@ -141,63 +210,6 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       }
       return newSet;
     });
-  };
-
-  const isChineseChar = (char: string): boolean => {
-    const code = char.charCodeAt(0);
-    return (
-      (code >= 0x4e00 && code <= 0x9fff) ||
-      (code >= 0x3400 && code <= 0x4dbf) ||
-      (code >= 0x20000 && code <= 0x2a6df) ||
-      (code >= 0x2a700 && code <= 0x2b73f) ||
-      (code >= 0x2b740 && code <= 0x2b81f) ||
-      (code >= 0x2b820 && code <= 0x2ceaf) ||
-      (code >= 0x2ceb0 && code <= 0x2ebef) ||
-      (code >= 0x30000 && code <= 0x3134f)
-    );
-  };
-
-  const containsChineseChars = (text: string): boolean => {
-    return Array.from(text).some(char => isChineseChar(char));
-  };
-
-  const isEnglishWord = (text: string): boolean => {
-    return /^[A-Za-z]+$/.test(text);
-  };
-
-  const maskWord = (word: string, level: DifficultyLevel): string => {
-    if (word.length === 0) {
-      return word;
-    }
-
-    const isChinese = containsChineseChars(word);
-    const isEnglish = isEnglishWord(word);
-
-    if (!isChinese && !isEnglish) {
-      return word;
-    }
-
-    if (isChinese) {
-      return '*'.repeat(word.length);
-    }
-
-    if (isEnglish) {
-      if (level === 3) {
-        return '*'.repeat(word.length);
-      } else if (level === 2) {
-        if (word.length === 1) {
-          return word;
-        }
-        return word[0] + '*'.repeat(word.length - 1);
-      } else {
-        if (word.length <= 2) {
-          return word;
-        }
-        return word[0] + '*'.repeat(word.length - 2) + word[word.length - 1];
-      }
-    }
-
-    return word;
   };
 
   // Audio control handlers
@@ -334,7 +346,9 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       return;
     }
 
-    if (!isAdmin && saveLimit !== null && currentSaveCount >= saveLimit) {
+    const isUpdating = Boolean(editingContentId);
+
+    if (!isUpdating && !isAdmin && saveLimit !== null && currentSaveCount >= saveLimit) {
       setSaveError(`Save limit reached. You can only save up to ${saveLimit} memorization practices. Please delete an existing practice to save a new one.`);
       return;
     }
@@ -346,15 +360,23 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
 
       const finalTitle = title?.trim() || (originalText.substring(0, 50) + (originalText.length > 50 ? '...' : ''));
 
-      const success = await addSavedContent({
-        title: finalTitle,
-        originalText,
-        selectedWordIndices: selectedIndices,
-        isPublished: false,
-      });
+      const success = isUpdating
+        ? await updateSavedContent(editingContentId!, {
+            title: finalTitle,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            practiceMode: 'memorization',
+          })
+        : await addSavedContent({
+            title: finalTitle,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            isPublished: false,
+            practiceMode: 'memorization',
+          });
 
       if (!success) {
-        throw new Error('Failed to save content');
+        throw new Error(isUpdating ? 'Failed to update content' : 'Failed to save content');
       }
 
       setSaveSuccess(true);
@@ -514,7 +536,9 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                 <div className="flex items-center space-x-3">
                   <CheckCircle size={24} className="text-green-600" />
                   <p className="text-green-700 font-medium">
-                    Content saved successfully! Redirecting to saved content...
+                    {editingContentId
+                      ? 'Content updated successfully! Redirecting to saved content...'
+                      : 'Content saved successfully! Redirecting to saved content...'}
                   </p>
                 </div>
               </div>
@@ -531,26 +555,40 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
 
             <div className="bg-gray-50 p-6 rounded-lg mb-6 min-h-64">
               <div
-                className="text-xl leading-relaxed"
+                className="text-xl leading-[2.4]"
                 data-source-tsx="MemorizationView Text Display|src/components/MemorizationView/MemorizationView.tsx"
               >
                 {words.map((word, idx) => {
                   const isMemorized = selectedIndices.includes(word.index);
                   const isHidden = hiddenWords.has(word.index);
                   const isHighlighted = word.highlightGroup !== undefined;
+                  // Preserve paragraph / line breaks from original text (same as WordSelection)
                   if (word.isParagraphBreak) {
-                    return <div key={`para-break-${word.index}`} className="mb-4" />;
+                    return <div key={`para-break-${idx}`} className="block w-full h-4" aria-hidden="true" />;
                   }
 
                   if (word.text === '\n' || word.text === '\r\n') {
-                    return <br key={word.index} />;
+                    return <br key={`br-${idx}`} />;
+                  }
+
+                  // Spaces & punctuation: keep as normal text nodes so whitespace/layout stay intact
+                  if (word.isPunctuation) {
+                    return (
+                      <span
+                        key={`punct-${idx}`}
+                        className="text-gray-800"
+                        data-source-tsx="MemorizationView Punctuation|src/components/MemorizationView/MemorizationView.tsx"
+                      >
+                        {word.text}
+                      </span>
+                    );
                   }
 
                   // Non-selected but highlighted words
                   if (isHighlighted && !isMemorized) {
                     return (
                       <span
-                        key={idx}
+                        key={`word-${idx}`}
                         className="inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded"
                         data-source-tsx="MemorizationView Highlighted Word|src/components/MemorizationView/MemorizationView.tsx"
                       >
@@ -563,29 +601,34 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     const bgColor = isHighlighted ? 'bg-purple-100' : 'bg-green-100';
                     const hoverBgColor = isHighlighted ? 'hover:bg-purple-200' : 'hover:bg-green-200';
 
-                    const displayText = isHidden ? maskWord(word.text, difficultyLevel) : word.text;
+                    const ariaLabel = isHidden ? coveredWordAriaLabel(word.text, difficultyLevel) : undefined;
 
                     return (
                       <button
-                        key={idx}
+                        key={`word-${idx}`}
                         onClick={() => toggleWordVisibility(word.index)}
-                        className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors`}
+                        className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${ariaLabel ? 'select-none' : ''}`}
+                        aria-label={ariaLabel}
                         data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
                       >
-                        {displayText}
+                        {isHidden ? (
+                          <HiddenWordText word={word.text} level={difficultyLevel} />
+                        ) : (
+                          word.text
+                        )}
                       </button>
                     );
-                  } else {
-                    return (
-                      <span
-                        key={idx}
-                        className="inline-block px-1 py-1 text-gray-800 rounded"
-                        data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
-                      >
-                        {word.text}
-                      </span>
-                    );
                   }
+
+                  return (
+                    <span
+                      key={`word-${idx}`}
+                      className="inline-block px-1 py-1 text-gray-800 rounded"
+                      data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
+                    >
+                      {word.text}
+                    </span>
+                  );
                 })}
               </div>
             </div>
@@ -609,7 +652,11 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     icon={Save}
                     className="w-full sm:w-auto"
                   >
-                    {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+                    {isSaving
+                      ? (editingContentId ? 'Updating...' : 'Saving...')
+                      : saveSuccess
+                        ? (editingContentId ? 'Updated!' : 'Saved!')
+                        : (editingContentId ? 'Update' : 'Save')}
                   </Button>
                   {!isAdmin && saveLimit !== null && (
                     <span className="text-sm text-muted-foreground">
@@ -632,7 +679,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                 Click masked words to reveal them • Click revealed words to hide them again • Use audio controls to hear the text read aloud
               </p>
               <p className="text-xs text-gray-500">
-                Level 1: Show first & last letters (e.g., l****r) • Level 2: Show first letter only (e.g., l*****) • Level 3: Hide all letters (e.g., ******)
+                Level 1: First and last letters stay visible; middle letters show as boxes • Level 2: Only the first letter stays visible • Level 3: Every letter shows as a box • One- and two-letter words are fully covered
               </p>
               {speechSupported && (
                 <p className="text-xs text-gray-500">

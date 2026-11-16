@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { homeworkDb } from '@/lib/homework/client';
 import {
   EMPTY_ENGLISH_CHECK,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/homework/englishWork';
 import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { resolveEnglishClassFilter } from '@/lib/homework/englishClassFilter';
+import { fetchManagedClassIds, filterClassNameList } from '@/lib/staff/managedClasses';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
 type Student = {
@@ -58,6 +60,7 @@ function workTitle(work: Pick<EnglishWorkCell, 'subject' | 'name' | 'detail'>): 
 }
 
 export function EnglishHomeworkBoard() {
+  const { user, isAdmin, session } = useAuth();
   const [classes, setClasses] = useState<string[]>([]);
   const [classFilter, setClassFilter] = useState(PREFERRED_DEFAULT_CLASS);
   const [view, setView] = useState<'date' | 'item'>('date');
@@ -80,16 +83,32 @@ export function EnglishHomeworkBoard() {
           .select('class')
           .not('class', 'is', null);
         if (classError) throw classError;
-        const classNames = listedClassNames((classRows || []) as { class?: string | null }[]);
+        let classNames = listedClassNames((classRows || []) as { class?: string | null }[]);
+        if (!isAdmin && user?.id) {
+          const managed = await fetchManagedClassIds(user.id, session?.access_token);
+          classNames = filterClassNameList(classNames, managed, false);
+        }
+        const resolved = resolveEnglishClassFilter(classFilter, classNames);
+        const effectiveFilter = (!isAdmin && (resolved === 'all' || !classNames.includes(resolved)))
+          ? (classNames[0] || '')
+          : resolved;
         if (!cancelled) {
           setClasses(classNames);
-          setClassFilter((current) => resolveEnglishClassFilter(current, classNames));
+          if (effectiveFilter !== classFilter) setClassFilter(effectiveFilter);
+        }
+        if (!effectiveFilter) {
+          if (!cancelled) {
+            setWorks([]);
+            setStudents([]);
+            setChecks({});
+          }
+          return;
         }
 
         let homeworkQuery = homeworkDb
           .from('daily_homework')
           .select('date, class_name, assignments');
-        if (classFilter !== 'all') homeworkQuery = homeworkQuery.eq('class_name', classFilter);
+        if (effectiveFilter !== 'all') homeworkQuery = homeworkQuery.eq('class_name', effectiveFilter);
         const { data: homeworkRows, error: homeworkError } = await homeworkQuery;
         if (homeworkError) throw homeworkError;
 
@@ -103,14 +122,14 @@ export function EnglishHomeworkBoard() {
           .from('users')
           .select('id, display_name, class, class_number')
           .eq('role', 'user');
-        if (classFilter !== 'all') studentQuery = studentQuery.eq('class', classFilter);
+        if (effectiveFilter !== 'all') studentQuery = studentQuery.eq('class', effectiveFilter);
         const { data: studentRows, error: studentError } = await studentQuery;
         if (studentError) throw studentError;
 
         let checkQuery = homeworkDb
           .from('english_homework_checks')
           .select('class_name, record_date, subject, item_name, detail, student_id, handed_in, needs_correction, is_complete');
-        if (classFilter !== 'all') checkQuery = checkQuery.eq('class_name', classFilter);
+        if (effectiveFilter !== 'all') checkQuery = checkQuery.eq('class_name', effectiveFilter);
         const { data: checkRows, error: checkError } = await checkQuery;
         if (checkError) throw checkError;
 
@@ -145,7 +164,7 @@ export function EnglishHomeworkBoard() {
     return () => {
       cancelled = true;
     };
-  }, [classFilter]);
+  }, [classFilter, isAdmin, user?.id, session?.access_token]);
 
   const dateGroups = useMemo(() => groupWorkByDate(works, dateOrder), [works, dateOrder]);
   const itemGroups = useMemo(() => groupWorkByItem(works), [works]);
@@ -210,7 +229,7 @@ export function EnglishHomeworkBoard() {
               onChange={(event) => setClassFilter(event.target.value)}
               className="mt-1 block w-40 rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700"
             >
-              <option value="all">All classes</option>
+              {isAdmin && <option value="all">All classes</option>}
               {classes.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
