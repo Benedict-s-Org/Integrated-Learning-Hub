@@ -25,6 +25,8 @@ export type MissingLogInput = {
   missingItems: Record<string, string[]>;
 };
 
+export type HomeworkMark = 'missing' | 'unclicked' | 'absent' | 'exempt';
+
 export type LedgerStudent = {
   logId: string;
   studentId: string;
@@ -32,6 +34,8 @@ export type LedgerStudent = {
   className: string;
   classNumber: number;
   submitted: boolean;
+  /** Duty mark layered on for display. Absent / unclicked / exempt come from morning-duty status. */
+  mark?: HomeworkMark;
 };
 
 export type LedgerItem = {
@@ -372,8 +376,6 @@ export function missingLogsFromEnglishMarks(
   return [...byStudentDate.values()];
 }
 
-export type HomeworkMark = 'missing' | 'unclicked' | 'absent' | 'exempt';
-
 export function isTestUsername(username: string | null | undefined): boolean {
   return (username ?? '').toLowerCase().includes('test');
 }
@@ -545,5 +547,97 @@ export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number')
     || a.name.localeCompare(b.name)
   ));
   return copy;
+}
+
+/**
+ * Layer morning-duty marks onto ledger columns so Absent / Exempt / Not clicked
+ * show in the date columns, not only in the tally.
+ */
+export function enrichLedgerWithDutyMarks(
+  groups: LedgerDateGroup[],
+  appearances: HomeworkAppearance[],
+  detailLookup: DetailLookup = () => '',
+  todayIso: string = getHKTodayString(),
+): LedgerDateGroup[] {
+  type Bucket = {
+    subject: string;
+    item: string;
+    detail: string;
+    students: LedgerStudent[];
+  };
+  const byDate = new Map<string, Map<string, Bucket>>();
+
+  for (const group of groups) {
+    const items = new Map<string, Bucket>();
+    for (const item of group.items) {
+      items.set(`${item.subject}\0${item.item}`, {
+        subject: item.subject,
+        item: item.item,
+        detail: item.detail,
+        students: item.students.map((student) => ({ ...student, mark: student.mark || 'missing' })),
+      });
+    }
+    byDate.set(group.date, items);
+  }
+
+  for (const appearance of appearances) {
+    if (appearance.mark === 'missing' && appearance.submitted) continue;
+    const dateItems = byDate.get(appearance.date) ?? new Map<string, Bucket>();
+    byDate.set(appearance.date, dateItems);
+    const itemKey = `${appearance.subject}\0${appearance.item}`;
+    const bucket = dateItems.get(itemKey) ?? {
+      subject: appearance.subject,
+      item: appearance.item,
+      detail: detailLookup({
+        date: appearance.date,
+        className: appearance.className,
+        subject: appearance.subject,
+        item: appearance.item,
+      }),
+      students: [],
+    };
+    const existing = bucket.students.find((student) => student.studentId === appearance.studentId);
+    if (existing) {
+      existing.mark = appearance.mark;
+      if (appearance.mark === 'absent' || appearance.mark === 'exempt') {
+        existing.submitted = false;
+      }
+    } else {
+      bucket.students.push({
+        logId: appearance.logId,
+        studentId: appearance.studentId,
+        name: appearance.name,
+        className: appearance.className,
+        classNumber: appearance.classNumber,
+        submitted: appearance.submitted,
+        mark: appearance.mark,
+      });
+    }
+    dateItems.set(itemKey, bucket);
+  }
+
+  const next: LedgerDateGroup[] = [];
+  for (const [date, items] of byDate) {
+    const mapped = [...items.values()].map((bucket) => {
+      const students = [...bucket.students].sort((a, b) => {
+        if (a.className !== b.className) return a.className.localeCompare(b.className);
+        if (a.classNumber !== b.classNumber) return a.classNumber - b.classNumber;
+        return a.name.localeCompare(b.name);
+      });
+      return {
+        subject: bucket.subject,
+        item: bucket.item,
+        detail: bucket.detail,
+        students,
+        complete: students.length > 0 && students.every((student) => student.submitted && student.mark === 'missing'),
+      };
+    });
+    next.push({
+      date,
+      items: mapped,
+      complete: mapped.length > 0 && mapped.every((item) => item.complete),
+    });
+  }
+  return openLedgerColumns(next, todayIso);
 }
 

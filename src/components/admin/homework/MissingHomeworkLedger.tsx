@@ -11,6 +11,7 @@ import {
   attachHandedInClassmates,
   buildMissingLedger,
   buildMissingTally,
+  enrichLedgerWithDutyMarks,
   formatLedgerStudentLabel,
   handedInKey,
   listHomeworkAppearances,
@@ -20,6 +21,7 @@ import {
   sortMissingTally,
   submittedKeysWithHandedIn,
   type HandedInRosterEntry,
+  type HomeworkAppearance,
   type LedgerDateGroup,
   type LedgerStudent,
   type MissingLogInput,
@@ -84,6 +86,7 @@ export function MissingHomeworkLedger() {
   const [menu, setMenu] = useState<{ x: number; y: number; student: LedgerStudent; date: string } | null>(null);
   const [tally, setTally] = useState<TallyStudent[]>([]);
   const [tallyMode, setTallyMode] = useState<'count' | 'number'>('count');
+  const [appearances, setAppearances] = useState<HomeworkAppearance[]>([]);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -124,6 +127,7 @@ export function MissingHomeworkLedger() {
             setHandedInRoster([]);
             setHandbookKeys(new Set());
             setTally([]);
+            setAppearances([]);
             setDetailsByClassDate(new Map());
           }
           return;
@@ -257,6 +261,7 @@ export function MissingHomeworkLedger() {
           setLateKeys(englishState.lateKeys);
           setHandedInRoster(englishState.handedInRoster);
           setHandbookKeys(nextHandbook);
+          setAppearances(appearances);
           setTally(buildMissingTally(roster, appearances));
         }
       } catch (err) {
@@ -308,8 +313,15 @@ export function MissingHomeworkLedger() {
         complete: items.length > 0 && items.every((item) => item.complete),
       };
     });
-    return openLedgerColumns(withBadges, today);
-  }, [logs, submittedKeys, detailsByClassDate, handedInRoster, handedInKeys, lateKeys]);
+    return enrichLedgerWithDutyMarks(
+      openLedgerColumns(withBadges, today),
+      appearances,
+      ({ date, className, subject, item }) => (
+        detailFor(detailsByClassDate.get(`${date}|${className}`), subject, item)
+      ),
+      today,
+    );
+  }, [logs, submittedKeys, detailsByClassDate, handedInRoster, handedInKeys, lateKeys, appearances]);
   const tallyRows = useMemo(() => sortMissingTally(tally, tallyMode), [tally, tallyMode]);
   const missingTotal = tally.reduce((sum, row) => sum + row.missing, 0);
   const unclickedTotal = tally.reduce((sum, row) => sum + row.unclicked, 0);
@@ -327,9 +339,12 @@ export function MissingHomeworkLedger() {
     const key = makeupKey(student.logId, subject, item);
     if (inFlightKeys.current.has(key) || pendingKey === key) return;
 
+    if (student.mark === 'absent' || student.mark === 'exempt') return;
+
     const checkId = handedInKey(student.studentId, date, subject, item);
-    const markingLate = badgeFor(student, subject, item, date) === 'missing';
-    const handedIn = markingLate;
+    const tallyField = student.mark === 'unclicked' ? 'unclicked' : 'missing';
+    const markingLate = tallyField === 'missing' && badgeFor(student, subject, item, date) === 'missing';
+    const handedIn = markingLate || (tallyField === 'unclicked' && !student.submitted);
     const prevHandedIn = handedInKeys.has(checkId);
     const prevLate = lateKeys.has(checkId);
     const prevMadeUp = madeUp.has(key);
@@ -360,7 +375,14 @@ export function MissingHomeworkLedger() {
     setTally((current) => current.map((row) => {
       if (row.studentId !== student.studentId) return row;
       const delta = handedIn ? -1 : 1;
-      return { ...row, missing: Math.max(0, row.missing + delta) };
+      return { ...row, [tallyField]: Math.max(0, row[tallyField] + delta) };
+    }));
+    setAppearances((current) => current.map((row) => {
+      if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
+        return row;
+      }
+      if (tallyField === 'unclicked' && handedIn) return { ...row, mark: 'missing', submitted: true };
+      return { ...row, submitted: handedIn };
     }));
 
     try {
@@ -410,7 +432,13 @@ export function MissingHomeworkLedger() {
       setTally((current) => current.map((row) => {
         if (row.studentId !== student.studentId) return row;
         const delta = handedIn ? 1 : -1;
-        return { ...row, missing: Math.max(0, row.missing + delta) };
+        return { ...row, [tallyField]: Math.max(0, row[tallyField] + delta) };
+      }));
+      setAppearances((current) => current.map((row) => {
+        if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
+          return row;
+        }
+        return { ...row, mark: student.mark || 'missing', submitted: student.submitted };
       }));
       setError('Could not update that student. Try again.');
     } finally {
@@ -447,70 +475,70 @@ export function MissingHomeworkLedger() {
   };
 
   return (
-    <div className="flex flex-col items-start gap-4 xl:flex-row">
-      <div className="min-w-0 flex-1 space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-xl font-black text-slate-800">Missing records</h2>
-          <p className="text-sm font-medium text-slate-500">
-            Dates are columns — nearest to today on the left. Click a red name once to mark late hand-in (it moves into Handed in). Expand that section to undo. Right-click a red name to record a handbook for today.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-            <Legend tone="missing" label="Missing" />
-            <Legend tone="on_time" label="Handed in" />
-            <Legend tone="late" label="Late" />
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-red-600 bg-red-600 px-2.5 py-1 text-white">Not clicked</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300 bg-yellow-300 px-2.5 py-1 text-yellow-950">Absent / Exempt</span>
+    <div className="flex w-full min-w-0 max-w-full flex-col items-stretch gap-4 overflow-x-hidden xl:flex-row xl:items-start">
+      <div className="min-w-0 flex-1 space-y-6 overflow-x-hidden">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-black text-slate-800">Missing records</h2>
+            <p className="text-sm font-medium text-slate-500">
+              Dates are columns — nearest to today on the left. Click a red name once to mark late hand-in (it moves into Handed in). Expand that section to undo. Right-click a red name to record a handbook for today.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+              <Legend tone="missing" label="Missing" />
+              <Legend tone="on_time" label="Handed in" />
+              <Legend tone="late" label="Late" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-600 bg-red-600 px-2.5 py-1 text-white">Not clicked</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300 bg-yellow-300 px-2.5 py-1 text-yellow-950">Absent / Exempt</span>
+            </div>
           </div>
+          <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Class
+            <select
+              value={classFilter}
+              onChange={(event) => setClassFilter(event.target.value)}
+              className="mt-1 block w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 md:w-48"
+            >
+              {isAdmin && <option value="all">All classes</option>}
+              {classes.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
         </div>
-        <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-          Class
-          <select
-            value={classFilter}
-            onChange={(event) => setClassFilter(event.target.value)}
-            className="mt-1 block w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 md:w-48"
-          >
-            {isAdmin && <option value="all">All classes</option>}
-            {classes.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </label>
-      </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
-      )}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
+        )}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center gap-3 py-16 text-slate-500">
-          <Loader2 className="animate-spin" />
-          Loading records...
-        </div>
-      ) : ledger.length === 0 ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
-          <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
-          <p className="text-lg font-black text-emerald-800">No missing homework</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-min items-start gap-2">
-            {ledger.map((group) => (
-              <DateColumn
-                key={group.date}
-                group={group}
-                focused={group.date === focusDate}
-                pendingKey={pendingKey}
-                today={getHKTodayString()}
-                badgeFor={badgeFor}
-                handbookKeys={handbookKeys}
-                onToggle={toggleStudent}
-                onMenu={setMenu}
-              />
-            ))}
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-slate-500">
+            <Loader2 className="animate-spin" />
+            Loading records...
           </div>
-        </div>
-      )}
+        ) : ledger.length === 0 ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
+            <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
+            <p className="text-lg font-black text-emerald-800">No missing homework</p>
+          </div>
+        ) : (
+          <div className="w-full min-w-0 overflow-x-auto pb-2">
+            <div className="flex w-max items-start gap-2">
+              {ledger.map((group) => (
+                <DateColumn
+                  key={group.date}
+                  group={group}
+                  focused={group.date === focusDate}
+                  pendingKey={pendingKey}
+                  today={getHKTodayString()}
+                  badgeFor={badgeFor}
+                  handbookKeys={handbookKeys}
+                  onToggle={toggleStudent}
+                  onMenu={setMenu}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {!isLoading && (
         <MissingTally
@@ -557,7 +585,7 @@ function MissingTally({
   onMode: (mode: 'count' | 'number') => void;
 }) {
   return (
-    <aside className="flex max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col rounded-3xl border border-orange-100 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:w-80">
+    <aside className="flex max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col self-start rounded-3xl border border-orange-100 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:w-80 xl:max-w-80">
       <h2 className="text-lg font-black text-slate-800">Missing tally</h2>
       <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
         The red number is a real missing record. White on red was never clicked. Yellow is Absent or Exempt and is not added to either count. Usernames containing “test” are left out.
@@ -663,7 +691,11 @@ function DateColumn({
           >
             <p className="mb-1.5 font-black leading-snug text-slate-800">{itemLabel(item.subject, item.item, item.detail)}</p>
             <StudentColumn
-              students={item.students.filter((student) => badgeFor(student, item.subject, item.item, group.date) === 'missing')}
+              students={item.students.filter((student) => {
+                const mark = student.mark || 'missing';
+                if (mark === 'absent' || mark === 'exempt' || mark === 'unclicked') return true;
+                return badgeFor(student, item.subject, item.item, group.date) === 'missing';
+              })}
               emptyLabel="Nobody missing"
               groupDate={group.date}
               today={today}
@@ -678,7 +710,11 @@ function DateColumn({
             />
             <HandedInFold
               students={item.students
-                .filter((student) => badgeFor(student, item.subject, item.item, group.date) !== 'missing')
+                .filter((student) => {
+                  const mark = student.mark || 'missing';
+                  if (mark === 'absent' || mark === 'exempt' || mark === 'unclicked') return false;
+                  return badgeFor(student, item.subject, item.item, group.date) !== 'missing';
+                })
                 .sort((a, b) => {
                   const rank = (student: LedgerStudent) => (
                     badgeFor(student, item.subject, item.item, group.date) === 'on_time' ? 0 : 1
@@ -796,6 +832,7 @@ function StudentColumn({
   return (
     <ul className="flex flex-col gap-1">
       {students.map((student) => {
+        const mark = student.mark || 'missing';
         const tone = badgeFor(student, subject, itemName, groupDate);
         const key = makeupKey(student.logId, subject, itemName);
         const marked = handbookKeys.has(`${student.studentId}|${groupDate}`);
@@ -805,6 +842,35 @@ function StudentColumn({
           today,
           marked,
         );
+        if (mark === 'absent' || mark === 'exempt') {
+          return (
+            <li key={`${student.logId}:${student.studentId}`}>
+              <div className="inline-flex w-full items-start gap-1 rounded-md border border-yellow-300 bg-yellow-300 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-yellow-950">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-700" />
+                <span className="min-w-0 break-words">
+                  {label}{' '}
+                  <span className="text-[9px] tracking-wide">{mark === 'absent' ? 'ABSENT' : 'EXEMPT'}</span>
+                </span>
+              </div>
+            </li>
+          );
+        }
+        if (mark === 'unclicked') {
+          return (
+            <li key={`${student.logId}:${student.studentId}`}>
+              <button
+                type="button"
+                disabled={pendingKey === key}
+                aria-pressed={student.submitted}
+                onClick={() => onToggle(student, subject, itemName, detail, groupDate)}
+                className="inline-flex w-full items-start gap-1 rounded-md border border-red-700 bg-red-600 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-white disabled:opacity-50"
+              >
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
+                <span className="min-w-0 break-words">{label}</span>
+              </button>
+            </li>
+          );
+        }
         return (
           <li key={`${student.logId}:${student.studentId}`}>
             <button
