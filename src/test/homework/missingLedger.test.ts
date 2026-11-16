@@ -4,7 +4,9 @@ import {
   buildMissingLedger,
   buildMissingTally,
   classifyHomeworkMark,
+  buildMissingTallyFromLedger,
   enrichLedgerWithDutyMarks,
+  mergeDutyMissingItems,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
   handedInKey,
@@ -221,5 +223,65 @@ describe('missing tally', () => {
       'Erin:exempt',
     ]));
     expect(names.join('\n')).not.toContain('Test');
+  });
+
+  it('counts the sidebar from the same ledger rows the columns show', () => {
+    const duties = mergeDutyMissingItems(
+      [
+        { studentId: 'erin', date: '2026-11-10', status: 'submitted', missingItems: {}, logId: 'duty-erin' },
+        { studentId: 'shawnette', date: '2026-11-10', status: 'todo', missingItems: {}, logId: 'duty-shaw' },
+      ],
+      [
+        {
+          studentId: 'erin',
+          date: '2026-11-10',
+          missingItems: { 英文: ['BOB', 'Grammar', 'Reading'] },
+          logId: 'english|erin|2026-11-10',
+        },
+      ],
+    );
+    const appearances = listHomeworkAppearances(
+      roster,
+      duties,
+      [
+        { date: '2026-11-10', className: '4A', subject: '英文', item: 'BOB' },
+        { date: '2026-11-10', className: '4A', subject: '英文', item: 'Grammar' },
+        { date: '2026-11-10', className: '4A', subject: '英文', item: 'Reading' },
+        { date: '2026-11-10', className: '4A', subject: '中文', item: '小練筆' },
+      ],
+      new Set(),
+      new Set(),
+    );
+    expect(appearances.filter((row) => row.name === 'Erin' && row.mark === 'missing')).toHaveLength(3);
+
+    const ledger = enrichLedgerWithDutyMarks(
+      buildMissingLedger(
+        [
+          {
+            id: 'english|erin|2026-11-10',
+            logDate: '2026-11-10',
+            className: '4A',
+            studentId: 'erin',
+            studentName: 'Erin',
+            classNumber: 12,
+            missingItems: { 英文: ['BOB', 'Grammar', 'Reading'] },
+          },
+        ],
+        new Set(),
+        () => '',
+        '2026-11-10',
+      ),
+      appearances,
+      () => '',
+      '2026-11-10',
+    );
+    const erinMarks = ledger.flatMap((group) => group.items.flatMap((item) => (
+      item.students.filter((student) => student.name === 'Erin').map((student) => student.mark || 'missing')
+    )));
+    expect(erinMarks.filter((mark) => mark === 'missing')).toHaveLength(3);
+
+    const tally = buildMissingTallyFromLedger(roster, ledger);
+    expect(tally.find((row) => row.name === 'Erin')).toMatchObject({ missing: 3, unclicked: 0 });
+    expect(tally.find((row) => row.name === 'Sophie')).toMatchObject({ missing: 0, unclicked: 4 });
   });
 });

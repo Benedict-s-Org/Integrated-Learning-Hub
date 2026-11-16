@@ -10,8 +10,9 @@ import { handbookName, homeworkBadge, type HomeworkBadge } from '@/lib/homework/
 import {
   attachHandedInClassmates,
   buildMissingLedger,
-  buildMissingTally,
+  buildMissingTallyFromLedger,
   enrichLedgerWithDutyMarks,
+  mergeDutyMissingItems,
   formatLedgerStudentLabel,
   handedInKey,
   listHomeworkAppearances,
@@ -84,7 +85,7 @@ export function MissingHomeworkLedger() {
   const [handedInRoster, setHandedInRoster] = useState<HandedInRosterEntry[]>([]);
   const [handbookKeys, setHandbookKeys] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; student: LedgerStudent; date: string } | null>(null);
-  const [tally, setTally] = useState<TallyStudent[]>([]);
+  const [roster, setRoster] = useState<Array<{ id: string; name: string; classNumber: number; username?: string | null }>>([]);
   const [tallyMode, setTallyMode] = useState<'count' | 'number'>('count');
   const [appearances, setAppearances] = useState<HomeworkAppearance[]>([]);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
@@ -126,7 +127,7 @@ export function MissingHomeworkLedger() {
             setLateKeys(new Set());
             setHandedInRoster([]);
             setHandbookKeys(new Set());
-            setTally([]);
+            setRoster([]);
             setAppearances([]);
             setDetailsByClassDate(new Map());
           }
@@ -241,13 +242,21 @@ export function MissingHomeworkLedger() {
 
         const appearances = listHomeworkAppearances(
           roster,
-          rawLogs.map((log) => ({
-            studentId: log.student_id,
-            date: log.log_date,
-            status: log.status,
-            missingItems: log.missing_items,
-            logId: log.id,
-          })),
+          mergeDutyMissingItems(
+            rawLogs.map((log) => ({
+              studentId: log.student_id,
+              date: log.log_date,
+              status: log.status,
+              missingItems: log.missing_items,
+              logId: log.id,
+            })),
+            englishState.logs.map((log) => ({
+              studentId: log.studentId,
+              date: log.logDate,
+              missingItems: log.missingItems,
+              logId: log.id,
+            })),
+          ),
           listed,
           englishState.handedInKeys,
           nextMadeUp,
@@ -261,8 +270,8 @@ export function MissingHomeworkLedger() {
           setLateKeys(englishState.lateKeys);
           setHandedInRoster(englishState.handedInRoster);
           setHandbookKeys(nextHandbook);
+          setRoster(roster);
           setAppearances(appearances);
-          setTally(buildMissingTally(roster, appearances));
         }
       } catch (err) {
         console.error('Failed to load missing homework ledger', err);
@@ -322,6 +331,7 @@ export function MissingHomeworkLedger() {
       today,
     );
   }, [logs, submittedKeys, detailsByClassDate, handedInRoster, handedInKeys, lateKeys, appearances]);
+  const tally = useMemo(() => buildMissingTallyFromLedger(roster, ledger), [roster, ledger]);
   const tallyRows = useMemo(() => sortMissingTally(tally, tallyMode), [tally, tallyMode]);
   const missingTotal = tally.reduce((sum, row) => sum + row.missing, 0);
   const unclickedTotal = tally.reduce((sum, row) => sum + row.unclicked, 0);
@@ -372,11 +382,6 @@ export function MissingHomeworkLedger() {
       else next.delete(key);
       return next;
     });
-    setTally((current) => current.map((row) => {
-      if (row.studentId !== student.studentId) return row;
-      const delta = handedIn ? -1 : 1;
-      return { ...row, [tallyField]: Math.max(0, row[tallyField] + delta) };
-    }));
     setAppearances((current) => current.map((row) => {
       if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
         return row;
@@ -429,11 +434,6 @@ export function MissingHomeworkLedger() {
         else next.delete(key);
         return next;
       });
-      setTally((current) => current.map((row) => {
-        if (row.studentId !== student.studentId) return row;
-        const delta = handedIn ? 1 : -1;
-        return { ...row, [tallyField]: Math.max(0, row[tallyField] + delta) };
-      }));
       setAppearances((current) => current.map((row) => {
         if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
           return row;

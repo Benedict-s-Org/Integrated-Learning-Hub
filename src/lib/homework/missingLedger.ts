@@ -402,6 +402,52 @@ export type DutySnapshot = {
   logId: string;
 };
 
+/** Merge English (or other) missing-item logs into morning-duty snapshots so appearances match the columns. */
+export function mergeDutyMissingItems(
+  duties: DutySnapshot[],
+  extra: Array<{
+    studentId: string;
+    date: string;
+    missingItems?: Record<string, string[]> | null;
+    logId: string;
+  }>,
+): DutySnapshot[] {
+  const map = new Map<string, DutySnapshot>();
+  for (const duty of duties) {
+    map.set(`${duty.studentId}\0${duty.date}`, {
+      ...duty,
+      missingItems: { ...(duty.missingItems || {}) },
+    });
+  }
+  for (const row of extra) {
+    const key = `${row.studentId}\0${row.date}`;
+    const existing = map.get(key);
+    const incoming = row.missingItems || {};
+    if (!existing) {
+      map.set(key, {
+        studentId: row.studentId,
+        date: row.date,
+        status: 'missing',
+        missingItems: { ...incoming },
+        logId: row.logId,
+      });
+      continue;
+    }
+    const merged = { ...(existing.missingItems || {}) };
+    for (const [subject, items] of Object.entries(incoming)) {
+      if (!Array.isArray(items)) continue;
+      const bucket = new Set((merged[subject] || []).map((item) => item.trim()).filter(Boolean));
+      for (const item of items) {
+        const trimmed = typeof item === 'string' ? item.trim() : '';
+        if (trimmed) bucket.add(trimmed);
+      }
+      merged[subject] = [...bucket];
+    }
+    map.set(key, { ...existing, missingItems: merged });
+  }
+  return [...map.values()];
+}
+
 export type ListedWork = {
   date: string;
   className: string;
@@ -508,10 +554,9 @@ export type TallyStudent = {
   exempt: number;
 };
 
-export function buildMissingTally(
+function emptyTallyRows(
   students: Array<{ id: string; name: string; classNumber: number; username?: string | null }>,
-  appearances: Array<{ studentId: string; mark: HomeworkMark; submitted?: boolean }>,
-): TallyStudent[] {
+): Map<string, TallyStudent> {
   const rows = new Map<string, TallyStudent>();
   for (const student of students) {
     if (isTestUsername(student.username)) continue;
@@ -525,11 +570,54 @@ export function buildMissingTally(
       exempt: 0,
     });
   }
+  return rows;
+}
+
+export function buildMissingTally(
+  students: Array<{ id: string; name: string; classNumber: number; username?: string | null }>,
+  appearances: Array<{ studentId: string; mark: HomeworkMark; submitted?: boolean }>,
+): TallyStudent[] {
+  const rows = emptyTallyRows(students);
   for (const appearance of appearances) {
     const row = rows.get(appearance.studentId);
     if (!row) continue;
     if (appearance.mark === 'missing' && appearance.submitted) continue;
     row[appearance.mark] += 1;
+  }
+  return [...rows.values()];
+}
+
+/**
+ * Count the Missing tally from the same enriched ledger the columns show,
+ * so the sidebar cannot drift from the red / not-clicked / ABS / EX rows.
+ */
+export function buildMissingTallyFromLedger(
+  students: Array<{ id: string; name: string; classNumber: number; username?: string | null }>,
+  groups: LedgerDateGroup[],
+): TallyStudent[] {
+  const rows = emptyTallyRows(students);
+  for (const group of groups) {
+    for (const item of group.items) {
+      for (const student of item.students) {
+        const row = rows.get(student.studentId);
+        if (!row) continue;
+        const mark = student.mark || 'missing';
+        if (mark === 'absent') {
+          row.absent += 1;
+          continue;
+        }
+        if (mark === 'exempt') {
+          row.exempt += 1;
+          continue;
+        }
+        if (mark === 'unclicked') {
+          row.unclicked += 1;
+          continue;
+        }
+        if (student.submitted) continue;
+        row.missing += 1;
+      }
+    }
   }
   return [...rows.values()];
 }
