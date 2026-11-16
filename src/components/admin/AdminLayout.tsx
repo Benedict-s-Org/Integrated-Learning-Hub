@@ -191,7 +191,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
   );
 
   return (
-    <div className="min-h-screen flex bg-background relative font-bold">
+    <div className="relative flex min-h-screen max-w-[100vw] overflow-x-hidden bg-background font-bold">
       {/* Decorative blobs */}
       <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
@@ -214,7 +214,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
       )}
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 relative z-10">
+      <main className="relative z-10 flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
         {/* Header */}
         {!hideHeader && (
           <header className="h-16 md:h-24 border-b-4 border-white bg-white/40 backdrop-blur-sm px-4 md:px-10 flex items-center shrink-0 justify-between md:justify-start gap-4 sticky top-0 z-20">
