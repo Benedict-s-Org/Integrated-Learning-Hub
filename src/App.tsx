@@ -60,6 +60,7 @@ import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
+import type { SpellingWordAudio } from './utils/spellingWordAudio';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string; title?: string; editingContentId?: string }
@@ -81,8 +82,8 @@ type AppState =
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
   | { page: 'spelling'; step: 'input' }
-  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; wordLimit?: number }
-  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number; wordLimit?: number; isSRSReview?: boolean }
+  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; wordLimit?: number; wordAudio?: SpellingWordAudio[] }
+  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number; wordLimit?: number; isSRSReview?: boolean; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
@@ -1138,6 +1139,7 @@ function AppContent() {
                       onBack={handleBackToSpellingPreview}
                       wordLimit={(appState as any).wordLimit}
                       isSRSReview={(appState as any).isSRSReview}
+                      wordAudio={appState.wordAudio}
                     />
                   );
                 case 'saved':
@@ -1153,7 +1155,8 @@ function AppContent() {
                             title: practice.title,
                             words: practice.words,
                             practiceId: practice.id,
-                            wordLimit: (practice as any).metadata?.wordLimit
+                            wordLimit: (practice as any).metadata?.wordLimit,
+                            wordAudio: practice.word_audio,
                           });
                         } else {
                           setAppState({
@@ -1165,7 +1168,8 @@ function AppContent() {
                             assignmentId: practice.assignment_id,
                             level: practice.level,
                             wordLimit: (practice as any).metadata?.wordLimit,
-                            isSRSReview: practice.id === 'srs-review'
+                            isSRSReview: practice.id === 'srs-review',
+                            wordAudio: practice.word_audio,
                           });
                         }
                       }}
@@ -1178,7 +1182,8 @@ function AppContent() {
                           practiceId: practice.id,
                           assignmentId: practice.assignment_id,
                           wordLimit: (practice as any).metadata?.wordLimit,
-                          isSRSReview: practice.id === 'srs-review'
+                          isSRSReview: practice.id === 'srs-review',
+                          wordAudio: practice.word_audio,
                         });
                       }}
                     />
@@ -1200,6 +1205,7 @@ function AppContent() {
                       practiceId: practice.practiceId,
                       assignmentId: practice.assignmentId,
                       level: practice.level,
+                      wordAudio: practice.wordAudio,
                     });
                   }}
                   onLoadProofreading={handleLoadAssignedProofreadingPractice}

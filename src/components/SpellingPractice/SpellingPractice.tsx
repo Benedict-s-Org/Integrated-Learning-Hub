@@ -6,9 +6,19 @@ import { Input } from '../ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import { supabase } from '../../lib/supabase';
-import { findBestVoiceMatch, createUtterance, fetchCloudAudio } from '../../utils/voiceManager';
+import { findBestVoiceMatch, createUtterance, fetchCloudAudio, driveFileToProxyUrl, resolveAudioUrl } from '../../utils/voiceManager';
 import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
 import { spellingAnswersMatch } from '../../utils/spellingWordFilter';
+import { isCompleteWordAudio, type SpellingWordAudio } from '../../utils/spellingWordAudio';
+
+const PRACTICE_ID_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type PracticeAudioMode = 'pending' | 'bound' | 'legacy' | 'incomplete';
+
+function isRealPracticeId(practiceId?: string): practiceId is string {
+  return !!practiceId && practiceId !== 'srs-review' && PRACTICE_ID_UUID.test(practiceId);
+}
 
 interface SpellingPracticeProps {
   title: string;
@@ -20,6 +30,7 @@ interface SpellingPracticeProps {
   initialLevel?: number;
   wordLimit?: number; // 10, 20, 40
   isSRSReview?: boolean; // Whether this is an SRS review session
+  wordAudio?: SpellingWordAudio[];
 }
 
 const SpellingPractice: React.FC<SpellingPracticeProps> = ({ 
@@ -31,7 +42,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   isPhraseMode, 
   initialLevel,
   wordLimit,
-  isSRSReview
+  isSRSReview,
+  wordAudio
 }) => {
   const { accentPreference, voicePreference, user } = useAuth();
   const { recordWordAttempt, getWordsDueForReview } = useSpellingSrs();
@@ -69,6 +81,9 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
   const [isWordsLoading, setIsWordsLoading] = useState(true);
+  const [practiceAudio, setPracticeAudio] = useState<SpellingWordAudio[]>([]);
+  const [audioMode, setAudioMode] = useState<PracticeAudioMode>('pending');
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   // Helper to shuffle array
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -81,25 +96,81 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   };
 
   useEffect(() => {
+    let cancelled = false;
+
+    const limitList = <T,>(items: T[]) =>
+      wordLimit && items.length > wordLimit ? items.slice(0, wordLimit) : items;
+
     const initializePractice = async () => {
       setIsWordsLoading(true);
-      let selectedWords: string[] = [];
+      setAudioError(null);
+      setCurrentWordIndex(0);
 
-      if (isSRSReview) {
-        // Fetch due words directly to ensure freshness
+      // SRS review words are not this practice's stored list, so bindings do not apply.
+      if (isSRSReview || practiceId === 'srs-review') {
         const dueWords = await getWordsDueForReview();
-        selectedWords = shuffleArray(dueWords);
-      } else {
-        // Standard practice - shuffle and limit
-        selectedWords = shuffleArray(rawWords);
+        if (cancelled) return;
+        const selected = limitList(shuffleArray(dueWords));
+        setPracticeWords(selected);
+        setPracticeAudio([]);
+        setAudioMode('legacy');
+        setIsWordsLoading(false);
+        if (selected.length > 0) {
+          initializeShuffledLetters(selected[0]);
+        }
+        return;
       }
 
-      // Apply limit if specified
-      if (wordLimit && selectedWords.length > wordLimit) {
-        selectedWords = selectedWords.slice(0, wordLimit);
+      let rawBindings: unknown = wordAudio;
+      let bindingsUnreadable = false;
+      if (wordAudio === undefined && isRealPracticeId(practiceId)) {
+        try {
+          const { data, error } = await (supabase as any)
+            .from('spelling_practices')
+            .select('word_audio')
+            .eq('id', practiceId)
+            .maybeSingle();
+          if (cancelled) return;
+          if (error) {
+            console.error('[SpellingPractice] Failed to load word_audio:', error);
+            bindingsUnreadable = true;
+          } else {
+            rawBindings = data?.word_audio ?? [];
+          }
+        } catch (error) {
+          if (cancelled) return;
+          console.error('[SpellingPractice] Failed to load word_audio:', error);
+          bindingsUnreadable = true;
+        }
+      }
+
+      if (cancelled) return;
+
+      let selectedWords: string[] = [];
+      let selectedAudio: SpellingWordAudio[] = [];
+      let nextMode: PracticeAudioMode = 'legacy';
+
+      const bindingsAreEmpty = !Array.isArray(rawBindings) ? false : rawBindings.length === 0;
+      const bindingsCorrupt = bindingsUnreadable || (rawBindings != null && !Array.isArray(rawBindings));
+
+      if (bindingsCorrupt || (Array.isArray(rawBindings) && rawBindings.length > 0 && !isCompleteWordAudio(rawWords, rawBindings as SpellingWordAudio[]))) {
+        selectedWords = limitList(shuffleArray([...rawWords]));
+        nextMode = 'incomplete';
+      } else if (bindingsAreEmpty || rawBindings == null) {
+        selectedWords = limitList(shuffleArray([...rawWords]));
+        nextMode = 'legacy';
+      } else {
+        const bound = rawBindings as SpellingWordAudio[];
+        const indices = limitList(shuffleArray(rawWords.map((_, i) => i)));
+        selectedWords = indices.map((i) => rawWords[i]);
+        selectedAudio = indices.map((i) => bound[i]);
+        nextMode = isCompleteWordAudio(selectedWords, selectedAudio) ? 'bound' : 'incomplete';
+        if (nextMode !== 'bound') selectedAudio = [];
       }
 
       setPracticeWords(selectedWords);
+      setPracticeAudio(selectedAudio);
+      setAudioMode(nextMode);
       setIsWordsLoading(false);
 
       if (selectedWords.length > 0) {
@@ -108,7 +179,10 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     };
 
     initializePractice();
-  }, [isSRSReview, rawWords, wordLimit]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSRSReview, rawWords, wordLimit, practiceId, wordAudio, getWordsDueForReview]);
 
 
   useEffect(() => {
@@ -138,12 +212,20 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   }, [voicePreference, accentPreference]);
 
   useEffect(() => {
-    if (speechSupported && practiceWords.length > currentWordIndex && currentVoice) {
+    if (isWordsLoading || audioMode !== 'bound') return;
+    if (practiceWords.length === 0 || currentWordIndex >= practiceWords.length) return;
+    speakWord(practiceWords[currentWordIndex], currentWordIndex);
+  }, [practiceWords, audioMode, isWordsLoading]);
+
+  useEffect(() => {
+    if (isWordsLoading || audioMode !== 'legacy') return;
+    if (practiceWords.length === 0 || currentWordIndex >= practiceWords.length) return;
+    if (speechSupported && currentVoice) {
       console.log(`[SpellingPractice] Initializing word: ${practiceWords[currentWordIndex]}, Voice current status:`, !!currentVoice);
-      speakWord(practiceWords[currentWordIndex]);
+      speakWord(practiceWords[currentWordIndex], currentWordIndex);
       initializeShuffledLetters(practiceWords[currentWordIndex]);
     }
-  }, [currentVoice, practiceWords]);
+  }, [currentVoice, practiceWords, audioMode, speechSupported, isWordsLoading]);
 
 
   // shuffleArray was moved outside or into functional scope
@@ -160,7 +242,31 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
 
   const utteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
 
-  const speakWord = async (word: string) => {
+  const speakWord = async (word: string, index: number = currentWordIndex) => {
+    if (audioMode === 'incomplete' || audioMode === 'pending') return;
+
+    if (audioMode === 'bound') {
+      const binding = practiceAudio[index];
+      if (!binding?.drive_file_id) {
+        setAudioError('Audio unavailable for this word');
+        return;
+      }
+      try {
+        unlockAudioSync();
+        const proxyUrl = driveFileToProxyUrl(binding.drive_file_id);
+        const playable = await resolveAudioUrl(proxyUrl);
+        if (!playable) {
+          setAudioError('Audio unavailable for this word');
+          return;
+        }
+        await playAudioUrl(playable);
+        setAudioError(null);
+      } catch {
+        setAudioError('Audio unavailable for this word');
+      }
+      return;
+    }
+
     console.log(`[SpellingPractice] speakWord called for: "${word}"`, { accentPreference });
 
     // 1. Try Google Cloud TTS for premium consistency
@@ -216,10 +322,11 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   };
 
   const handlePlayAudio = () => {
-    // Unlock during click before async Cloud TTS fetch
+    if (audioMode === 'incomplete') return;
+    // Unlock during click before async audio fetch
     unlockAudioSync();
     if (practiceWords[currentWordIndex]) {
-      speakWord(practiceWords[currentWordIndex]);
+      speakWord(practiceWords[currentWordIndex], currentWordIndex);
     }
   };
 
@@ -259,7 +366,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       setClickedLetters([]);
       setShowFeedback(false);
       wordStartTimeRef.current = Date.now();
-      speakWord(practiceWords[nextIndex]);
+      speakWord(practiceWords[nextIndex], nextIndex);
       initializeShuffledLetters(practiceWords[nextIndex]);
     } else {
       await saveResults();
@@ -369,7 +476,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     );
   }
 
-  if (!speechSupported) {
+  if (audioMode === 'legacy' && !speechSupported) {
     return (
       <div
         className="min-h-full bg-background p-8"
@@ -547,15 +654,29 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
               {currentWordIndex < practiceWords.length ? (
                 <>
                   <div className="mb-8">
+                    {audioMode === 'incomplete' && (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border-2 border-red-200 bg-red-50 p-4 text-center text-sm font-medium text-red-700"
+                      >
+                        Practice audio is incomplete.
+                      </div>
+                    )}
                     <div className="flex justify-center mb-6">
                       <Button
                         onClick={handlePlayAudio}
+                        disabled={audioMode === 'incomplete'}
                         className="px-8 py-4 h-auto text-xl shadow-lg"
                         icon={Volume2}
                       >
                         Play Word
                       </Button>
                     </div>
+                    {audioError && (
+                      <p role="alert" className="mb-6 text-center text-sm font-medium text-red-600">
+                        {audioError}
+                      </p>
+                    )}
 
                     <p className="hidden sm:block text-center text-sm text-gray-500 mb-6">
                       Keyboard shortcuts: <kbd className="px-2 py-1 bg-gray-200 rounded">Ctrl + Space</kbd> to replay

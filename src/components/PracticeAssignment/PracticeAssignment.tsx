@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import SpellingPreview from '../SpellingPreview/SpellingPreview';
 import SpellingPractice from '../SpellingPractice/SpellingPractice';
 import { isArchivedClassName } from '../../utils/archiveClassExporter';
+import type { SpellingWordAudio } from '../../utils/spellingWordAudio';
 
 interface User {
   id: string;
@@ -22,6 +23,9 @@ interface Practice {
   words: string[];
   is_phrase_mode?: boolean;
   created_at: string;
+  word_audio?: SpellingWordAudio[];
+  audio_accent?: string | null;
+  audio_voice_name?: string | null;
 }
 
 interface PracticeAssignmentProps {
@@ -217,6 +221,8 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
         title={practice.title}
         words={practice.words}
         isPhraseMode={practice.is_phrase_mode}
+        practiceId={practice.id}
+        wordAudio={practice.word_audio}
         onBack={onBack}
       />
     );
