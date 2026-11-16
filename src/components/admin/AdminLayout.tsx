@@ -240,7 +240,7 @@ export function AdminLayout({ children, title, icon, hideSidebar, hideHeader }: 
         )}
 
         {/* Page Content */}
-        <div className="min-w-0 flex-1 overflow-x-hidden">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden">
           {children}
         </div>
       </main>
