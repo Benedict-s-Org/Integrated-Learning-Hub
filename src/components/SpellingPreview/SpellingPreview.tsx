@@ -81,9 +81,12 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     isPlayingRef.current = false;
     window.speechSynthesis.cancel();
     utteranceRef.current = null;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
+    const audio = currentAudioRef.current;
+    currentAudioRef.current = null;
+    if (audio) {
+      audio.pause();
+      // Settle playAudioUrl's ended waiter so the old loop can see this generation bump.
+      audio.dispatchEvent(new Event('ended'));
     }
     setIsPlaying(false);
   };
@@ -160,20 +163,31 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   };
 
   const playCloudAudio = async (rawUrl: string): Promise<boolean> => {
+    const generation = playbackGenerationRef.current;
     const playableUrl = rawUrl.startsWith('data:')
       ? rawUrl
       : await resolveAudioUrl(rawUrl);
 
     if (!playableUrl) return false;
+    if (!isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
+
+    // Assign before playAudioUrl waits for `ended`, so Stop can pause this element.
+    const audio = new Audio();
+    currentAudioRef.current = audio;
 
     try {
-      const audio = await playAudioUrl(playableUrl);
-      currentAudioRef.current = audio;
-      currentAudioRef.current = null;
-      return true;
+      await playAudioUrl(playableUrl, audio);
+      if (currentAudioRef.current === audio) {
+        currentAudioRef.current = null;
+      }
+      return isPlayingRef.current && generation === playbackGenerationRef.current;
     } catch (err) {
-      console.warn('[SpellingPreview] Cloud audio playback failed:', err);
-      currentAudioRef.current = null;
+      if (currentAudioRef.current === audio) {
+        currentAudioRef.current = null;
+      }
+      if (generation === playbackGenerationRef.current) {
+        console.warn('[SpellingPreview] Cloud audio playback failed:', err);
+      }
       return false;
     }
   };
@@ -253,33 +267,42 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
 
     stopInFlightPlayback();
 
+    const generation = playbackGenerationRef.current;
     setIsPlaying(true);
     isPlayingRef.current = true;
     setCurrentWordIndex(0);
 
+    const ownsPlayback = () =>
+      isPlayingRef.current && generation === playbackGenerationRef.current;
+
     for (let i = 0; i < words.length; i++) {
-      if (!isPlayingRef.current) break;
+      if (!ownsPlayback()) break;
 
       setCurrentWordIndex(i);
 
       try {
         const confirmed = await playAndConfirmWord(words[i], i);
 
-        if (!isPlayingRef.current) break;
+        if (!ownsPlayback()) break;
 
-        if (!confirmed && isPlayingRef.current) {
+        if (!confirmed) {
           await speakWithBrowserVoice(words[i]);
+          if (!ownsPlayback()) break;
         }
 
-        if (i < words.length - 1 && isPlayingRef.current) {
+        if (i < words.length - 1 && ownsPlayback()) {
           await new Promise(resolve => setTimeout(resolve, 600));
         }
       } catch (err) {
         console.error('[SpellingPreview] Error in play all:', err);
+        if (!ownsPlayback()) break;
       }
     }
 
-    finishPlayback();
+    // A newer Play All or voice change already owns playback. Do not clear it.
+    if (generation === playbackGenerationRef.current) {
+      finishPlayback();
+    }
   };
 
   const handleStopAll = () => {

@@ -237,4 +237,77 @@ describe('SpellingPreview word audio confirmation', () => {
     expect(screen.getByText('Audio confirmed 0/2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save practice/i })).toBeDisabled();
   });
+
+  it('does not let a superseded Play All confirm with the previous voice', async () => {
+    const pendingPlays: Array<(value: HTMLAudioElement) => void> = [];
+    vi.mocked(playAudioUrl).mockImplementation(
+      () =>
+        new Promise<HTMLAudioElement>((resolve) => {
+          pendingPlays.push(resolve);
+        })
+    );
+    vi.mocked(fetchCloudAudioRich).mockImplementation(
+      async (word: string, _accent: string, voice?: string | null) => ({
+        audioUrl: `https://drive.example/${word}`,
+        audioContent: `data:audio/mp3;base64,${btoa(word)}`,
+        driveFileId: `drive-${voice}-${word}`,
+      })
+    );
+
+    const user = userEvent.setup();
+    renderPreview();
+
+    await user.click(await screen.findByRole('button', { name: /play all/i }));
+    await waitFor(() => {
+      expect(pendingPlays).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole('button', { name: /switch voice/i }));
+    await user.click(screen.getByRole('button', { name: /play all/i }));
+    await waitFor(() => {
+      expect(
+        vi.mocked(fetchCloudAudioRich).mock.calls.some((call) => call[2] === 'en-US-Neural2-A')
+      ).toBe(true);
+      expect(pendingPlays.length).toBeGreaterThanOrEqual(2);
+    });
+
+    const fetchesAtHandoff = vi.mocked(fetchCloudAudioRich).mock.calls.length;
+    pendingPlays[0]!({} as HTMLAudioElement);
+
+    // Longer than the 600ms gap between words, so a stale loop would fetch the next word.
+    await new Promise((r) => setTimeout(r, 800));
+
+    const staleFetches = vi.mocked(fetchCloudAudioRich).mock.calls
+      .slice(fetchesAtHandoff)
+      .filter((call) => call[2] === PREMIUM_VOICE);
+    expect(staleFetches).toEqual([]);
+    expect(screen.getByText('Audio confirmed 0/2')).toBeInTheDocument();
+    expect(window.speechSynthesis.speak).not.toHaveBeenCalled();
+  });
+
+  it('pauses the playing cloud audio when Stop is pressed', async () => {
+    vi.mocked(playAudioUrl).mockImplementation(
+      () => new Promise<HTMLAudioElement>(() => {})
+    );
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+
+    try {
+      const user = userEvent.setup();
+      renderPreview();
+
+      await user.click(await screen.findByRole('button', { name: /play all/i }));
+      await waitFor(() => {
+        expect(playAudioUrl).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByRole('button', { name: /^stop$/i }));
+
+      expect(pause).toHaveBeenCalled();
+      const playing = vi.mocked(playAudioUrl).mock.calls.at(-1)?.[1];
+      expect(playing).toBeInstanceOf(HTMLMediaElement);
+      expect(pause.mock.instances).toContain(playing);
+    } finally {
+      pause.mockRestore();
+    }
+  });
 });
