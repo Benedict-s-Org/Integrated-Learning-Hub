@@ -14,7 +14,7 @@ import { isCompleteWordAudio, type SpellingWordAudio } from '../../utils/spellin
 const PRACTICE_ID_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type PracticeAudioMode = 'pending' | 'bound' | 'legacy' | 'incomplete';
+type PracticeAudioMode = 'pending' | 'bound' | 'legacy' | 'incomplete' | 'load_error';
 
 function isRealPracticeId(practiceId?: string): practiceId is string {
   return !!practiceId && practiceId !== 'srs-review' && PRACTICE_ID_UUID.test(practiceId);
@@ -122,7 +122,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       }
 
       let rawBindings: unknown = wordAudio;
-      let bindingsUnreadable = false;
+      let loadFailed = false;
       if (wordAudio === undefined && isRealPracticeId(practiceId)) {
         try {
           const { data, error } = await (supabase as any)
@@ -133,14 +133,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
           if (cancelled) return;
           if (error) {
             console.error('[SpellingPractice] Failed to load word_audio:', error);
-            bindingsUnreadable = true;
+            loadFailed = true;
           } else {
             rawBindings = data?.word_audio ?? [];
           }
         } catch (error) {
           if (cancelled) return;
           console.error('[SpellingPractice] Failed to load word_audio:', error);
-          bindingsUnreadable = true;
+          loadFailed = true;
         }
       }
 
@@ -151,9 +151,12 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       let nextMode: PracticeAudioMode = 'legacy';
 
       const bindingsAreEmpty = !Array.isArray(rawBindings) ? false : rawBindings.length === 0;
-      const bindingsCorrupt = bindingsUnreadable || (rawBindings != null && !Array.isArray(rawBindings));
+      const bindingsCorrupt = rawBindings != null && !Array.isArray(rawBindings);
 
-      if (bindingsCorrupt || (Array.isArray(rawBindings) && rawBindings.length > 0 && !isCompleteWordAudio(rawWords, rawBindings as SpellingWordAudio[]))) {
+      if (loadFailed) {
+        selectedWords = limitList(shuffleArray([...rawWords]));
+        nextMode = 'load_error';
+      } else if (bindingsCorrupt || (Array.isArray(rawBindings) && rawBindings.length > 0 && !isCompleteWordAudio(rawWords, rawBindings as SpellingWordAudio[]))) {
         selectedWords = limitList(shuffleArray([...rawWords]));
         nextMode = 'incomplete';
       } else if (bindingsAreEmpty || rawBindings == null) {
@@ -243,7 +246,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   const utteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
 
   const speakWord = async (word: string, index: number = currentWordIndex) => {
-    if (audioMode === 'incomplete' || audioMode === 'pending') return;
+    if (audioMode === 'incomplete' || audioMode === 'load_error' || audioMode === 'pending') return;
 
     if (audioMode === 'bound') {
       const binding = practiceAudio[index];
@@ -322,7 +325,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   };
 
   const handlePlayAudio = () => {
-    if (audioMode === 'incomplete') return;
+    if (audioMode === 'incomplete' || audioMode === 'load_error') return;
     // Unlock during click before async audio fetch
     unlockAudioSync();
     if (practiceWords[currentWordIndex]) {
@@ -654,6 +657,14 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
               {currentWordIndex < practiceWords.length ? (
                 <>
                   <div className="mb-8">
+                    {audioMode === 'load_error' && (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border-2 border-red-200 bg-red-50 p-4 text-center text-sm font-medium text-red-700"
+                      >
+                        Could not load practice audio.
+                      </div>
+                    )}
                     {audioMode === 'incomplete' && (
                       <div
                         role="alert"
@@ -665,7 +676,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
                     <div className="flex justify-center mb-6">
                       <Button
                         onClick={handlePlayAudio}
-                        disabled={audioMode === 'incomplete'}
+                        disabled={audioMode === 'incomplete' || audioMode === 'load_error'}
                         className="px-8 py-4 h-auto text-xl shadow-lg"
                         icon={Volume2}
                       >

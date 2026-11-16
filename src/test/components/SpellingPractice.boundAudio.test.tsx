@@ -231,9 +231,11 @@ describe('SpellingPractice bound playback', () => {
     mockPracticeRow(null, { message: 'network' });
     renderPractice({ practiceId: PRACTICE_ID });
 
-    expect(await screen.findByText('Practice audio is incomplete.')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load practice audio.')).toBeInTheDocument();
+    expect(screen.queryByText('Practice audio is incomplete.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play Word' })).toBeDisabled();
     expect(fetchCloudAudio).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
   });
 
   it('skips the binding fetch for srs-review and uses legacy audio', async () => {
