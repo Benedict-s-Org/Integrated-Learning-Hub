@@ -525,7 +525,9 @@ export function listHomeworkAppearances(
       if (mark === 'hidden') continue;
       const logId = duty?.logId || englishCheckLogId(student.id, item.date);
       const madeUp = madeUpKeys.has(makeupKey(logId, item.subject, item.item));
-      const submitted = (mark === 'missing' || mark === 'exempt') && (handedIn || madeUp);
+      const submitted = (
+        mark === 'missing' || mark === 'exempt' || mark === 'absent'
+      ) && (handedIn || madeUp);
       appearances.push({
         date: item.date,
         className: item.className,
@@ -602,7 +604,7 @@ export function buildMissingTallyFromLedger(
         if (!row) continue;
         const mark = student.mark || 'missing';
         if (mark === 'absent') {
-          row.absent += 1;
+          if (!student.submitted) row.absent += 1;
           continue;
         }
         if (mark === 'exempt') {
@@ -686,9 +688,7 @@ export function enrichLedgerWithDutyMarks(
     const existing = bucket.students.find((student) => student.studentId === appearance.studentId);
     if (existing) {
       existing.mark = appearance.mark;
-      if (appearance.mark === 'absent') {
-        existing.submitted = false;
-      } else if (appearance.mark === 'exempt') {
+      if (appearance.mark === 'absent' || appearance.mark === 'exempt') {
         existing.submitted = !!appearance.submitted;
       }
     } else {
