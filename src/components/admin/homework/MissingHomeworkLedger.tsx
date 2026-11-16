@@ -109,7 +109,7 @@ export function MissingHomeworkLedger() {
           .filter((name) => !isArchivedClassName(name))
           .sort((a, b) => a.localeCompare(b));
         if (!isAdmin && user?.id) {
-          const managed = await fetchManagedClassIds(user.id, session?.access_token);
+          const managed = await fetchManagedClassIds(user.id, session?.access_token, user.class);
           classNames = filterClassNameList(classNames, managed, false);
         }
         const effectiveFilter = (!isAdmin && (classFilter === 'all' || !classNames.includes(classFilter)))

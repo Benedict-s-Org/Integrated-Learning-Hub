@@ -82,7 +82,7 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
                 .sort();
 
             if (!isAdmin && user?.id) {
-                const managed = await fetchManagedClassIds(user.id, session?.access_token);
+                const managed = await fetchManagedClassIds(user.id, session?.access_token, user.class);
                 uniqueClasses = filterClassNameList(uniqueClasses, managed, false);
                 const managedSet = new Set(uniqueClasses);
                 studentsData = studentsData.filter((s) => !!s.class && managedSet.has(s.class));

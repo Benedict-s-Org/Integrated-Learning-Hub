@@ -85,7 +85,7 @@ export function EnglishHomeworkBoard() {
         if (classError) throw classError;
         let classNames = listedClassNames((classRows || []) as { class?: string | null }[]);
         if (!isAdmin && user?.id) {
-          const managed = await fetchManagedClassIds(user.id, session?.access_token);
+          const managed = await fetchManagedClassIds(user.id, session?.access_token, user.class);
           classNames = filterClassNameList(classNames, managed, false);
         }
         const resolved = resolveEnglishClassFilter(classFilter, classNames);
