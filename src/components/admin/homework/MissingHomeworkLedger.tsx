@@ -475,9 +475,9 @@ export function MissingHomeworkLedger() {
   };
 
   return (
-    <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-4 overflow-x-hidden xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="grid h-full min-h-0 w-full min-w-0 max-w-full grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-stretch">
+      <div className="flex min-h-0 min-w-0 max-w-full flex-col gap-4 overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-xl font-black text-slate-800">Missing records</h2>
             <p className="text-sm font-medium text-slate-500">
@@ -507,22 +507,22 @@ export function MissingHomeworkLedger() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
+          <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-3 py-16 text-slate-500">
+          <div className="flex flex-1 items-center justify-center gap-3 py-16 text-slate-500">
             <Loader2 className="animate-spin" />
             Loading records...
           </div>
         ) : ledger.length === 0 ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
+          <div className="flex-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
             <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
             <p className="text-lg font-black text-emerald-800">No missing homework</p>
           </div>
         ) : (
-          <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-2">
-            <div className="flex w-max max-w-none items-start gap-2">
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain">
+            <div className="flex w-max max-w-none items-start gap-2 pb-1">
               {ledger.map((group) => (
                 <DateColumn
                   key={group.date}
@@ -585,7 +585,7 @@ function MissingTally({
   onMode: (mode: 'count' | 'number') => void;
 }) {
   return (
-    <aside className="flex max-h-[calc(100vh-8rem)] w-full min-w-0 flex-col self-start overflow-hidden rounded-3xl border border-orange-100 bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:w-full">
+    <aside className="flex h-full max-h-[calc(100dvh-8rem)] w-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden rounded-3xl border border-orange-100 bg-white p-4 shadow-sm xl:max-h-none xl:w-full">
       <h2 className="text-lg font-black text-slate-800">Missing tally</h2>
       <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
         The red number is a real missing record. White on red was never clicked. Yellow is Absent or Exempt and is not added to either count. Usernames containing “test” are left out.

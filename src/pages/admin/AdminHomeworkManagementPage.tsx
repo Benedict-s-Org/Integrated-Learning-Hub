@@ -36,8 +36,12 @@ export default function AdminHomeworkManagementPage() {
 
   return (
     <AdminLayout title="Homework Management" icon={<ClipboardList className="h-6 w-6" />}>
-      <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden p-4 md:p-8 [contain:inline-size]">
-        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+      <div
+        className={`flex w-full min-w-0 max-w-full flex-col overflow-x-hidden p-4 md:p-8 [contain:inline-size] ${
+          tab === 'missing' ? 'h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] gap-4 overflow-hidden md:h-[calc(100dvh-6rem)] md:max-h-[calc(100dvh-6rem)]' : 'space-y-6'
+        }`}
+      >
+        <div className="flex shrink-0 flex-wrap gap-2 border-b border-slate-200 pb-3">
           {TABS.map((item) => (
             <button
               key={item.id}
@@ -50,7 +54,11 @@ export default function AdminHomeworkManagementPage() {
           ))}
         </div>
 
-        {tab === 'missing' && <MissingHomeworkLedger />}
+        {tab === 'missing' && (
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <MissingHomeworkLedger />
+          </div>
+        )}
         {tab === 'english' && <EnglishHomeworkBoard />}
         {tab === 'record' && <AdminHomeworkRecordPage embedded />}
       </div>
