@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Clock, Target, Award, BarChart3, Zap } from 'lucide-react';
+import { Trophy, Clock, Target, Award, BarChart3, Zap, Layers } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { SpacedRepetitionAnalytics } from '../SpacedRepetition/SpacedRepetitionAnalytics';
+import { LearningSystemProgressPanel } from '../LearningSystem/LearningSystemProgressPanel';
 import {
   ProgressSummary,
   RankingEntry,
@@ -11,7 +12,7 @@ import {
   MemorizationSession,
 } from '../../types';
 
-type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'rankings';
+type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition' | 'learning_system' | 'rankings';
 
 const StudentProgress: React.FC = () => {
   const { user } = useAuth();
@@ -227,6 +228,7 @@ const StudentProgress: React.FC = () => {
             { id: 'proofreading', label: 'Proofreading', icon: Trophy },
             { id: 'memorization', label: 'Memorization', icon: Clock },
             { id: 'spaced_repetition', label: 'Spaced Repetition', icon: Zap },
+            { id: 'learning_system', label: 'Learning System', icon: Layers },
             { id: 'rankings', label: 'Rankings', icon: Award },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -513,6 +515,10 @@ const StudentProgress: React.FC = () => {
           <div className="space-y-6">
             <SpacedRepetitionAnalytics />
           </div>
+        )}
+
+        {activeTab === 'learning_system' && user && (
+          <LearningSystemProgressPanel userId={user.id} showTeacherFields={false} />
         )}
 
         {activeTab === 'rankings' && (

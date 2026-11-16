@@ -156,6 +156,14 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
                                 onClick={() => onPageChange('classDashboard')}
                             />
                         )}
+                        {isStaff && !isAdmin && !isUserView && isItemVisible('homeworkRecord') && (
+                            <NavItem
+                                icon={ClipboardList}
+                                label="Homework Management"
+                                isActive={window.location.pathname === '/admin/homework-record' || currentPage === 'adminHomeworkRecord'}
+                                onClick={() => navigate('/admin/homework-record')}
+                            />
+                        )}
                         {isItemVisible('new') && (
                             <NavItem
                                 icon={Home}

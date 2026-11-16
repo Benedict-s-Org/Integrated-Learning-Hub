@@ -26,6 +26,7 @@ import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDash
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { parseSubjectAssignments, saveAssignments, toNameMap, toNameMapsByClass, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
+import { fetchManagedClassIds, filterToManagedClasses } from '@/lib/staff/managedClasses';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { useMorningDutyScheduler, MorningDutySettings } from '@/hooks/useMorningDutyScheduler';
@@ -446,6 +447,8 @@ export function ClassDashboardPage() {
     const [orderedClasses, setOrderedClasses] = useState<{ id: string, name: string }[]>([]);
     const [orderedActivities, setOrderedActivities] = useState<{ id: string, name: string }[]>([]);
     const [archivedClasses, setArchivedClasses] = useState<string[]>([]);
+    const [managedClassIds, setManagedClassIds] = useState<string[] | null>(null);
+    const [managedClassesReady, setManagedClassesReady] = useState(!!isAdmin || isGuest);
 
     // Nav State
     const [viewMode, setViewMode] = useState<'classes' | 'activities'>('classes');
@@ -457,6 +460,33 @@ export function ClassDashboardPage() {
             setActiveClass(guest.targetClass);
         }
     }, [isGuest, guest.targetClass]);
+
+    useEffect(() => {
+        if (isAdmin || isGuest) {
+            setManagedClassIds(null);
+            setManagedClassesReady(true);
+            return;
+        }
+        if (!isStaff || !currentUser?.id) return;
+
+        let cancelled = false;
+        setManagedClassesReady(false);
+        (async () => {
+            try {
+                const ids = await fetchManagedClassIds(currentUser.id, session?.access_token);
+                if (!cancelled) setManagedClassIds(ids);
+            } catch (err) {
+                console.error('Failed to load managed classes:', err);
+                if (!cancelled) setManagedClassIds([]);
+            } finally {
+                if (!cancelled) setManagedClassesReady(true);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isAdmin, isGuest, isStaff, currentUser?.id, session?.access_token]);
 
     // PiP State
     const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
@@ -763,15 +793,20 @@ export function ClassDashboardPage() {
                 }
             }
 
-            setOrderedClasses(classData);
+            const scopedClasses = filterToManagedClasses(
+                classData,
+                isAdmin ? null : (managedClassIds || []),
+                !!isAdmin
+            );
+            setOrderedClasses(scopedClasses);
             setOrderedActivities(activityData);
 
-            if (classData.length > 0 && (!classData.some(c => c.name === activeClass) || isArchivedClassName(activeClass, currentArchivedList))) {
-                setActiveClass(classData[0].name);
+            if (scopedClasses.length > 0 && (!scopedClasses.some(c => c.name === activeClass) || isArchivedClassName(activeClass, currentArchivedList))) {
+                setActiveClass(scopedClasses[0].name);
             }
 
             const grouped: Record<string, UserWithCoins[]> = {};
-            const classNames = classData.map(c => c.name);
+            const classNames = scopedClasses.map(c => c.name);
             const activityNames = activityData.map(a => a.name);
 
             [...classNames, ...activityNames, 'Unassigned'].forEach(name => { grouped[name] = []; });
@@ -804,12 +839,12 @@ export function ClassDashboardPage() {
     };
 
     useEffect(() => {
-        if (isStaff && currentUser) {
+        if (isStaff && currentUser && managedClassesReady) {
             fetchUsers();
             fetchCycleData();
             fetchDailyHomework();
         }
-    }, [isStaff, currentUser?.id]);
+    }, [isStaff, currentUser?.id, managedClassesReady, managedClassIds]);
 
     // Initial class selection for class_staff or if activeClass is archived
     useEffect(() => {
@@ -1379,6 +1414,20 @@ export function ClassDashboardPage() {
         return <div className="p-8 text-center text-red-500">Access Denied</div>;
     }
 
+    if (!isGuest && isStaff && !isAdmin && managedClassesReady && (managedClassIds?.length || 0) === 0) {
+        return (
+            <div className="min-h-screen bg-slate-50 p-8 flex items-center justify-center">
+                <div className="max-w-md text-center bg-white rounded-3xl border border-slate-200 shadow-sm p-10">
+                    <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">No managed classes assigned</h3>
+                    <p className="text-slate-500 text-sm">
+                        Ask an admin to set Managed Classes for your Class Assistant account, then sign in again.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div 
             className={`min-h-screen bg-slate-50 p-2 md:p-12 pt-4 md:pt-8 pb-12 transition-all duration-300 ${showNameSidebar ? 'pr-0 md:pr-52 sidebar-active' : ''}`}
@@ -1641,6 +1690,16 @@ export function ClassDashboardPage() {
                             <Settings2 size={18} className="text-slate-400" />
                             Manage Rewards
                         </button>
+                        {isStaff && activeClass !== 'all' && (
+                            <button
+                                onClick={() => setSelectedHomeworkStudentId('admin-setup-tomorrow')}
+                                className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
+                            >
+                                <CalendarDays size={18} className="text-emerald-500" />
+                                Set Tomorrow's Homework
+                            </button>
+                        )}
+
                         {isAdmin && (
                             <>
                                 <button
@@ -1651,16 +1710,6 @@ export function ClassDashboardPage() {
                                     <RotateCcw size={18} className={`text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
                                     {isSyncing ? 'Syncing...' : 'Sync Users'}
                                 </button>
-
-                                {activeClass !== 'all' && (
-                                    <button
-                                        onClick={() => setSelectedHomeworkStudentId('admin-setup-tomorrow')}
-                                        className="flex-1 md:flex-none justify-center flex items-center gap-2 px-3 py-2.5 md:py-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-semibold shadow-sm transition-all text-sm"
-                                    >
-                                        <CalendarDays size={18} className="text-emerald-500" />
-                                        設定明日功課 (Set Tomorrow's Homework)
-                                    </button>
-                                )}
 
                                 <button
                                     onClick={handleSyncBalances}
@@ -1699,7 +1748,7 @@ export function ClassDashboardPage() {
                     </div>
                 )}
 
-                {!isGuest && isAdmin && activeClass !== 'all' && (
+                {!isGuest && isStaff && activeClass !== 'all' && (
                     <ClassDashLinkPanel className={activeClass} />
                 )}
 
@@ -1944,12 +1993,12 @@ export function ClassDashboardPage() {
                         <div className="flex justify-between items-center px-2 mb-4">
                             <h2 className="text-xl font-bold text-slate-800">Morning Duties Console</h2>
                             <div className="flex gap-2">
-                                {isAdmin && isTestClass && !testState.isTestMode && (
+                                {isStaff && isTestClass && !testState.isTestMode && (
                                     <button onClick={testState.startTestMode} className="px-4 py-1.5 bg-orange-100 text-orange-700 font-bold rounded-lg border border-orange-200 hover:bg-orange-200 text-sm">
                                         Start Test Mode
                                     </button>
                                 )}
-                                {isAdmin && isTestClass && testState.isTestMode && (
+                                {isStaff && isTestClass && testState.isTestMode && (
                                     <div className="flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-lg p-2 animate-in fade-in flex-wrap">
                                         <span className="text-orange-800 font-bold text-sm flex items-center gap-1">
                                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block"></span>

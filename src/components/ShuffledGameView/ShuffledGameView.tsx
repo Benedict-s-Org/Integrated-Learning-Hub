@@ -315,7 +315,11 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
                                     <div className="flex flex-wrap items-baseline leading-loose text-lg">
                                         {gameWords.map((word, idx) => {
                                             if (word.isParagraphBreak) {
-                                                return <div key={word.id} className="w-full h-8" />;
+                                                return <div key={word.id} className="w-full h-8" aria-hidden="true" />;
+                                            }
+                                            // Newlines must force a flex row wrap; raw \n text inside a flex item is invisible
+                                            if (word.text === '\n' || word.text === '\r\n') {
+                                                return <div key={word.id} className="w-full h-0 basis-full" aria-hidden="true" />;
                                             }
                                             if (word.isPunctuation) {
                                                 return (

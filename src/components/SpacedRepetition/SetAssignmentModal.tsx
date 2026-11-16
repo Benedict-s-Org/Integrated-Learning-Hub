@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, User, Check, Users, Calendar, Filter } from 'lucide-react';
+import { X, Search, User, Check, Users, Filter } from 'lucide-react';
 import { useSpacedRepetition } from '../../context/SpacedRepetitionContext';
 
 interface SetAssignmentModalProps {
@@ -19,7 +19,6 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [classFilter, setClassFilter] = useState('all');
     const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
-    const [dueDate, setDueDate] = useState('');
     const [isAssigning, setIsAssigning] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -59,7 +58,8 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
     const handleAssign = async () => {
         if (selectedStudents.size === 0) return;
         setIsAssigning(true);
-        const success = await assignSet(setId, Array.from(selectedStudents), dueDate);
+        // SRS is ongoing practice — no due date (DEC-20261102-22)
+        const success = await assignSet(setId, Array.from(selectedStudents));
         setIsAssigning(false);
         if (success) {
             setSuccess(true);
@@ -216,43 +216,34 @@ export const SetAssignmentModal: React.FC<SetAssignmentModalProps> = ({
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 border-t border-gray-100 flex flex-col gap-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Calendar className="w-5 h-5 text-gray-400" />
-                                    <span>Optional Due Date:</span>
-                                    <input
-                                        type="date"
-                                        value={dueDate}
-                                        onChange={(e) => setDueDate(e.target.value)}
-                                        className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 transition-colors"
-                                    />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={onClose}
-                                        className="px-6 py-2 border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleAssign}
-                                        disabled={selectedStudents.size === 0 || isAssigning}
-                                        className={`px-8 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none flex items-center gap-2`}
-                                    >
-                                        {isAssigning ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                Assigning...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Users className="w-5 h-5" />
-                                                Assign to {selectedStudents.size} Students
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
+                        <div className="p-6 border-t border-gray-100 flex flex-col gap-3">
+                            <p className="text-xs text-gray-500">
+                                Spaced Repetition stays available for ongoing practice. There is no due date or completion tick.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={onClose}
+                                    className="px-6 py-2 border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAssign}
+                                    disabled={selectedStudents.size === 0 || isAssigning}
+                                    className={`px-8 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none flex items-center gap-2`}
+                                >
+                                    {isAssigning ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Assigning...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Users className="w-5 h-5" />
+                                            Assign to {selectedStudents.size} Students
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </>

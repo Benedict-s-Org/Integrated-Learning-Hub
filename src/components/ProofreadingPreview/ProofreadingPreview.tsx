@@ -4,6 +4,7 @@ import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../.
 import { useAuth } from '../../context/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
+import { scoreProofreadingItem } from '../../utils/proofreadingScore';
 
 interface ProofreadingPreviewProps {
   sentences: string[];
@@ -126,14 +127,17 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
 
     const selectedWordIndex = selectedWords.get(lineNumber);
     const correction = corrections.get(lineNumber) || '';
-
-    const wordCorrect = selectedWordIndex === correctAnswer.wordIndex;
-    const correctionCorrect = correction.trim().toLowerCase() === correctAnswer.correction.trim().toLowerCase();
+    const score = scoreProofreadingItem({
+      userWordIndex: selectedWordIndex,
+      userCorrection: correction,
+      expectedWordIndex: correctAnswer.wordIndex,
+      expectedCorrection: correctAnswer.correction,
+    });
 
     return {
-      isCorrect: wordCorrect && correctionCorrect,
-      wordCorrect,
-      correctionCorrect,
+      isCorrect: score.isCorrect,
+      wordCorrect: score.detectionCorrect,
+      correctionCorrect: score.correctionCorrect,
     };
   };
 

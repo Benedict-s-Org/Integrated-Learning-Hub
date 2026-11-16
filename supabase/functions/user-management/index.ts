@@ -465,6 +465,69 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // Sync class_staff_assignments from managed_classes (Class Assistant scope)
+      const finalRole = role !== undefined ? role : updatedUser.role;
+      if (finalRole === 'class_staff' && Array.isArray(managed_classes)) {
+        const desired = [...new Set(managed_classes.filter((c): c is string => !!c && typeof c === 'string'))];
+        const { data: existing, error: assignReadError } = await supabase
+          .from('class_staff_assignments')
+          .select('id, class_id, is_active')
+          .eq('staff_user_id', userId);
+        if (assignReadError) {
+          console.error(`[user-management] Failed to read staff assignments for ${userId}:`, assignReadError);
+          return new Response(JSON.stringify({ error: assignReadError.message }), { status: 500, headers: corsHeaders });
+        }
+
+        const existingMap = new Map((existing || []).map((r: any) => [r.class_id, r]));
+        for (const classId of desired) {
+          const row = existingMap.get(classId);
+          if (row) {
+            if (!row.is_active) {
+              const { error: reactivateError } = await supabase
+                .from('class_staff_assignments')
+                .update({ is_active: true })
+                .eq('id', row.id);
+              if (reactivateError) {
+                console.error(`[user-management] Failed to reactivate assignment ${classId}:`, reactivateError);
+                return new Response(JSON.stringify({ error: reactivateError.message }), { status: 500, headers: corsHeaders });
+              }
+            }
+          } else {
+            const { error: insertError } = await supabase.from('class_staff_assignments').insert({
+              staff_user_id: userId,
+              class_id: classId,
+              is_active: true,
+            });
+            if (insertError) {
+              console.error(`[user-management] Failed to insert assignment ${classId}:`, insertError);
+              return new Response(JSON.stringify({ error: insertError.message }), { status: 500, headers: corsHeaders });
+            }
+          }
+        }
+
+        for (const row of existing || []) {
+          if (!desired.includes(row.class_id) && row.is_active) {
+            const { error: deactivateError } = await supabase
+              .from('class_staff_assignments')
+              .update({ is_active: false })
+              .eq('id', row.id);
+            if (deactivateError) {
+              console.error(`[user-management] Failed to deactivate assignment ${row.class_id}:`, deactivateError);
+              return new Response(JSON.stringify({ error: deactivateError.message }), { status: 500, headers: corsHeaders });
+            }
+          }
+        }
+      } else if (role !== undefined && role !== 'class_staff') {
+        const { error: clearError } = await supabase
+          .from('class_staff_assignments')
+          .update({ is_active: false })
+          .eq('staff_user_id', userId);
+        if (clearError) {
+          console.error(`[user-management] Failed to clear staff assignments for ${userId}:`, clearError);
+          return new Response(JSON.stringify({ error: clearError.message }), { status: 500, headers: corsHeaders });
+        }
+      }
+
       return new Response(JSON.stringify({ success: true, user: updatedUser }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

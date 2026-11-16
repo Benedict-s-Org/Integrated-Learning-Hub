@@ -249,6 +249,13 @@ export const NavigationSettingsProvider: React.FC<{ children: React.ReactNode }>
       return true;
     }
 
+    // 2b. Class staff always see Class Dashboard + Homework Management (scoped in those pages)
+    if (targetUser?.role === 'class_staff') {
+      if (itemId === 'classDashboard' || itemId === 'homeworkRecord') {
+        return true;
+      }
+    }
+
     // 3. Check user-specific permissions for students/staff
     let result: boolean | undefined = undefined;
     const perms = targetUser?.navigation_permissions || (targetUser as any)?.navigation_permissions;

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Homework Management — missing tally preview</title>
+  <style>
+    :root {
+      --bg: #fff7f2;
+      --ink: #3b2a22;
+      --muted: #8a7268;
+      --line: #f0ddd4;
+      --primary: #f26b3a;
+      --primary-soft: #fff1ea;
+      --card: #ffffff;
+      --red: #e11d48;
+      --red-soft: #fff1f2;
+      --green: #059669;
+      --amber: #d97706;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      display: flex;
+      min-height: 100vh;
+    }
+    aside {
+      width: 232px;
+      flex: none;
+      background: #fff4ee;
+      border-right: 4px solid #fff;
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .back {
+      margin: 22px 18px 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #c46a4d;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .back i {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      font-style: normal;
+    }
+    nav { padding: 8px 14px; display: flex; flex-direction: column; gap: 6px; }
+    nav span {
+      border-radius: 16px;
+      padding: 12px 14px;
+      color: #c48978;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    nav span.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 10px 18px rgba(242, 107, 58, 0.25);
+    }
+    .admin {
+      margin-top: auto;
+      padding: 18px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid #f3ddd4;
+    }
+    .admin b { display: block; font-size: 11px; letter-spacing: 0.08em; }
+    .admin small { color: var(--muted); }
+    main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    header {
+      height: 84px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 28px;
+      background: rgba(255, 255, 255, 0.55);
+      border-bottom: 4px solid #fff;
+    }
+    .mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 18px;
+      background: var(--primary);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+    }
+    header h1 { margin: 0; font-size: 28px; color: var(--primary); }
+    .workspace {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      padding: 22px 22px 28px;
+    }
+    .ledger { min-width: 0; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tabs button, .switch button {
+      border: 0;
+      border-radius: 12px;
+      padding: 9px 14px;
+      font: inherit;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .tabs button { background: #fff; color: #94a3b8; border: 2px solid #e2e8f0; }
+    .tabs button.on { background: #1e293b; color: #fff; border-color: #1e293b; }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .head h2 { margin: 0 0 4px; font-size: 20px; }
+    .head p, .board p { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+    .class-pick { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #94a3b8; }
+    .class-pick select {
+      display: block;
+      margin-top: 6px;
+      width: 148px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 8px 10px;
+      font: inherit;
+      font-weight: 800;
+      color: #334155;
+    }
+    .legend { display: flex; gap: 14px; font-size: 13px; font-weight: 800; margin-bottom: 12px; }
+    .dot { width: 9px; height: 9px; border-radius: 99px; display: inline-block; margin-right: 6px; }
+    .columns {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .day {
+      width: 250px;
+      flex: none;
+      background: #fff;
+      border: 1px solid #fecdd3;
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .day h3 {
+      margin: 0 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #ffe4e6;
+      color: #be123c;
+      font-size: 14px;
+    }
+    .item {
+      background: #fff1f2;
+      border: 1px solid #ffe4e6;
+      border-radius: 12px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .item strong { display: block; color: #be123c; font-size: 13px; margin-bottom: 6px; }
+    .item li {
+      list-style: none;
+      background: #fff;
+      color: var(--red);
+      border-radius: 8px;
+      padding: 4px 8px;
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .item li.unclicked { background: #e11d48; color: #fff; }
+    .item li.absent, .item li.exempt { background: #facc15; color: #713f12; }
+    .item li em { font-style: normal; font-size: 10px; margin-left: 6px; letter-spacing: 0.04em; }
+    .board {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 16px;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 130px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 16px 40px rgba(120, 53, 15, 0.06);
+    }
+    .board h2 { margin: 0 0 4px; font-size: 18px; }
+    .switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: #fff7f2;
+      border-radius: 14px;
+      padding: 4px;
+      margin: 14px 0 8px;
+    }
+    .switch button { background: transparent; color: #9a7b70; }
+    .switch button.on { background: #fff; color: var(--primary); box-shadow: 0 4px 12px rgba(120, 53, 15, 0.08); }
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .rows { overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+    .row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border-radius: 12px;
+      background: #fffaf8;
+    }
+    .row.zero { opacity: 0.55; }
+    .no, .count {
+      width: 36px;
+      height: 28px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .no { background: #fff; color: #9a3412; }
+    .counts { display: flex; gap: 4px; }
+    .count { background: #ffe4e6; color: var(--red); width: auto; min-width: 28px; padding: 0 7px; }
+    .count.unclicked { background: #e11d48; color: #fff; }
+    .count.mark { background: #facc15; color: #713f12; min-width: 0; padding: 0 6px; font-size: 10px; }
+    .row.zero .count { background: #f1f5f9; color: #64748b; }
+    .row.zero .count.unclicked, .row.zero .count.mark { background: #f1f5f9; color: #64748b; }
+    .name { font-weight: 800; font-size: 14px; }
+    .name small { display: block; color: var(--muted); font-size: 11px; }
+    @media (max-width: 980px) {
+      aside { display: none; }
+      .workspace { grid-template-columns: 1fr; }
+      .board { position: static; max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="back"><i>←</i> Back to Home</div>
+    <nav>
+      <span>User Management</span>
+      <span>Student Levels</span>
+      <span>Progress Overview</span>
+      <span>Space Design</span>
+      <span>Class Dashboard</span>
+      <span class="active">Homework Management</span>
+      <span>Map Editor</span>
+      <span>UI Builder</span>
+    </nav>
+    <div class="admin">
+      <div class="mark" style="width:36px;height:36px;border-radius:12px;font-size:16px;">⚙</div>
+      <div><b>SYSTEM ADMIN</b><small>Admin Console v2.0</small></div>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <div class="mark">☰</div>
+      <h1>Homework Management</h1>
+    </header>
+    <div class="workspace">
+      <section class="ledger">
+        <div class="tabs">
+          <button class="on" type="button">Missing Homework</button>
+          <button type="button">English Homework Tracker</button>
+          <button type="button">Homework Record</button>
+        </div>
+        <div class="head">
+          <div>
+            <h2>Missing records</h2>
+            <p>Dates are columns — nearest to today on the left. Real missing, not clicked, and absent or exempt stay separate.</p>
+          </div>
+          <label class="class-pick">CLASS
+            <select><option>4A</option></select>
+          </label>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:#e11d48"></i>Missing</span>
+          <span style="background:#e11d48;color:#fff;border-radius:8px;padding:2px 8px;">Not clicked</span>
+          <span style="background:#facc15;color:#713f12;border-radius:8px;padding:2px 8px;">Absent / Exempt</span>
+        </div>
+        <div class="columns" id="columns"></div>
+      </section>
+      <aside class="board">
+        <h2>Missing tally</h2>
+        <p>Class 4A. Red number is a real missing record. White on red is a homework row nobody clicked. Yellow is Absent or Exempt, and it is not added to either count. Usernames containing “test” are left out.</p>
+        <div class="switch" role="tablist">
+          <button class="on" type="button" id="by-count">By missing count</button>
+          <button type="button" id="by-number">By class number</button>
+        </div>
+        <div class="summary" id="summary"></div>
+        <div class="rows" id="rows"></div>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const students = [
+      { no: 2, name: "Bernice", username: "bernice" },
+      { no: 4, name: "Kylie", username: "kylie" },
+      { no: 5, name: "Hazel", username: "hazel" },
+      { no: 6, name: "Shawnelle", username: "shawnelle" },
+      { no: 7, name: "Test Pupil", username: "test_4a" },
+      { no: 8, name: "Gekko", username: "gekko" },
+      { no: 9, name: "Benjamin", username: "benjamin" },
+      { no: 10, name: "Sophie", username: "sophie" },
+      { no: 12, name: "Erin", username: "erin" },
+      { no: 14, name: "Class Test", username: "4ATest" },
+      { no: 15, name: "Kafie", username: "kafie" },
+      { no: 16, name: "Ryan", username: "ryan" },
+      { no: 18, name: "Euka", username: "euka" },
+      { no: 19, name: "Belle", username: "belle" },
+      { no: 20, name: "Grace", username: "grace" },
+      { no: 22, name: "Lucas", username: "lucas" },
+      { no: 23, name: "Jacques", username: "jacques" },
+      { no: 25, name: "Roy", username: "roy" }
+    ];
+
+    const roster = students.filter((student) => !student.username.toLowerCase().includes("test"));
+    const excluded = students.length - roster.length;
+
+    const days = [
+      {
+        date: "Mon, 16 Nov",
+        items: [
+          { title: "中文 · 小練筆", people: [
+            [2, "missing"], [4, "unclicked"], [5, "missing"], [6, "unclicked"], [7, "missing"],
+            [9, "absent"], [12, "missing"], [16, "exempt"], [18, "unclicked"], [22, "missing"], [23, "missing"]
+          ]},
+          { title: "中文 · 默寫", people: [[4, "missing"], [5, "unclicked"], [8, "absent"]] }
+        ]
+      },
+      {
+        date: "Thu, 12 Nov",
+        items: [
+          { title: "中文 · 閱讀書 P12-14", people: [
+            [4, "missing"], [6, "unclicked"], [8, "missing"], [9, "exempt"], [12, "missing"], [14, "unclicked"], [16, "missing"]
+          ]},
+          { title: "英文 · Dict C/S · RD4", people: [[4, "unclicked"], [8, "missing"], [12, "absent"], [16, "missing"]] }
+        ]
+      },
+      {
+        date: "Wed, 11 Nov",
+        items: [
+          { title: "中文 · 詞語", people: [[4, "missing"], [8, "unclicked"], [9, "missing"], [12, "missing"], [18, "exempt"], [23, "unclicked"]] },
+          { title: "英文 · Handwriting P.56", people: [[4, "missing"], [6, "missing"], [8, "unclicked"], [9, "missing"], [12, "missing"]] }
+        ]
+      },
+      {
+        date: "Tue, 10 Nov",
+        items: [
+          { title: "中文 · 閱讀書 P.10-11", people: [[9, "missing"], [12, "unclicked"], [19, "absent"], [20, "missing"]] },
+          { title: "數學 · 作業 · P.6-7", people: [[6, "missing"], [9, "unclicked"], [12, "missing"], [19, "exempt"]] }
+        ]
+      },
+      {
+        date: "Mon, 9 Nov",
+        items: [
+          { title: "中文 · 小作家", people: [[6, "unclicked"], [15, "missing"], [19, "missing"]] },
+          { title: "英文 · GE(A)", people: [[6, "missing"], [9, "missing"], [12, "unclicked"], [15, "absent"], [18, "missing"], [20, "missing"], [25, "exempt"]] },
+          { title: "英文 · WS1", people: [[6, "missing"], [15, "unclicked"], [19, "missing"], [20, "unclicked"]] }
+        ]
+      }
+    ];
+
+    const byId = Object.fromEntries(roster.map((student) => [student.no, student]));
+    const tag = { absent: "ABSENT", exempt: "EXEMPT" };
+
+    function tally() {
+      const blank = () => ({ missing: 0, unclicked: 0, absent: 0, exempt: 0 });
+      const counts = Object.fromEntries(roster.map((student) => [student.no, blank()]));
+      days.forEach((day) => {
+        day.items.forEach((item) => {
+          item.people.forEach(([no, status]) => {
+            if (counts[no] && counts[no][status] != null) counts[no][status] += 1;
+          });
+        });
+      });
+      return roster.map((student) => ({ ...student, ...counts[student.no] }));
+    }
+
+    function personLabel(no, status) {
+      const student = byId[no];
+      if (!student) return "";
+      const note = tag[status] ? `<em>${tag[status]}</em>` : "";
+      return `<li class="${status}">${no} ${student.name}${note}</li>`;
+    }
+
+    function renderColumns() {
+      document.getElementById("columns").innerHTML = days.map((day) => `
+        <section class="day">
+          <h3>${day.date}</h3>
+          ${day.items.map((item) => `
+            <div class="item">
+              <strong>${item.title}</strong>
+              <ul>${item.people.map(([no, status]) => personLabel(no, status)).join("")}</ul>
+            </div>
+          `).join("")}
+        </section>
+      `).join("");
+    }
+
+    let mode = "count";
+
+    function renderBoard() {
+      const rows = tally();
+      const sorted = mode === "count"
+        ? rows.slice().sort((a, b) => b.missing - a.missing || b.unclicked - a.unclicked || a.no - b.no)
+        : rows.slice().sort((a, b) => a.no - b.no);
+      const missingTotal = rows.reduce((sum, row) => sum + row.missing, 0);
+      const unclickedTotal = rows.reduce((sum, row) => sum + row.unclicked, 0);
+      document.getElementById("summary").innerHTML = `<span>${missingTotal} missing · ${unclickedTotal} not clicked</span><span>${excluded} test accounts hidden</span>`;
+      document.getElementById("rows").innerHTML = sorted.map((row, index) => {
+        const quiet = row.missing + row.unclicked === 0;
+        const marks = [
+          row.absent ? `<span class="count mark">ABS ${row.absent}</span>` : "",
+          row.exempt ? `<span class="count mark">EX ${row.exempt}</span>` : ""
+        ].join("");
+        return `
+        <div class="row${quiet ? " zero" : ""}">
+          <div class="no">${mode === "count" ? index + 1 : row.no}</div>
+          <div class="name">${row.name}<small>Class no. ${row.no}</small></div>
+          <div class="counts">
+            <span class="count">${row.missing}</span>
+            <span class="count unclicked">${row.unclicked}</span>
+            ${marks}
+          </div>
+        </div>`;
+      }).join("");
+      document.getElementById("by-count").classList.toggle("on", mode === "count");
+      document.getElementById("by-number").classList.toggle("on", mode === "number");
+    }
+
+    document.getElementById("by-count").onclick = () => { mode = "count"; renderBoard(); };
+    document.getElementById("by-number").onclick = () => { mode = "number"; renderBoard(); };
+    renderColumns();
+    renderBoard();
+  </script>
+</body>
+</html>

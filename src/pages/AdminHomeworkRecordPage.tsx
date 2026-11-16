@@ -4,6 +4,7 @@ import { ClipboardList, Plus, Check, Search, Save, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { DEFAULT_SUB_OPTIONS, SUBJECT_NAMES } from '@/constants/rewardConfig';
 import { useAuth } from '@/context/AuthContext';
+import { fetchManagedClassIds, filterClassNameList } from '@/lib/staff/managedClasses';
 import { playSuccessSound } from '@/utils/audio';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 
@@ -15,7 +16,7 @@ interface Student {
 }
 
 export default function AdminHomeworkRecordPage({ embedded = false }: { embedded?: boolean }) {
-    const { user } = useAuth();
+    const { user, isAdmin, session } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [classes, setClasses] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -72,17 +73,26 @@ export default function AdminHomeworkRecordPage({ embedded = false }: { embedded
 
             if (userError) throw userError;
             const rawStudents = (userData || []) as Student[];
-            const studentsData = rawStudents.filter((u: Student) => !isArchivedClassName(u.class));
-            setStudents(studentsData);
+            let studentsData = rawStudents.filter((u: Student) => !isArchivedClassName(u.class));
 
-            const uniqueClasses: string[] = Array.from(new Set(studentsData
+            let uniqueClasses: string[] = Array.from(new Set(studentsData
                 .map((u: Student) => u.class)
                 .filter((c: string | null): c is string => !!c && !isArchivedClassName(c))))
                 .sort();
+
+            if (!isAdmin && user?.id) {
+                const managed = await fetchManagedClassIds(user.id, session?.access_token);
+                uniqueClasses = filterClassNameList(uniqueClasses, managed, false);
+                const managedSet = new Set(uniqueClasses);
+                studentsData = studentsData.filter((s) => !!s.class && managedSet.has(s.class));
+            }
+
+            setStudents(studentsData);
             setClasses(uniqueClasses);
 
-            // Prioritize '3A' as the default if it exists
-            if (uniqueClasses.includes('3A')) {
+            if (uniqueClasses.includes(selectedClass)) {
+                // keep current selection
+            } else if (isAdmin && uniqueClasses.includes('3A')) {
                 setSelectedClass('3A');
             } else if (uniqueClasses.length > 0) {
                 setSelectedClass(uniqueClasses[0]);

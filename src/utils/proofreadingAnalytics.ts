@@ -331,6 +331,8 @@ export function diagnoseQuestion(
     correction?: string;
     isNotSure?: boolean;
     isIncomplete?: boolean;
+    detectionCorrect?: boolean;
+    correctionCorrect?: boolean;
   },
   tipsUsedSet: Set<number> = new Set()
 ): DetailedQuestionDiagnostic {
@@ -370,9 +372,28 @@ export function diagnoseQuestion(
     status = 'incomplete';
     statusLabel = 'Incomplete / Skipped';
     statusColor = 'text-slate-600 bg-slate-100 border-slate-300';
+  } else if (
+    typeof userAns?.detectionCorrect === 'boolean' &&
+    typeof userAns?.correctionCorrect === 'boolean'
+  ) {
+    const detectionCorrect = userAns.detectionCorrect;
+    const correctionCorrect = detectionCorrect && userAns.correctionCorrect;
+    if (detectionCorrect && correctionCorrect) {
+      status = 'correct';
+      statusLabel = 'Correct';
+      statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    } else if (!detectionCorrect) {
+      status = 'detection_error';
+      statusLabel = 'Wrong Word Selected (Detection Error)';
+      statusColor = 'text-rose-700 bg-rose-50 border-rose-200';
+    } else {
+      status = 'correction_error';
+      statusLabel = 'Correction Error (Incorrect Revision)';
+      statusColor = 'text-orange-700 bg-orange-50 border-orange-200';
+    }
   } else {
     const isWordCorrect = userWordIndex === targetWordIndex;
-    const isCorrectionCorrect = 
+    const isCorrectionCorrect =
       userCorrection?.trim().toLowerCase() === expectedCorrection.trim().toLowerCase();
 
     if (isWordCorrect && isCorrectionCorrect) {

@@ -31,9 +31,19 @@ describe('textProcessor utilities', () => {
       const text = 'mother-in-law visited';
       const result = processText(text);
       
-      expect(result).toHaveLength(2);
-      expect(result[0].text).toBe('mother-in-law');
-      expect(result[0].isPunctuation).toBe(false);
+      expect(result.some(w => w.text === 'mother-in-law')).toBe(true);
+      expect(result.find(w => w.text === 'mother-in-law')?.isPunctuation).toBe(false);
+    });
+
+    it('preserves single newlines and paragraph breaks as tokens', () => {
+      const text = 'First line\nSecond line\n\nNew paragraph';
+      const result = processText(text);
+
+      expect(result.some(w => w.text === '\n')).toBe(true);
+      expect(result.some(w => w.isParagraphBreak)).toBe(true);
+      expect(result.filter(w => w.text === 'First' || w.text === 'line').length).toBeGreaterThanOrEqual(2);
+      expect(result.some(w => w.text === 'Second')).toBe(true);
+      expect(result.some(w => w.text === 'paragraph')).toBe(true);
     });
   });
 

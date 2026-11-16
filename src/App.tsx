@@ -62,11 +62,11 @@ import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
 
 type AppState =
-  | { page: 'new'; step: 'input'; text?: string; title?: string }
-  | { page: 'new'; step: 'selection'; text: string; words?: Word[]; title?: string }
-  | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
-  | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
-  | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string; title?: string }
+  | { page: 'new'; step: 'input'; text?: string; title?: string; editingContentId?: string }
+  | { page: 'new'; step: 'selection'; text: string; words?: Word[]; title?: string; editingContentId?: string }
+  | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string; title?: string; editingContentId?: string }
+  | { page: 'new'; step: 'shuffledGame'; words: Word[]; selectedIndices: number[]; text: string; title?: string; editingContentId?: string }
+  | { page: 'new'; step: 'dictation'; words: Word[]; selectedIndices: number[]; text: string; title?: string; editingContentId?: string }
   | { page: 'saved' }
   | { page: 'admin' }
   | { page: 'assetGenerator' }
@@ -92,7 +92,7 @@ type AppState =
   | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string; returnTo?: 'assignments' | 'memorizationAssignments' }
   | { page: 'learningHub' }
   | { page: 'learningSystem'; assignmentId?: string; assignmentGradeKey?: string; assignmentTitle?: string }
-  | { page: 'spacedRepetition' }
+  | { page: 'spacedRepetition'; focusSetId?: string; focusSetTitle?: string }
   | { page: 'flowithTest' }
   | { page: 'wordSnake' }
   | { page: 'classDashboard' }
@@ -150,6 +150,7 @@ function AppContent() {
     proofreadingPractices,
     deleteProofreadingPractice,
     addSavedContent,
+    updateSavedContent,
   } = useAppContext();
   const { user, loading, toggleViewMode, isAdmin, isStaff, signOut, isMobileEmulator, setIsMobileEmulator, isUserView } = useAuth();
 
@@ -391,7 +392,7 @@ function AppContent() {
 
   const handlePageChange = (page: PageType) => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'learningSystem' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard' || page === 'adminHomeworkMakeup')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'assetGenerator' || page === 'assetUpload' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition' || page === 'wordSnake' || page === 'classDashboard' || page === 'scanner' || page === 'notionHub' || page === 'phonics' || page === 'adminAvatarUploader' || page === 'avatarBuilder' || page === 'interactiveScanner' || page === 'adminHomeworkRecord' || page === 'broadcastManagement' || page === 'readingComprehension' || page === 'adminTimetable' || page === 'adminAnalytics' || page === 'examFormatter' || page === 'vocabImagePicker' || page === 'phonicsDashboard' || page === 'adminHomeworkMakeup')) {
       alert('Please log in with an administrator account to access this page.');
       return;
     }
@@ -526,7 +527,8 @@ function AppContent() {
   };
 
   const handleTextSubmit = (text: string, title?: string) => {
-    setAppState({ page: 'new', step: 'selection', text, title });
+    const editingContentId = appState.page === 'new' ? appState.editingContentId : undefined;
+    setAppState({ page: 'new', step: 'selection', text, title, editingContentId });
   };
 
   const handleWordsSelected = (words: Word[], selectedIndices: number[]) => {
@@ -538,6 +540,7 @@ function AppContent() {
         selectedIndices,
         text: appState.text,
         title: appState.title,
+        editingContentId: appState.editingContentId,
       });
     }
   };
@@ -551,6 +554,7 @@ function AppContent() {
         selectedIndices,
         text: appState.text,
         title: appState.title,
+        editingContentId: appState.editingContentId,
       });
     }
   };
@@ -564,6 +568,7 @@ function AppContent() {
         selectedIndices,
         text: appState.text,
         title: appState.title,
+        editingContentId: appState.editingContentId,
       });
     }
   };
@@ -575,15 +580,29 @@ function AppContent() {
     const title = prompt('Enter a title for this Dictation Practice:', defaultTitle);
     if (!title) return;
 
+    const originalText = appState.page === 'new' && 'text' in appState ? (appState as any).text : '';
+    const editingContentId = appState.page === 'new' ? appState.editingContentId : undefined;
+
     try {
-      await addSavedContent({
-        title,
-        originalText: appState.page === 'new' && 'text' in appState ? (appState as any).text : '',
-        selectedWordIndices: selectedIndices,
-        practiceMode: 'dictation',
-        isPublished: false
-      });
-      alert('Dictation saved successfully!');
+      const success = editingContentId
+        ? await updateSavedContent(editingContentId, {
+            title,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            practiceMode: 'dictation',
+          })
+        : await addSavedContent({
+            title,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            practiceMode: 'dictation',
+            isPublished: false
+          });
+
+      if (!success) {
+        throw new Error('Failed to save dictation');
+      }
+      alert(editingContentId ? 'Dictation updated successfully!' : 'Dictation saved successfully!');
       setAppState({ page: 'saved' });
     } catch (error) {
       console.error('Failed to save dictation:', error);
@@ -598,15 +617,29 @@ function AppContent() {
     const title = prompt('Enter a title for this Shuffled Word Game:', defaultTitle);
     if (!title) return;
 
+    const originalText = appState.page === 'new' && 'text' in appState ? (appState as any).text : '';
+    const editingContentId = appState.page === 'new' ? appState.editingContentId : undefined;
+
     try {
-      await addSavedContent({
-        title,
-        originalText: appState.page === 'new' && 'text' in appState ? (appState as any).text : '',
-        selectedWordIndices: selectedIndices,
-        practiceMode: 'shuffledGame',
-        isPublished: false
-      });
-      alert('Game saved successfully!');
+      const success = editingContentId
+        ? await updateSavedContent(editingContentId, {
+            title,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            practiceMode: 'shuffledGame',
+          })
+        : await addSavedContent({
+            title,
+            originalText,
+            selectedWordIndices: selectedIndices,
+            practiceMode: 'shuffledGame',
+            isPublished: false
+          });
+
+      if (!success) {
+        throw new Error('Failed to save game');
+      }
+      alert(editingContentId ? 'Game updated successfully!' : 'Game saved successfully!');
       setAppState({ page: 'saved' });
     } catch (error) {
       console.error('Failed to save game:', error);
@@ -616,7 +649,13 @@ function AppContent() {
 
   const handleBackToInput = () => {
     if (appState.page === 'new' && appState.step === 'selection') {
-      setAppState({ page: 'new', step: 'input', text: appState.text, title: appState.title });
+      setAppState({
+        page: 'new',
+        step: 'input',
+        text: appState.text,
+        title: appState.title,
+        editingContentId: appState.editingContentId,
+      });
     } else {
       setAppState({ page: 'new', step: 'input' });
     }
@@ -624,7 +663,14 @@ function AppContent() {
 
   const handleBackToSelection = () => {
     if (appState.page === 'new' && (appState.step === 'memorization' || appState.step === 'shuffledGame' || appState.step === 'dictation')) {
-      setAppState({ page: 'new', step: 'selection', text: appState.text, words: appState.words, title: appState.title });
+      setAppState({
+        page: 'new',
+        step: 'selection',
+        text: appState.text,
+        words: appState.words,
+        title: appState.title,
+        editingContentId: appState.editingContentId,
+      });
     }
   };
 
@@ -663,6 +709,16 @@ function AppContent() {
 
   const handleCreateNewMemorization = () => {
     setAppState({ page: 'new', step: 'input' });
+  };
+
+  const handleEditSavedContent = (content: { id: string; title: string; originalText: string }) => {
+    setAppState({
+      page: 'new',
+      step: 'input',
+      text: content.originalText,
+      title: content.title,
+      editingContentId: content.id,
+    });
   };
 
   const handleProofreadingSentencesSubmit = (sentences: string[], prefilledAnswers?: ProofreadingAnswer[], exerciseNumber?: string) => {
@@ -817,7 +873,15 @@ function AppContent() {
             case 'new':
               switch (appState.step) {
                 case 'input':
-                  return <TextInput onNext={handleTextSubmit} initialText={appState.text} initialTitle={appState.title} onViewSaved={handleViewSavedMemorization} />;
+                  return (
+                    <TextInput
+                      onNext={handleTextSubmit}
+                      initialText={appState.text}
+                      initialTitle={appState.title}
+                      onViewSaved={handleViewSavedMemorization}
+                      isEditing={Boolean(appState.editingContentId)}
+                    />
+                  );
                 case 'selection':
                   return (
                     <WordSelection
@@ -844,6 +908,7 @@ function AppContent() {
                       onBack={handleBackToSelection}
                       onSave={handleSave}
                       onViewSaved={handleViewSavedMemorization}
+                      editingContentId={appState.editingContentId}
                     />
                   );
                 case 'shuffledGame':
@@ -866,7 +931,13 @@ function AppContent() {
               }
               break;
             case 'saved':
-              return <SavedContent onLoadContent={handleLoadContent} onCreateNew={handleCreateNewMemorization} />;
+              return (
+                <SavedContent
+                  onLoadContent={handleLoadContent}
+                  onCreateNew={handleCreateNewMemorization}
+                  onEditContent={handleEditSavedContent}
+                />
+              );
             case 'admin':
               return <AdminPanel
                 onNavigateToAssets={() => setAppState({ page: 'assetUpload' })}
@@ -1132,9 +1203,12 @@ function AppContent() {
                     });
                   }}
                   onLoadProofreading={handleLoadAssignedProofreadingPractice}
-                  onLoadSpacedRepetition={() => {
+                  onLoadSpacedRepetition={(assignment) => {
+                    const setId = assignment?.content_data?.set_id as string | undefined;
                     setAppState({
-                      page: 'spacedRepetition'
+                      page: 'spacedRepetition',
+                      focusSetId: setId,
+                      focusSetTitle: assignment?.title,
                     });
                   }}
                   onLoadLearningSystem={(assignment) => {
@@ -1177,7 +1251,12 @@ function AppContent() {
                 />
               );
             case 'spacedRepetition':
-              return <SpacedRepetitionPage />;
+              return (
+                <SpacedRepetitionPage
+                  focusSetId={appState.focusSetId}
+                  focusSetTitle={appState.focusSetTitle}
+                />
+              );
             case 'assignedPractice':
               if (appState.memorizationState.practiceMode === 'shuffledGame') {
                 return (
