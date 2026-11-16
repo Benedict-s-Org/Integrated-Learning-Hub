@@ -1,4 +1,19 @@
+import { getHKTodayString } from '@/utils/dateUtils';
+
 export const HOMEWORK_SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '其他'];
+
+export function formatLedgerStudentLabel(classNumber: number, name: string): string {
+  const display = (name || '').trim() || 'Unknown';
+  if (!Number.isFinite(classNumber) || classNumber <= 0) return display;
+  return `${classNumber} ${display}`;
+}
+
+function dayDistance(isoA: string, isoB: string): number {
+  const [ay, am, ad] = isoA.split('-').map(Number);
+  const [by, bm, bd] = isoB.split('-').map(Number);
+  if (!ay || !am || !ad || !by || !bm || !bd) return Number.POSITIVE_INFINITY;
+  return Math.abs(Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86_400_000));
+}
 
 export type MissingLogInput = {
   id: string;
@@ -10,6 +25,8 @@ export type MissingLogInput = {
   missingItems: Record<string, string[]>;
 };
 
+export type HomeworkMark = 'missing' | 'unclicked' | 'absent' | 'exempt';
+
 export type LedgerStudent = {
   logId: string;
   studentId: string;
@@ -17,6 +34,7 @@ export type LedgerStudent = {
   className: string;
   classNumber: number;
   submitted: boolean;
+  mark: HomeworkMark;
 };
 
 export type LedgerItem = {
@@ -56,10 +74,20 @@ function uniqueDetail(details: string[]): string {
   return filled.join(' / ');
 }
 
+export type MarkLookup = (args: {
+  date: string;
+  className: string;
+  subject: string;
+  item: string;
+  studentId: string;
+}) => HomeworkMark;
+
 export function buildMissingLedger(
   logs: MissingLogInput[],
   madeUpKeys: ReadonlySet<string>,
   detailLookup: DetailLookup = () => '',
+  todayIso: string = getHKTodayString(),
+  markLookup: MarkLookup = () => 'missing',
 ): LedgerDateGroup[] {
   type Bucket = {
     subject: string;
@@ -102,6 +130,13 @@ export function buildMissingLedger(
           className: log.className,
           classNumber: Number.isFinite(log.classNumber) ? log.classNumber : 0,
           submitted: madeUpKeys.has(makeupKey(log.id, subject, item)),
+          mark: markLookup({
+            date: log.logDate,
+            className: log.className,
+            subject,
+            item,
+            studentId: log.studentId,
+          }),
         });
         dateBuckets.set(itemKey, bucket);
       }
@@ -129,16 +164,20 @@ export function buildMissingLedger(
       return a.item.localeCompare(b.item);
     });
 
+    const openItems = items.filter((item) => !item.complete);
+    if (openItems.length === 0) continue;
     groups.push({
       date,
-      items,
-      complete: items.length > 0 && items.every((item) => item.complete),
+      items: openItems,
+      complete: false,
     });
   }
 
-  const open = groups.filter((group) => !group.complete).sort((a, b) => a.date.localeCompare(b.date));
-  const cleared = groups.filter((group) => group.complete).sort((a, b) => a.date.localeCompare(b.date));
-  return [...open, ...cleared];
+  return groups.sort((a, b) => {
+    const distanceDiff = dayDistance(a.date, todayIso) - dayDistance(b.date, todayIso);
+    if (distanceDiff !== 0) return distanceDiff;
+    return a.date.localeCompare(b.date);
+  });
 }
 
 export function formatAnnouncementDate(dateStr: string): string {
@@ -166,7 +205,9 @@ export function openMissingAnnouncement(groups: LedgerDateGroup[]): MissingAnnou
       isoDate: group.date,
       date: formatAnnouncementDate(group.date),
       lines: group.items.flatMap((item) => {
-        const names = item.students.filter((student) => !student.submitted).map((student) => student.name);
+        const names = item.students
+          .filter((student) => !student.submitted && student.mark === 'missing')
+          .map((student) => formatLedgerStudentLabel(student.classNumber, student.name));
         if (names.length === 0) return [];
         const label = [item.subject, item.item, item.detail].filter(Boolean).join(' · ');
         return [`${label}: ${names.join(', ')}`];
@@ -287,4 +328,177 @@ export function missingLogsFromEnglishMarks(
     }
   }
   return [...byStudentDate.values()];
+}
+
+export function isTestUsername(username: string | null | undefined): boolean {
+  return (username ?? '').toLowerCase().includes('test');
+}
+
+export function classifyHomeworkMark(input: {
+  dutyStatus?: string | null;
+  inMissingItems: boolean;
+  handedIn: boolean;
+}): HomeworkMark | 'hidden' {
+  const status = (input.dutyStatus || '').trim().toLowerCase();
+  if (status === 'absent') return 'absent';
+  if (status === 'exempted' || status === 'exempt') return 'exempt';
+  if (input.inMissingItems) return 'missing';
+  if (input.handedIn || status === 'submitted' || status === 'late') return 'hidden';
+  if (!status || status === 'todo') return 'unclicked';
+  return 'hidden';
+}
+
+export type DutySnapshot = {
+  studentId: string;
+  date: string;
+  status?: string | null;
+  missingItems?: Record<string, string[]> | null;
+  logId: string;
+};
+
+export type ListedWork = {
+  date: string;
+  className: string;
+  subject: string;
+  item: string;
+};
+
+export type HomeworkAppearance = {
+  date: string;
+  className: string;
+  subject: string;
+  item: string;
+  studentId: string;
+  name: string;
+  classNumber: number;
+  mark: HomeworkMark;
+  logId: string;
+  submitted: boolean;
+};
+
+export function listHomeworkAppearances(
+  students: Array<ClassStudent & { username?: string | null }>,
+  duties: DutySnapshot[],
+  listed: ListedWork[],
+  handedInKeys: ReadonlySet<string>,
+  madeUpKeys: ReadonlySet<string>,
+): HomeworkAppearance[] {
+  const roster = students.filter((student) => !isTestUsername(student.username));
+  const dutyByStudentDate = new Map<string, DutySnapshot>();
+  const itemKeys = new Map<string, ListedWork>();
+  for (const item of listed) {
+    const subject = item.subject.trim();
+    const name = item.item.trim();
+    const className = item.className.trim();
+    if (!subject || !name || !className || !item.date) continue;
+    itemKeys.set(`${className}\0${item.date}\0${subject}\0${name}`, {
+      ...item,
+      className,
+      subject,
+      item: name,
+    });
+  }
+  for (const duty of duties) {
+    dutyByStudentDate.set(`${duty.studentId}\0${duty.date}`, duty);
+    const student = roster.find((person) => person.id === duty.studentId);
+    if (!student) continue;
+    for (const [subject, items] of Object.entries(duty.missingItems || {})) {
+      if (!Array.isArray(items)) continue;
+      for (const rawItem of items) {
+        const item = typeof rawItem === 'string' ? rawItem.trim() : '';
+        if (!item) continue;
+        itemKeys.set(`${student.className}\0${duty.date}\0${subject}\0${item}`, {
+          date: duty.date,
+          className: student.className,
+          subject,
+          item,
+        });
+      }
+    }
+  }
+
+  const appearances: HomeworkAppearance[] = [];
+  for (const item of itemKeys.values()) {
+    for (const student of roster) {
+      if (student.className !== item.className) continue;
+      const duty = dutyByStudentDate.get(`${student.id}\0${item.date}`);
+      const names = duty?.missingItems?.[item.subject];
+      const inMissingItems = Array.isArray(names) && names.some((name) => name.trim() === item.item);
+      const handedIn = handedInKeys.has(handedInKey(student.id, item.date, item.subject, item.item));
+      const mark = classifyHomeworkMark({
+        dutyStatus: duty?.status,
+        inMissingItems,
+        handedIn,
+      });
+      if (mark === 'hidden') continue;
+      const logId = duty?.logId || englishCheckLogId(student.id, item.date);
+      const submitted = mark === 'missing' && (
+        handedIn || madeUpKeys.has(makeupKey(logId, item.subject, item.item))
+      );
+      appearances.push({
+        date: item.date,
+        className: item.className,
+        subject: item.subject,
+        item: item.item,
+        studentId: student.id,
+        name: student.name || 'Unknown',
+        classNumber: Number.isFinite(student.classNumber) ? student.classNumber : 0,
+        mark,
+        logId,
+        submitted,
+      });
+    }
+  }
+  return appearances;
+}
+
+export type TallyStudent = {
+  studentId: string;
+  name: string;
+  classNumber: number;
+  missing: number;
+  unclicked: number;
+  absent: number;
+  exempt: number;
+};
+
+export function buildMissingTally(
+  students: Array<{ id: string; name: string; classNumber: number; username?: string | null }>,
+  appearances: Array<{ studentId: string; mark: HomeworkMark; submitted?: boolean }>,
+): TallyStudent[] {
+  const rows = new Map<string, TallyStudent>();
+  for (const student of students) {
+    if (isTestUsername(student.username)) continue;
+    rows.set(student.id, {
+      studentId: student.id,
+      name: student.name || 'Unknown',
+      classNumber: Number.isFinite(student.classNumber) ? student.classNumber : 0,
+      missing: 0,
+      unclicked: 0,
+      absent: 0,
+      exempt: 0,
+    });
+  }
+  for (const appearance of appearances) {
+    const row = rows.get(appearance.studentId);
+    if (!row) continue;
+    if (appearance.mark === 'missing' && appearance.submitted) continue;
+    row[appearance.mark] += 1;
+  }
+  return [...rows.values()];
+}
+
+export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number'): TallyStudent[] {
+  const copy = [...rows];
+  if (mode === 'number') {
+    copy.sort((a, b) => a.classNumber - b.classNumber || a.name.localeCompare(b.name));
+    return copy;
+  }
+  copy.sort((a, b) => (
+    b.missing - a.missing
+    || b.unclicked - a.unclicked
+    || a.classNumber - b.classNumber
+    || a.name.localeCompare(b.name)
+  ));
+  return copy;
 }
