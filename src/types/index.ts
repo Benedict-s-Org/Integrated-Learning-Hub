@@ -1,3 +1,5 @@
+import type { SpellingWordAudio } from '../utils/spellingWordAudio';
+
 export interface SavedContent {
   id: string;
   title: string;
@@ -164,6 +166,9 @@ export interface SpellingPracticeList {
   words: string[];
   createdAt: Date;
   updatedAt: Date;
+  word_audio?: SpellingWordAudio[];
+  audio_accent?: string | null;
+  audio_voice_name?: string | null;
 }
 
 export interface SpellingPracticeState {

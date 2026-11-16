@@ -21,7 +21,13 @@ import { processText } from '../../utils/textProcessor';
 
 interface UnifiedAssignment {
   assignment_id: string;
-  assignment_type: 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading' | 'learning_system';
+  assignment_type:
+    | 'memorization'
+    | 'spelling'
+    | 'proofreading'
+    | 'spaced_repetition'
+    | 'reading'
+    | 'learning_system';
   title: string;
   assigned_at: string;
   assigned_by_username: string;
@@ -33,7 +39,14 @@ interface UnifiedAssignment {
   assignment_level?: number;
 }
 
-type FilterType = 'all' | 'memorization' | 'spelling' | 'proofreading' | 'spaced_repetition' | 'reading' | 'learning_system';
+type FilterType =
+  | 'all'
+  | 'memorization'
+  | 'spelling'
+  | 'proofreading'
+  | 'spaced_repetition'
+  | 'reading'
+  | 'learning_system';
 type FilterStatus = 'all' | 'completed' | 'in_progress' | 'overdue';
 
 interface UnifiedAssignmentsProps {
@@ -127,6 +140,15 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
   };
 
   const getStatusInfo = (assignment: UnifiedAssignment) => {
+    // SRS is ongoing rounds — never Completed / Overdue homework status
+    if (assignment.assignment_type === 'spaced_repetition') {
+      return {
+        icon: <Zap size={18} />,
+        text: 'Ongoing',
+        variant: 'secondary' as const,
+      };
+    }
+
     if (assignment.completed) {
       return {
         icon: <CheckCircle2 size={18} />,
@@ -195,6 +217,9 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         title: assignment.title,
         words: assignment.content_data.words,
         level: assignment.assignment_level,
+        wordAudio: Array.isArray(assignment.content_data.word_audio)
+          ? assignment.content_data.word_audio
+          : undefined,
       };
       onLoadSpelling(spellingPractice);
     } else if (assignment.assignment_type === 'proofreading') {
@@ -220,16 +245,25 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
       return false;
     }
 
-    if (filterStatus === 'completed' && !assignment.completed) {
-      return false;
+    if (filterStatus === 'completed') {
+      if (assignment.assignment_type === 'spaced_repetition' || !assignment.completed) {
+        return false;
+      }
     }
 
-    if (filterStatus === 'in_progress' && (assignment.completed || assignment.is_overdue)) {
-      return false;
+    if (filterStatus === 'in_progress') {
+      if (assignment.assignment_type === 'spaced_repetition') {
+        return true;
+      }
+      if (assignment.completed || assignment.is_overdue) {
+        return false;
+      }
     }
 
-    if (filterStatus === 'overdue' && !assignment.is_overdue) {
-      return false;
+    if (filterStatus === 'overdue') {
+      if (assignment.assignment_type === 'spaced_repetition' || !assignment.is_overdue) {
+        return false;
+      }
     }
 
     return true;
@@ -237,9 +271,13 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
 
   const stats = {
     total: assignments.length,
-    completed: assignments.filter((a) => a.completed).length,
-    inProgress: assignments.filter((a) => !a.completed && !a.is_overdue).length,
-    overdue: assignments.filter((a) => a.is_overdue).length,
+    completed: assignments.filter((a) => a.assignment_type !== 'spaced_repetition' && a.completed).length,
+    inProgress: assignments.filter(
+      (a) =>
+        a.assignment_type === 'spaced_repetition' ||
+        (!a.completed && !a.is_overdue)
+    ).length,
+    overdue: assignments.filter((a) => a.assignment_type !== 'spaced_repetition' && a.is_overdue).length,
   };
 
   if (loading) {
@@ -378,7 +416,11 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                               <span>Assigned: {formatDate(assignment.assigned_at)}</span>
                             </div>
 
-                            {assignment.due_date && (
+                            {assignment.assignment_type === 'spaced_repetition' && (
+                              <p className="text-sm text-amber-700">Ongoing practice — open any time for a review round</p>
+                            )}
+
+                            {assignment.assignment_type !== 'spaced_repetition' && assignment.due_date && (
                               <div className="flex items-center space-x-1">
                                 <Calendar size={14} />
                                 <span>Due: {formatDate(assignment.due_date)}</span>

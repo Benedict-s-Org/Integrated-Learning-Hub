@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSpellingSrs } from '../../context/SpellingSrsContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { isArchivedClassName } from '../../utils/archiveClassExporter';
+import type { SpellingWordAudio } from '../../utils/spellingWordAudio';
 
 interface Practice {
   id: string;
@@ -13,6 +14,9 @@ interface Practice {
   assignment_count?: number;
   assignment_id?: string;
   level?: number;
+  word_audio?: SpellingWordAudio[];
+  audio_accent?: string | null;
+  audio_voice_name?: string | null;
   metadata?: {
     wordLimit?: number;
   };

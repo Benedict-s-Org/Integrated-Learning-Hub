@@ -3,8 +3,9 @@ import { Volume2, ArrowLeft, ArrowRight, CheckCircle, XCircle, Save } from 'luci
 import { useAuth } from '../../context/AuthContext';
 import AccentSelector from '../AccentSelector/AccentSelector';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
-import { findBestVoiceMatch, createUtterance, fetchCloudAudio, resolveAudioUrl } from '../../utils/voiceManager';
+import { findBestVoiceMatch, createUtterance, fetchCloudAudioRich, isGoogleCloudVoiceId, resolveAudioUrl } from '../../utils/voiceManager';
 import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
+import { isCompleteWordAudio, type SpellingWordAudio } from '../../utils/spellingWordAudio';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPreviewProps {
@@ -29,11 +30,13 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [confirmedAudio, setConfirmedAudio] = useState<Record<number, SpellingWordAudio>>({});
 
   // Use refs to track playing state for the async loops to avoid closure issues
   const isPlayingRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const playbackGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) {
@@ -73,7 +76,24 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     }
   };
 
+  const stopInFlightPlayback = () => {
+    playbackGenerationRef.current += 1;
+    isPlayingRef.current = false;
+    window.speechSynthesis.cancel();
+    utteranceRef.current = null;
+    const audio = currentAudioRef.current;
+    currentAudioRef.current = null;
+    if (audio) {
+      audio.pause();
+      // Settle playAudioUrl's ended waiter so the old loop can see this generation bump.
+      audio.dispatchEvent(new Event('ended'));
+    }
+    setIsPlaying(false);
+  };
+
   const handleVoiceChange = async (accent: string, voiceName: string, voiceLang: string, voiceURI: string) => {
+    stopInFlightPlayback();
+    setConfirmedAudio({});
     setCurrentAccent(accent);
     setCurrentVoiceURI(voiceURI);
 
@@ -143,46 +163,76 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   };
 
   const playCloudAudio = async (rawUrl: string): Promise<boolean> => {
+    const generation = playbackGenerationRef.current;
     const playableUrl = rawUrl.startsWith('data:')
       ? rawUrl
       : await resolveAudioUrl(rawUrl);
 
     if (!playableUrl) return false;
+    if (!isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
+
+    // Assign before playAudioUrl waits for `ended`, so Stop can pause this element.
+    const audio = new Audio();
+    currentAudioRef.current = audio;
 
     try {
-      const audio = await playAudioUrl(playableUrl);
-      currentAudioRef.current = audio;
-      currentAudioRef.current = null;
-      return true;
+      await playAudioUrl(playableUrl, audio);
+      if (currentAudioRef.current === audio) {
+        currentAudioRef.current = null;
+      }
+      return isPlayingRef.current && generation === playbackGenerationRef.current;
     } catch (err) {
-      console.warn('[SpellingPreview] Cloud audio playback failed:', err);
-      currentAudioRef.current = null;
+      if (currentAudioRef.current === audio) {
+        currentAudioRef.current = null;
+      }
+      if (generation === playbackGenerationRef.current) {
+        console.warn('[SpellingPreview] Cloud audio playback failed:', err);
+      }
       return false;
     }
   };
 
-  const speakWord = async (word: string) => {
+  const playAndConfirmWord = async (word: string, index: number): Promise<boolean> => {
+    const generation = playbackGenerationRef.current;
+    const rich = await fetchCloudAudioRich(word, currentAccent, currentVoiceURI);
+    if (!isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
+
+    const driveFileId = rich?.driveFileId?.trim() ?? '';
+    const canConfirm =
+      isGoogleCloudVoiceId(currentVoiceURI) &&
+      !!rich?.audioContent &&
+      !!driveFileId;
+
+    if (!canConfirm) return false;
+
+    const played = await playCloudAudio(rich.audioContent);
+    if (!played || !isPlayingRef.current || generation !== playbackGenerationRef.current) return false;
+
+    setConfirmedAudio((prev) => ({
+      ...prev,
+      [index]: {
+        word,
+        drive_file_id: driveFileId,
+        accent: currentAccent,
+        voice_name: currentVoiceURI!,
+      },
+    }));
+    return true;
+  };
+
+  const speakWord = async (word: string, index: number) => {
     setIsPlaying(true);
     isPlayingRef.current = true;
 
     try {
-      // 1. Try Google Cloud TTS for premium consistency
-      const audioDataUri = await fetchCloudAudio(word, currentAccent, currentVoiceURI);
-
-      // If stopped during fetch, exit cleanly
+      const confirmed = await playAndConfirmWord(word, index);
       if (!isPlayingRef.current) {
         finishPlayback();
         return;
       }
-
-      if (audioDataUri) {
-        console.log('[SpellingPreview] Using Google Cloud TTS audio');
-        const played = await playCloudAudio(audioDataUri);
-        if (played) {
-          finishPlayback();
-          return;
-        }
-        console.warn('[SpellingPreview] Cloud audio unplayable, falling back to browser voice');
+      if (confirmed) {
+        finishPlayback();
+        return;
       }
     } catch (err) {
       console.warn('[SpellingPreview] Cloud TTS failed, falling back to browser voice:', err);
@@ -193,7 +243,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
       return;
     }
 
-    // 2. Fallback to browser native speechSynthesis
+    // Browser audition only — never confirm from speechSynthesis
     await speakWithBrowserVoice(word);
     finishPlayback();
   };
@@ -203,15 +253,10 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     unlockAudioSync();
 
     // Stop any in-flight playback before starting a new word
-    isPlayingRef.current = false;
-    window.speechSynthesis.cancel();
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
+    stopInFlightPlayback();
 
     setCurrentWordIndex(index);
-    speakWord(words[index]);
+    speakWord(words[index], index);
   };
 
   const handlePlayAll = async () => {
@@ -220,60 +265,65 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     // Unlock during the click gesture before TTS fetches
     unlockAudioSync();
 
-    window.speechSynthesis.cancel();
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
+    stopInFlightPlayback();
 
+    const generation = playbackGenerationRef.current;
     setIsPlaying(true);
     isPlayingRef.current = true;
     setCurrentWordIndex(0);
 
+    const ownsPlayback = () =>
+      isPlayingRef.current && generation === playbackGenerationRef.current;
+
     for (let i = 0; i < words.length; i++) {
-      if (!isPlayingRef.current) break;
+      if (!ownsPlayback()) break;
 
       setCurrentWordIndex(i);
 
       try {
-        const audioDataUri = await fetchCloudAudio(words[i], currentAccent, currentVoiceURI);
+        const confirmed = await playAndConfirmWord(words[i], i);
 
-        if (!isPlayingRef.current) break;
+        if (!ownsPlayback()) break;
 
-        let played = false;
-        if (audioDataUri) {
-          played = await playCloudAudio(audioDataUri);
-        }
-
-        if (!played && isPlayingRef.current) {
+        if (!confirmed) {
           await speakWithBrowserVoice(words[i]);
+          if (!ownsPlayback()) break;
         }
 
-        if (i < words.length - 1 && isPlayingRef.current) {
+        if (i < words.length - 1 && ownsPlayback()) {
           await new Promise(resolve => setTimeout(resolve, 600));
         }
       } catch (err) {
         console.error('[SpellingPreview] Error in play all:', err);
+        if (!ownsPlayback()) break;
       }
     }
 
-    finishPlayback();
+    // A newer Play All or voice change already owns playback. Do not clear it.
+    if (generation === playbackGenerationRef.current) {
+      finishPlayback();
+    }
   };
 
   const handleStopAll = () => {
-    isPlayingRef.current = false;
-    window.speechSynthesis.cancel();
-    utteranceRef.current = null;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    setIsPlaying(false);
+    stopInFlightPlayback();
   };
+
+  const wordAudioPayload = words.map((_, i) => confirmedAudio[i]);
+  const canSave =
+    wordAudioPayload.every((e): e is SpellingWordAudio => !!e) &&
+    isCompleteWordAudio(words, wordAudioPayload as SpellingWordAudio[]);
+  const confirmedCount = words.filter((_, i) => !!confirmedAudio[i]).length;
+  const requiresPremiumHint = !isGoogleCloudVoiceId(currentVoiceURI);
 
   const handleSave = async () => {
     if (!user?.id) {
       setSaveError('You must be logged in to save practices');
+      return;
+    }
+
+    if (!canSave) {
+      setSaveError('Play every word with a Premium voice until all are confirmed before saving.');
       return;
     }
 
@@ -294,12 +344,13 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
         },
         body: JSON.stringify({
           title: title.trim(),
-          words: words,
+          words,
           userId: user.id,
           isPhraseMode: isPhraseMode,
-          metadata: {
-            wordLimit: wordLimit || 20
-          }
+          metadata: { wordLimit: wordLimit || 20 },
+          wordAudio: words.map((_, i) => confirmedAudio[i]),
+          audioAccent: currentAccent,
+          audioVoiceName: currentVoiceURI,
         })
       });
 
@@ -449,6 +500,19 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
                 <span className="font-semibold">Tip:</span> Make sure each word is pronounced correctly.
                 Select a specific voice above to ensure consistent pronunciation across all devices.
               </p>
+              {user?.role === 'admin' && (
+                <div className="mt-3 text-sm text-gray-700">
+                  <p className="font-medium">
+                    Audio confirmed {confirmedCount}/{words.length}
+                  </p>
+                  <p className="mt-1">
+                    Play every word with a Premium voice until all are confirmed before saving.
+                  </p>
+                  {requiresPremiumHint && (
+                    <p className="mt-1">A Premium Google voice is required to save.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {saveSuccess && (
@@ -484,7 +548,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
                 {user?.role === 'admin' && (
                   <button
                     onClick={handleSave}
-                    disabled={saving || saveSuccess}
+                    disabled={saving || saveSuccess || !canSave}
                     className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors shadow-lg"
                   >
                     <Save size={20} />
