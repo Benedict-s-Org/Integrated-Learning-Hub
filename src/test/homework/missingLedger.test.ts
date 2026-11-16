@@ -4,6 +4,7 @@ import {
   buildMissingLedger,
   buildMissingTally,
   classifyHomeworkMark,
+  enrichLedgerWithDutyMarks,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
   handedInKey,
@@ -190,5 +191,35 @@ describe('missing tally', () => {
     expect(tally.find((row) => row.name === 'Belle')).toMatchObject({ missing: 0, absent: 1 });
     expect(sortMissingTally(tally, 'count').map((row) => row.name)).toEqual(['Kylie', 'Sophie', 'Erin', 'Belle']);
     expect(sortMissingTally(tally, 'number').map((row) => row.classNumber)).toEqual([4, 10, 12, 19]);
+
+    const ledger = enrichLedgerWithDutyMarks(
+      buildMissingLedger(
+        appearances
+          .filter((row) => row.mark === 'missing')
+          .map((row) => ({
+            id: row.logId,
+            logDate: row.date,
+            className: row.className,
+            studentId: row.studentId,
+            studentName: row.name,
+            classNumber: row.classNumber,
+            missingItems: { [row.subject]: [row.item] },
+          })),
+        new Set(),
+        () => '',
+        '2026-11-16',
+      ),
+      appearances,
+      () => '',
+      '2026-11-16',
+    );
+    const names = ledger[0]?.items[0]?.students.map((student) => `${student.name}:${student.mark}`) || [];
+    expect(names).toEqual(expect.arrayContaining([
+      'Kylie:missing',
+      'Sophie:unclicked',
+      'Belle:absent',
+      'Erin:exempt',
+    ]));
+    expect(names.join('\n')).not.toContain('Test');
   });
 });

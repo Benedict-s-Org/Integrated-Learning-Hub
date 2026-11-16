@@ -36,7 +36,7 @@ export default function AdminHomeworkManagementPage() {
 
   return (
     <AdminLayout title="Homework Management" icon={<ClipboardList className="h-6 w-6" />}>
-      <div className="w-full space-y-6 p-4 md:p-8">
+      <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden p-4 md:p-8">
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
           {TABS.map((item) => (
             <button
