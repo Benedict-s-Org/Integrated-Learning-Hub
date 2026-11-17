@@ -388,10 +388,43 @@ export function classifyHomeworkMark(input: {
   const status = (input.dutyStatus || '').trim().toLowerCase();
   if (status === 'absent') return 'absent';
   if (status === 'exempted' || status === 'exempt') return 'exempt';
-  if (input.inMissingItems) return 'missing';
+  // 交齊功課 / Handed in must win over stale or synthetic missing-item rows.
   if (input.handedIn || status === 'submitted' || status === 'late') return 'hidden';
+  if (input.inMissingItems) return 'missing';
   if (!status || status === 'todo') return 'unclicked';
   return 'hidden';
+}
+
+export function dutyStudentDateKey(studentId: string, date: string): string {
+  return `${studentId}\0${date}`;
+}
+
+/** Students marked submitted/late on morning duties should leave the Missing list for that day. */
+export function collectClearedDutyKeys(
+  duties: Array<{ studentId: string; date: string; status?: string | null }>,
+): Set<string> {
+  const next = new Set<string>();
+  for (const duty of duties) {
+    const status = (duty.status || '').trim().toLowerCase();
+    if (status === 'submitted' || status === 'late') {
+      next.add(dutyStudentDateKey(duty.studentId, duty.date));
+    }
+  }
+  return next;
+}
+
+/** Drop missing-item rows for students who already handed everything in that day. */
+export function clearMissingItemsForSubmittedDuties(
+  logs: MissingLogInput[],
+  clearedDutyKeys: ReadonlySet<string>,
+): MissingLogInput[] {
+  if (clearedDutyKeys.size === 0) return logs;
+  return logs
+    .map((log) => {
+      if (!clearedDutyKeys.has(dutyStudentDateKey(log.studentId, log.logDate))) return log;
+      return { ...log, missingItems: {} };
+    })
+    .filter((log) => Object.keys(log.missingItems || {}).length > 0);
 }
 
 export type DutySnapshot = {

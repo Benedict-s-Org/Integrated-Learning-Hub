@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterToManagedClasses, isClassManaged } from '@/lib/staff/managedClasses';
+import { filterToManagedClasses, isClassManaged, resolveManagedClassIds } from '@/lib/staff/managedClasses';
 
 describe('managedClasses helpers', () => {
   it('admin sees all classes', () => {
@@ -22,5 +22,11 @@ describe('managedClasses helpers', () => {
 
   it('isClassManaged denies staff unmanaged class', () => {
     expect(isClassManaged('3A', ['4A'], false)).toBe(false);
+  });
+
+  it('falls back to the staff class when assignments are empty', () => {
+    expect(resolveManagedClassIds([], '4A')).toEqual(['4A']);
+    expect(resolveManagedClassIds(['4A'], '3A')).toEqual(['4A']);
+    expect(resolveManagedClassIds([], null)).toEqual([]);
   });
 });

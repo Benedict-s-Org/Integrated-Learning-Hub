@@ -4,6 +4,8 @@ import {
   buildMissingLedger,
   buildMissingTally,
   classifyHomeworkMark,
+  clearMissingItemsForSubmittedDuties,
+  collectClearedDutyKeys,
   buildMissingTallyFromLedger,
   enrichLedgerWithDutyMarks,
   mergeDutyMissingItems,
@@ -165,6 +167,40 @@ describe('missing tally', () => {
     expect(classifyHomeworkMark({ dutyStatus: 'absent', inMissingItems: true, handedIn: false })).toBe('absent');
     expect(classifyHomeworkMark({ dutyStatus: 'exempted', inMissingItems: false, handedIn: false })).toBe('exempt');
     expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: false, handedIn: true })).toBe('hidden');
+    expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: true, handedIn: false })).toBe('hidden');
+    expect(classifyHomeworkMark({ dutyStatus: 'missing', inMissingItems: true, handedIn: true })).toBe('hidden');
+  });
+
+  it('clears missing-list rows after 交齊功課 (submitted duty)', () => {
+    const cleared = collectClearedDutyKeys([
+      { studentId: 'erin', date: '2026-11-17', status: 'submitted' },
+      { studentId: 'belle', date: '2026-11-17', status: 'missing' },
+    ]);
+    expect(cleared.has(['erin', '2026-11-17'].join('\0'))).toBe(true);
+    const logs = clearMissingItemsForSubmittedDuties(
+      [
+        {
+          id: 'english|erin|2026-11-17',
+          logDate: '2026-11-17',
+          className: '4A',
+          studentId: 'erin',
+          studentName: 'Erin',
+          classNumber: 12,
+          missingItems: { 中文: ['作文'] },
+        },
+        {
+          id: 'english|belle|2026-11-17',
+          logDate: '2026-11-17',
+          className: '4A',
+          studentId: 'belle',
+          studentName: 'Belle',
+          classNumber: 19,
+          missingItems: { 中文: ['作文'] },
+        },
+      ],
+      cleared,
+    );
+    expect(logs.map((log) => log.studentId)).toEqual(['belle']);
   });
 
   it('counts missing and not-clicked separately, and drops test accounts', () => {
@@ -228,7 +264,7 @@ describe('missing tally', () => {
   it('counts the sidebar from the same ledger rows the columns show', () => {
     const duties = mergeDutyMissingItems(
       [
-        { studentId: 'erin', date: '2026-11-10', status: 'submitted', missingItems: {}, logId: 'duty-erin' },
+        { studentId: 'erin', date: '2026-11-10', status: 'todo', missingItems: {}, logId: 'duty-erin' },
         { studentId: 'shawnette', date: '2026-11-10', status: 'todo', missingItems: {}, logId: 'duty-shaw' },
       ],
       [
@@ -281,7 +317,7 @@ describe('missing tally', () => {
     expect(erinMarks.filter((mark) => mark === 'missing')).toHaveLength(3);
 
     const tally = buildMissingTallyFromLedger(roster, ledger);
-    expect(tally.find((row) => row.name === 'Erin')).toMatchObject({ missing: 3, unclicked: 0 });
+    expect(tally.find((row) => row.name === 'Erin')).toMatchObject({ missing: 3, unclicked: 1 });
     expect(tally.find((row) => row.name === 'Sophie')).toMatchObject({ missing: 0, unclicked: 4 });
   });
 

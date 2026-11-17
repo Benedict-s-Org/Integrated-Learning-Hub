@@ -27,7 +27,7 @@ import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDash
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { parseSubjectAssignments, saveAssignments, toNameMap, toNameMapsByClass, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
-import { fetchManagedClassIds, filterToManagedClasses } from '@/lib/staff/managedClasses';
+import { fetchManagedClassIds, filterToManagedClasses, resolveManagedClassIds } from '@/lib/staff/managedClasses';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
 import { useMorningDutyScheduler, MorningDutySettings } from '@/hooks/useMorningDutyScheduler';
@@ -469,16 +469,24 @@ export function ClassDashboardPage() {
             return;
         }
         if (!isStaff || !currentUser?.id) return;
+        // Wait for a real session token so RLS can return this staff user's assignments.
+        if (!session?.access_token) return;
 
         let cancelled = false;
         setManagedClassesReady(false);
         (async () => {
             try {
-                const ids = await fetchManagedClassIds(currentUser.id, session?.access_token);
+                const ids = await fetchManagedClassIds(
+                    currentUser.id,
+                    session.access_token,
+                    currentUser.class,
+                );
                 if (!cancelled) setManagedClassIds(ids);
             } catch (err) {
                 console.error('Failed to load managed classes:', err);
-                if (!cancelled) setManagedClassIds([]);
+                if (!cancelled) {
+                    setManagedClassIds(resolveManagedClassIds([], currentUser.class));
+                }
             } finally {
                 if (!cancelled) setManagedClassesReady(true);
             }
@@ -487,7 +495,7 @@ export function ClassDashboardPage() {
         return () => {
             cancelled = true;
         };
-    }, [isAdmin, isGuest, isStaff, currentUser?.id, session?.access_token]);
+    }, [isAdmin, isGuest, isStaff, currentUser?.id, currentUser?.class, session?.access_token]);
 
     // PiP State
     const { isSupported: isPipSupported, pipWindow, requestPip, closePip } = useDocumentPiP();
