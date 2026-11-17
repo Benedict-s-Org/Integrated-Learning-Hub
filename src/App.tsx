@@ -61,7 +61,6 @@ import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
-import type { SpellingWordAudio } from './utils/spellingWordAudio';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string; title?: string; editingContentId?: string }
@@ -812,12 +811,13 @@ function AppContent() {
     setAppState({ page: 'spelling', step: 'input' });
   };
 
-  const handleSpellingPreviewNext = () => {
+  const handleSpellingPreviewNext = (wordAudio?: SpellingWordAudio[]) => {
     if (appState.page === 'spelling' && appState.step === 'preview') {
       setAppState({
         ...appState,
         step: 'practice',
-        wordLimit: (appState as any).wordLimit
+        wordLimit: (appState as any).wordLimit,
+        ...(wordAudio ? { wordAudio } : {}),
       });
     }
   };

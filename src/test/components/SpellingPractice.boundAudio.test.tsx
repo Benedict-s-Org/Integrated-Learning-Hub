@@ -268,6 +268,25 @@ describe('SpellingPractice bound playback', () => {
     expect(speak).not.toHaveBeenCalled();
   });
 
+  it('does not fall back to preference TTS when the practice row is hidden (RLS)', async () => {
+    supabaseFrom.mockImplementation(() => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: null,
+            error: null,
+          }),
+        }),
+      }),
+    }));
+    renderPractice({ practiceId: PRACTICE_ID });
+
+    expect(await screen.findByText('Could not load practice audio.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play Word' })).toBeDisabled();
+    expect(fetchCloudAudio).not.toHaveBeenCalled();
+    expect(speak).not.toHaveBeenCalled();
+  });
+
   it('skips the binding fetch for srs-review and uses legacy audio', async () => {
     srsApi.getWordsDueForReview.mockResolvedValue(['quiz']);
     renderPractice({

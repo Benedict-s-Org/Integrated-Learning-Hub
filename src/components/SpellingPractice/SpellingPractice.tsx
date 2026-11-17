@@ -153,8 +153,12 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
           if (error) {
             console.error('[SpellingPractice] Failed to load word_audio:', error);
             loadFailed = true;
+          } else if (!data) {
+            // RLS or missing row: do not treat as legacy empty bindings
+            console.error('[SpellingPractice] Practice row not visible for word_audio load');
+            loadFailed = true;
           } else {
-            rawBindings = data?.word_audio ?? [];
+            rawBindings = data.word_audio ?? [];
           }
         } catch (error) {
           if (cancelled) return;

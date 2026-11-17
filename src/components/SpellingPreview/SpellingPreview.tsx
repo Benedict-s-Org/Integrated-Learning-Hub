@@ -11,7 +11,7 @@ import { supabase } from '../../lib/supabase';
 interface SpellingPreviewProps {
   title: string;
   words: string[];
-  onNext: () => void;
+  onNext: (wordAudio?: SpellingWordAudio[]) => void;
   onBack: () => void;
   isPhraseMode?: boolean;
   onSave?: () => void;
@@ -556,7 +556,11 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
                   </button>
                 )}
                 <button
-                  onClick={onNext}
+                  onClick={() =>
+                    onNext(
+                      canSave ? (wordAudioPayload as SpellingWordAudio[]) : undefined
+                    )
+                  }
                   disabled={!currentVoice}
                   className="flex items-center space-x-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-colors shadow-lg"
                 >
