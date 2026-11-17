@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
@@ -17,14 +18,39 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [blockingBounce, setBlockingBounce] = useState(
+    () => sessionStorage.getItem('force_login_view') === '1'
+  );
   const isLoginRoute = window.location.pathname === '/login';
 
-  // If already signed in on the dedicated login route, go to the hub home
+  // After an intentional sign-out, stay on the login form and finish clearing any residual session.
   useEffect(() => {
-    if (!loading && user && isLoginRoute) {
+    if (!isLoginRoute || !blockingBounce) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // ignore
+      } finally {
+        sessionStorage.removeItem('force_login_view');
+        if (!cancelled) setBlockingBounce(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoginRoute, blockingBounce]);
+
+  // If already signed in on the dedicated login route, go to the hub home
+  // (unless we just arrived here from Sign Out).
+  useEffect(() => {
+    if (!loading && user && isLoginRoute && !blockingBounce) {
       navigate('/', { replace: true });
     }
-  }, [loading, user, isLoginRoute, navigate]);
+  }, [loading, user, isLoginRoute, blockingBounce, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
