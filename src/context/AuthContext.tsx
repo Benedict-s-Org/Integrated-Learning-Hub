@@ -176,9 +176,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSessionUser(null);
-    setSession(null);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setSessionUser(null);
+      setSession(null);
+      // Always leave the current page and land on email/password login
+      window.location.replace('/login');
+    }
   };
 
   const changePassword = async (

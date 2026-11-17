@@ -230,23 +230,6 @@ function AppContent() {
 
   // Close login modal when user signs in
 
-  // Reset app state when user signs out
-  useEffect(() => {
-    if (!user && !loading) {
-      const isRestrictedState =
-        appState.page === 'saved' ||
-        appState.page === 'admin' ||
-        appState.page === 'database' ||
-        (appState.page === 'spelling' && appState.step === 'saved') ||
-        appState.page === 'practice';
-
-      if (isRestrictedState) {
-        setAppState({ page: 'new', step: 'input' });
-        window.location.hash = '';
-      }
-    }
-  }, [user, loading]);
-
   // Handle hash-based routing for public links - MUST be before any conditional returns
   useEffect(() => {
     // Check if we're on the quick-reward route from URL (for initial load)
@@ -366,22 +349,8 @@ function AppContent() {
   }
   // -------------------------------------
 
-  // Check if user is trying to access restricted pages
-  const isRestrictedPage =
-    appState.page === 'saved' ||
-    appState.page === 'admin' ||
-    appState.page === 'database' ||
-    appState.page === 'learningHub' ||
-    appState.page === 'progress' ||
-    appState.page === 'assignments' ||
-    appState.page === 'assignmentManagement' ||
-    appState.page === 'spacedRepetition' ||
-    appState.page === 'wordSnake' ||
-    appState.page === 'flowithTest' ||
-    appState.page === 'adminAnalytics' ||
-    (appState.page === 'classDashboard' && !isStaff);
-
-  if (!user && isRestrictedPage) {
+  // Unauthenticated users always see the email/password login page
+  if (!user) {
     return <Login />;
   }
 
@@ -1840,6 +1809,7 @@ function AppRoutes() {
       )}
       <div className="flex-1 relative">
         <Routes>
+          <Route path="/login" element={<Login />} />
           <Route
             path="/cognitive-anagram"
             element={

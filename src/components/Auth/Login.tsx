@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { AdminPasswordResetModal } from './AdminPasswordResetModal';
@@ -8,13 +9,22 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const { signIn, loading } = useAuth();
+  const { signIn, loading, user } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const isLoginRoute = window.location.pathname === '/login';
+
+  // If already signed in on the dedicated login route, go to the hub home
+  useEffect(() => {
+    if (!loading && user && isLoginRoute) {
+      navigate('/', { replace: true });
+    }
+  }, [loading, user, isLoginRoute, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +36,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (!result.error) {
         onLoginSuccess?.();
+        if (isLoginRoute) {
+          navigate('/', { replace: true });
+        }
       } else {
         setError(result.error.message);
       }
@@ -38,14 +51,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   if (loading) {
     return (
-      <div className="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-slate-600">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">
