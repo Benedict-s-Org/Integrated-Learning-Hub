@@ -349,9 +349,9 @@ function AppContent() {
   }
   // -------------------------------------
 
-  // Unauthenticated users always see the email/password login page
+  // Unauthenticated users must leave the current page and go to /login
   if (!user) {
-    return <Login />;
+    return <Navigate to="/login" replace />;
   }
 
 

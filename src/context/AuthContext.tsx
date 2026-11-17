@@ -175,16 +175,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
+    // Mark that the user intentionally signed out so /login does not bounce back
+    // if a residual session briefly remains during reload.
+    sessionStorage.setItem('force_login_view', '1');
+    setSessionUser(null);
+    setSession(null);
+    currentUserIdRef.current = null;
+
+    // Prefer local scope so we are not blocked by a slow/failing global revoke.
+    // Cap wait time so a hung network call can never leave the user on the old page.
     try {
-      await supabase.auth.signOut();
-    } finally {
-      setSessionUser(null);
-      setSession(null);
-      // Always leave the current page and land on email/password login
-      window.location.replace('/login');
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise<void>((resolve) => setTimeout(resolve, 500)),
+      ]);
+    } catch {
+      // Ignore — navigation below is mandatory.
     }
-  };
+
+    // Hard navigation: leave the current route entirely (not SPA stay-in-place).
+    window.location.replace(`${window.location.origin}/login`);
+  }, []);
 
   const changePassword = async (
     _currentPassword: string | undefined, // Not used in standard update, but kept for signature compatibility
@@ -413,6 +425,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     effectiveUser,
     session,
     loading,
+    profileLoaded,
+    signOut,
     isAdmin,
     isClassStaff,
     isStaff,
