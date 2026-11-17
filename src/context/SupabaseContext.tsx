@@ -91,6 +91,8 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
+    // Always leave the current page and land on email/password login
+    window.location.replace('/login');
     return { error };
   };
 
