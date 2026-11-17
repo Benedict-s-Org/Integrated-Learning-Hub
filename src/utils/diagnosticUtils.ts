@@ -815,12 +815,15 @@ export function getPageChecks(
       checks: [
         ...baseChecks,
         () => checkEdgeFunction('memorization-content/create', 'Save Content'),
+        () => checkEdgeFunction('memorization-content/update-content', 'Update Content'),
       ]
     },
     'saved': {
       checks: [
         ...baseChecks,
         () => checkEdgeFunction('memorization-content/list', 'List Content'),
+        () => checkEdgeFunction('memorization-content/update-content', 'Update Content'),
+        () => checkEdgeFunction('memorization-content/update-title', 'Update Title'),
         () => checkTableAccess('saved_contents', 'read'),
       ]
     },
