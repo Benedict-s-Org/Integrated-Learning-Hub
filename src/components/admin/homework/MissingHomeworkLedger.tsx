@@ -11,6 +11,8 @@ import {
   attachHandedInClassmates,
   buildMissingLedger,
   buildMissingTallyFromLedger,
+  clearMissingItemsForSubmittedDuties,
+  collectClearedDutyKeys,
   enrichLedgerWithDutyMarks,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
@@ -172,7 +174,34 @@ export function MissingHomeworkLedger() {
           }));
 
         const englishState = await fetchEnglishHomeworkState(effectiveFilter === 'all' ? undefined : effectiveFilter);
-        const combinedLogs = [...parsedLogs, ...englishState.logs];
+        const dutySnapshots = mergeDutyMissingItems(
+          rawLogs.map((log) => ({
+            studentId: log.student_id,
+            date: log.log_date,
+            status: log.status,
+            missingItems: log.missing_items,
+            logId: log.id,
+          })),
+          englishState.logs.map((log) => ({
+            studentId: log.studentId,
+            date: log.logDate,
+            missingItems: log.missingItems,
+            logId: log.id,
+          })),
+        );
+        // Keep morning-duty status (交齊功課) on the snapshot even after English missing items merge.
+        const dutyStatusByStudentDate = new Map(
+          rawLogs.map((log) => [`${log.student_id}\0${log.log_date}`, log.status] as const),
+        );
+        const dutiesWithStatus = dutySnapshots.map((duty) => ({
+          ...duty,
+          status: dutyStatusByStudentDate.get(`${duty.studentId}\0${duty.date}`) ?? duty.status,
+        }));
+        const clearedDutyKeys = collectClearedDutyKeys(dutiesWithStatus);
+        const combinedLogs = clearMissingItemsForSubmittedDuties(
+          [...parsedLogs, ...englishState.logs],
+          clearedDutyKeys,
+        );
         const detailIndex = new Map<string, SubjectAssignmentMap>();
         let homeworkQuery = homeworkDb
           .from('daily_homework')
@@ -242,21 +271,7 @@ export function MissingHomeworkLedger() {
 
         const appearances = listHomeworkAppearances(
           roster,
-          mergeDutyMissingItems(
-            rawLogs.map((log) => ({
-              studentId: log.student_id,
-              date: log.log_date,
-              status: log.status,
-              missingItems: log.missing_items,
-              logId: log.id,
-            })),
-            englishState.logs.map((log) => ({
-              studentId: log.studentId,
-              date: log.logDate,
-              missingItems: log.missingItems,
-              logId: log.id,
-            })),
-          ),
+          dutiesWithStatus,
           listed,
           englishState.handedInKeys,
           nextMadeUp,
