@@ -752,7 +752,8 @@ export function buildByStudentColumns(
     const next: Acc = {
       studentId,
       name,
-      classNumber: Number.isFinite(classNumber) ? classNumber : 0,
+      // Coerce so "9" never sorts as a string after "19".
+      classNumber: Number(classNumber) || 0,
       openByDate: new Map(),
       doneByDate: new Map(),
     };
@@ -803,11 +804,14 @@ export function buildByStudentColumns(
     };
   });
 
-  const byStudentName = (a: ByStudentColumn, b: ByStudentColumn) => (
-    a.name.localeCompare(b.name) || a.classNumber - b.classNumber
-  );
-  const open = columns.filter((col) => !col.clear).sort(byStudentName);
-  const clear = columns.filter((col) => col.clear).sort(byStudentName);
+  // Class number ascending (1, 2, 3…); name is only a tie-breaker.
+  const byClassNumber = (a: ByStudentColumn, b: ByStudentColumn) => {
+    const aNo = Number(a.classNumber) || 0;
+    const bNo = Number(b.classNumber) || 0;
+    return aNo - bNo || a.name.localeCompare(b.name);
+  };
+  const open = columns.filter((col) => !col.clear).sort(byClassNumber);
+  const clear = columns.filter((col) => col.clear).sort(byClassNumber);
   return [...open, ...clear];
 }
 

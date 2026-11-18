@@ -22,10 +22,10 @@ Same data sources as today’s ledger (morning duties, English checks, daily hom
 ### Column order (left → right)
 
 1. **Open students** (still have at least one Missing / Not clicked / Absent / Exempt row)  
-   - Sorted by **student name** (A→Z), then class number  
+   - Sorted by **class number ascending** (1, 2, 3…), then name  
    - Columns **expanded** by default
 2. **Clear students** (no open rows left — fully handed in for the visible set)  
-   - Sorted by **student name** (A→Z), then class number  
+   - Sorted by **class number ascending**, then name  
    - Columns **fully collapsed** by default (one fold strip each, e.g. `▸ 12 Erin`)
 
 Horizontal scroll applies only to the student-column strip; scrollbar stays in the visible pane (same containment rules as the current Missing layout). Missing tally can remain on the right.
