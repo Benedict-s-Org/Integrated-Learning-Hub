@@ -172,21 +172,29 @@ export function HomeworkModal({
                 [subject]: [...(homeworkOptions[subject] || []), trimmedItem]
             };
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('class_rewards' as any)
                 .update({ sub_options: updatedOptions } as any)
-                .eq('title', '完成班務（欠功課）');
+                .eq('title', '完成班務（欠功課）')
+                .select('id') as any;
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('Unable to save homework item. You may not have permission to update the homework catalog.');
+            }
 
             setHomeworkOptions(updatedOptions);
             
-            // Automatically select it if setting up
+            // Automatically select it if setting up (dedupe if already selected)
             if (isSetupMode) {
-                setSetupSelectedItems(prev => ({
-                    ...prev,
-                    [subject]: [...(prev[subject] || []), trimmedItem]
-                }));
+                setSetupSelectedItems(prev => {
+                    const current = prev[subject] || [];
+                    if (current.includes(trimmedItem)) return prev;
+                    return {
+                        ...prev,
+                        [subject]: [...current, trimmedItem]
+                    };
+                });
             }
         } catch (error) {
             console.error('Error adding homework item:', error);
@@ -316,12 +324,16 @@ export function HomeworkModal({
                 [selectedSubject]: updatedList
             };
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('class_rewards' as any)
                 .update({ sub_options: updatedOptions } as any)
-                .eq('title', '完成班務（欠功課）');
+                .eq('title', '完成班務（欠功課）')
+                .select('id') as any;
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('Unable to rename homework item. You may not have permission to update the homework catalog.');
+            }
 
             setHomeworkOptions(updatedOptions);
         } catch (error) {
