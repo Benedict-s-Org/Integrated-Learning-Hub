@@ -736,35 +736,49 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const handleHomeworkRecord = async (studentId: string, reason: string) => {
     try {
-      let amount = 0;
-      if (reason === '完成班務（交齊功課）') amount = 20;
-      else if (reason === '完成班務（寫手冊）') amount = 10;
-      else if (reason === '完成班務（欠功課）') amount = 10;
-      else if (reason.startsWith('功課:')) amount = 10;
+      const today = getHKTodayString();
+      let mdStatus: 'submitted' | 'missing' | null = null;
+      if (reason === '完成班務（交齊功課）') mdStatus = 'submitted';
+      else if (reason === '完成班務（欠功課）' || reason.startsWith('功課:')) mdStatus = 'missing';
 
-      const result = await coinService.awardCoins({
-        userId: studentId,
-        amount: amount,
-        reason: reason,
-        type: amount > 0 ? 'reward' : 'consequence',
-        adminId: forcedAdminId || currentUser?.id,
-        batchId: crypto.randomUUID()
-      });
-
-      if (!result.success) throw result.error;
-      if (reason === '完成班務（交齊功課）') {
+      // 交齊 / 欠 must go through upsert_morning_duty_log so Missing Homework sees status + coins stay consistent.
+      if (mdStatus) {
+        const { error } = await supabase.rpc('upsert_morning_duty_log', {
+          p_log_date: today,
+          p_student_id: studentId,
+          p_status: mdStatus,
+          p_set_by: 'teacher',
+          p_missing_items: null,
+          p_event_type: 'status_change',
+        });
+        if (error) throw error;
         const student = users.find((user) => user.id === studentId);
         try {
-          await markListedHomeworkHandedIn({
-            className: student?.class_name || '',
-            date: getHKTodayString(),
-            studentId,
-          });
+          if (mdStatus === 'submitted') {
+            await markListedHomeworkHandedIn({
+              className: student?.class_name || '',
+              date: today,
+              studentId,
+            });
+          }
+          // Admin Users general 欠 has no item list — do not clear other makeup ticks.
         } catch (markErr: unknown) {
-          console.error('Failed to mark listed homework handed in', markErr);
+          console.error('Failed to sync listed homework handed-in ticks', markErr);
           const message = markErr instanceof Error ? markErr.message : 'Unknown error';
-          alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+          alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
         }
+      } else {
+        let amount = 0;
+        if (reason === '完成班務（寫手冊）') amount = 10;
+        const result = await coinService.awardCoins({
+          userId: studentId,
+          amount,
+          reason,
+          type: amount > 0 ? 'reward' : 'consequence',
+          adminId: forcedAdminId || currentUser?.id,
+          batchId: crypto.randomUUID(),
+        });
+        if (!result.success) throw result.error;
       }
       fetchUsers();
     } catch (err) {

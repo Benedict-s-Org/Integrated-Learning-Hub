@@ -9,6 +9,7 @@ import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
 import { handbookName, homeworkBadge, type HomeworkBadge } from '@/lib/homework/homeworkBadges';
 import {
   attachHandedInClassmates,
+  buildByStudentColumns,
   buildMissingLedger,
   buildMissingTallyFromLedger,
   clearMissingItemsForSubmittedDuties,
@@ -23,6 +24,8 @@ import {
   parseEnglishCheckLogId,
   sortMissingTally,
   submittedKeysWithHandedIn,
+  type ByStudentColumn,
+  type ByStudentWorkRow,
   type HandedInRosterEntry,
   type HomeworkAppearance,
   type LedgerDateGroup,
@@ -88,7 +91,8 @@ export function MissingHomeworkLedger() {
   const [handbookKeys, setHandbookKeys] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; student: LedgerStudent; date: string } | null>(null);
   const [roster, setRoster] = useState<Array<{ id: string; name: string; classNumber: number; username?: string | null }>>([]);
-  const [tallyMode, setTallyMode] = useState<'count' | 'number'>('count');
+  const [tallyMode, setTallyMode] = useState<'count' | 'number' | 'name'>('count');
+  const [viewMode, setViewMode] = useState<'item' | 'student'>('item');
   const [appearances, setAppearances] = useState<HomeworkAppearance[]>([]);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -350,6 +354,10 @@ export function MissingHomeworkLedger() {
   const tallyRows = useMemo(() => sortMissingTally(tally, tallyMode), [tally, tallyMode]);
   const missingTotal = tally.reduce((sum, row) => sum + row.missing, 0);
   const unclickedTotal = tally.reduce((sum, row) => sum + row.unclicked, 0);
+  const studentColumns = useMemo(
+    () => buildByStudentColumns(ledger, roster, getHKTodayString()),
+    [ledger, roster],
+  );
 
   const badgeFor = (student: LedgerStudent, subject: string, item: string, date: string): HomeworkBadge => {
     const id = handedInKey(student.studentId, date, subject, item);
@@ -495,7 +503,9 @@ export function MissingHomeworkLedger() {
           <div>
             <h2 className="text-xl font-black text-slate-800">Missing records</h2>
             <p className="text-sm font-medium text-slate-500">
-              Dates are columns — nearest to today on the left. Click any name (red, Not clicked, Absent, or Exempt) to mark handed in — it moves into Handed in. Expand that section to undo. Right-click a red missing name to record a handbook for today.
+              {viewMode === 'item'
+                ? 'By item: dates are columns — nearest to today on the left. Click any name (red, Not clicked, Absent, or Exempt) to mark handed in. Right-click a red missing name for handbook.'
+                : 'By student: open pupils on the left sorted by name (farther dates on top). Clear pupils are folded on the right. Click a homework row to mark handed in.'}
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
               <Legend tone="missing" label="Missing" />
@@ -520,6 +530,27 @@ export function MissingHomeworkLedger() {
           </label>
         </div>
 
+        <div className="flex shrink-0 flex-wrap gap-2" role="tablist" aria-label="Missing layout">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'item'}
+            onClick={() => setViewMode('item')}
+            className={`rounded-xl border-2 px-3.5 py-2 text-sm font-black ${viewMode === 'item' ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-200 bg-white text-slate-400'}`}
+          >
+            By item
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'student'}
+            onClick={() => setViewMode('student')}
+            className={`rounded-xl border-2 px-3.5 py-2 text-sm font-black ${viewMode === 'student' ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-200 bg-white text-slate-400'}`}
+          >
+            By student
+          </button>
+        </div>
+
         {error && (
           <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>
         )}
@@ -529,12 +560,17 @@ export function MissingHomeworkLedger() {
             <Loader2 className="animate-spin" />
             Loading records...
           </div>
-        ) : ledger.length === 0 ? (
+        ) : viewMode === 'item' && ledger.length === 0 ? (
           <div className="flex-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
             <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
             <p className="text-lg font-black text-emerald-800">No missing homework</p>
           </div>
-        ) : (
+        ) : viewMode === 'student' && studentColumns.length === 0 ? (
+          <div className="flex-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-16 text-center">
+            <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
+            <p className="text-lg font-black text-emerald-800">No missing homework</p>
+          </div>
+        ) : viewMode === 'item' ? (
           <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain">
             <div className="flex w-max max-w-none items-start gap-2 pb-1">
               {ledger.map((group) => (
@@ -542,6 +578,23 @@ export function MissingHomeworkLedger() {
                   key={group.date}
                   group={group}
                   focused={group.date === focusDate}
+                  pendingKey={pendingKey}
+                  today={getHKTodayString()}
+                  badgeFor={badgeFor}
+                  handbookKeys={handbookKeys}
+                  onToggle={toggleStudent}
+                  onMenu={setMenu}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain">
+            <div className="flex w-max max-w-none items-start gap-2 pb-1">
+              {studentColumns.map((column) => (
+                <StudentViewColumn
+                  key={column.studentId}
+                  column={column}
                   pendingKey={pendingKey}
                   today={getHKTodayString()}
                   badgeFor={badgeFor}
@@ -593,10 +646,10 @@ function MissingTally({
   onMode,
 }: {
   rows: TallyStudent[];
-  mode: 'count' | 'number';
+  mode: 'count' | 'number' | 'name';
   missingTotal: number;
   unclickedTotal: number;
-  onMode: (mode: 'count' | 'number') => void;
+  onMode: (mode: 'count' | 'number' | 'name') => void;
 }) {
   return (
     <aside className="flex h-full max-h-[calc(100dvh-8rem)] w-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden rounded-3xl border border-orange-100 bg-white p-4 shadow-sm xl:max-h-none xl:w-full">
@@ -604,20 +657,27 @@ function MissingTally({
       <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
         The red number is a real missing record. White on red was never clicked. Yellow is Absent or Exempt and is not added to either count. Usernames containing “test” are left out.
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-orange-50 p-1">
+      <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-orange-50 p-1">
         <button
           type="button"
           onClick={() => onMode('count')}
-          className={`rounded-xl px-2 py-2 text-xs font-black ${mode === 'count' ? 'bg-white text-orange-600 shadow-sm' : 'text-orange-400'}`}
+          className={`rounded-xl px-1.5 py-2 text-[11px] font-black ${mode === 'count' ? 'bg-white text-orange-600 shadow-sm' : 'text-orange-400'}`}
         >
-          By missing count
+          By count
         </button>
         <button
           type="button"
           onClick={() => onMode('number')}
-          className={`rounded-xl px-2 py-2 text-xs font-black ${mode === 'number' ? 'bg-white text-orange-600 shadow-sm' : 'text-orange-400'}`}
+          className={`rounded-xl px-1.5 py-2 text-[11px] font-black ${mode === 'number' ? 'bg-white text-orange-600 shadow-sm' : 'text-orange-400'}`}
         >
-          By class number
+          By number
+        </button>
+        <button
+          type="button"
+          onClick={() => onMode('name')}
+          className={`rounded-xl px-1.5 py-2 text-[11px] font-black ${mode === 'name' ? 'bg-white text-orange-600 shadow-sm' : 'text-orange-400'}`}
+        >
+          By name
         </button>
       </div>
       <p className="mt-3 text-xs font-black text-slate-400">
@@ -806,6 +866,208 @@ function HandedInFold({
         />
       </div>
     </details>
+  );
+}
+
+function StudentViewColumn({
+  column,
+  pendingKey,
+  today,
+  badgeFor,
+  handbookKeys,
+  onToggle,
+  onMenu,
+}: {
+  column: ByStudentColumn;
+  pendingKey: string | null;
+  today: string;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
+}) {
+  const title = formatLedgerStudentLabel(column.classNumber, column.name);
+  const doneCount = column.doneDates.reduce((sum, block) => sum + block.rows.length, 0);
+
+  if (column.clear) {
+    return (
+      <details className="w-40 shrink-0 rounded-xl border border-slate-200 bg-slate-50 open:bg-white">
+        <summary className="cursor-pointer list-none px-3 py-3 text-xs font-black text-slate-600 marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex items-center gap-1">
+            <span aria-hidden="true">▸</span>
+            {title}
+          </span>
+        </summary>
+        <div className="border-t border-slate-100 px-2 pb-2 pt-1">
+          {column.doneDates.length === 0 ? (
+            <p className="px-1 py-2 text-[11px] font-semibold text-slate-400">No rows in range</p>
+          ) : (
+            <StudentDateBlocks
+              blocks={column.doneDates}
+              pendingKey={pendingKey}
+              today={today}
+              badgeFor={badgeFor}
+              handbookKeys={handbookKeys}
+              onToggle={onToggle}
+              onMenu={onMenu}
+            />
+          )}
+        </div>
+      </details>
+    );
+  }
+
+  return (
+    <section className="w-52 shrink-0 rounded-xl border border-red-200 bg-white p-2.5">
+      <h3 className="mb-2 border-b border-red-100 pb-1.5 text-xs font-black text-red-700">{title}</h3>
+      <StudentDateBlocks
+        blocks={column.openDates}
+        pendingKey={pendingKey}
+        today={today}
+        badgeFor={badgeFor}
+        handbookKeys={handbookKeys}
+        onToggle={onToggle}
+        onMenu={onMenu}
+      />
+      {doneCount > 0 && (
+        <details className="group mt-2 rounded-md border border-slate-200 bg-white open:bg-slate-50">
+          <summary className="cursor-pointer list-none px-1.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-1">
+              <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">▸</span>
+              Handed in ({doneCount})
+            </span>
+          </summary>
+          <div className="border-t border-slate-100 px-0.5 pb-1 pt-1">
+            <StudentDateBlocks
+              blocks={column.doneDates}
+              pendingKey={pendingKey}
+              today={today}
+              badgeFor={badgeFor}
+              handbookKeys={handbookKeys}
+              onToggle={onToggle}
+              onMenu={onMenu}
+            />
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function StudentDateBlocks({
+  blocks,
+  pendingKey,
+  today,
+  badgeFor,
+  handbookKeys,
+  onToggle,
+  onMenu,
+}: {
+  blocks: ByStudentColumn['openDates'];
+  pendingKey: string | null;
+  today: string;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {blocks.map((block) => (
+        <div key={block.date}>
+          <p className="mb-1 text-[10px] font-black tracking-wide text-rose-800">
+            {formatLedgerDate(block.date)}:
+          </p>
+          <ul className="flex flex-col gap-1">
+            {block.rows.map((row) => (
+              <li key={`${row.date}:${row.subject}:${row.item}:${row.student.logId}`}>
+                <WorkRowChip
+                  row={row}
+                  pendingKey={pendingKey}
+                  today={today}
+                  badgeFor={badgeFor}
+                  handbookKeys={handbookKeys}
+                  onToggle={onToggle}
+                  onMenu={onMenu}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WorkRowChip({
+  row,
+  pendingKey,
+  today,
+  badgeFor,
+  handbookKeys,
+  onToggle,
+  onMenu,
+}: {
+  row: ByStudentWorkRow;
+  pendingKey: string | null;
+  today: string;
+  badgeFor: (student: LedgerStudent, subject: string, item: string, date: string) => HomeworkBadge;
+  handbookKeys: Set<string>;
+  onToggle: (student: LedgerStudent, subject: string, item: string, detail: string, date: string) => void;
+  onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
+}) {
+  const { student, subject, item, detail, date } = row;
+  const mark = student.mark || 'missing';
+  const tone = badgeFor(student, subject, item, date);
+  const key = makeupKey(student.logId, subject, item);
+  const marked = handbookKeys.has(`${student.studentId}|${date}`);
+  const label = handbookName(itemLabel(subject, item, detail), date, today, marked);
+
+  if ((mark === 'absent' || mark === 'exempt') && tone === 'missing') {
+    return (
+      <button
+        type="button"
+        disabled={pendingKey === key}
+        onClick={() => onToggle(student, subject, item, detail, date)}
+        className="inline-flex w-full items-start gap-1 rounded-md border border-yellow-300 bg-yellow-300 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-yellow-950 disabled:opacity-50"
+      >
+        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-700" />
+        <span className="min-w-0 break-words">
+          {label}{' '}
+          <span className="text-[9px] tracking-wide">{mark === 'absent' ? 'ABSENT' : 'EXEMPT'}</span>
+        </span>
+      </button>
+    );
+  }
+  if (mark === 'unclicked' && tone === 'missing') {
+    return (
+      <button
+        type="button"
+        disabled={pendingKey === key}
+        onClick={() => onToggle(student, subject, item, detail, date)}
+        className="inline-flex w-full items-start gap-1 rounded-md border border-red-700 bg-red-600 px-1.5 py-1 text-left text-[11px] font-bold leading-snug text-white disabled:opacity-50"
+      >
+        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
+        <span className="min-w-0 break-words">{label}</span>
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={pendingKey === key}
+      aria-pressed={tone !== 'missing'}
+      onClick={() => onToggle(student, subject, item, detail, date)}
+      onContextMenu={(event) => {
+        if (tone !== 'missing' && !marked) return;
+        event.preventDefault();
+        onMenu({ x: event.clientX, y: event.clientY, student, date });
+      }}
+      className={`inline-flex w-full items-start gap-1 rounded-md border px-1.5 py-1 text-left text-[11px] font-bold leading-snug disabled:opacity-50 ${badgeClass(tone)}`}
+    >
+      <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${dotClass(tone)}`} />
+      <span className="min-w-0 break-words">{label}</span>
+    </button>
   );
 }
 
