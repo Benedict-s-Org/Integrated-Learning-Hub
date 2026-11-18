@@ -505,7 +505,7 @@ export function MissingHomeworkLedger() {
             <p className="text-sm font-medium text-slate-500">
               {viewMode === 'item'
                 ? 'By item: dates are columns — nearest to today on the left. Click any name (red, Not clicked, Absent, or Exempt) to mark handed in. Right-click a red missing name for handbook.'
-                : 'By student: open pupils on the left sorted by name (farther dates on top). Clear pupils are folded on the right. Click a homework row to mark handed in.'}
+                : 'By student: open pupils on the left sorted by class number (farther dates on top). Clear pupils are folded on the right. Click a homework row to mark handed in.'}
             </p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
               <Legend tone="missing" label="Missing" />

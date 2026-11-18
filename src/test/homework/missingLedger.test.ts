@@ -474,14 +474,13 @@ describe('buildByStudentColumns', () => {
       { id: 'roy', name: 'Roy', classNumber: 25 },
     ];
     const cols = buildByStudentColumns(groups, people, '2026-11-17');
-    // Open pupils first by name (Erin), then clear pupils by name (Amy, Roy).
+    // Open pupils first by class number (Erin #12), then clear pupils by class number (Amy #1, Roy #25).
     expect(cols.map((col) => col.studentId)).toEqual(['erin', 'amy', 'roy']);
+    expect(cols.map((col) => col.classNumber)).toEqual([12, 1, 25]);
     expect(cols[0].clear).toBe(false);
-    expect(cols[0].name).toBe('Erin');
     expect(cols[0].openDates.map((block) => block.date)).toEqual(['2026-11-10', '2026-11-16']);
     expect(cols[0].openDates[0].rows.map((row) => row.item)).toEqual(['作文']);
     expect(cols[1].clear).toBe(true);
-    expect(cols[1].name).toBe('Amy');
     expect(cols[1].doneDates[0]?.rows[0]?.item).toBe('作文');
     expect(cols[2].clear).toBe(true);
     expect(cols[2].doneDates).toEqual([]);
