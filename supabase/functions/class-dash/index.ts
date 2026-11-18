@@ -457,13 +457,18 @@ async function handleAction(
       const status = String(payload.p_status || payload.status || "submitted");
       if (!logDate) return json({ error: "action_rejected", message: "date required" }, 400);
 
+      // 交齊 / absent / etc. must clear stale missing_items so Missing Homework hides the day.
+      const missingItems = status === "missing"
+        ? (payload.p_missing_items || payload.missing_items || null)
+        : null;
+
       const { error } = await sb.from("morning_duty_logs").upsert(
         {
           log_date: logDate,
           student_id: studentId,
           class: targetClass,
           status,
-          missing_items: payload.p_missing_items || payload.missing_items || null,
+          missing_items: missingItems,
           notes: `${payload.p_notes || payload.notes || ""} [${sourceMeta}]`.trim(),
           updated_at: new Date().toISOString(),
         },

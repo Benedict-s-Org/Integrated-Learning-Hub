@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attachHandedInClassmates,
+  buildByStudentColumns,
   buildMissingLedger,
   buildMissingTally,
   classifyHomeworkMark,
@@ -19,6 +20,7 @@ import {
   openMissingAnnouncement,
   sortMissingTally,
   submittedKeysWithHandedIn,
+  type LedgerDateGroup,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
 
@@ -168,6 +170,7 @@ describe('missing tally', () => {
     expect(classifyHomeworkMark({ dutyStatus: 'exempted', inMissingItems: false, handedIn: false })).toBe('exempt');
     expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: false, handedIn: true })).toBe('hidden');
     expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: true, handedIn: false })).toBe('hidden');
+    // Makeup click in Missing Homework must hide the row even if duty.missing_items still lists it.
     expect(classifyHomeworkMark({ dutyStatus: 'missing', inMissingItems: true, handedIn: true })).toBe('hidden');
   });
 
@@ -229,6 +232,7 @@ describe('missing tally', () => {
     expect(tally.find((row) => row.name === 'Belle')).toMatchObject({ missing: 0, absent: 1 });
     expect(sortMissingTally(tally, 'count').map((row) => row.name)).toEqual(['Kylie', 'Sophie', 'Erin', 'Belle']);
     expect(sortMissingTally(tally, 'number').map((row) => row.classNumber)).toEqual([4, 10, 12, 19]);
+    expect(sortMissingTally(tally, 'name').map((row) => row.name)).toEqual(['Belle', 'Erin', 'Kylie', 'Sophie']);
 
     const ledger = enrichLedgerWithDutyMarks(
       buildMissingLedger(
@@ -259,6 +263,29 @@ describe('missing tally', () => {
       'Erin:exempt',
     ]));
     expect(names.join('\n')).not.toContain('Test');
+  });
+
+  it('does not inflate an explicit partial 欠 list with English-inferred items', () => {
+    const duties = mergeDutyMissingItems(
+      [
+        {
+          studentId: 'abby',
+          date: '2026-11-18',
+          status: 'missing',
+          missingItems: { 英文: ['Vocab Booklet'] },
+          logId: 'duty-abby',
+        },
+      ],
+      [
+        {
+          studentId: 'abby',
+          date: '2026-11-18',
+          missingItems: { 英文: ['Vocab Booklet', 'Genre Analysis'], 數學: ['作業'] },
+          logId: 'english|abby|2026-11-18',
+        },
+      ],
+    );
+    expect(duties[0]?.missingItems).toEqual({ 英文: ['Vocab Booklet'] });
   });
 
   it('counts the sidebar from the same ledger rows the columns show', () => {
@@ -383,5 +410,80 @@ describe('missing tally', () => {
     expect(buildMissingTallyFromLedger(roster, ledger).find((row) => row.name === 'Belle')).toMatchObject({
       absent: 1,
     });
+  });
+});
+
+describe('buildByStudentColumns', () => {
+  it('puts open students left by class number and clear students right, farther dates on top', () => {
+    const groups: LedgerDateGroup[] = [
+      {
+        date: '2026-11-10',
+        complete: false,
+        items: [{
+          subject: '中文',
+          item: '作文',
+          detail: '',
+          complete: false,
+          students: [
+            {
+              logId: 'a',
+              studentId: 'erin',
+              name: 'Erin',
+              className: '4A',
+              classNumber: 12,
+              submitted: false,
+              mark: 'missing',
+            },
+            {
+              logId: 'b',
+              studentId: 'amy',
+              name: 'Amy',
+              className: '4A',
+              classNumber: 1,
+              submitted: true,
+              mark: 'missing',
+            },
+          ],
+        }],
+      },
+      {
+        date: '2026-11-16',
+        complete: false,
+        items: [{
+          subject: '英文',
+          item: 'WS1',
+          detail: '',
+          complete: false,
+          students: [
+            {
+              logId: 'c',
+              studentId: 'erin',
+              name: 'Erin',
+              className: '4A',
+              classNumber: 12,
+              submitted: false,
+              mark: 'unclicked',
+            },
+          ],
+        }],
+      },
+    ];
+    const people = [
+      { id: 'amy', name: 'Amy', classNumber: 1 },
+      { id: 'erin', name: 'Erin', classNumber: 12 },
+      { id: 'roy', name: 'Roy', classNumber: 25 },
+    ];
+    const cols = buildByStudentColumns(groups, people, '2026-11-17');
+    // Open pupils first by name (Erin), then clear pupils by name (Amy, Roy).
+    expect(cols.map((col) => col.studentId)).toEqual(['erin', 'amy', 'roy']);
+    expect(cols[0].clear).toBe(false);
+    expect(cols[0].name).toBe('Erin');
+    expect(cols[0].openDates.map((block) => block.date)).toEqual(['2026-11-10', '2026-11-16']);
+    expect(cols[0].openDates[0].rows.map((row) => row.item)).toEqual(['作文']);
+    expect(cols[1].clear).toBe(true);
+    expect(cols[1].name).toBe('Amy');
+    expect(cols[1].doneDates[0]?.rows[0]?.item).toBe('作文');
+    expect(cols[2].clear).toBe(true);
+    expect(cols[2].doneDates).toEqual([]);
   });
 });

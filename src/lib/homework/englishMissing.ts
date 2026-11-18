@@ -103,14 +103,31 @@ type SavedCheck = {
   detail: string | null;
   needs_correction: boolean;
   is_complete: boolean;
+  is_late?: boolean | null;
 };
 
-/** 交齊功課: this student handed in every item on that day's homework list. */
-export async function markListedHomeworkHandedIn(args: {
+type ListedHandedInArgs = {
   className: string;
   date: string;
   studentId: string;
-}): Promise<void> {
+  /** When set, only these subject→item rows are updated (partial 欠). */
+  items?: Record<string, string[]> | null;
+};
+
+type SetHandedInOptions = {
+  /** Keep existing late flags when marking handed-in (used by partial 欠 sync). */
+  preserveLate?: boolean;
+};
+
+/**
+ * Set handed-in ticks for that day's homework list (or a subset).
+ * 交齊 → true for all listed. Partial 欠 → false only for selected items.
+ */
+export async function setListedHomeworkHandedIn(
+  args: ListedHandedInArgs,
+  handedIn: boolean,
+  options: SetHandedInOptions = {},
+): Promise<void> {
   const className = args.className.trim();
   if (!className || className === 'all' || !args.studentId || !args.date) return;
 
@@ -122,7 +139,7 @@ export async function markListedHomeworkHandedIn(args: {
       .eq('date', args.date),
     homeworkDb
       .from('english_homework_checks')
-      .select('subject, item_name, detail, needs_correction, is_complete')
+      .select('subject, item_name, detail, needs_correction, is_complete, is_late')
       .eq('class_name', className)
       .eq('record_date', args.date)
       .eq('student_id', args.studentId),
@@ -131,7 +148,28 @@ export async function markListedHomeworkHandedIn(args: {
   if (checksRes.error) throw new Error(checksRes.error.message);
 
   const homeworkRows = (Array.isArray(homeworkRes.data) ? homeworkRes.data : []) as { assignments: unknown }[];
-  const targets = listHomeworkTargets(homeworkRows[0]?.assignments);
+  let targets = listHomeworkTargets(homeworkRows[0]?.assignments);
+
+  const onlyItems = args.items;
+  if (onlyItems) {
+    const wanted = new Set<string>();
+    for (const [subject, names] of Object.entries(onlyItems)) {
+      if (!Array.isArray(names)) continue;
+      for (const name of names) {
+        const trimmed = String(name || '').trim();
+        if (trimmed) wanted.add(`${subject.trim()}\0${trimmed}`);
+      }
+    }
+    if (wanted.size === 0) return;
+    targets = targets.filter((target) => wanted.has(`${target.subject}\0${target.name}`));
+    // Also include selected items that are not on today's list (still need the tick cleared).
+    for (const key of wanted) {
+      const [subject, name] = key.split('\0');
+      if (!targets.some((target) => target.subject === subject && target.name === name)) {
+        targets.push({ subject, name, detail: '' });
+      }
+    }
+  }
   if (targets.length === 0) return;
 
   const saved = (Array.isArray(checksRes.data) ? checksRes.data : []) as SavedCheck[];
@@ -148,12 +186,37 @@ export async function markListedHomeworkHandedIn(args: {
       p_item: target.name,
       p_detail: target.detail,
       p_student_id: args.studentId,
-      p_handed_in: true,
-      p_needs_correction: prior?.needs_correction ?? false,
-      p_is_complete: prior?.is_complete ?? false,
-      p_is_late: false,
+      p_handed_in: handedIn,
+      p_needs_correction: handedIn ? (prior?.needs_correction ?? false) : false,
+      p_is_complete: handedIn ? (prior?.is_complete ?? false) : false,
+      // 交齊 resets late; partial-欠 sync must not erase earlier 遲交 marks on other items.
+      p_is_late: handedIn && options.preserveLate ? Boolean(prior?.is_late) : false,
     });
   }));
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
+}
+
+/** 交齊功課: this student handed in every item on that day's homework list. */
+export async function markListedHomeworkHandedIn(args: ListedHandedInArgs): Promise<void> {
+  await setListedHomeworkHandedIn({ ...args, items: undefined }, true);
+}
+
+/**
+ * Partial 欠 after 交齊: clear handed-in only for the selected missing items.
+ * General 欠 (no item list) does not wipe other makeup ticks.
+ */
+export async function clearListedHomeworkHandedIn(args: ListedHandedInArgs): Promise<void> {
+  if (!args.items || Object.keys(args.items).length === 0) return;
+  await setListedHomeworkHandedIn(args, false);
+}
+
+/**
+ * Partial 欠: tick every listed item handed-in, then untick only the selected 欠 items.
+ * Result: 欠一份 → that one Missing; every other listed item = Handed in (keeps 遲交 flags).
+ */
+export async function syncPartialMissingHomeworkTicks(args: ListedHandedInArgs): Promise<void> {
+  if (!args.items || Object.keys(args.items).length === 0) return;
+  await setListedHomeworkHandedIn({ ...args, items: undefined }, true, { preserveLate: true });
+  await clearListedHomeworkHandedIn(args);
 }

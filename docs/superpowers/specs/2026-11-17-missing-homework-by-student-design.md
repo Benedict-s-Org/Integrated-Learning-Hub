@@ -1,7 +1,7 @@
 # Missing Homework — By Student View
 
 **Date:** 2026-11-17  
-**Status:** Approved for preview; implementation after spec review  
+**Status:** Implemented (By item / By student toggle on Missing Homework)  
 **Scope:** Homework Management → Missing Homework tab only
 
 ## Problem
@@ -22,10 +22,10 @@ Same data sources as today’s ledger (morning duties, English checks, daily hom
 ### Column order (left → right)
 
 1. **Open students** (still have at least one Missing / Not clicked / Absent / Exempt row)  
-   - Sorted by **class number ascending** (small → large)  
+   - Sorted by **student name** (A→Z), then class number  
    - Columns **expanded** by default
 2. **Clear students** (no open rows left — fully handed in for the visible set)  
-   - Sorted by **class number ascending**  
+   - Sorted by **student name** (A→Z), then class number  
    - Columns **fully collapsed** by default (one fold strip each, e.g. `▸ 12 Erin`)
 
 Horizontal scroll applies only to the student-column strip; scrollbar stays in the visible pane (same containment rules as the current Missing layout). Missing tally can remain on the right.

@@ -26,7 +26,7 @@ import { AvatarCustomizationModal } from '@/components/avatar/AvatarCustomizatio
 import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDashboard';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { parseSubjectAssignments, saveAssignments, toNameMap, toNameMapsByClass, type SubjectAssignmentMap } from '@/lib/homework/assignments';
-import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
+import { markListedHomeworkHandedIn, syncPartialMissingHomeworkTicks } from '@/lib/homework/englishMissing';
 import { fetchManagedClassIds, filterToManagedClasses, resolveManagedClassIds } from '@/lib/staff/managedClasses';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
@@ -1133,15 +1133,23 @@ export function ClassDashboardPage() {
                     p_event_type: 'status_change'
                 });
                 if (error) throw error;
-                if (mdStatus === 'submitted' && !isGuest) {
-                    const studentClass = Object.values(groupedUsers).flat().find((user) => user.id === studentId)?.class || '';
-                    try {
+                const studentClass = Object.values(groupedUsers).flat().find((user) => user.id === studentId)?.class || '';
+                try {
+                    if (mdStatus === 'submitted') {
                         await markListedHomeworkHandedIn({ className: studentClass, date: today, studentId });
-                    } catch (markErr: unknown) {
-                        console.error('Failed to mark listed homework handed in', markErr);
-                        const message = markErr instanceof Error ? markErr.message : 'Unknown error';
-                        alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+                    } else if (mdStatus === 'missing' && items && Object.keys(items).length > 0) {
+                        // 欠 selected items only; other listed homework = handed in.
+                        await syncPartialMissingHomeworkTicks({
+                          className: studentClass,
+                          date: today,
+                          studentId,
+                          items,
+                        });
                     }
+                } catch (markErr: unknown) {
+                    console.error('Failed to sync listed homework handed-in ticks', markErr);
+                    const message = markErr instanceof Error ? markErr.message : 'Unknown error';
+                    alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
                 }
             } else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) {
                 // Standard coin award

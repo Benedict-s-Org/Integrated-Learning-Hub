@@ -368,11 +368,12 @@ export function MorningDutiesPage() {
                         studentId: student.id,
                     });
                 } catch (markErr: unknown) {
-                    console.error('Failed to mark listed homework handed in', markErr);
+                    console.error('Failed to sync listed homework handed-in ticks', markErr);
                     const message = markErr instanceof Error ? markErr.message : 'Unknown error';
-                    alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+                    alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
                 }
             }
+            // Student self-click 欠 has no item list — do not wipe other makeup ticks.
 
             playSuccessSound();
             setSelectedStudentForClick(null);

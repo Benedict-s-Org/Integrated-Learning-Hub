@@ -388,7 +388,7 @@ export function classifyHomeworkMark(input: {
   const status = (input.dutyStatus || '').trim().toLowerCase();
   if (status === 'absent') return 'absent';
   if (status === 'exempted' || status === 'exempt') return 'exempt';
-  // 交齊功課 / Handed in must win over stale or synthetic missing-item rows.
+  // Makeup / 交齊 ticks must win: teacher can clear a row in Missing even while duty still says 欠.
   if (input.handedIn || status === 'submitted' || status === 'late') return 'hidden';
   if (input.inMissingItems) return 'missing';
   if (!status || status === 'todo') return 'unclicked';
@@ -466,7 +466,17 @@ export function mergeDutyMissingItems(
       });
       continue;
     }
-    const merged = { ...(existing.missingItems || {}) };
+    const status = (existing.status || '').trim().toLowerCase();
+    // 交齊 / late: never attach inferred English missing onto a cleared day.
+    if (status === 'submitted' || status === 'late') continue;
+    // Teacher already picked specific 欠 items — do not inflate to every classmate-inferred item.
+    const explicit = existing.missingItems || {};
+    const hasExplicitItems = Object.values(explicit).some(
+      (items) => Array.isArray(items) && items.some((item) => String(item || '').trim()),
+    );
+    if (status === 'missing' && hasExplicitItems) continue;
+
+    const merged = { ...explicit };
     for (const [subject, items] of Object.entries(incoming)) {
       if (!Array.isArray(items)) continue;
       const bucket = new Set((merged[subject] || []).map((item) => item.trim()).filter(Boolean));
@@ -656,10 +666,14 @@ export function buildMissingTallyFromLedger(
   return [...rows.values()];
 }
 
-export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number'): TallyStudent[] {
+export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number' | 'name'): TallyStudent[] {
   const copy = [...rows];
   if (mode === 'number') {
     copy.sort((a, b) => a.classNumber - b.classNumber || a.name.localeCompare(b.name));
+    return copy;
+  }
+  if (mode === 'name') {
+    copy.sort((a, b) => a.name.localeCompare(b.name) || a.classNumber - b.classNumber);
     return copy;
   }
   copy.sort((a, b) => (
@@ -675,6 +689,128 @@ export function sortMissingTally(rows: TallyStudent[], mode: 'count' | 'number')
  * Layer morning-duty marks onto ledger columns so Absent / Exempt / Not clicked
  * show in the date columns, not only in the tally.
  */
+export type ByStudentWorkRow = {
+  date: string;
+  subject: string;
+  item: string;
+  detail: string;
+  student: LedgerStudent;
+};
+
+export type ByStudentDateBlock = {
+  date: string;
+  rows: ByStudentWorkRow[];
+};
+
+export type ByStudentColumn = {
+  studentId: string;
+  name: string;
+  classNumber: number;
+  clear: boolean;
+  openDates: ByStudentDateBlock[];
+  doneDates: ByStudentDateBlock[];
+};
+
+/** Open block: Missing / Not clicked / Absent / Exempt that are not yet handed in. */
+export function isByStudentOpenRow(student: LedgerStudent): boolean {
+  const mark = student.mark || 'missing';
+  if (mark === 'unclicked') return true;
+  if (mark === 'absent' || mark === 'exempt' || mark === 'missing') return !student.submitted;
+  return false;
+}
+
+function sortDateBlocksFarFirst(blocks: ByStudentDateBlock[], todayIso: string): ByStudentDateBlock[] {
+  return [...blocks].sort((a, b) => {
+    const distanceDiff = dayDistance(b.date, todayIso) - dayDistance(a.date, todayIso);
+    if (distanceDiff !== 0) return distanceDiff;
+    return a.date.localeCompare(b.date);
+  });
+}
+
+/**
+ * Pivot enriched ledger columns into per-student columns:
+ * open pupils left (class number ascending), fully clear pupils right.
+ */
+export function buildByStudentColumns(
+  groups: LedgerDateGroup[],
+  roster: Array<{ id: string; name: string; classNumber: number }>,
+  todayIso: string = getHKTodayString(),
+  isOpenRow: (student: LedgerStudent) => boolean = isByStudentOpenRow,
+): ByStudentColumn[] {
+  type Acc = {
+    studentId: string;
+    name: string;
+    classNumber: number;
+    openByDate: Map<string, ByStudentWorkRow[]>;
+    doneByDate: Map<string, ByStudentWorkRow[]>;
+  };
+  const byStudent = new Map<string, Acc>();
+
+  const ensure = (studentId: string, name: string, classNumber: number): Acc => {
+    const existing = byStudent.get(studentId);
+    if (existing) return existing;
+    const next: Acc = {
+      studentId,
+      name,
+      classNumber: Number.isFinite(classNumber) ? classNumber : 0,
+      openByDate: new Map(),
+      doneByDate: new Map(),
+    };
+    byStudent.set(studentId, next);
+    return next;
+  };
+
+  for (const person of roster) {
+    ensure(person.id, person.name || 'Unknown', person.classNumber);
+  }
+
+  for (const group of groups) {
+    for (const item of group.items) {
+      for (const student of item.students) {
+        const acc = ensure(student.studentId, student.name, student.classNumber);
+        const row: ByStudentWorkRow = {
+          date: group.date,
+          subject: item.subject,
+          item: item.item,
+          detail: item.detail,
+          student,
+        };
+        const bucket = isOpenRow(student) ? acc.openByDate : acc.doneByDate;
+        const list = bucket.get(group.date) || [];
+        list.push(row);
+        bucket.set(group.date, list);
+      }
+    }
+  }
+
+  const toBlocks = (map: Map<string, ByStudentWorkRow[]>): ByStudentDateBlock[] => (
+    sortDateBlocksFarFirst(
+      [...map.entries()].map(([date, rows]) => ({ date, rows })),
+      todayIso,
+    )
+  );
+
+  const columns: ByStudentColumn[] = [...byStudent.values()].map((acc) => {
+    const openDates = toBlocks(acc.openByDate);
+    const doneDates = toBlocks(acc.doneByDate);
+    return {
+      studentId: acc.studentId,
+      name: acc.name,
+      classNumber: acc.classNumber,
+      clear: openDates.length === 0,
+      openDates,
+      doneDates,
+    };
+  });
+
+  const byStudentName = (a: ByStudentColumn, b: ByStudentColumn) => (
+    a.name.localeCompare(b.name) || a.classNumber - b.classNumber
+  );
+  const open = columns.filter((col) => !col.clear).sort(byStudentName);
+  const clear = columns.filter((col) => col.clear).sort(byStudentName);
+  return [...open, ...clear];
+}
+
 export function enrichLedgerWithDutyMarks(
   groups: LedgerDateGroup[],
   appearances: HomeworkAppearance[],

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { runClassDashAction } from '@/services/classDashLinkService';
-import { markListedHomeworkHandedIn } from '@/lib/homework/englishMissing';
+import { markListedHomeworkHandedIn, syncPartialMissingHomeworkTicks } from '@/lib/homework/englishMissing';
 
 interface UserWithCoins {
     id: string;
@@ -218,7 +218,8 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                     p_date: today,
                     student_id: selectedStudent!.id,
                     p_status: status,
-                    p_missing_items: items || null,
+                    // Explicit null on 交齊 / absent so guest upsert does not keep stale missing_items.
+                    p_missing_items: status === 'missing' ? (items || null) : null,
                 });
             } else {
                 const { error } = await supabase.rpc('upsert_morning_duty_log', {
@@ -230,18 +231,27 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                     p_event_type: 'status_change'
                 });
                 if (error) throw error;
-                if (status === 'submitted' && selectedStudent) {
-                    try {
+            }
+            if (selectedStudent && (status === 'submitted' || (status === 'missing' && items && Object.keys(items).length > 0))) {
+                try {
+                    if (status === 'submitted') {
                         await markListedHomeworkHandedIn({
                             className: activeClass,
                             date: today,
                             studentId: selectedStudent.id,
                         });
-                    } catch (markErr: unknown) {
-                        console.error('Failed to mark listed homework handed in', markErr);
-                        const message = markErr instanceof Error ? markErr.message : 'Unknown error';
-                        alert(`The homework status was saved, but the handed-in ticks could not be updated: ${message}`);
+                    } else {
+                        await syncPartialMissingHomeworkTicks({
+                            className: activeClass,
+                            date: today,
+                            studentId: selectedStudent.id,
+                            items: items || null,
+                        });
                     }
+                } catch (markErr: unknown) {
+                    console.error('Failed to sync listed homework handed-in ticks', markErr);
+                    const message = markErr instanceof Error ? markErr.message : 'Unknown error';
+                    alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
                 }
             }
             await fetchLogs();
