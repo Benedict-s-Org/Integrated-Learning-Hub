@@ -45,23 +45,30 @@ const containsChineseChars = (text: string): boolean => {
   return Array.from(text).some(char => isChineseChar(char));
 };
 
+/** English word including internal hyphens (e.g. Mid-Autumn, mother-in-law). */
 const isEnglishWord = (text: string): boolean => {
-  return /^[A-Za-z]+$/.test(text);
+  return /^[A-Za-z]+(?:-[A-Za-z]+)*$/.test(text);
 };
 
 /** English letters that the difficulty level covers. The box font draws these letters as boxes. */
 const isEnglishLetterCovered = (word: string, index: number, level: DifficultyLevel): boolean => {
   if (!isEnglishWord(word)) return false;
-  if (word.length <= 2 || level === 3) return true;
+  // Keep hyphens visible — only cover A–Z letters
+  if (!/[A-Za-z]/.test(word[index])) return false;
+  const letterCount = word.replace(/-/g, '').length;
+  if (letterCount <= 2 || level === 3) return true;
   if (level === 2) return index > 0;
   return index > 0 && index < word.length - 1;
 };
 
 const coveredWordAriaLabel = (word: string, level: DifficultyLevel): string | undefined => {
   if (isEnglishWord(word)) {
-    const covered = Array.from(word).map((_, index) => isEnglishLetterCovered(word, index, level));
-    if (!covered.some(Boolean)) return undefined;
-    if (covered.every(Boolean)) return 'Hidden word';
+    const letterIndexes = Array.from(word)
+      .map((char, index) => (/[A-Za-z]/.test(char) ? index : -1))
+      .filter((index) => index >= 0);
+    const coveredLetters = letterIndexes.map((index) => isEnglishLetterCovered(word, index, level));
+    if (!coveredLetters.some(Boolean)) return undefined;
+    if (coveredLetters.every(Boolean)) return 'Hidden word';
     if (level === 2) return `Hidden word starting with ${word[0]}`;
     return `Hidden word starting with ${word[0]} and ending with ${word[word.length - 1]}`;
   }
