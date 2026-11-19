@@ -8,14 +8,29 @@ interface SpellingInputProps {
   onNext: (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => void;
   onBack?: () => void;
   onViewSaved?: () => void;
+  initialTitle?: string;
+  initialWords?: string[];
+  initialIsPhraseMode?: boolean;
+  initialWordLimit?: number;
 }
 
-const SpellingInput: React.FC<SpellingInputProps> = ({ onNext, onBack, onViewSaved }) => {
+const SpellingInput: React.FC<SpellingInputProps> = ({
+  onNext,
+  onBack,
+  onViewSaved,
+  initialTitle = '',
+  initialWords,
+  initialIsPhraseMode = false,
+  initialWordLimit = 20,
+}) => {
   const { user } = useAuth();
-  const [title, setTitle] = useState('');
-  const [wordsInput, setWordsInput] = useState('');
-  const [isPhraseMode, setIsPhraseMode] = useState(false);
-  const [wordLimit, setWordLimit] = useState<number>(20);
+  const [title, setTitle] = useState(initialTitle);
+  const [isPhraseMode, setIsPhraseMode] = useState(initialIsPhraseMode);
+  const [wordsInput, setWordsInput] = useState(() => {
+    if (!initialWords?.length) return '';
+    return initialIsPhraseMode ? initialWords.join('\n') : initialWords.join(' ');
+  });
+  const [wordLimit, setWordLimit] = useState<number>(initialWordLimit);
   const [error, setError] = useState('');
 
   const keptWords = useMemo(() => {
