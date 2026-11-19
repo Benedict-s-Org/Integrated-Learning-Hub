@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { assertWordAudioAligned, isCompleteWordAudio, type SpellingWordAudio } from '../../utils/spellingWordAudio';
+import {
+  assertWordAudioAligned,
+  isCompleteWordAudio,
+  rematchWordAudioByWord,
+  type SpellingWordAudio,
+} from '../../utils/spellingWordAudio';
 
-const entry = (word: string): SpellingWordAudio => ({
+const entry = (word: string, overrides: Partial<SpellingWordAudio> = {}): SpellingWordAudio => ({
   word,
   drive_file_id: `id-${word}`,
   accent: 'en-GB',
   voice_name: 'en-GB-Neural2-B',
+  ...overrides,
 });
 
 describe('isCompleteWordAudio', () => {
@@ -32,5 +38,41 @@ describe('assertWordAudioAligned', () => {
 
   it('accepts aligned complete bindings', () => {
     expect(assertWordAudioAligned(['Cat'], [entry('Cat')]).ok).toBe(true);
+  });
+});
+
+describe('rematchWordAudioByWord', () => {
+  it('keeps confirmations for words that remain after deletes', () => {
+    const previous = [entry('cat'), entry('dog'), entry('bird')];
+    expect(rematchWordAudioByWord(['cat', 'bird'], previous)).toEqual({
+      0: entry('cat'),
+      1: entry('bird'),
+    });
+  });
+
+  it('drops bindings that no longer match the current voice', () => {
+    const previous = [
+      entry('cat'),
+      entry('dog', { accent: 'en-US', voice_name: 'en-US-Neural2-A' }),
+    ];
+    expect(
+      rematchWordAudioByWord(['cat', 'dog'], previous, {
+        accent: 'en-GB',
+        voiceName: 'en-GB-Neural2-B',
+      })
+    ).toEqual({
+      0: entry('cat'),
+    });
+  });
+
+  it('consumes duplicate word bindings in order', () => {
+    const previous = [
+      entry('run', { drive_file_id: 'first' }),
+      entry('run', { drive_file_id: 'second' }),
+    ];
+    expect(rematchWordAudioByWord(['run', 'run'], previous)).toEqual({
+      0: entry('run', { drive_file_id: 'first' }),
+      1: entry('run', { drive_file_id: 'second' }),
+    });
   });
 });

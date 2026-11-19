@@ -310,4 +310,85 @@ describe('SpellingPreview word audio confirmation', () => {
       pause.mockRestore();
     }
   });
+
+  it('stops in-flight audio when Back to Edit is pressed and keeps confirmations', async () => {
+    const user = userEvent.setup();
+    const onBack = vi.fn();
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+
+    try {
+      render(
+        <SpellingPreview
+          title="Week 1"
+          words={['cat', 'dog']}
+          onNext={() => {}}
+          onBack={onBack}
+        />
+      );
+
+      await user.click(await screen.findByRole('button', { name: /play all/i }));
+      await waitFor(
+        () => {
+          expect(screen.getByText('Audio confirmed 2/2')).toBeInTheDocument();
+        },
+        { timeout: 4000 }
+      );
+
+      vi.mocked(playAudioUrl).mockImplementation(
+        () => new Promise<HTMLAudioElement>(() => {})
+      );
+      await user.click(screen.getByRole('button', { name: /play all/i }));
+      await waitFor(() => {
+        expect(playAudioUrl).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByRole('button', { name: /back to edit/i }));
+
+      expect(pause).toHaveBeenCalled();
+      const playing = vi.mocked(playAudioUrl).mock.calls.at(-1)?.[1];
+      expect(playing).toBeInstanceOf(HTMLMediaElement);
+      expect(pause.mock.instances).toContain(playing);
+      expect(onBack).toHaveBeenCalledWith([
+        expect.objectContaining({ word: 'cat', drive_file_id: 'drive-cat' }),
+        expect.objectContaining({ word: 'dog', drive_file_id: 'drive-dog' }),
+      ]);
+    } finally {
+      pause.mockRestore();
+    }
+  });
+
+  it('keeps rematched confirmations from initialWordAudio after an edit', async () => {
+    render(
+      <SpellingPreview
+        title="Week 1"
+        words={['cat', 'bird']}
+        onNext={() => {}}
+        onBack={() => {}}
+        initialWordAudio={[
+          {
+            word: 'cat',
+            drive_file_id: 'drive-cat',
+            accent: 'en-GB',
+            voice_name: PREMIUM_VOICE,
+          },
+          {
+            word: 'dog',
+            drive_file_id: 'drive-dog',
+            accent: 'en-GB',
+            voice_name: PREMIUM_VOICE,
+          },
+          {
+            word: 'bird',
+            drive_file_id: 'drive-bird',
+            accent: 'en-GB',
+            voice_name: PREMIUM_VOICE,
+          },
+        ]}
+      />
+    );
+
+    expect(await screen.findByText('Audio confirmed 2/2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save practice/i })).toBeEnabled();
+    expect(fetchCloudAudioRich).not.toHaveBeenCalled();
+  });
 });

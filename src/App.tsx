@@ -81,7 +81,7 @@ type AppState =
   | { page: 'proofreading'; step: 'saved' }
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
-  | { page: 'spelling'; step: 'input' }
+  | { page: 'spelling'; step: 'input'; title?: string; words?: string[]; isPhraseMode?: boolean; wordLimit?: number; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; wordLimit?: number; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number; wordLimit?: number; isSRSReview?: boolean; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'saved' }
@@ -769,7 +769,21 @@ function AppContent() {
   };
 
   const handleSpellingWordsSubmit = (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => {
-    setAppState({ page: 'spelling', step: 'preview', title, words, isPhraseMode, wordLimit });
+    const previousAudio =
+      appState.page === 'spelling' &&
+      (appState.step === 'input' || appState.step === 'preview' || appState.step === 'practice') &&
+      Array.isArray(appState.wordAudio)
+        ? appState.wordAudio
+        : undefined;
+    setAppState({
+      page: 'spelling',
+      step: 'preview',
+      title,
+      words,
+      isPhraseMode,
+      wordLimit,
+      ...(previousAudio ? { wordAudio: previousAudio } : {}),
+    });
   };
 
   const handleViewSavedSpelling = () => {
@@ -791,7 +805,19 @@ function AppContent() {
     }
   };
 
-  const handleBackToSpellingInput = () => {
+  const handleBackToSpellingInput = (wordAudio?: SpellingWordAudio[]) => {
+    if (appState.page === 'spelling' && appState.step === 'preview') {
+      setAppState({
+        page: 'spelling',
+        step: 'input',
+        title: appState.title,
+        words: appState.words,
+        isPhraseMode: appState.isPhraseMode,
+        wordLimit: appState.wordLimit,
+        wordAudio: wordAudio ?? appState.wordAudio,
+      });
+      return;
+    }
     setAppState({ page: 'spelling', step: 'input' });
   };
 
@@ -829,7 +855,16 @@ function AppContent() {
     if (appState.page === 'spelling' && appState.step === 'practice') {
       // Students go back to saved practices list, admins go to preview
       if (isAdmin) {
-        setAppState({ page: 'spelling', step: 'preview', title: appState.title, words: appState.words, wordLimit: (appState as any).wordLimit });
+        setAppState({
+          page: 'spelling',
+          step: 'preview',
+          title: appState.title,
+          words: appState.words,
+          isPhraseMode: appState.isPhraseMode,
+          wordLimit: appState.wordLimit,
+          wordAudio: appState.wordAudio,
+          practiceId: appState.practiceId,
+        });
       } else {
         setAppState({ page: 'spelling', step: 'saved' });
       }
@@ -1082,6 +1117,10 @@ function AppContent() {
                     <SpellingInput
                       onNext={handleSpellingWordsSubmit}
                       onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
+                      initialTitle={appState.title}
+                      initialWords={appState.words}
+                      initialIsPhraseMode={appState.isPhraseMode}
+                      initialWordLimit={appState.wordLimit}
                     />
                   );
                 case 'preview':
@@ -1095,6 +1134,7 @@ function AppContent() {
                       onSave={isAdmin ? handleViewSavedSpelling : undefined}
                       onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
                       wordLimit={(appState as any).wordLimit}
+                      initialWordAudio={appState.wordAudio}
                     />
                   );
                 case 'practice':

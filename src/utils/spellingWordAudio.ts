@@ -39,3 +39,40 @@ export function isCompleteWordAudio(
   if (!wordAudio) return false;
   return assertWordAudioAligned(words, wordAudio).ok;
 }
+
+/**
+ * Reattach previously confirmed Drive bindings to a new word list by exact word
+ * text (FIFO for duplicates). Optional accent/voice filters drop stale voices.
+ */
+export function rematchWordAudioByWord(
+  words: string[],
+  previous: SpellingWordAudio[] | null | undefined,
+  opts?: { accent?: string; voiceName?: string }
+): Record<number, SpellingWordAudio> {
+  const pool = (previous ?? []).filter((entry) => {
+    if (!entry?.word || !entry.drive_file_id?.trim()) return false;
+    if (opts?.accent && entry.accent !== opts.accent) return false;
+    if (opts?.voiceName && entry.voice_name !== opts.voiceName) return false;
+    return true;
+  });
+
+  const matched: Record<number, SpellingWordAudio> = {};
+  words.forEach((word, index) => {
+    const poolIndex = pool.findIndex((entry) => entry.word === word);
+    if (poolIndex < 0) return;
+    matched[index] = { ...pool[poolIndex], word };
+    pool.splice(poolIndex, 1);
+  });
+  return matched;
+}
+
+export function confirmedAudioList(
+  confirmed: Record<number, SpellingWordAudio>
+): SpellingWordAudio[] {
+  return Object.keys(confirmed)
+    .map((key) => Number(key))
+    .filter((index) => Number.isInteger(index) && index >= 0)
+    .sort((a, b) => a - b)
+    .map((index) => confirmed[index])
+    .filter((entry): entry is SpellingWordAudio => !!entry);
+}

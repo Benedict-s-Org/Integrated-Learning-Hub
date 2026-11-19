@@ -5,21 +5,37 @@ import AccentSelector from '../AccentSelector/AccentSelector';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 import { findBestVoiceMatch, createUtterance, fetchCloudAudioRich, isGoogleCloudVoiceId, resolveAudioUrl } from '../../utils/voiceManager';
 import { unlockAudioSync, playAudioUrl } from '../../utils/audioPlayback';
-import { isCompleteWordAudio, type SpellingWordAudio } from '../../utils/spellingWordAudio';
+import {
+  confirmedAudioList,
+  isCompleteWordAudio,
+  rematchWordAudioByWord,
+  type SpellingWordAudio,
+} from '../../utils/spellingWordAudio';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPreviewProps {
   title: string;
   words: string[];
   onNext: (wordAudio?: SpellingWordAudio[]) => void;
-  onBack: () => void;
+  onBack: (wordAudio?: SpellingWordAudio[]) => void;
   isPhraseMode?: boolean;
   onSave?: () => void;
   onViewSaved?: () => void;
   wordLimit?: number;
+  initialWordAudio?: SpellingWordAudio[];
 }
 
-const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext, onBack, isPhraseMode, onSave, onViewSaved, wordLimit }) => {
+const SpellingPreview: React.FC<SpellingPreviewProps> = ({
+  title,
+  words,
+  onNext,
+  onBack,
+  isPhraseMode,
+  onSave,
+  onViewSaved,
+  wordLimit,
+  initialWordAudio,
+}) => {
   const { accentPreference, voicePreference, updateVoicePreference, user, session, isAdmin } = useAuth();
   const [currentVoice, setCurrentVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [currentAccent, setCurrentAccent] = useState(accentPreference);
@@ -30,7 +46,12 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [confirmedAudio, setConfirmedAudio] = useState<Record<number, SpellingWordAudio>>({});
+  const [confirmedAudio, setConfirmedAudio] = useState<Record<number, SpellingWordAudio>>(() =>
+    rematchWordAudioByWord(words, initialWordAudio, {
+      accent: accentPreference,
+      voiceName: voicePreference?.voiceURI,
+    })
+  );
 
   // Use refs to track playing state for the async loops to avoid closure issues
   const isPlayingRef = useRef(false);
@@ -45,6 +66,31 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     }
 
     loadVoice();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      playbackGenerationRef.current += 1;
+      isPlayingRef.current = false;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      utteranceRef.current = null;
+      const audio = currentAudioRef.current;
+      currentAudioRef.current = null;
+      if (audio) {
+        try {
+          audio.pause();
+        } catch {
+          /* ignore */
+        }
+        try {
+          audio.dispatchEvent(new Event('ended'));
+        } catch {
+          /* ignore */
+        }
+      }
+    };
   }, []);
 
   const loadVoice = async () => {
@@ -309,6 +355,11 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     stopInFlightPlayback();
   };
 
+  const handleBackToEdit = () => {
+    stopInFlightPlayback();
+    onBack(confirmedAudioList(confirmedAudio));
+  };
+
   const wordAudioPayload = words.map((_, i) => confirmedAudio[i]);
   const canSave =
     wordAudioPayload.every((e): e is SpellingWordAudio => !!e) &&
@@ -386,7 +437,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
               Your browser doesn't support text-to-speech functionality. Please use a modern browser like Chrome, Safari, or Edge.
             </p>
             <button
-              onClick={onBack}
+              onClick={handleBackToEdit}
               className="flex items-center space-x-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
             >
               <ArrowLeft size={20} />
@@ -402,7 +453,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
     <>
       {onViewSaved && (
         <SpellingTopNav
-          onCreateNew={onBack}
+          onCreateNew={handleBackToEdit}
           onViewSaved={onViewSaved}
           currentView="create"
         />
@@ -537,7 +588,7 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({ title, words, onNext,
 
             <div className="flex justify-between items-center">
               <button
-                onClick={onBack}
+                onClick={handleBackToEdit}
                 className="flex items-center space-x-2 px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
                 <ArrowLeft size={20} />
