@@ -61,7 +61,7 @@ vi.mock('../../lib/supabase', () => ({
 describe('MemorizationView hyphenated words', () => {
   const noop = () => {};
 
-  it('masks hyphenated English words instead of leaving them fully visible', async () => {
+  it('masks hyphenated English words through progressive cover and hint stages', async () => {
     const user = userEvent.setup();
     const originalText = 'The Mid-Autumn Festival';
     const words = processText(originalText);
@@ -82,24 +82,33 @@ describe('MemorizationView hyphenated words', () => {
 
     await user.click(screen.getByRole('button', { name: /Cover all Words/i }));
 
-    const button = screen.getByRole('button', {
-      name: /Hidden word starting with M and ending with n/i,
-    });
-    expect(button).toBeTruthy();
-
-    // Level 1: first and last letters stay normal; middle letters use the box font.
-    // The hyphen must remain a visible character, not a covered letter box.
-    const letterSpans = Array.from(button.querySelectorAll('span'));
-    const boxedSpans = letterSpans.filter(
+    // Fully covered: all letters boxed; hyphen stays plain
+    let button = screen.getByRole('button', { name: 'Hidden word' });
+    let letterSpans = Array.from(button.querySelectorAll('span'));
+    let boxedSpans = letterSpans.filter(
       (el) => (el as HTMLElement).style.fontFamily.includes('Boxes')
     );
-    const plainSpans = letterSpans.filter(
+    let plainSpans = letterSpans.filter(
       (el) => !(el as HTMLElement).style.fontFamily.includes('Boxes')
     );
+    expect(boxedSpans.map((el) => el.textContent).join('')).toBe('MidAutumn');
+    expect(plainSpans.map((el) => el.textContent).join('')).toBe('-');
 
-    // Mid-Autumn at level 1: cover i,d,A,u,t,u,m (7) — keep M, -, n plain
+    // Hint: first and last letters visible
+    await user.click(button);
+    button = screen.getByRole('button', {
+      name: /Hidden word starting with M and ending with n/i,
+    });
+    letterSpans = Array.from(button.querySelectorAll('span'));
+    boxedSpans = letterSpans.filter(
+      (el) => (el as HTMLElement).style.fontFamily.includes('Boxes')
+    );
+    plainSpans = letterSpans.filter(
+      (el) => !(el as HTMLElement).style.fontFamily.includes('Boxes')
+    );
     expect(boxedSpans.map((el) => el.textContent).join('')).toBe('idAutum');
     expect(plainSpans.map((el) => el.textContent).join('')).toBe('M-n');
+
     expect(container.textContent).toContain('The');
     expect(container.textContent).toContain('Festival');
   });
