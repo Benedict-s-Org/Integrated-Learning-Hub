@@ -435,6 +435,54 @@ export type DutySnapshot = {
   logId: string;
 };
 
+function hasListedMissingItems(missingItems: Record<string, string[]> | null | undefined): boolean {
+  return Object.values(missingItems || {}).some(
+    (items) => Array.isArray(items) && items.some((item) => String(item || '').trim()),
+  );
+}
+
+/**
+ * Class Dashboard general 欠 (status=missing, empty missing_items) means every
+ * listed homework item for that class/date is outstanding — expand from today's
+ * 輸入紀錄 so Missing / Handed-in lists follow Progress Log coins.
+ */
+export function expandGeneralMissingDutyLogs(
+  dutyLogs: Array<MissingLogInput & { status?: string | null }>,
+  listedByClassDate: ReadonlyMap<string, Record<string, string[]>>,
+): MissingLogInput[] {
+  const out: MissingLogInput[] = [];
+  for (const log of dutyLogs) {
+    const status = (log.status || '').trim().toLowerCase();
+    if (status !== 'missing') continue;
+    if (hasListedMissingItems(log.missingItems)) {
+      out.push({
+        id: log.id,
+        logDate: log.logDate,
+        className: log.className,
+        studentId: log.studentId,
+        studentName: log.studentName,
+        classNumber: log.classNumber,
+        missingItems: log.missingItems,
+      });
+      continue;
+    }
+    const listed = listedByClassDate.get(`${log.className}|${log.logDate}`);
+    if (!listed || !hasListedMissingItems(listed)) continue;
+    out.push({
+      id: log.id,
+      logDate: log.logDate,
+      className: log.className,
+      studentId: log.studentId,
+      studentName: log.studentName,
+      classNumber: log.classNumber,
+      missingItems: Object.fromEntries(
+        Object.entries(listed).map(([subject, items]) => [subject, [...items]]),
+      ),
+    });
+  }
+  return out;
+}
+
 /**
  * Ledger columns must prefer an explicit morning-duty 欠 list over English
  * classmate inference. Without this, a student missing one item appears under

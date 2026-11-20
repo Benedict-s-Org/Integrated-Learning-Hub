@@ -2196,7 +2196,7 @@ export function ClassDashboardPage() {
                         ? '明日功課設定'
                         : (selectedHomeworkStudent?.display_name || '')
                 }
-                onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
+                onRecord={(reason, coins, items) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason, coins, items)}
                 isHandbookDisabled={
                     selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow'
                         ? true

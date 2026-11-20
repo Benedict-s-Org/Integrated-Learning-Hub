@@ -10,6 +10,7 @@ import {
   buildMissingTallyFromLedger,
   enrichLedgerWithDutyMarks,
   combineDutyAndEnglishMissingLogs,
+  expandGeneralMissingDutyLogs,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
@@ -310,6 +311,55 @@ describe('missing tally', () => {
       ],
     );
     expect(duties[0]?.missingItems).toEqual({});
+  });
+
+  it('expands Class Dashboard general 欠 (empty items) to that day\'s listed homework', () => {
+    const listed = new Map<string, Record<string, string[]>>([
+      ['4A|2026-11-20', { 英文: ['Vocab Booklet', 'Genre Analysis'], 數學: ['WS'] }],
+    ]);
+    const expanded = expandGeneralMissingDutyLogs(
+      [
+        {
+          id: 'duty-abby',
+          logDate: '2026-11-20',
+          className: '4A',
+          studentId: 'abby',
+          studentName: 'Abby',
+          classNumber: 1,
+          missingItems: {},
+          status: 'missing',
+        },
+        {
+          id: 'duty-ben',
+          logDate: '2026-11-20',
+          className: '4A',
+          studentId: 'ben',
+          studentName: 'Ben',
+          classNumber: 2,
+          missingItems: { 英文: ['Vocab Booklet'] },
+          status: 'missing',
+        },
+        {
+          id: 'duty-cara',
+          logDate: '2026-11-20',
+          className: '4A',
+          studentId: 'cara',
+          studentName: 'Cara',
+          classNumber: 3,
+          missingItems: {},
+          status: 'submitted',
+        },
+      ],
+      listed,
+    );
+    expect(expanded.find((log) => log.studentId === 'abby')?.missingItems).toEqual({
+      英文: ['Vocab Booklet', 'Genre Analysis'],
+      數學: ['WS'],
+    });
+    expect(expanded.find((log) => log.studentId === 'ben')?.missingItems).toEqual({
+      英文: ['Vocab Booklet'],
+    });
+    expect(expanded.find((log) => log.studentId === 'cara')).toBeUndefined();
   });
 
   it('keeps ledger columns on the duty partial 欠 list instead of English-inferred extras', () => {
