@@ -11,6 +11,7 @@ import {
   rematchWordAudioByWord,
   type SpellingWordAudio,
 } from '../../utils/spellingWordAudio';
+import { lookupCachedWordAudio, mergeConfirmedAudio } from '../../utils/ttsCacheLookup';
 import { supabase } from '../../lib/supabase';
 
 interface SpellingPreviewProps {
@@ -92,6 +93,23 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({
       }
     };
   }, []);
+
+  // Reuse Drive files already in tts_cache for this accent/voice (other practices).
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyCacheHits = async () => {
+      if (!isGoogleCloudVoiceId(currentVoiceURI)) return;
+      const cached = await lookupCachedWordAudio(words, currentAccent, currentVoiceURI!);
+      if (cancelled || Object.keys(cached).length === 0) return;
+      setConfirmedAudio((prev) => mergeConfirmedAudio(prev, cached));
+    };
+
+    void applyCacheHits();
+    return () => {
+      cancelled = true;
+    };
+  }, [words, currentAccent, currentVoiceURI]);
 
   const loadVoice = async () => {
     try {
@@ -557,7 +575,8 @@ const SpellingPreview: React.FC<SpellingPreviewProps> = ({
                     Audio confirmed {confirmedCount}/{words.length}
                   </p>
                   <p className="mt-1">
-                    Play every word with a Premium voice until all are confirmed before saving.
+                    Words already generated with this Premium voice are confirmed from the shared
+                    audio cache. Play any remaining words before saving.
                   </p>
                   {requiresPremiumHint && (
                     <p className="mt-1">A Premium Google voice is required to save.</p>
