@@ -435,6 +435,32 @@ export type DutySnapshot = {
   logId: string;
 };
 
+/**
+ * Ledger columns must prefer an explicit morning-duty 欠 list over English
+ * classmate inference. Without this, a student missing one item appears under
+ * every item classmates already handed in.
+ */
+export function combineDutyAndEnglishMissingLogs(
+  dutyLogs: MissingLogInput[],
+  englishLogs: MissingLogInput[],
+  dutyDays: Array<{ studentId: string; date: string; status?: string | null }> = [],
+): MissingLogInput[] {
+  const preferDuty = new Set<string>();
+  for (const duty of dutyDays) {
+    const status = (duty.status || '').trim().toLowerCase();
+    if (status === 'missing') {
+      preferDuty.add(dutyStudentDateKey(duty.studentId, duty.date));
+    }
+  }
+  for (const log of dutyLogs) {
+    preferDuty.add(dutyStudentDateKey(log.studentId, log.logDate));
+  }
+  const filteredEnglish = englishLogs.filter(
+    (log) => !preferDuty.has(dutyStudentDateKey(log.studentId, log.logDate)),
+  );
+  return [...dutyLogs, ...filteredEnglish];
+}
+
 /** Merge English (or other) missing-item logs into morning-duty snapshots so appearances match the columns. */
 export function mergeDutyMissingItems(
   duties: DutySnapshot[],
@@ -469,13 +495,11 @@ export function mergeDutyMissingItems(
     const status = (existing.status || '').trim().toLowerCase();
     // 交齊 / late: never attach inferred English missing onto a cleared day.
     if (status === 'submitted' || status === 'late') continue;
-    // Teacher already picked specific 欠 items — do not inflate to every classmate-inferred item.
-    const explicit = existing.missingItems || {};
-    const hasExplicitItems = Object.values(explicit).some(
-      (items) => Array.isArray(items) && items.some((item) => String(item || '').trim()),
-    );
-    if (status === 'missing' && hasExplicitItems) continue;
+    // An explicit 欠 day (even after makeup emptied missing_items) must not be
+    // reinflated with classmate-inferred English items.
+    if (status === 'missing') continue;
 
+    const explicit = existing.missingItems || {};
     const merged = { ...explicit };
     for (const [subject, items] of Object.entries(incoming)) {
       if (!Array.isArray(items)) continue;

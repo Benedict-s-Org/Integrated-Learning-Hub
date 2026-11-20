@@ -9,6 +9,7 @@ import {
   collectClearedDutyKeys,
   buildMissingTallyFromLedger,
   enrichLedgerWithDutyMarks,
+  combineDutyAndEnglishMissingLogs,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
@@ -286,6 +287,77 @@ describe('missing tally', () => {
       ],
     );
     expect(duties[0]?.missingItems).toEqual({ 英文: ['Vocab Booklet'] });
+  });
+
+  it('does not reinflate English items after makeup emptied a missing duty day', () => {
+    const duties = mergeDutyMissingItems(
+      [
+        {
+          studentId: 'abby',
+          date: '2026-11-18',
+          status: 'missing',
+          missingItems: {},
+          logId: 'duty-abby',
+        },
+      ],
+      [
+        {
+          studentId: 'abby',
+          date: '2026-11-18',
+          missingItems: { 英文: ['Vocab Booklet', 'Genre Analysis'] },
+          logId: 'english|abby|2026-11-18',
+        },
+      ],
+    );
+    expect(duties[0]?.missingItems).toEqual({});
+  });
+
+  it('keeps ledger columns on the duty partial 欠 list instead of English-inferred extras', () => {
+    const dutyLogs: MissingLogInput[] = [
+      {
+        id: 'duty-abby',
+        logDate: '2026-11-18',
+        className: '4A',
+        studentId: 'abby',
+        studentName: 'Abby',
+        classNumber: 1,
+        missingItems: { 英文: ['Vocab Booklet'] },
+      },
+    ];
+    const englishLogs: MissingLogInput[] = [
+      {
+        id: 'english|abby|2026-11-18',
+        logDate: '2026-11-18',
+        className: '4A',
+        studentId: 'abby',
+        studentName: 'Abby',
+        classNumber: 1,
+        missingItems: { 英文: ['Vocab Booklet', 'Genre Analysis'], 數學: ['作業'] },
+      },
+      {
+        id: 'english|ben|2026-11-18',
+        logDate: '2026-11-18',
+        className: '4A',
+        studentId: 'ben',
+        studentName: 'Ben',
+        classNumber: 2,
+        missingItems: { 英文: ['Genre Analysis'] },
+      },
+    ];
+    const combined = combineDutyAndEnglishMissingLogs(
+      dutyLogs,
+      englishLogs,
+      [
+        { studentId: 'abby', date: '2026-11-18', status: 'missing' },
+        { studentId: 'ben', date: '2026-11-18', status: 'todo' },
+      ],
+    );
+    const ledger = buildMissingLedger(combined, new Set(), () => '', '2026-11-18');
+    const abbyItems = ledger.flatMap((group) => group.items.flatMap((item) => (
+      item.students.filter((student) => student.studentId === 'abby').map(() => item.item)
+    )));
+    expect(abbyItems).toEqual(['Vocab Booklet']);
+    expect(combined.map((log) => log.studentId).sort()).toEqual(['abby', 'ben']);
   });
 
   it('counts the sidebar from the same ledger rows the columns show', () => {

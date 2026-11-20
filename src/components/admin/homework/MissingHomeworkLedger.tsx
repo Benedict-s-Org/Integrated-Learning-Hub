@@ -14,6 +14,8 @@ import {
   buildMissingTallyFromLedger,
   clearMissingItemsForSubmittedDuties,
   collectClearedDutyKeys,
+  combineDutyAndEnglishMissingLogs,
+  dutyStudentDateKey,
   enrichLedgerWithDutyMarks,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
@@ -95,6 +97,7 @@ export function MissingHomeworkLedger() {
   const [viewMode, setViewMode] = useState<'item' | 'student'>('item');
   const [appearances, setAppearances] = useState<HomeworkAppearance[]>([]);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
+  const [dutyLogByStudentDate, setDutyLogByStudentDate] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -136,6 +139,7 @@ export function MissingHomeworkLedger() {
             setRoster([]);
             setAppearances([]);
             setDetailsByClassDate(new Map());
+            setDutyLogByStudentDate(new Map());
           }
           return;
         }
@@ -202,8 +206,19 @@ export function MissingHomeworkLedger() {
           status: dutyStatusByStudentDate.get(`${duty.studentId}\0${duty.date}`) ?? duty.status,
         }));
         const clearedDutyKeys = collectClearedDutyKeys(dutiesWithStatus);
+        const nextDutyLogByStudentDate = new Map(
+          rawLogs.map((log) => [dutyStudentDateKey(log.student_id, log.log_date), log.id] as const),
+        );
         const combinedLogs = clearMissingItemsForSubmittedDuties(
-          [...parsedLogs, ...englishState.logs],
+          combineDutyAndEnglishMissingLogs(
+            parsedLogs,
+            englishState.logs,
+            rawLogs.map((log) => ({
+              studentId: log.student_id,
+              date: log.log_date,
+              status: log.status,
+            })),
+          ),
           clearedDutyKeys,
         );
         const detailIndex = new Map<string, SubjectAssignmentMap>();
@@ -291,6 +306,7 @@ export function MissingHomeworkLedger() {
           setHandbookKeys(nextHandbook);
           setRoster(roster);
           setAppearances(appearances);
+          setDutyLogByStudentDate(nextDutyLogByStudentDate);
         }
       } catch (err) {
         console.error('Failed to load missing homework ledger', err);
@@ -427,10 +443,14 @@ export function MissingHomeworkLedger() {
       });
       if (rpcError) throw rpcError;
 
-      if (parseEnglishCheckLogId(student.logId)) return;
+      // Prefer the real morning-duty row even when the ledger cell used an english| synthetic id.
+      const dutyLogId = parseEnglishCheckLogId(student.logId)
+        ? dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
+        : student.logId;
+      if (!dutyLogId) return;
 
       const { error: makeupError } = await homeworkDb.rpc('set_homework_makeup', {
-        p_log_id: student.logId,
+        p_log_id: dutyLogId,
         p_subject: subject,
         p_item: item,
         p_is_made_up: handedIn,
