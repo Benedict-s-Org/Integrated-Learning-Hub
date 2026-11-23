@@ -457,11 +457,13 @@ export function MissingHomeworkLedger() {
       });
       if (rpcError) throw rpcError;
 
-      // Prefer the real morning-duty row even when the ledger cell used an english| synthetic id.
-      const dutyLogId = parseEnglishCheckLogId(student.logId)
-        ? dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
-        : student.logId;
-      if (!dutyLogId) return;
+      // Prefer the real morning-duty row so makeup clears 欠 and survives refresh.
+      // English-only synthetic ids must resolve through the duty map; never skip makeup silently.
+      const dutyLogId = dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
+        || (parseEnglishCheckLogId(student.logId) ? undefined : student.logId);
+      if (!dutyLogId) {
+        throw new Error('No morning-duty record found for this student/date. Re-open Missing Homework and try again.');
+      }
 
       const { error: makeupError } = await homeworkDb.rpc('set_homework_makeup', {
         p_log_id: dutyLogId,
@@ -470,6 +472,17 @@ export function MissingHomeworkLedger() {
         p_is_made_up: handedIn,
       });
       if (makeupError) throw makeupError;
+
+      // Keep local duty map in sync when makeup flips a cleared day to late (handled in RPC).
+      if (handedIn) {
+        setMadeUp((current) => {
+          const next = new Set(current);
+          next.add(makeupKey(dutyLogId, subject, item));
+          // Also keep the chip's original logId key so optimistic badge stays green before reload.
+          next.add(key);
+          return next;
+        });
+      }
     } catch (err) {
       console.error('Failed to update homework submission', err);
       setHandedInKeys((current) => {

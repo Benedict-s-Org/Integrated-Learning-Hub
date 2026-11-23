@@ -1,5 +1,6 @@
 import { listHomeworkTargets } from '@/lib/homework/assignments';
 import { homeworkDb } from '@/lib/homework/client';
+import { fetchAllPagedRows } from '@/lib/homework/fetchAllRows';
 import {
   handedInKey,
   missingLogsFromEnglishMarks,
@@ -34,23 +35,31 @@ export type EnglishHomeworkState = {
 };
 
 export async function fetchEnglishHomeworkState(className?: string): Promise<EnglishHomeworkState> {
-  let studentQuery = homeworkDb
-    .from('users')
-    .select('id, display_name, class, class_number')
-    .eq('role', 'user');
-  let markQuery = homeworkDb
-    .from('english_homework_checks')
-      .select('class_name, record_date, subject, item_name, student_id, handed_in, is_late');
-  if (className && className !== 'all') {
-    studentQuery = studentQuery.eq('class', className);
-    markQuery = markQuery.eq('class_name', className);
-  }
+  const scopedClass = className && className !== 'all' ? className : undefined;
 
-  const [studentsRes, marksRes] = await Promise.all([studentQuery, markQuery]);
-  if (studentsRes.error) throw studentsRes.error;
-  if (marksRes.error) throw marksRes.error;
+  const [students, markRows] = await Promise.all([
+    fetchAllPagedRows<StudentRow>((from, to) => {
+      let query = homeworkDb
+        .from('users')
+        .select('id, display_name, class, class_number')
+        .eq('role', 'user')
+        .order('id')
+        .range(from, to);
+      if (scopedClass) query = query.eq('class', scopedClass);
+      return query;
+    }),
+    fetchAllPagedRows<MarkRow>((from, to) => {
+      let query = homeworkDb
+        .from('english_homework_checks')
+        .select('class_name, record_date, subject, item_name, student_id, handed_in, is_late')
+        .order('id')
+        .range(from, to);
+      if (scopedClass) query = query.eq('class_name', scopedClass);
+      return query;
+    }),
+  ]);
 
-  const students = ((studentsRes.data || []) as StudentRow[])
+  const roster = students
     .filter((row) => row.id && row.class && !isArchivedClassName(row.class))
     .map((row) => ({
       id: row.id,
@@ -58,7 +67,7 @@ export async function fetchEnglishHomeworkState(className?: string): Promise<Eng
       className: row.class || '',
       classNumber: Number(row.class_number) || 0,
     }));
-  const marks: EnglishMark[] = ((marksRes.data || []) as MarkRow[]).map((row) => ({
+  const marks: EnglishMark[] = markRows.map((row) => ({
     className: row.class_name,
     date: row.record_date,
     subject: row.subject,
@@ -78,7 +87,7 @@ export async function fetchEnglishHomeworkState(className?: string): Promise<Eng
   const handedInRoster: HandedInRosterEntry[] = [];
   for (const mark of marks) {
     if (!mark.handedIn) continue;
-    const student = students.find((row) => row.id === mark.studentId);
+    const student = roster.find((row) => row.id === mark.studentId);
     handedInRoster.push({
       className: mark.className,
       date: mark.date,
@@ -89,7 +98,7 @@ export async function fetchEnglishHomeworkState(className?: string): Promise<Eng
       classNumber: student?.classNumber || 0,
     });
   }
-  return { logs: missingLogsFromEnglishMarks(students, marks), handedInKeys, lateKeys, handedInRoster };
+  return { logs: missingLogsFromEnglishMarks(roster, marks), handedInKeys, lateKeys, handedInRoster };
 }
 
 export async function fetchEnglishMissingLogs(className?: string): Promise<MissingLogInput[]> {
