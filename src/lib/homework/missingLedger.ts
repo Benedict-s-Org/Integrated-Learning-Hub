@@ -442,6 +442,29 @@ function hasListedMissingItems(missingItems: Record<string, string[]> | null | u
 }
 
 /**
+ * Build the duty missing_items blob after a Missing-ledger 補交 / undo click.
+ * Used when the chip came from English inference and no morning_duty_logs row exists yet.
+ */
+export function missingItemsAfterHandedInToggle(
+  listed: Record<string, string[]>,
+  subject: string,
+  item: string,
+  handedIn: boolean,
+): Record<string, string[]> | null {
+  const next: Record<string, string[]> = {};
+  for (const [subj, items] of Object.entries(listed || {})) {
+    const names = (items || []).map((name) => String(name || '').trim()).filter(Boolean);
+    if (names.length > 0) next[subj] = names;
+  }
+  const bucket = new Set(next[subject] || []);
+  if (handedIn) bucket.delete(item);
+  else bucket.add(item);
+  if (bucket.size > 0) next[subject] = [...bucket];
+  else delete next[subject];
+  return hasListedMissingItems(next) ? next : null;
+}
+
+/**
  * Class Dashboard general 欠 (status=missing, empty missing_items) means every
  * listed homework item for that class/date is outstanding — expand from today's
  * 輸入紀錄 so Missing / Handed-in lists follow Progress Log coins.
