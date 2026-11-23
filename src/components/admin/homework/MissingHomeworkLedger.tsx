@@ -458,11 +458,40 @@ export function MissingHomeworkLedger() {
       if (rpcError) throw rpcError;
 
       // Prefer the real morning-duty row so makeup clears 欠 and survives refresh.
-      // English-only synthetic ids must resolve through the duty map; never skip makeup silently.
-      const dutyLogId = dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
+      // English-inferred chips often have no duty row yet — create one from listed homework.
+      let dutyLogId = dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
         || (parseEnglishCheckLogId(student.logId) ? undefined : student.logId);
+
       if (!dutyLogId) {
-        throw new Error('No morning-duty record found for this student/date. Re-open Missing Homework and try again.');
+        // English-inferred chips often have no Class Dashboard duty row.
+        // Seed a zero-coin placeholder (todo/late both skip coin awards); makeup
+        // expands listed homework into the real missing/late/submitted state.
+        const { error: dutyError } = await homeworkDb.rpc('upsert_morning_duty_log', {
+          p_log_date: date,
+          p_student_id: student.studentId,
+          p_status: markingLate ? 'late' : 'todo',
+          p_set_by: 'teacher',
+          p_missing_items: null,
+          p_event_type: 'status_change',
+        });
+        if (dutyError) throw dutyError;
+
+        const { data: dutyRow, error: dutyLookupError } = await homeworkDb
+          .from('morning_duty_logs')
+          .select('id')
+          .eq('student_id', student.studentId)
+          .eq('log_date', date)
+          .maybeSingle();
+        if (dutyLookupError) throw dutyLookupError;
+        dutyLogId = (dutyRow as { id?: string } | null)?.id;
+        if (!dutyLogId) {
+          throw new Error('Could not create a morning-duty record for this student/date.');
+        }
+        setDutyLogByStudentDate((current) => {
+          const next = new Map(current);
+          next.set(dutyStudentDateKey(student.studentId, date), dutyLogId!);
+          return next;
+        });
       }
 
       const { error: makeupError } = await homeworkDb.rpc('set_homework_makeup', {
@@ -473,12 +502,11 @@ export function MissingHomeworkLedger() {
       });
       if (makeupError) throw makeupError;
 
-      // Keep local duty map in sync when makeup flips a cleared day to late (handled in RPC).
+      // Keep local duty map keys in sync for optimistic badges before reload.
       if (handedIn) {
         setMadeUp((current) => {
           const next = new Set(current);
-          next.add(makeupKey(dutyLogId, subject, item));
-          // Also keep the chip's original logId key so optimistic badge stays green before reload.
+          next.add(makeupKey(dutyLogId!, subject, item));
           next.add(key);
           return next;
         });

@@ -11,6 +11,7 @@ import {
   enrichLedgerWithDutyMarks,
   combineDutyAndEnglishMissingLogs,
   expandGeneralMissingDutyLogs,
+  missingItemsAfterHandedInToggle,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
   formatMissingAnnouncement,
@@ -311,6 +312,18 @@ describe('missing tally', () => {
       ],
     );
     expect(duties[0]?.missingItems).toEqual({});
+  });
+
+  it('builds remaining missing_items when 補交 runs without an existing duty row', () => {
+    const listed = { 英文: ['Vocab Booklet', 'Genre Analysis'], 數學: ['WS'] };
+    expect(missingItemsAfterHandedInToggle(listed, '英文', 'Vocab Booklet', true)).toEqual({
+      英文: ['Genre Analysis'],
+      數學: ['WS'],
+    });
+    expect(missingItemsAfterHandedInToggle({ 英文: ['Vocab Booklet'] }, '英文', 'Vocab Booklet', true)).toBeNull();
+    expect(missingItemsAfterHandedInToggle({ 英文: ['Genre Analysis'] }, '英文', 'Vocab Booklet', false)).toEqual({
+      英文: ['Genre Analysis', 'Vocab Booklet'],
+    });
   });
 
   it('expands Class Dashboard general 欠 (empty items) to that day\'s listed homework', () => {
