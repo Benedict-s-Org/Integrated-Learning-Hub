@@ -191,8 +191,8 @@ export function MissingHomeworkLedger() {
           listedByClassDate.set(`${row.class_name}|${row.date}`, toNameMap(parsed));
         }
 
-        // Progress Log / Class Dashboard 輸入紀錄: status=missing with item picks, or
-        // general 欠 (empty items) expanded to that day's listed homework.
+        // Progress Log / Class Dashboard 輸入紀錄: only explicit per-item 欠.
+        // General 欠 (empty items) stays Not clicked until a specific item is recorded.
         const parsedLogs = expandGeneralMissingDutyLogs(
           rawLogs.map((log) => ({
             id: log.id,
@@ -535,7 +535,7 @@ export function MissingHomeworkLedger() {
         if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
           return row;
         }
-        return { ...row, mark: student.mark || 'missing', submitted: student.submitted };
+        return { ...row, mark: student.mark || 'unclicked', submitted: student.submitted };
       }));
       setError('Could not update that student. Try again.');
     } finally {
@@ -1092,7 +1092,7 @@ function WorkRowChip({
   onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
 }) {
   const { student, subject, item, detail, date } = row;
-  const mark = student.mark || 'missing';
+  const mark = student.mark || 'unclicked';
   const tone = badgeFor(student, subject, item, date);
   const key = makeupKey(student.logId, subject, item);
   const marked = handbookKeys.has(`${student.studentId}|${date}`);
@@ -1179,7 +1179,7 @@ function StudentColumn({
   return (
     <ul className="flex flex-col gap-1">
       {students.map((student) => {
-        const mark = student.mark || 'missing';
+        const mark = student.mark || 'unclicked';
         const tone = badgeFor(student, subject, itemName, groupDate);
         const key = makeupKey(student.logId, subject, itemName);
         const marked = handbookKeys.has(`${student.studentId}|${groupDate}`);

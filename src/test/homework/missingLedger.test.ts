@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  attachHandedInClassmates,
   buildByStudentColumns,
   buildMissingLedger,
   buildMissingTally,
@@ -121,27 +120,24 @@ describe('missingLogsFromEnglishMarks', () => {
     { id: 'cara', name: 'Cara', className: '4A', classNumber: 3 },
   ];
 
-  it('lists classmates who were not ticked handed in after a record is updated', () => {
+  it('only marks the student with an explicit handed_in=false tick as Missing', () => {
     const englishLogs = missingLogsFromEnglishMarks(students, [
       { className: '4A', date: '2026-10-29', subject: '英文', item: 'Writing File', studentId: 'amy', handedIn: true },
       { className: '4A', date: '2026-10-29', subject: '英文', item: 'WS File', studentId: 'ben', handedIn: false },
     ]);
     const ledger = buildMissingLedger(englishLogs, new Set(), () => '', '2026-10-30');
     expect(ledger).toHaveLength(1);
-    const writing = ledger[0].items.find((item) => item.item === 'Writing File');
-    const worksheet = ledger[0].items.find((item) => item.item === 'WS File');
-    const withHandedIn = attachHandedInClassmates(ledger, [{
-      className: '4A',
-      date: '2026-10-29',
-      subject: '英文',
-      item: 'Writing File',
-      studentId: 'amy',
-      name: 'Amy',
-      classNumber: 1,
-    }]);
-    expect(withHandedIn[0].items.find((item) => item.item === 'Writing File')?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
-    expect(writing?.students.map((student) => student.name)).toEqual(['Ben', 'Cara']);
-    expect(worksheet?.students.map((student) => student.name)).toEqual(['Amy', 'Ben', 'Cara']);
+    expect(ledger[0].items.map((item) => item.item)).toEqual(['WS File']);
+    expect(ledger[0].items[0].students.map((student) => student.name)).toEqual(['Ben']);
+    // Amy handed in Writing File; Cara never clicked — neither becomes Missing via inference.
+    expect(ledger[0].items.find((item) => item.item === 'Writing File')).toBeUndefined();
+  });
+
+  it('leaves never-clicked classmates off the Missing list when someone else hands in', () => {
+    const englishLogs = missingLogsFromEnglishMarks(students, [
+      { className: '4A', date: '2026-10-29', subject: '英文', item: 'Writing File', studentId: 'amy', handedIn: true },
+    ]);
+    expect(englishLogs).toEqual([]);
   });
 
   it('leaves an item off the list when nobody has been marked', () => {
@@ -169,6 +165,8 @@ describe('missing tally', () => {
     expect(classifyHomeworkMark({ dutyStatus: 'missing', inMissingItems: true, handedIn: false })).toBe('missing');
     expect(classifyHomeworkMark({ dutyStatus: 'todo', inMissingItems: false, handedIn: false })).toBe('unclicked');
     expect(classifyHomeworkMark({ dutyStatus: '', inMissingItems: false, handedIn: false })).toBe('unclicked');
+    // General 欠 / empty missing_items: listed icons stay Not clicked until that item is explicitly 欠.
+    expect(classifyHomeworkMark({ dutyStatus: 'missing', inMissingItems: false, handedIn: false })).toBe('unclicked');
     expect(classifyHomeworkMark({ dutyStatus: 'absent', inMissingItems: true, handedIn: false })).toBe('absent');
     expect(classifyHomeworkMark({ dutyStatus: 'exempted', inMissingItems: false, handedIn: false })).toBe('exempt');
     expect(classifyHomeworkMark({ dutyStatus: 'submitted', inMissingItems: false, handedIn: true })).toBe('hidden');
@@ -326,7 +324,7 @@ describe('missing tally', () => {
     });
   });
 
-  it('expands Class Dashboard general 欠 (empty items) to that day\'s listed homework', () => {
+  it('keeps general 欠 (empty items) off the Missing list so icons stay Not clicked', () => {
     const listed = new Map<string, Record<string, string[]>>([
       ['4A|2026-11-20', { 英文: ['Vocab Booklet', 'Genre Analysis'], 數學: ['WS'] }],
     ]);
@@ -365,14 +363,47 @@ describe('missing tally', () => {
       ],
       listed,
     );
-    expect(expanded.find((log) => log.studentId === 'abby')?.missingItems).toEqual({
-      英文: ['Vocab Booklet', 'Genre Analysis'],
-      數學: ['WS'],
-    });
+    expect(expanded.find((log) => log.studentId === 'abby')).toBeUndefined();
     expect(expanded.find((log) => log.studentId === 'ben')?.missingItems).toEqual({
       英文: ['Vocab Booklet'],
     });
     expect(expanded.find((log) => log.studentId === 'cara')).toBeUndefined();
+  });
+
+  it('counts only the explicit 欠 item as Missing; other listed work stays Handed in / Not clicked', () => {
+    const appearances = listHomeworkAppearances(
+      [
+        { id: 'abby', name: 'Abby', className: '4A', classNumber: 1, username: 'abby' },
+        { id: 'ben', name: 'Ben', className: '4A', classNumber: 2, username: 'ben' },
+      ],
+      [
+        {
+          studentId: 'abby',
+          date: '2026-11-20',
+          status: 'missing',
+          missingItems: { 英文: ['Vocab Booklet'] },
+          logId: 'duty-abby',
+        },
+      ],
+      [
+        { date: '2026-11-20', className: '4A', subject: '英文', item: 'Vocab Booklet' },
+        { date: '2026-11-20', className: '4A', subject: '英文', item: 'Genre Analysis' },
+        { date: '2026-11-20', className: '4A', subject: '英文', item: 'Reading' },
+        { date: '2026-11-20', className: '4A', subject: '數學', item: 'WS' },
+      ],
+      new Set([
+        handedInKey('abby', '2026-11-20', '英文', 'Genre Analysis'),
+        handedInKey('abby', '2026-11-20', '英文', 'Reading'),
+        handedInKey('abby', '2026-11-20', '數學', 'WS'),
+      ]),
+      new Set(),
+    );
+    const abby = appearances.filter((row) => row.name === 'Abby');
+    expect(abby.filter((row) => row.mark === 'missing')).toHaveLength(1);
+    expect(abby.find((row) => row.item === 'Vocab Booklet')).toMatchObject({ mark: 'missing', submitted: false });
+    expect(abby.filter((row) => row.mark === 'unclicked')).toHaveLength(0);
+    const ben = appearances.filter((row) => row.name === 'Ben');
+    expect(ben.every((row) => row.mark === 'unclicked')).toBe(true);
   });
 
   it('keeps ledger columns on the duty partial 欠 list instead of English-inferred extras', () => {
@@ -474,7 +505,7 @@ describe('missing tally', () => {
       '2026-11-10',
     );
     const erinMarks = ledger.flatMap((group) => group.items.flatMap((item) => (
-      item.students.filter((student) => student.name === 'Erin').map((student) => student.mark || 'missing')
+      item.students.filter((student) => student.name === 'Erin').map((student) => student.mark || 'unclicked')
     )));
     expect(erinMarks.filter((mark) => mark === 'missing')).toHaveLength(3);
 
