@@ -7,6 +7,9 @@ import { supabase } from '@/integrations/supabase/client';
 import type { LsPracticeQuestion } from './seedQuestionBank';
 import type { GrammarMicroSkill, GrammarMicroSkillStatus } from './types';
 import type { ProofreadingPair } from './proofreadingConceptCheck';
+import { messageFromNotionFailure } from './notionErrors';
+
+export { messageFromNotionFailure };
 
 export const NOTION_LEARNING_SYSTEM_IDS = {
   learning_system_micro_skills_db_id: '9b6f9cf31a1847d6afb8600d74d3f33b',
@@ -59,16 +62,38 @@ async function databaseId(key: keyof typeof NOTION_LEARNING_SYSTEM_IDS): Promise
   return parsed[key] || NOTION_LEARNING_SYSTEM_IDS[key];
 }
 
+async function bodyMessage(error: { context?: { clone?: () => { json?: () => Promise<unknown> }; json?: () => Promise<unknown> } }): Promise<string | null> {
+  const context = error.context;
+  try {
+    const response = typeof context?.clone === 'function' ? context.clone() : context;
+    if (!response || typeof response.json !== 'function') return null;
+    const body = await response.json();
+    if (!body || typeof body !== 'object') return null;
+    const record = body as { message?: unknown; error?: unknown; code?: unknown };
+    if (typeof record.message === 'string') return record.message;
+    if (typeof record.error === 'string') return record.error;
+    if (typeof record.code === 'string') return record.code;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 async function queryNotionDatabase(id: string): Promise<any[]> {
   const { data, error } = await supabase.functions.invoke('notion-api', {
-    body: { action: 'query-mcq-database', databaseId: id },
+    body: JSON.stringify({ action: 'query-mcq-database', databaseId: id }),
     headers: {
+      'Content-Type': 'application/json',
       'x-action': 'query-mcq-database',
       'x-database-id': id,
     },
   });
-  if (error) throw new Error(error.message || 'Could not read Notion.');
-  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : 'Could not read Notion.');
+  if (error) {
+    throw new Error(messageFromNotionFailure((await bodyMessage(error)) || error.message));
+  }
+  if (data?.error) {
+    throw new Error(messageFromNotionFailure(typeof data.error === 'string' ? data.error : 'Could not read Notion.'));
+  }
   if (!Array.isArray(data?.results)) throw new Error('Notion returned no pages.');
   return data.results.filter((page: any) => !page.archived);
 }
