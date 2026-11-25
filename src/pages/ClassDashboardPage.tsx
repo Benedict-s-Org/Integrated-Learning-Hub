@@ -27,6 +27,9 @@ import { InteractiveQuizDashboard } from '@/components/admin/InteractiveQuizDash
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { parseSubjectAssignments, saveAssignments, toNameMap, toNameMapsByClass, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { markListedHomeworkHandedIn, syncPartialMissingHomeworkTicks } from '@/lib/homework/englishMissing';
+import { HomeworkMakeupModal } from '@/components/admin/homework/HomeworkMakeupModal';
+import { loadOutstandingHomeworkForStudent } from '@/lib/homework/loadOutstandingHomework';
+import type { OutstandingHomeworkItem } from '@/lib/homework/outstandingHomework';
 import { fetchManagedClassIds, filterToManagedClasses, resolveManagedClassIds } from '@/lib/staff/managedClasses';
 import { coinService } from '@/services/coinService';
 import { useDocumentPiP } from '@/hooks/useDocumentPiP';
@@ -581,6 +584,13 @@ export function ClassDashboardPage() {
     // Modals State
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [selectedHomeworkStudentId, setSelectedHomeworkStudentId] = useState<string | null>(null);
+    const [homeworkMakeupOpen, setHomeworkMakeupOpen] = useState(false);
+    const [homeworkMakeupItems, setHomeworkMakeupItems] = useState<OutstandingHomeworkItem[]>([]);
+    const [homeworkMakeupTarget, setHomeworkMakeupTarget] = useState<{
+        id: string;
+        name: string;
+        className: string;
+    } | null>(null);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [consequenceCounts, setConsequenceCounts] = useState<Record<string, number>>({});
 
@@ -1151,6 +1161,26 @@ export function ClassDashboardPage() {
                     const message = markErr instanceof Error ? markErr.message : 'Unknown error';
                     alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
                 }
+
+                const student = Object.values(groupedUsers).flat().find((user) => user.id === studentId);
+                const studentClass = student?.class || activeClass || '';
+                const loaded = await loadOutstandingHomeworkForStudent({
+                    studentId,
+                    className: studentClass,
+                    todayIso: today,
+                });
+                if (loaded.status === 'ok' && loaded.items.length > 0) {
+                    setHomeworkMakeupTarget({
+                        id: studentId,
+                        name: student?.display_name || 'Student',
+                        className: studentClass,
+                    });
+                    setHomeworkMakeupItems(loaded.items);
+                    setHomeworkMakeupOpen(true);
+                } else if (loaded.status === 'query_failed') {
+                    const label = isGuest ? 'Guest class dashboard' : 'Class dashboard';
+                    console.warn(`${label}: could not load outstanding homework`, loaded.message);
+                }
             } else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) {
                 // Standard coin award
                 const result = await awardCoinsGuestAware({
@@ -1455,6 +1485,7 @@ export function ClassDashboardPage() {
                 fontFamily: theme.fontFamily + ', sans-serif',
                 fontSize: `${theme.fontSize}px`
             }}
+            data-ui="PAGE-CLASS-DASHBOARD"
         >
             <div className="max-w-7xl mx-auto space-y-6">
                 {isGuest && (
@@ -2196,7 +2227,10 @@ export function ClassDashboardPage() {
                         ? '明日功課設定'
                         : (selectedHomeworkStudent?.display_name || '')
                 }
-                onRecord={(reason) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason)}
+                onRecord={(reason, coins, items) =>
+                    selectedHomeworkStudent &&
+                    handleHomeworkRecord(selectedHomeworkStudent.id, reason, coins, items)
+                }
                 isHandbookDisabled={
                     selectedHomeworkStudentId === 'admin-setup' || selectedHomeworkStudentId === 'admin-setup-tomorrow'
                         ? true
@@ -2239,6 +2273,27 @@ export function ClassDashboardPage() {
                 }}
             />
 
+            {homeworkMakeupTarget && (
+                <HomeworkMakeupModal
+                    open={homeworkMakeupOpen}
+                    studentId={homeworkMakeupTarget.id}
+                    studentName={homeworkMakeupTarget.name}
+                    className={homeworkMakeupTarget.className}
+                    items={homeworkMakeupItems}
+                    onClose={() => {
+                        setHomeworkMakeupOpen(false);
+                        setHomeworkMakeupTarget(null);
+                        setHomeworkMakeupItems([]);
+                    }}
+                    onConfirmSuccess={async () => {
+                        setHomeworkMakeupOpen(false);
+                        setHomeworkMakeupTarget(null);
+                        setHomeworkMakeupItems([]);
+                        setMorningDutyRefreshCounter((c) => c + 1);
+                        await fetchUsers({ silent: true, forceRefresh: true });
+                    }}
+                />
+            )}
 
             {showBroadcastBoard && (
                 <BroadcastBoard

@@ -6,6 +6,9 @@ import { format } from 'date-fns';
 import { DEFAULT_SUB_OPTIONS } from '@/constants/rewardConfig';
 import { runClassDashAction } from '@/services/classDashLinkService';
 import { markListedHomeworkHandedIn, syncPartialMissingHomeworkTicks } from '@/lib/homework/englishMissing';
+import { HomeworkMakeupModal } from '@/components/admin/homework/HomeworkMakeupModal';
+import { loadOutstandingHomeworkForStudent } from '@/lib/homework/loadOutstandingHomework';
+import type { OutstandingHomeworkItem } from '@/lib/homework/outstandingHomework';
 
 interface UserWithCoins {
     id: string;
@@ -74,6 +77,14 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
     const [pinError, setPinError] = useState('');
     const [isLockedOut, setIsLockedOut] = useState(false);
     const [toastMessage, setToastMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+    const [makeupModalOpen, setMakeupModalOpen] = useState(false);
+    const [makeupStudent, setMakeupStudent] = useState<{
+        id: string;
+        name: string;
+        className: string;
+    } | null>(null);
+    const [makeupItems, setMakeupItems] = useState<OutstandingHomeworkItem[]>([]);
 
     const showToast = (text: string, type: 'success' | 'error' = 'success') => {
         setToastMessage({ text, type });
@@ -211,12 +222,51 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
         }
     };
 
-    const saveLogStatus = async (status: 'submitted' | 'missing' | 'absent', items?: Record<string, string[]>) => {
+    const closeMakeupModal = () => {
+        setMakeupModalOpen(false);
+        setMakeupStudent(null);
+        setMakeupItems([]);
+    };
+
+    const maybeOpenMakeupModal = async (
+        status: 'submitted' | 'missing',
+        student: UserWithCoins,
+    ): Promise<boolean> => {
+        const loaded = await loadOutstandingHomeworkForStudent({
+            studentId: student.id,
+            className: activeClass,
+            todayIso: today,
+        });
+        if (loaded.status === 'query_failed') {
+            if (guestToken) {
+                console.warn('Guest morning duty: could not load outstanding homework', loaded.message);
+            } else {
+                console.error('Failed to load outstanding homework', loaded.message);
+            }
+            return false;
+        }
+        if (loaded.items.length === 0) return false;
+        setMakeupStudent({
+            id: student.id,
+            name: student.display_name || 'Student',
+            className: activeClass,
+        });
+        setMakeupItems(loaded.items);
+        setMakeupModalOpen(true);
+        return true;
+    };
+
+    const saveLogStatus = async (
+        status: 'submitted' | 'missing' | 'absent',
+        items?: Record<string, string[]>,
+    ): Promise<boolean> => {
+        const student = selectedStudent;
+        if (!student) return false;
         try {
             if (guestToken) {
                 await runClassDashAction(guestToken, 'morning_duty', {
                     p_date: today,
-                    student_id: selectedStudent!.id,
+                    student_id: student.id,
                     p_status: status,
                     // Explicit null on 交齊 / absent so guest upsert does not keep stale missing_items.
                     p_missing_items: status === 'missing' ? (items || null) : null,
@@ -224,7 +274,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
             } else {
                 const { error } = await supabase.rpc('upsert_morning_duty_log', {
                     p_log_date: today,
-                    p_student_id: selectedStudent!.id,
+                    p_student_id: student.id,
                     p_status: status,
                     p_set_by: 'teacher',
                     p_missing_items: items || null,
@@ -232,19 +282,19 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                 });
                 if (error) throw error;
             }
-            if (selectedStudent && (status === 'submitted' || (status === 'missing' && items && Object.keys(items).length > 0))) {
+            if (status === 'submitted' || (status === 'missing' && items && Object.keys(items).length > 0)) {
                 try {
                     if (status === 'submitted') {
                         await markListedHomeworkHandedIn({
                             className: activeClass,
                             date: today,
-                            studentId: selectedStudent.id,
+                            studentId: student.id,
                         });
                     } else {
                         await syncPartialMissingHomeworkTicks({
                             className: activeClass,
                             date: today,
-                            studentId: selectedStudent.id,
+                            studentId: student.id,
                             items: items || null,
                         });
                     }
@@ -256,8 +306,14 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
             }
             await fetchLogs();
             onStatusChange();
+
+            if (status === 'submitted' || status === 'missing') {
+                return await maybeOpenMakeupModal(status, student);
+            }
+            return false;
         } catch (e: any) {
             alert('Error: ' + e.message);
+            return false;
         }
     };
 
@@ -333,10 +389,9 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
             setMissingItems({});
             setSelectedStudent(null);
         } else {
-            // Saving student's missing items
-            await saveLogStatus('missing', missingItems);
+            const openedMakeup = await saveLogStatus('missing', missingItems);
             setShowMissingFlow(false);
-            setSelectedStudent(null);
+            if (!openedMakeup) setSelectedStudent(null);
         }
     };
 
@@ -451,7 +506,7 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
     };
 
     return (
-        <div className={`flex gap-6 w-full ${isPipView ? 'flex-row h-full p-4' : 'flex-col lg:flex-row'}`}>
+        <div className={`flex gap-6 w-full ${isPipView ? 'flex-row h-full p-4' : 'flex-col lg:flex-row'}`} data-ui="PANEL-MORNING-DUTIES">
             {/* LEFT PANE: Console */}
             <div className={`${isPipView ? 'w-[280px] min-w-[280px] overflow-y-auto pr-2' : 'lg:w-1/3'} flex flex-col gap-4`}>
                 <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col items-center">
@@ -710,6 +765,26 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {makeupStudent && (
+                <HomeworkMakeupModal
+                    open={makeupModalOpen}
+                    studentId={makeupStudent.id}
+                    studentName={makeupStudent.name}
+                    className={makeupStudent.className}
+                    items={makeupItems}
+                    onClose={() => {
+                        closeMakeupModal();
+                        setSelectedStudent(null);
+                    }}
+                    onConfirmSuccess={async () => {
+                        closeMakeupModal();
+                        setSelectedStudent(null);
+                        await fetchLogs();
+                        onStatusChange();
+                    }}
+                />
             )}
 
             {/* Custom Toast Notification at bottom */}
