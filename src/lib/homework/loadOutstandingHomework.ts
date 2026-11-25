@@ -4,6 +4,7 @@ import {
   handedInKey,
   makeupKey,
   missingLogsFromEnglishMarks,
+  parseEnglishCheckLogId,
   type EnglishMark,
 } from '@/lib/homework/missingLedger';
 import {
@@ -136,10 +137,13 @@ export async function loadOutstandingHomeworkForStudent(args: {
       englishLogs = missingLogsFromEnglishMarks(students, marks);
     }
 
-    const logIds = [
-      ...dutyLogs.map((log) => log.id),
-      ...englishLogs.filter((log) => log.studentId === studentId).map((log) => log.id),
-    ].filter((id, index, all) => id && all.indexOf(id) === index);
+    // makeup_actions.log_id is uuid — never pass english|{studentId}|{date} synthetic ids
+    const logIds = dutyLogs
+      .map((log) => log.id)
+      .filter(
+        (id, index, all) =>
+          id && !parseEnglishCheckLogId(id) && all.indexOf(id) === index,
+      );
 
     const makeupActions: MakeupActionRow[] = [];
     for (let index = 0; index < logIds.length; index += LOG_ID_BATCH) {

@@ -83,7 +83,8 @@ export function HomeworkMakeupModal({
   useEffect(() => {
     if (!open) return;
     setError('');
-    setSelectedKeys(new Set(items.map(selectionKey)));
+    // Start unchecked so students must deliberately tick what they brought.
+    setSelectedKeys(new Set());
   }, [open, items]);
 
   if (!open) return null;
