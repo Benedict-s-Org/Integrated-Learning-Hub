@@ -41,10 +41,17 @@ interface MorningDutiesBoardProps {
     refreshTrigger?: number;
     guestToken?: string;
     initialMorningLogs?: any[];
+    /** When set (Class Dashboard), parent owns the makeup modal so staff refresh cannot unmount it. */
+    onOutstandingMakeup?: (payload: {
+        studentId: string;
+        studentName: string;
+        className: string;
+        items: OutstandingHomeworkItem[];
+    }) => void;
 }
 
 export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({ 
-    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage, refreshTrigger, guestToken, initialMorningLogs
+    users, activeClass, dailyHomeworkMap, onSetupDailyHomework, onStatusChange, isPipView, displayTimeOverride, stageTextOverride, onConfirmStage, refreshTrigger, guestToken, initialMorningLogs, onOutstandingMakeup
 }) => {
     const today = getHKTodayString();
     
@@ -253,13 +260,23 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
             return false;
         }
         if (loaded.items.length === 0) return false;
-        setMakeupStudent({
+        const target = {
             id: student.id,
             name: student.display_name || 'Student',
-            className: activeClass,
-        });
-        setMakeupItems(loaded.items);
-        setMakeupModalOpen(true);
+            className: activeClass || student.class || '',
+        };
+        if (onOutstandingMakeup) {
+            onOutstandingMakeup({
+                studentId: target.id,
+                studentName: target.name,
+                className: target.className,
+                items: loaded.items,
+            });
+        } else {
+            setMakeupStudent(target);
+            setMakeupItems(loaded.items);
+            setMakeupModalOpen(true);
+        }
         return true;
     };
 
@@ -312,12 +329,14 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
                 }
             }
             await fetchLogs();
-            onStatusChange();
 
+            // Open makeup before parent refresh so Class Dashboard loading/remount cannot drop the modal.
+            let openedMakeup = false;
             if (status === 'submitted' || status === 'missing') {
-                return await maybeOpenMakeupModal(status, student);
+                openedMakeup = await maybeOpenMakeupModal(status, student);
             }
-            return false;
+            onStatusChange();
+            return openedMakeup;
         } catch (e: any) {
             alert('Error: ' + e.message);
             return false;
