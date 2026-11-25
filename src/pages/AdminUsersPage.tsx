@@ -38,6 +38,9 @@ import { BulkUserCreationModal } from '@/components/admin/BulkUserCreationModal'
 import { BulkUserEditModal } from '@/components/admin/BulkUserEditModal';
 import { HomeworkModal } from '@/components/admin/HomeworkModal';
 import { markListedHomeworkHandedIn, syncPartialMissingHomeworkTicks } from '@/lib/homework/englishMissing';
+import { HomeworkMakeupModal } from '@/components/admin/homework/HomeworkMakeupModal';
+import { loadOutstandingHomeworkForStudent } from '@/lib/homework/loadOutstandingHomework';
+import type { OutstandingHomeworkItem } from '@/lib/homework/outstandingHomework';
 import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { getHKTodayString } from '@/utils/dateUtils';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -91,6 +94,13 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [selectedHomeworkStudentId, setSelectedHomeworkStudentId] = useState<string | null>(null);
+  const [homeworkMakeupOpen, setHomeworkMakeupOpen] = useState(false);
+  const [homeworkMakeupItems, setHomeworkMakeupItems] = useState<OutstandingHomeworkItem[]>([]);
+  const [homeworkMakeupTarget, setHomeworkMakeupTarget] = useState<{
+    id: string;
+    name: string;
+    className: string;
+  } | null>(null);
   const [showBulkCreate, setShowBulkCreate] = useState(false);
   const [showDefaultSettings, setShowDefaultSettings] = useState(false);
   const [showAwardModal, setShowAwardModal] = useState(false);
@@ -781,6 +791,42 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           const message = markErr instanceof Error ? markErr.message : 'Unknown error';
           alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
         }
+
+        const className = student?.class_name || '';
+        const loaded = await loadOutstandingHomeworkForStudent({
+          studentId,
+          className,
+          todayIso: today,
+        });
+        if (loaded.status === 'ok' && loaded.items.length > 0) {
+          setHomeworkMakeupTarget({
+            id: studentId,
+            name: student?.display_name || 'Student',
+            className,
+          });
+          setHomeworkMakeupItems(loaded.items);
+          setHomeworkMakeupOpen(true);
+        } else if (loaded.status === 'query_failed') {
+          const retry = window.confirm(
+            `Could not load outstanding homework: ${loaded.message}\n\nClick OK to retry, or Cancel to skip makeup check-in.`,
+          );
+          if (retry) {
+            const retried = await loadOutstandingHomeworkForStudent({
+              studentId,
+              className,
+              todayIso: today,
+            });
+            if (retried.status === 'ok' && retried.items.length > 0) {
+              setHomeworkMakeupTarget({
+                id: studentId,
+                name: student?.display_name || 'Student',
+                className,
+              });
+              setHomeworkMakeupItems(retried.items);
+              setHomeworkMakeupOpen(true);
+            }
+          }
+        }
       } else {
         let amount = 0;
         if (reason === '完成班務（寫手冊）') amount = 10;
@@ -864,13 +910,14 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
   const content = (
     <>
-      <div className={isEmbedded ? "" : "p-3 md:p-8"}>
+      <div className={isEmbedded ? "" : "p-3 md:p-8"} data-ui="PAGE-ADMIN-USERS">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
               <select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
+                data-ui="PANEL-FILTER"
                 className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none cursor-pointer"
               >
                 <option value="all">所有學生 (All Classes)</option>
@@ -891,13 +938,14 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
                 )}
               </select>
 
-              <div className="relative">
+              <div className="relative" data-ui="FORM-SEARCH">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="搜尋用戶 (名稱/電郵/學號)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  data-ui="FIELD-SEARCH"
                   className="pl-9 pr-8 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64"
                 />
                 {searchQuery && (
@@ -1693,8 +1741,32 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
         isOpen={!!selectedHomeworkStudentId}
         onClose={() => setSelectedHomeworkStudentId(null)}
         studentName={selectedHomeworkStudent?.display_name || ''}
-        onRecord={(reason, coins, items) => selectedHomeworkStudent && handleHomeworkRecord(selectedHomeworkStudent.id, reason, coins, items)}
+        onRecord={(reason, coins, items) =>
+          selectedHomeworkStudent &&
+          handleHomeworkRecord(selectedHomeworkStudent.id, reason, coins, items)
+        }
       />
+
+      {homeworkMakeupTarget && (
+        <HomeworkMakeupModal
+          open={homeworkMakeupOpen}
+          studentId={homeworkMakeupTarget.id}
+          studentName={homeworkMakeupTarget.name}
+          className={homeworkMakeupTarget.className}
+          items={homeworkMakeupItems}
+          onClose={() => {
+            setHomeworkMakeupOpen(false);
+            setHomeworkMakeupTarget(null);
+            setHomeworkMakeupItems([]);
+          }}
+          onConfirmSuccess={async () => {
+            setHomeworkMakeupOpen(false);
+            setHomeworkMakeupTarget(null);
+            setHomeworkMakeupItems([]);
+            await fetchUsers();
+          }}
+        />
+      )}
     </>
   );
 
