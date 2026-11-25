@@ -6,6 +6,7 @@ import {
   groupOutstandingByDate,
   mergeOutstandingItems,
   outstandingFromEnglishLogs,
+  outstandingFromOpenEnglishChecks,
 } from '@/lib/homework/outstandingHomework';
 import type { SubjectAssignmentMap } from '@/lib/homework/assignments';
 
@@ -221,6 +222,39 @@ describe('filterOutstandingHomework', () => {
       handedInKeys: new Set(),
     });
     expect(items).toEqual([]);
+  });
+
+  it('builds prior English debt from the student check rows only', () => {
+    const items = outstandingFromOpenEnglishChecks({
+      todayIso: '2026-11-26',
+      studentId: 's1',
+      fallbackClassName: '4A',
+      checks: [
+        {
+          record_date: '2026-11-20',
+          subject: '英文',
+          item_name: 'WS1',
+          handed_in: false,
+          class_name: '4A',
+        },
+        {
+          record_date: '2026-11-26',
+          subject: '英文',
+          item_name: 'Today',
+          handed_in: false,
+          class_name: '4A',
+        },
+        {
+          record_date: '2026-11-19',
+          subject: '英文',
+          item_name: 'Done',
+          handed_in: true,
+          class_name: '4A',
+        },
+      ],
+    });
+    expect(items.map((i) => i.item)).toEqual(['WS1']);
+    expect(items[0].logId).toBe(englishCheckLogId('s1', '2026-11-20'));
   });
 });
 

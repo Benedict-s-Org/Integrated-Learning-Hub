@@ -1,5 +1,10 @@
 import { detailFor, type SubjectAssignmentMap } from '@/lib/homework/assignments';
-import { handedInKey, makeupKey, type MissingLogInput } from '@/lib/homework/missingLedger';
+import {
+  englishCheckLogId,
+  handedInKey,
+  makeupKey,
+  type MissingLogInput,
+} from '@/lib/homework/missingLedger';
 
 /**
  * `handedInKeys` must use the same composite key as English homework checks:
@@ -116,6 +121,46 @@ export function outstandingFromEnglishLogs(args: {
         });
       }
     }
+  }
+
+  return items;
+}
+
+/**
+ * Single-student English debt from that student's own check rows.
+ * Prefer this for class_staff — avoids a class-wide users SELECT that RLS may empty out.
+ */
+export function outstandingFromOpenEnglishChecks(args: {
+  todayIso: string;
+  studentId: string;
+  fallbackClassName: string;
+  checks: Array<{
+    record_date: string;
+    subject: string;
+    item_name: string;
+    handed_in: boolean;
+    class_name: string;
+  }>;
+}): OutstandingHomeworkItem[] {
+  const { todayIso, studentId, fallbackClassName, checks } = args;
+  const items: OutstandingHomeworkItem[] = [];
+
+  for (const row of checks) {
+    if (row.handed_in) continue;
+    if (!row.record_date || row.record_date >= todayIso) continue;
+    const subject = (row.subject || '').trim();
+    const item = (row.item_name || '').trim();
+    if (!subject || !item) continue;
+
+    items.push({
+      logId: englishCheckLogId(studentId, row.record_date),
+      logDate: row.record_date,
+      className: (row.class_name || fallbackClassName || '').trim(),
+      studentId,
+      subject,
+      item,
+      detail: '',
+    });
   }
 
   return items;

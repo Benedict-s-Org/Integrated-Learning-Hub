@@ -1,17 +1,11 @@
 import { parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { homeworkDb } from '@/lib/homework/client';
-import {
-  handedInKey,
-  makeupKey,
-  missingLogsFromEnglishMarks,
-  parseEnglishCheckLogId,
-  type EnglishMark,
-} from '@/lib/homework/missingLedger';
+import { handedInKey, makeupKey, parseEnglishCheckLogId } from '@/lib/homework/missingLedger';
 import {
   enrichOutstandingDetails,
   filterOutstandingHomework,
   mergeOutstandingItems,
-  outstandingFromEnglishLogs,
+  outstandingFromOpenEnglishChecks,
   type OutstandingHomeworkItem,
 } from '@/lib/homework/outstandingHomework';
 
@@ -40,13 +34,6 @@ type EnglishCheckRow = {
   student_id: string;
 };
 
-type StudentRow = {
-  id: string;
-  display_name: string | null;
-  class: string | null;
-  class_number: number | string | null;
-};
-
 export type LoadOutstandingResult =
   | { status: 'ok'; items: OutstandingHomeworkItem[] }
   | { status: 'query_failed'; message: string };
@@ -55,7 +42,8 @@ const LOG_ID_BATCH = 30;
 
 /**
  * Loads prior outstanding homework for one student (excludes today via filterOutstandingHomework).
- * Guest paths: call with the authenticated homeworkDb client; on RLS failure returns query_failed (no new RPC).
+ * Works for admin and class_staff: does not require a class-wide users roster (RLS-safe).
+ * Guest paths: call with the authenticated homeworkDb client; on RLS failure returns query_failed.
  */
 export async function loadOutstandingHomeworkForStudent(args: {
   studentId: string;
@@ -65,21 +53,18 @@ export async function loadOutstandingHomeworkForStudent(args: {
   const { studentId, className, todayIso } = args;
 
   try {
-    let dutyQuery = homeworkDb
+    // Do not filter by class — class_id string variants would hide real prior debt for staff.
+    const { data: dutyRows, error: dutyError } = await homeworkDb
       .from('morning_duty_logs')
       .select('id, log_date, class, student_id, status, missing_items')
       .eq('student_id', studentId);
-    if (className) {
-      dutyQuery = dutyQuery.eq('class', className);
-    }
-    const { data: dutyRows, error: dutyError } = await dutyQuery;
     if (dutyError) {
       return { status: 'query_failed', message: dutyError.message };
     }
 
     const dutyLogs = (Array.isArray(dutyRows) ? dutyRows : []) as DutyLogRow[];
     const effectiveClass =
-      (className || '').trim() || dutyLogs.find((log) => log.class)?.class || '';
+      (className || '').trim() || dutyLogs.find((log) => (log.class || '').trim())?.class || '';
 
     const { data: checkRows, error: checkError } = await homeworkDb
       .from('english_homework_checks')
@@ -89,52 +74,13 @@ export async function loadOutstandingHomeworkForStudent(args: {
       return { status: 'query_failed', message: checkError.message };
     }
 
+    const checks = (Array.isArray(checkRows) ? checkRows : []) as EnglishCheckRow[];
     const handedInKeys = new Set<string>();
-    for (const row of (Array.isArray(checkRows) ? checkRows : []) as EnglishCheckRow[]) {
+    for (const row of checks) {
       if (!row.handed_in) continue;
       handedInKeys.add(
         handedInKey(studentId, row.record_date, row.subject, row.item_name),
       );
-    }
-
-    let englishLogs: ReturnType<typeof missingLogsFromEnglishMarks> = [];
-    if (effectiveClass) {
-      let studentQuery = homeworkDb
-        .from('users')
-        .select('id, display_name, class, class_number')
-        .eq('role', 'user')
-        .eq('class', effectiveClass);
-      let markQuery = homeworkDb
-        .from('english_homework_checks')
-        .select('class_name, record_date, subject, item_name, student_id, handed_in')
-        .eq('class_name', effectiveClass);
-
-      const [studentsRes, marksRes] = await Promise.all([studentQuery, markQuery]);
-      if (studentsRes.error) {
-        return { status: 'query_failed', message: studentsRes.error.message };
-      }
-      if (marksRes.error) {
-        return { status: 'query_failed', message: marksRes.error.message };
-      }
-
-      const students = ((studentsRes.data || []) as StudentRow[])
-        .filter((row) => row.id)
-        .map((row) => ({
-          id: row.id,
-          name: row.display_name || 'Unknown',
-          className: row.class || effectiveClass,
-          classNumber: Number(row.class_number) || 0,
-        }));
-      const marks: EnglishMark[] = ((marksRes.data || []) as EnglishCheckRow[]).map((row) => ({
-        className: row.class_name,
-        date: row.record_date,
-        subject: row.subject,
-        item: row.item_name,
-        studentId: row.student_id,
-        handedIn: row.handed_in,
-      }));
-
-      englishLogs = missingLogsFromEnglishMarks(students, marks);
     }
 
     // makeup_actions.log_id is uuid — never pass english|{studentId}|{date} synthetic ids
@@ -148,6 +94,7 @@ export async function loadOutstandingHomeworkForStudent(args: {
     const makeupActions: MakeupActionRow[] = [];
     for (let index = 0; index < logIds.length; index += LOG_ID_BATCH) {
       const batch = logIds.slice(index, index + LOG_ID_BATCH);
+      if (batch.length === 0) continue;
       const { data: actionRows, error: actionError } = await homeworkDb
         .from('homework_makeup_actions')
         .select('log_id, subject, item, is_made_up')
@@ -173,13 +120,16 @@ export async function loadOutstandingHomeworkForStudent(args: {
       makeupActions,
       handedInKeys,
     });
-    const englishItems = outstandingFromEnglishLogs({
+    const englishItems = outstandingFromOpenEnglishChecks({
       todayIso,
       studentId,
-      englishLogs,
-      madeUpKeys,
-      handedInKeys,
-    });
+      fallbackClassName: effectiveClass,
+      checks,
+    }).filter(
+      (item) =>
+        !madeUpKeys.has(makeupKey(item.logId, item.subject, item.item)) &&
+        !handedInKeys.has(handedInKey(studentId, item.logDate, item.subject, item.item)),
+    );
     let items = mergeOutstandingItems(dutyItems, englishItems);
 
     if (items.length > 0) {
@@ -196,8 +146,10 @@ export async function loadOutstandingHomeworkForStudent(args: {
           .select('date, class_name, assignments')
           .eq('class_name', cn)
           .in('date', dates);
+        // Soft-fail detail enrichment — still return outstanding list for class_staff.
         if (homeworkError) {
-          return { status: 'query_failed', message: homeworkError.message };
+          console.warn('[loadOutstandingHomework] daily_homework enrich skipped:', homeworkError.message);
+          continue;
         }
         for (const row of (Array.isArray(homeworkRows) ? homeworkRows : []) as {
           date: string;

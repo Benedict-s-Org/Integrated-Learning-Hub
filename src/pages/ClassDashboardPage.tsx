@@ -1076,6 +1076,26 @@ export function ClassDashboardPage() {
         return true;
     };
 
+    const openHomeworkMakeupForStudent = (payload: {
+        studentId: string;
+        studentName: string;
+        className: string;
+        items: OutstandingHomeworkItem[];
+    }) => {
+        if (!payload.items.length) return;
+        setHomeworkMakeupTarget({
+            id: payload.studentId,
+            name: payload.studentName,
+            className: payload.className,
+        });
+        setHomeworkMakeupItems(payload.items);
+        setHomeworkMakeupOpen(true);
+    };
+
+    const refreshUsersSilent = () => {
+        void fetchUsers({ silent: true, forceRefresh: true });
+    };
+
     const handleHomeworkRecord = async (studentId: string, reason: string, customCoins?: number, items?: Record<string, string[]>) => {
         try {
             const canProceed = await ensureOneHomeworkRecordPerDay(studentId, reason);
@@ -1168,13 +1188,13 @@ export function ClassDashboardPage() {
                     todayIso: today,
                 });
                 if (loaded.status === 'ok' && loaded.items.length > 0) {
-                    setHomeworkMakeupTarget({
-                        id: studentId,
-                        name: student?.display_name || 'Student',
+                    setSelectedHomeworkStudentId(null);
+                    openHomeworkMakeupForStudent({
+                        studentId,
+                        studentName: student?.display_name || 'Student',
                         className: studentClass,
+                        items: loaded.items,
                     });
-                    setHomeworkMakeupItems(loaded.items);
-                    setHomeworkMakeupOpen(true);
                 } else if (loaded.status === 'query_failed') {
                     if (isGuest) {
                         alert(
@@ -1191,13 +1211,13 @@ export function ClassDashboardPage() {
                                 todayIso: today,
                             });
                             if (retried.status === 'ok' && retried.items.length > 0) {
-                                setHomeworkMakeupTarget({
-                                    id: studentId,
-                                    name: student?.display_name || 'Student',
+                                setSelectedHomeworkStudentId(null);
+                                openHomeworkMakeupForStudent({
+                                    studentId,
+                                    studentName: student?.display_name || 'Student',
                                     className: studentClass,
+                                    items: retried.items,
                                 });
-                                setHomeworkMakeupItems(retried.items);
-                                setHomeworkMakeupOpen(true);
                             }
                         }
                     }
@@ -2121,7 +2141,8 @@ export function ClassDashboardPage() {
                             })()}
                             dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
-                            onStatusChange={fetchUsers}
+                            onStatusChange={refreshUsersSilent}
+                            onOutstandingMakeup={openHomeworkMakeupForStudent}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}
                             onConfirmStage={() => {
@@ -2226,7 +2247,8 @@ export function ClassDashboardPage() {
                             })()}
                             dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
-                            onStatusChange={fetchUsers}
+                            onStatusChange={refreshUsersSilent}
+                            onOutstandingMakeup={openHomeworkMakeupForStudent}
                             isPipView={true}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}
