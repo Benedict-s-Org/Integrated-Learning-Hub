@@ -1195,6 +1195,8 @@ export function ClassDashboardPage() {
                         className: studentClass,
                         items: loaded.items,
                     });
+                } else if (loaded.status === 'ok') {
+                    alert('No prior outstanding homework to make up.');
                 } else if (loaded.status === 'query_failed') {
                     if (isGuest) {
                         alert(
@@ -2143,7 +2145,6 @@ export function ClassDashboardPage() {
                             dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
                             onStatusChange={refreshUsersSilent}
-                            onOutstandingMakeup={openHomeworkMakeupForStudent}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}
                             onConfirmStage={() => {
@@ -2249,7 +2250,6 @@ export function ClassDashboardPage() {
                             dailyHomeworkMap={homeworkNameMaps}
                             onSetupDailyHomework={handleSetupDailyHomework}
                             onStatusChange={refreshUsersSilent}
-                            onOutstandingMakeup={openHomeworkMakeupForStudent}
                             isPipView={true}
                             displayTimeOverride={testState.isTestMode ? testState.formattedSimTime : null}
                             stageTextOverride={currentStageText}

@@ -1,10 +1,16 @@
 import { parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { homeworkDb } from '@/lib/homework/client';
-import { handedInKey, makeupKey, parseEnglishCheckLogId } from '@/lib/homework/missingLedger';
+import {
+  handedInKey,
+  makeupKey,
+  parseEnglishCheckLogId,
+  type EnglishMark,
+} from '@/lib/homework/missingLedger';
 import {
   enrichOutstandingDetails,
   filterOutstandingHomework,
   mergeOutstandingItems,
+  outstandingEnglishGapsForStudent,
   outstandingFromOpenEnglishChecks,
   type OutstandingHomeworkItem,
 } from '@/lib/homework/outstandingHomework';
@@ -53,16 +59,47 @@ export async function loadOutstandingHomeworkForStudent(args: {
   const { studentId, className, todayIso } = args;
 
   try {
-    // Do not filter by class — class_id string variants would hide real prior debt for staff.
-    const { data: dutyRows, error: dutyError } = await homeworkDb
-      .from('morning_duty_logs')
-      .select('id, log_date, class, student_id, status, missing_items')
-      .eq('student_id', studentId);
-    if (dutyError) {
-      return { status: 'query_failed', message: dutyError.message };
+    let dutyLogs: DutyLogRow[] = [];
+
+    // Prefer SECURITY DEFINER RPC so class_staff is not blocked by RLS empty SELECTs.
+    const { data: rpcDutyRows, error: rpcDutyError } = await homeworkDb.rpc(
+      'get_student_prior_missing_homework',
+      { p_student_id: studentId, p_today: todayIso },
+    );
+    if (!rpcDutyError && Array.isArray(rpcDutyRows)) {
+      dutyLogs = (rpcDutyRows as Array<{
+        log_id: string;
+        log_date: string;
+        class: string;
+        student_id: string;
+        status: string;
+        missing_items: Record<string, string[]> | null;
+      }>).map((row) => ({
+        id: row.log_id,
+        log_date: row.log_date,
+        class: row.class,
+        student_id: row.student_id,
+        status: row.status,
+        missing_items: row.missing_items,
+      }));
+    } else {
+      if (rpcDutyError) {
+        console.warn(
+          '[loadOutstandingHomework] RPC get_student_prior_missing_homework failed, falling back:',
+          rpcDutyError.message,
+        );
+      }
+      // Fallback: direct select (do not filter by class — string variants hide debt).
+      const { data: dutyRows, error: dutyError } = await homeworkDb
+        .from('morning_duty_logs')
+        .select('id, log_date, class, student_id, status, missing_items')
+        .eq('student_id', studentId);
+      if (dutyError) {
+        return { status: 'query_failed', message: dutyError.message };
+      }
+      dutyLogs = (Array.isArray(dutyRows) ? dutyRows : []) as DutyLogRow[];
     }
 
-    const dutyLogs = (Array.isArray(dutyRows) ? dutyRows : []) as DutyLogRow[];
     const effectiveClass =
       (className || '').trim() || dutyLogs.find((log) => (log.class || '').trim())?.class || '';
 
@@ -120,12 +157,37 @@ export async function loadOutstandingHomeworkForStudent(args: {
       makeupActions,
       handedInKeys,
     });
-    const englishItems = outstandingFromOpenEnglishChecks({
+    const englishFromOwnChecks = outstandingFromOpenEnglishChecks({
       todayIso,
       studentId,
       fallbackClassName: effectiveClass,
       checks,
-    }).filter(
+    });
+
+    let englishFromGaps: OutstandingHomeworkItem[] = [];
+    if (effectiveClass) {
+      const { data: classMarkRows, error: classMarkError } = await homeworkDb
+        .from('english_homework_checks')
+        .select('class_name, record_date, subject, item_name, student_id, handed_in')
+        .eq('class_name', effectiveClass);
+      if (classMarkError) {
+        console.warn('[loadOutstandingHomework] class english marks skipped:', classMarkError.message);
+      } else {
+        const marks: EnglishMark[] = (
+          (Array.isArray(classMarkRows) ? classMarkRows : []) as EnglishCheckRow[]
+        ).map((row) => ({
+          className: row.class_name,
+          date: row.record_date,
+          subject: row.subject,
+          item: row.item_name,
+          studentId: row.student_id,
+          handedIn: row.handed_in,
+        }));
+        englishFromGaps = outstandingEnglishGapsForStudent({ todayIso, studentId, marks });
+      }
+    }
+
+    const englishItems = mergeOutstandingItems(englishFromOwnChecks, englishFromGaps).filter(
       (item) =>
         !madeUpKeys.has(makeupKey(item.logId, item.subject, item.item)) &&
         !handedInKeys.has(handedInKey(studentId, item.logDate, item.subject, item.item)),

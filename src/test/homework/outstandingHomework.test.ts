@@ -6,6 +6,7 @@ import {
   groupOutstandingByDate,
   mergeOutstandingItems,
   outstandingFromEnglishLogs,
+  outstandingEnglishGapsForStudent,
   outstandingFromOpenEnglishChecks,
 } from '@/lib/homework/outstandingHomework';
 import type { SubjectAssignmentMap } from '@/lib/homework/assignments';
@@ -255,6 +256,32 @@ describe('filterOutstandingHomework', () => {
     });
     expect(items.map((i) => i.item)).toEqual(['WS1']);
     expect(items[0].logId).toBe(englishCheckLogId('s1', '2026-11-20'));
+  });
+
+  it('adds ledger-style English gaps when classmates handed in and student did not', () => {
+    const items = outstandingEnglishGapsForStudent({
+      todayIso: '2026-11-26',
+      studentId: 's1',
+      marks: [
+        {
+          className: '4A',
+          date: '2026-11-20',
+          subject: '英文',
+          item: 'WS1',
+          studentId: 's2',
+          handedIn: true,
+        },
+        {
+          className: '4A',
+          date: '2026-11-20',
+          subject: '英文',
+          item: 'WS1',
+          studentId: 's1',
+          handedIn: false,
+        },
+      ],
+    });
+    expect(items.map((i) => i.item)).toEqual(['WS1']);
   });
 });
 

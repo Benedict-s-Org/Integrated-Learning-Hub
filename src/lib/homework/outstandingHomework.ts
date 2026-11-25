@@ -3,6 +3,7 @@ import {
   englishCheckLogId,
   handedInKey,
   makeupKey,
+  type EnglishMark,
   type MissingLogInput,
 } from '@/lib/homework/missingLedger';
 
@@ -163,6 +164,58 @@ export function outstandingFromOpenEnglishChecks(args: {
     });
   }
 
+  return items;
+}
+
+/**
+ * Ledger-style English gaps for one student (no class roster needed):
+ * if any classmate handed in an item that day, and this student did not, it is outstanding.
+ */
+export function outstandingEnglishGapsForStudent(args: {
+  todayIso: string;
+  studentId: string;
+  marks: EnglishMark[];
+}): OutstandingHomeworkItem[] {
+  const { todayIso, studentId, marks } = args;
+  type Group = {
+    className: string;
+    date: string;
+    subject: string;
+    item: string;
+    handedIn: Set<string>;
+  };
+  const groups = new Map<string, Group>();
+  for (const mark of marks) {
+    const className = (mark.className || '').trim();
+    const item = (mark.item || '').trim();
+    if (!className || !mark.date || !mark.subject || !item || !mark.studentId) continue;
+    if (mark.date >= todayIso) continue;
+    const key = `${className}\0${mark.date}\0${mark.subject}\0${item}`;
+    const group = groups.get(key) ?? {
+      className,
+      date: mark.date,
+      subject: mark.subject,
+      item,
+      handedIn: new Set<string>(),
+    };
+    if (mark.handedIn) group.handedIn.add(mark.studentId);
+    groups.set(key, group);
+  }
+
+  const items: OutstandingHomeworkItem[] = [];
+  for (const group of groups.values()) {
+    if (group.handedIn.size === 0) continue; // same as Missing ledger: no ticks ⇒ off list
+    if (group.handedIn.has(studentId)) continue;
+    items.push({
+      logId: englishCheckLogId(studentId, group.date),
+      logDate: group.date,
+      className: group.className,
+      studentId,
+      subject: group.subject,
+      item: group.item,
+      detail: '',
+    });
+  }
   return items;
 }
 
