@@ -259,24 +259,25 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
             }
             return false;
         }
-        if (loaded.items.length === 0) return false;
+        if (loaded.items.length === 0) {
+            showToast('No prior outstanding homework to make up.', 'success');
+            return false;
+        }
         const target = {
             id: student.id,
             name: student.display_name || 'Student',
             className: activeClass || student.class || '',
         };
-        if (onOutstandingMakeup) {
-            onOutstandingMakeup({
-                studentId: target.id,
-                studentName: target.name,
-                className: target.className,
-                items: loaded.items,
-            });
-        } else {
-            setMakeupStudent(target);
-            setMakeupItems(loaded.items);
-            setMakeupModalOpen(true);
-        }
+        // Always open a board-local modal (portaled to body) so PiP / overflow parents cannot hide it.
+        setMakeupStudent(target);
+        setMakeupItems(loaded.items);
+        setMakeupModalOpen(true);
+        onOutstandingMakeup?.({
+            studentId: target.id,
+            studentName: target.name,
+            className: target.className,
+            items: loaded.items,
+        });
         return true;
     };
 

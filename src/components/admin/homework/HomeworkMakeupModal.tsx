@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BookOpen, Check, Loader2, X } from 'lucide-react';
 import { homeworkDb } from '@/lib/homework/client';
 import { makeupKey, parseEnglishCheckLogId } from '@/lib/homework/missingLedger';
@@ -130,9 +131,9 @@ export function HomeworkMakeupModal({
     onConfirmSuccess();
   };
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
       data-ui="MODAL-HOMEWORK-MAKEUP"
     >
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
@@ -242,4 +243,7 @@ export function HomeworkMakeupModal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return modal;
+  return createPortal(modal, document.body);
 }
