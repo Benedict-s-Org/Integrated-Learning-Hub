@@ -422,10 +422,11 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
       )}
       <div
         className="min-h-screen bg-background"
+        data-ui="PAGE-MEMORIZATION"
         data-source-tsx="MemorizationView|src/components/MemorizationView/MemorizationView.tsx"
       >
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-4 md:py-8">
-          <Card className="p-4 md:p-8">
+          <Card className="p-4 md:p-8" data-ui="PANEL-PRACTICE-STAGE">
             <h1
               className="text-xl md:text-3xl font-bold text-foreground mb-2 text-center"
               data-source-tsx="MemorizationView Title|src/components/MemorizationView/MemorizationView.tsx"
@@ -671,6 +672,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     variant={saveSuccess ? "success" : "primary"}
                     icon={Save}
                     className="w-full sm:w-auto"
+                    data-ui="BTN-SAVE-PRACTICE"
                   >
                     {isSaving
                       ? (editingContentId ? 'Updating...' : 'Saving...')

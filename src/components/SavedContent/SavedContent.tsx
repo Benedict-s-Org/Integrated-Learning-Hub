@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Trash2, Play, Calendar, Share, Copy, Check, UserPlus, Edit2, X, Loader2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Trash2, Play, Calendar, Share, Copy, Check, UserPlus, Edit2, X, Loader2, RotateCcw, Layers } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
-import { SavedContent as SavedContentType, MemorizationState } from '../../types';
+import { SavedContent as SavedContentType, MemorizationState, PracticeMode } from '../../types';
 import { processText } from '../../utils/textProcessor';
+import { PRACTICE_MODE_ORDER, parsePracticeModes } from '../../utils/practiceModes';
 import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
 import MemorizationAssignment from '../MemorizationAssignment/MemorizationAssignment';
@@ -12,6 +13,23 @@ interface SavedContentProps {
   onCreateNew: () => void;
   onEditContent: (content: SavedContentType) => void;
 }
+
+interface PracticeGroup {
+  key: string;
+  primary: SavedContentType;
+  items: SavedContentType[];
+  modes: PracticeMode[];
+}
+
+const contentFingerprint = (content: SavedContentType) => {
+  const indices = [...content.selectedWordIndices].sort((a, b) => a - b).join(',');
+  return `${content.title}\u0000${content.originalText}\u0000${indices}`;
+};
+
+const modesForContent = (content: SavedContentType): PracticeMode[] =>
+  content.practiceModes?.length
+    ? PRACTICE_MODE_ORDER.filter(mode => content.practiceModes!.includes(mode))
+    : parsePracticeModes(content.practiceMode);
 
 const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew, onEditContent }) => {
   const { savedContents, updateSavedContentTitle, deleteSavedContent, publishSavedContent, saveLimit, currentSaveCount } = useAppContext();
@@ -25,6 +43,31 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
   const [editingTitle, setEditingTitle] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
 
+  const practiceGroups = useMemo(() => {
+    const map = new Map<string, PracticeGroup>();
+    for (const content of savedContents) {
+      const key = contentFingerprint(content);
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, {
+          key,
+          primary: content,
+          items: [content],
+          modes: modesForContent(content),
+        });
+        continue;
+      }
+      existing.items.push(content);
+      const merged = new Set([...existing.modes, ...modesForContent(content)]);
+      existing.modes = PRACTICE_MODE_ORDER.filter(mode => merged.has(mode));
+      // Prefer the newest published / earliest created as primary for actions
+      if (content.createdAt > existing.primary.createdAt) {
+        existing.primary = content;
+      }
+    }
+    return Array.from(map.values());
+  }, [savedContents]);
+
   const handleStartEdit = (content: SavedContentType) => {
     setEditingId(content.id);
     setEditingTitle(content.title);
@@ -35,7 +78,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
     setEditingTitle('');
   };
 
-  const handleSaveTitle = async (id: string) => {
+  const handleSaveTitle = async (group: PracticeGroup) => {
     const trimmed = editingTitle.trim();
     if (!trimmed) {
       alert('Title cannot be empty');
@@ -43,10 +86,10 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
     }
 
     setIsSavingTitle(true);
-    const success = await updateSavedContentTitle(id, trimmed);
+    const results = await Promise.all(group.items.map(item => updateSavedContentTitle(item.id, trimmed)));
     setIsSavingTitle(false);
 
-    if (success) {
+    if (results.every(Boolean)) {
       setEditingId(null);
       setEditingTitle('');
     } else {
@@ -54,15 +97,15 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (deleteConfirm === id) {
-      setDeletingId(id);
-      await deleteSavedContent(id);
+  const handleDelete = async (group: PracticeGroup) => {
+    const confirmId = group.primary.id;
+    if (deleteConfirm === confirmId) {
+      setDeletingId(confirmId);
+      await Promise.all(group.items.map(item => deleteSavedContent(item.id)));
       setDeletingId(null);
       setDeleteConfirm(null);
     } else {
-      setDeleteConfirm(id);
-      // Auto-cancel confirmation after 3 seconds
+      setDeleteConfirm(confirmId);
       setTimeout(() => setDeleteConfirm(null), 3000);
     }
   };
@@ -99,23 +142,45 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
     }
   };
 
-  const handleLoad = (savedContent: SavedContentType) => {
+  const handleLoad = (savedContent: SavedContentType, practiceMode: PracticeMode) => {
     const words = processText(savedContent.originalText);
-    // Mark selected words
     const wordsWithSelection = words.map(word => ({
       ...word,
       isMemorized: savedContent.selectedWordIndices.includes(word.index)
     }));
 
     const memorizationState: MemorizationState = {
+      title: savedContent.title,
       originalText: savedContent.originalText,
       words: wordsWithSelection,
       selectedWordIndices: savedContent.selectedWordIndices,
       hiddenWords: new Set(savedContent.selectedWordIndices),
-      practiceMode: savedContent.practiceMode,
+      practiceMode,
     };
 
     onLoadContent(memorizationState);
+  };
+
+  const modeBadge = (mode: PracticeMode) => {
+    if (mode === 'dictation') {
+      return (
+        <span key={mode} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase">
+          Dictation
+        </span>
+      );
+    }
+    if (mode === 'shuffledGame') {
+      return (
+        <span key={mode} className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">
+          Game
+        </span>
+      );
+    }
+    return (
+      <span key={mode} className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
+        Classic
+      </span>
+    );
   };
 
   return (
@@ -127,10 +192,11 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
       />
       <div
         className="pt-24 min-h-full bg-gray-50 pr-8"
+        data-ui="PAGE-MEMORIZATION"
         data-source-tsx="SavedContent|src/components/SavedContent/SavedContent.tsx"
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="bg-white rounded-lg shadow-lg p-8" data-ui="PANEL-PRACTICE-STAGE">
             <h1
               className="text-3xl font-bold text-gray-800 mb-6 text-center"
               data-source-tsx="SavedContent Title|src/components/SavedContent/SavedContent.tsx"
@@ -157,11 +223,14 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {savedContents.map(content => (
+              <div className="space-y-4" data-ui="LIST-SAVED-CONTENT">
+                {practiceGroups.map(group => {
+                  const content = group.primary;
+                  return (
                   <div
-                    key={content.id}
+                    key={group.key}
                     className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                    data-ui="CARD-SAVED-ITEM"
                     data-source-tsx="SavedContent Item Container|src/components/SavedContent/SavedContent.tsx"
                   >
                     <div className="flex items-start justify-between">
@@ -173,7 +242,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                               value={editingTitle}
                               onChange={(e) => setEditingTitle(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveTitle(content.id);
+                                if (e.key === 'Enter') handleSaveTitle(group);
                                 if (e.key === 'Escape') handleCancelEdit();
                               }}
                               className="flex-1 px-3 py-1.5 text-base border-2 border-blue-500 rounded-lg focus:outline-none font-semibold text-gray-800"
@@ -182,7 +251,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                               placeholder="Enter title..."
                             />
                             <button
-                              onClick={() => handleSaveTitle(content.id)}
+                              onClick={() => handleSaveTitle(group)}
                               disabled={isSavingTitle || !editingTitle.trim()}
                               className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
                               title="Save title"
@@ -216,11 +285,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                             >
                               <Edit2 size={16} />
                             </button>
-                            {content.practiceMode === 'dictation' && (
-                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">
-                                Dictation
-                              </span>
-                            )}
+                            {group.modes.map(mode => modeBadge(mode))}
                           </div>
                         )}
                         <p
@@ -229,7 +294,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                         >
                           {content.originalText}
                         </p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
                           <span
                             className="flex items-center space-x-1"
                             data-source-tsx="SavedContent Item Date|src/components/SavedContent/SavedContent.tsx"
@@ -241,18 +306,44 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                             {content.selectedWordIndices.length} words selected
                           </span>
                         </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {group.modes.includes('memorization') && (
+                            <button
+                              onClick={() => handleLoad(content, 'memorization')}
+                              data-ui="BTN-PREVIEW-CLASSIC"
+                              className="flex items-center space-x-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                              title="Open Classic Mode"
+                            >
+                              <Play size={14} />
+                              <span>Classic</span>
+                            </button>
+                          )}
+                          {group.modes.includes('shuffledGame') && (
+                            <button
+                              onClick={() => handleLoad(content, 'shuffledGame')}
+                              data-ui="BTN-PREVIEW-GAME"
+                              className="flex items-center space-x-1 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                              title="Open Game Mode"
+                            >
+                              <RotateCcw size={14} />
+                              <span>Game</span>
+                            </button>
+                          )}
+                          {group.modes.includes('dictation') && (
+                            <button
+                              onClick={() => handleLoad(content, 'dictation')}
+                              data-ui="BTN-PREVIEW-DICTATION"
+                              className="flex items-center space-x-1 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                              title="Open Dictation Mode"
+                            >
+                              <Layers size={14} />
+                              <span>Dictation</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center space-x-2 ml-4 flex-wrap">
-                        <button
-                          onClick={() => handleLoad(content)}
-                          className="flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                          data-source-tsx="SavedContent Practice Button|src/components/SavedContent/SavedContent.tsx"
-                        >
-                          <Play size={16} />
-                          <span>Practice</span>
-                        </button>
-
                         <button
                           onClick={() => onEditContent(content)}
                           className="flex items-center space-x-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
@@ -295,7 +386,7 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                         )}
 
                         <button
-                          onClick={() => handleDelete(content.id)}
+                          onClick={() => handleDelete(group)}
                           disabled={deletingId === content.id}
                           className={`flex items-center space-x-1 px-4 py-2 rounded-lg transition-colors ${deleteConfirm === content.id
                             ? 'bg-red-600 text-white hover:bg-red-700'
@@ -316,7 +407,8 @@ const SavedContent: React.FC<SavedContentProps> = ({ onLoadContent, onCreateNew,
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

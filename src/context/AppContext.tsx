@@ -2,7 +2,32 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList, ProofreadingPractice, ProofreadingAnswer } from '../types';
 import { supabase } from '../lib/supabase';
 import { processText } from '../utils/textProcessor';
+import { parsePracticeModes, serializePracticeModes } from '../utils/practiceModes';
 import { useAuth } from './AuthContext';
+
+const mapSavedContent = (item: {
+  id: string;
+  title: string;
+  originalText: string;
+  selectedWordIndices: number[];
+  createdAt: string | Date;
+  isPublished?: boolean;
+  publicId?: string | null;
+  practiceMode?: string | null;
+}): SavedContent => {
+  const practiceModes = parsePracticeModes(item.practiceMode);
+  return {
+    id: item.id,
+    title: item.title,
+    originalText: item.originalText,
+    selectedWordIndices: item.selectedWordIndices,
+    createdAt: item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt),
+    isPublished: item.isPublished || false,
+    publicId: item.publicId || null,
+    practiceMode: practiceModes[0],
+    practiceModes,
+  };
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -43,16 +68,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       if (error) {
         console.error('Error fetching saved contents:', error);
       } else if (responseData) {
-        const formattedData = responseData.contents.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          originalText: item.originalText,
-          selectedWordIndices: item.selectedWordIndices,
-          createdAt: new Date(item.createdAt),
-          isPublished: item.isPublished || false,
-          publicId: item.publicId || null,
-          practiceMode: item.practiceMode || 'memorization',
-        }));
+        const formattedData = responseData.contents.map((item: any) => mapSavedContent(item));
         setSavedContents(formattedData);
         setSaveLimit(responseData.limit);
         setCurrentSaveCount(responseData.currentCount);
@@ -170,7 +186,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           originalText: content.originalText,
           selectedWordIndices: content.selectedWordIndices,
           userId: userId,
-          practiceMode: content.practiceMode || 'memorization',
+          practiceMode: serializePracticeModes(content.practiceModes || parsePracticeModes(content.practiceMode)),
         }
       });
 
@@ -180,17 +196,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       }
 
       if (data.content) {
-        const newContent: SavedContent = {
-          id: data.content.id,
-          title: data.content.title,
-          originalText: data.content.originalText,
-          selectedWordIndices: data.content.selectedWordIndices,
-          createdAt: new Date(data.content.createdAt),
-          isPublished: data.content.isPublished || false,
-          publicId: data.content.publicId || null,
-          practiceMode: data.content.practiceMode || 'memorization',
-        };
-
+        const newContent = mapSavedContent(data.content);
         setSavedContents(prev => [newContent, ...prev]);
         setCurrentSaveCount(prev => prev + 1);
         return true;
@@ -234,7 +240,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       title: string;
       originalText: string;
       selectedWordIndices: number[];
-      practiceMode?: SavedContent['practiceMode'];
+      practiceMode?: SavedContent['practiceMode'] | string;
+      practiceModes?: SavedContent['practiceModes'];
     }
   ): Promise<boolean> => {
     if (!userId) {
@@ -247,6 +254,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
       console.error('Title and original text are required');
       return false;
     }
+
+    const modesSerialized = content.practiceModes
+      ? serializePracticeModes(content.practiceModes)
+      : serializePracticeModes(parsePracticeModes(content.practiceMode));
 
     try {
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -262,7 +273,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
           title: trimmedTitle,
           originalText: content.originalText,
           selectedWordIndices: content.selectedWordIndices,
-          practiceMode: content.practiceMode || 'memorization',
+          practiceMode: modesSerialized,
         }),
       });
 
@@ -271,16 +282,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
         return false;
       }
 
-      const updated = data.content;
+      const updated = mapSavedContent(data.content);
       setSavedContents(prev =>
         prev.map(item =>
           item.id === id
             ? {
                 ...item,
-                title: updated.title,
-                originalText: updated.originalText,
-                selectedWordIndices: updated.selectedWordIndices,
-                practiceMode: updated.practiceMode || content.practiceMode || item.practiceMode,
+                ...updated,
                 isPublished: updated.isPublished ?? item.isPublished,
                 publicId: updated.publicId ?? item.publicId,
               }

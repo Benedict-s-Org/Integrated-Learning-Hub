@@ -12,7 +12,8 @@ interface CreateContentRequest {
   originalText: string;
   selectedWordIndices: number[];
   userId: string;
-  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
+  /** Single mode or comma-separated modes, e.g. "memorization,shuffledGame,dictation" */
+  practiceMode?: string;
 }
 
 interface UpdateContentRequest {
@@ -21,7 +22,8 @@ interface UpdateContentRequest {
   title: string;
   originalText: string;
   selectedWordIndices: number[];
-  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
+  /** Single mode or comma-separated modes */
+  practiceMode?: string;
 }
 
 interface DeleteContentRequest {

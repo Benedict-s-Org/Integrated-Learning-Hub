@@ -78,7 +78,7 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
       hiddenWords: new Set(assignment.selected_word_indices),
       title: assignment.title,
       assignmentId: assignment.id,
-      practiceMode: assignment.practice_mode || 'memorization',
+      practiceMode: (assignment.practice_mode || 'memorization').split(',')[0].trim() || 'memorization',
     };
 
     onLoadContent(memorizationState);
