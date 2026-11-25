@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ArrowLeft, RotateCcw, Layers } from 'lucide-react';
-import { Word } from '../../types';
+import { ArrowRight, ArrowLeft, RotateCcw, Layers, Save } from 'lucide-react';
+import { Word, PracticeMode } from '../../types';
 import { processText, getSelectedWordIndices } from '../../utils/textProcessor';
 import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
 
 const selectablePunctuations = new Set<string>();
+
+export type SavePracticeMode = PracticeMode;
 
 interface WordSelectionProps {
   text: string;
@@ -15,9 +17,9 @@ interface WordSelectionProps {
   onBack: () => void;
   onViewSaved?: () => void;
   onStartGame?: (words: Word[], selectedIndices: number[]) => void;
-  onSaveGame?: (words: Word[], selectedIndices: number[]) => void;
   onStartDictation?: (words: Word[], selectedIndices: number[]) => void;
-  onSaveDictation?: (words: Word[], selectedIndices: number[]) => void;
+  /** Save one practice as one or more modes in a single action */
+  onSaveModes?: (words: Word[], selectedIndices: number[], modes: SavePracticeMode[]) => void | Promise<void>;
   isAdmin?: boolean;
 }
 
@@ -29,13 +31,18 @@ const WordSelection: React.FC<WordSelectionProps> = ({
   onBack,
   onViewSaved,
   onStartGame,
-  onSaveGame,
   onStartDictation,
-  onSaveDictation,
+  onSaveModes,
   isAdmin = false
 }) => {
   const [words, setWords] = useState<Word[]>([]);
   const [historyStack, setHistoryStack] = useState<Word[][]>([]);
+  const [saveModes, setSaveModes] = useState<Record<SavePracticeMode, boolean>>({
+    memorization: true,
+    shuffledGame: true,
+    dictation: true,
+  });
+  const [isSaving, setIsSaving] = useState(false);
   const { user } = useAuth();
 
   // Selection mode drag states
@@ -162,6 +169,22 @@ const WordSelection: React.FC<WordSelectionProps> = ({
 
   const selectedCount = words.filter(word => word.isMemorized).length;
 
+  const toggleSaveMode = (mode: SavePracticeMode) => {
+    setSaveModes(prev => ({ ...prev, [mode]: !prev[mode] }));
+  };
+
+  const selectedSaveModes = (Object.keys(saveModes) as SavePracticeMode[]).filter(mode => saveModes[mode]);
+
+  const handleSave = async () => {
+    if (!onSaveModes || selectedCount === 0 || selectedSaveModes.length === 0 || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSaveModes(words, getSelectedWordIndices(words), selectedSaveModes);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
       {user && onViewSaved && (
@@ -245,69 +268,110 @@ const WordSelection: React.FC<WordSelectionProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 sm:gap-0">
-              <button
-                onClick={onBack}
-                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <ArrowLeft size={20} />
-                <span>Back</span>
-              </button>
-
-              <button
-                onClick={handleNext}
-                disabled={selectedCount === 0}
-                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                title="Start classic memorization"
-              >
-                <span>Classic Mode</span>
-                <ArrowRight size={20} />
-              </button>
-
-              {onStartGame && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col-reverse sm:flex-row flex-wrap justify-between items-center gap-3">
                 <button
-                  onClick={() => onStartGame(words, getSelectedWordIndices(words))}
-                  disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  title="Start shuffled word game"
+                  onClick={onBack}
+                  data-ui="BTN-BACK"
+                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
                 >
-                  <RotateCcw size={20} />
-                  <span>Game Mode</span>
+                  <ArrowLeft size={20} />
+                  <span>Back</span>
                 </button>
-              )}
 
-              {isAdmin && onStartDictation && (
-                <button
-                  onClick={() => onStartDictation(words, getSelectedWordIndices(words))}
-                  disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  title="Start dictation mode"
-                >
-                  <Layers size={20} />
-                  <span>Dictation Mode</span>
-                </button>
-              )}
+                <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full sm:w-auto">
+                  <button
+                    onClick={handleNext}
+                    disabled={selectedCount === 0}
+                    data-ui="BTN-PREVIEW-CLASSIC"
+                    className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    title="Preview classic memorization"
+                  >
+                    <span>Classic Mode</span>
+                    <ArrowRight size={20} />
+                  </button>
 
-              {isAdmin && onSaveGame && (
-                <button
-                  onClick={() => onSaveGame(words, getSelectedWordIndices(words))}
-                  disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  title="Save configuration as game"
-                >
-                  <span>Save as Game</span>
-                </button>
-              )}
+                  {onStartGame && (
+                    <button
+                      onClick={() => onStartGame(words, getSelectedWordIndices(words))}
+                      disabled={selectedCount === 0}
+                      data-ui="BTN-PREVIEW-GAME"
+                      className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      title="Preview shuffled word game"
+                    >
+                      <RotateCcw size={20} />
+                      <span>Game Mode</span>
+                    </button>
+                  )}
 
-              {isAdmin && onSaveDictation && (
-                <button
-                  onClick={() => onSaveDictation(words, getSelectedWordIndices(words))}
-                  disabled={selectedCount === 0}
-                  className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  title="Save configuration as dictation"
+                  {isAdmin && onStartDictation && (
+                    <button
+                      onClick={() => onStartDictation(words, getSelectedWordIndices(words))}
+                      disabled={selectedCount === 0}
+                      data-ui="BTN-PREVIEW-DICTATION"
+                      className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      title="Preview dictation mode"
+                    >
+                      <Layers size={20} />
+                      <span>Dictation Mode</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {isAdmin && onSaveModes && (
+                <div
+                  data-ui="FORM-SAVE-MODES"
+                  className="flex flex-col sm:flex-row flex-wrap items-center justify-end gap-3 sm:gap-4 pt-3 border-t border-gray-100"
                 >
-                  <span>Save as Dictation</span>
-                </button>
+                  <span className="text-sm font-medium text-gray-600 w-full sm:w-auto">Save as:</span>
+                  <label
+                    data-ui="FIELD-SAVE-MODE-CLASSIC"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-800 text-sm font-medium cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={saveModes.memorization}
+                      onChange={() => toggleSaveMode('memorization')}
+                      className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Classic
+                  </label>
+                  <label
+                    data-ui="FIELD-SAVE-MODE-GAME"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-800 text-sm font-medium cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={saveModes.shuffledGame}
+                      onChange={() => toggleSaveMode('shuffledGame')}
+                      className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    Game
+                  </label>
+                  <label
+                    data-ui="FIELD-SAVE-MODE-DICTATION"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 text-indigo-800 text-sm font-medium cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={saveModes.dictation}
+                      onChange={() => toggleSaveMode('dictation')}
+                      className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Dictation
+                  </label>
+                  <button
+                    onClick={handleSave}
+                    disabled={selectedCount === 0 || selectedSaveModes.length === 0 || isSaving}
+                    data-ui="BTN-SAVE-PRACTICE"
+                    className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    title="Save selected modes as one practice"
+                  >
+                    <Save size={18} />
+                    <span>{isSaving ? 'Saving…' : 'Save'}</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>

@@ -206,7 +206,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         words: wordsWithSelection,
         title: assignment.title,
         assignmentId: assignment.assignment_id,
-        practiceMode: assignment.content_data?.practice_mode || 'memorization',
+        practiceMode: String(assignment.content_data?.practice_mode || 'memorization').split(',')[0].trim() || 'memorization',
       };
       onLoadMemorization(memorizationState);
     } else if (assignment.assignment_type === 'spelling') {
@@ -289,7 +289,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-background p-8" data-ui="PAGE-ASSIGNMENTS">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">My Assignments</h1>
@@ -377,6 +377,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                   <div
                     key={assignment.assignment_id}
                     onClick={() => handleAssignmentClick(assignment)}
+                    data-ui="CARD-ASSIGNMENT"
                     className="p-6 hover:bg-slate-50 transition cursor-pointer"
                   >
                     <div className="flex items-start justify-between">

@@ -1,5 +1,14 @@
 # Codebase Manifest — Index
 <!-- Agent: Read this index first. Use line ranges to jump to relevant sections for details. -->
+
+## Global UI Registry (shared — do not duplicate)
+
+Sole bilingual `data-ui` registry for Learning Hub **and** PersonalOS:  
+`C:\AI\PersonalOS\docs\SYSTEM_GUIDE.md` (repo-relative from PersonalOS: `docs/SYSTEM_GUIDE.md`).  
+Waves 1–4 done (shell + Login/practice/Class Dashboard/admin modals + Essay Marking + remaining admin). Codes stay English in source; Chinese names live only in that guide. See INS-078…082 in PersonalOS ProjectMemory. Do not duplicate the name table here.
+
+**Debug Overlay (default OFF):** `src/components/debug/DataUiOverlay.tsx` mounted from `App.tsx`. Toggle `Ctrl+Shift+U` or open any URL with `?debug=ui` (sessionStorage persists in-tab).
+
 | Module | Summary | Lines |
 |---|---|---|
 | **Contexts & Auth** | `AuthContext`, `AppContext`, logic for roles, impersonation. | L33-L40 |
@@ -179,7 +188,11 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 - **Logic**: 
   - **Title / Topic Input**: `TextInput.tsx` allows entering an article/topic title for memorization paragraphs, persisting through memorization, dictation, and shuffled game modes.
   - **Editable Titles**: `SavedContent.tsx` supports inline editing of saved content titles with instant database sync and state update via `updateSavedContentTitle`.
-  - **Centralized Difficulty**: `MemorizationView.tsx` and `DictationView.tsx` enforce the student's `memorization_level` and hide selection buttons.
+  - **Centralized Difficulty**: `MemorizationView.tsx` enforces the student's `memorization_level` and hides selection buttons.
+  - **Dictation Blanking**: `DictationView.tsx` blanks every content word — 3+ letters show the first letter only; 1–2 letter words show underscore blanks only (no letter hint). Word units use extra horizontal spacing so the first letter does not stick to the previous word.
+  - **Multi-mode Save**: `WordSelection.tsx` keeps Classic / Game / Dictation as preview buttons; admins pick modes via checkboxes (`FORM-SAVE-MODES`) and save once with `BTN-SAVE-PRACTICE`, creating one saved content row per selected mode.
+  - **Game Shuffle Ranges**: `ShuffledGameView.tsx` shuffles within sentence (`.?!`) or line ranges — never the whole paragraph. Drag is limited to the same range. Level comes from `reading_rearranging_level` (1 = sentence/line, 2 = line/paragraph).
+  - **Multi-mode Practice Item**: One saved practice stores selected modes in `practice_mode` as a comma-separated list (`memorization,shuffledGame,dictation`). `SavedContent.tsx` shows one card with only the selected mode entry buttons; legacy duplicate rows with the same title/text/indices are grouped into one card.
   - **Public Links**: Can generate `public_id` which allow accessing the text without logging in. Uses `appState = { page: 'publicPractice' }` inside `App.tsx` to handle these.
 
 ### Coin Service (L95-L99)

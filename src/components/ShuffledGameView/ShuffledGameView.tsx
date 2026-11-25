@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { ArrowLeft, RotateCcw, PartyPopper, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Word } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface ShuffledGameViewProps {
     words: Word[];
@@ -28,15 +29,73 @@ interface ShuffledGameViewProps {
     onSaveGame?: () => void;
 }
 
+/** 1 = sentence / line ranges (. ? ! or line break); 2 = line / paragraph ranges only */
+type ShuffleLevel = 1 | 2;
+
 interface GameWord {
-    id: string; // Unique ID for dnd-kit
+    id: string;
     text: string;
     originalIndex: number;
     isPunctuation: boolean;
     isParagraphBreak: boolean;
+    /** Content words share a bucket; punctuation / breaks are null (fixed) */
+    bucketId: number | null;
 }
 
-const SortableWord = ({ id, text, isCorrect, isDragging }: { id: string; text: string; isCorrect: boolean; isDragging: boolean }) => {
+const isContentWord = (w: { isPunctuation: boolean; isParagraphBreak: boolean; text: string }) =>
+    !w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0;
+
+const isLineBreak = (w: { text: string; isParagraphBreak: boolean }) =>
+    w.isParagraphBreak || w.text === '\n' || w.text === '\r\n' || w.text.includes('\n');
+
+const isSentenceEnd = (w: { isPunctuation: boolean; text: string }) =>
+    w.isPunctuation && /^[.?!]+$/.test(w.text);
+
+const fisherYatesShuffle = <T,>(items: T[]): T[] => {
+    const arr = [...items];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+};
+
+/** One visual row per sentence / line range (not CSS width wrapping). */
+const groupIntoSentenceRows = (gameWords: GameWord[]): { word: GameWord; globalIndex: number }[][] => {
+    const rows: { word: GameWord; globalIndex: number }[][] = [];
+    let current: { word: GameWord; globalIndex: number }[] = [];
+    let currentBucket: number | null = null;
+
+    const flush = () => {
+        if (current.length > 0) rows.push(current);
+        current = [];
+        currentBucket = null;
+    };
+
+    gameWords.forEach((w, globalIndex) => {
+        if (w.isParagraphBreak || w.text === '\n' || w.text === '\r\n') {
+            flush();
+            return;
+        }
+
+        if (isContentWord(w)) {
+            if (currentBucket !== null && w.bucketId !== currentBucket) {
+                flush();
+            }
+            current.push({ word: w, globalIndex });
+            currentBucket = w.bucketId;
+            return;
+        }
+
+        // Punctuation stays on the current sentence row
+        current.push({ word: w, globalIndex });
+    });
+
+    flush();
+    return rows;
+};
+
+const SortableWord = ({ id, text, isDragging }: { id: string; text: string; isDragging: boolean }) => {
     const {
         attributes,
         listeners,
@@ -60,10 +119,7 @@ const SortableWord = ({ id, text, isCorrect, isDragging }: { id: string; text: s
             className={`
         inline-block px-3 py-2 m-1 rounded-lg border-2 cursor-grab active:cursor-grabbing select-none
         transition-all duration-200
-        ${isCorrect
-                    ? 'bg-green-100 border-green-400 text-green-800'
-                    : 'bg-white border-gray-200 text-gray-800 shadow-sm hover:border-blue-400 hover:shadow-md'
-                }
+        bg-white border-gray-200 text-gray-800 shadow-sm hover:border-blue-400 hover:shadow-md
         ${isDragging ? 'opacity-50 scale-105 shadow-xl' : 'opacity-100'}
       `}
         >
@@ -72,101 +128,99 @@ const SortableWord = ({ id, text, isCorrect, isDragging }: { id: string; text: s
     );
 };
 
+const buildShuffledWords = (words: Word[], currentLevel: ShuffleLevel): GameWord[] => {
+    const initialWords: GameWord[] = words.map((w, idx) => ({
+        id: `word-${idx}-${w.text}`,
+        text: w.text,
+        originalIndex: idx,
+        isPunctuation: w.isPunctuation || false,
+        isParagraphBreak: w.isParagraphBreak || false,
+        bucketId: null,
+    }));
+
+    type Bucket = { endIndex: number; words: GameWord[] };
+    const buckets: Bucket[] = [];
+    let currentBucketWords: GameWord[] = [];
+    let bucketId = 0;
+
+    const flushBucket = (endIndex: number) => {
+        if (currentBucketWords.length === 0) return;
+        currentBucketWords.forEach(w => {
+            w.bucketId = bucketId;
+        });
+        buckets.push({
+            endIndex,
+            words: fisherYatesShuffle(currentBucketWords),
+        });
+        bucketId += 1;
+        currentBucketWords = [];
+    };
+
+    for (let i = 0; i < initialWords.length; i++) {
+        const w = initialWords[i];
+        if (isContentWord(w)) {
+            currentBucketWords.push(w);
+        }
+
+        const atEnd = i === initialWords.length - 1;
+        const boundary =
+            atEnd ||
+            isLineBreak(w) ||
+            (currentLevel === 1 && isSentenceEnd(w));
+
+        if (boundary) {
+            flushBucket(i);
+        }
+    }
+
+    // Reconstruct: keep punctuation / breaks fixed; fill content slots from shuffled buckets
+    const finalWords: GameWord[] = [];
+    let bucketIdx = 0;
+    let wordInBucketIdx = 0;
+
+    for (let i = 0; i < initialWords.length; i++) {
+        const w = initialWords[i];
+        if (isContentWord(w)) {
+            let currentBucket = buckets[bucketIdx];
+            while (currentBucket && i > currentBucket.endIndex) {
+                bucketIdx += 1;
+                currentBucket = buckets[bucketIdx];
+                wordInBucketIdx = 0;
+            }
+
+            if (currentBucket && wordInBucketIdx < currentBucket.words.length) {
+                const shuffled = currentBucket.words[wordInBucketIdx++];
+                finalWords.push({
+                    ...shuffled,
+                    id: `slot-${i}-${shuffled.originalIndex}-${Math.random().toString(36).slice(2, 8)}`,
+                });
+            } else {
+                finalWords.push({ ...w, id: `slot-${i}-${w.originalIndex}` });
+            }
+        } else {
+            finalWords.push({ ...w, id: `fixed-${i}-${w.text}` });
+        }
+    }
+
+    return finalWords;
+};
+
 const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPractice = false, onSaveGame }) => {
+    const { user } = useAuth();
+    const profileLevel = (user?.reading_rearranging_level as ShuffleLevel | undefined) || 1;
+    const [level] = useState<ShuffleLevel>(profileLevel === 2 ? 2 : 1);
     const [gameWords, setGameWords] = useState<GameWord[]>([]);
     const [isComplete, setIsComplete] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
-    const [level, setLevel] = useState<number>(3); // 1 = Sentence, 2 = Paragraph, 3 = All
 
-    const shuffleWords = (currentLevel: number) => {
-        const initialWords: GameWord[] = words.map((w, idx) => ({
-            id: `word-${idx}-${Date.now()}-${w.text}`,
-            text: w.text,
-            originalIndex: idx,
-            isPunctuation: w.isPunctuation || false,
-            isParagraphBreak: w.isParagraphBreak || false
-        }));
-
-        let buckets: { startIndex: number, endIndex: number, words: GameWord[] }[] = [];
-        let currentBucketWords: GameWord[] = [];
-        let startIndex = 0;
-
-        for (let i = 0; i < initialWords.length; i++) {
-            const w = initialWords[i];
-            if (!w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0) {
-                currentBucketWords.push(w);
-            }
-
-            let isBoundary = false;
-            if (currentLevel === 1) {
-                // Sentence boundary (., ?, !) or paragraph break
-                if ((w.isPunctuation && /^[.?!]+$/.test(w.text)) || w.isParagraphBreak || w.text.includes('\n') || i === initialWords.length - 1) {
-                    isBoundary = true;
-                }
-            } else if (currentLevel === 2) {
-                // Paragraph boundary
-                if (w.isParagraphBreak || w.text.includes('\n') || i === initialWords.length - 1) {
-                    isBoundary = true;
-                }
-            } else {
-                // Level 3: All words are in a single bucket ends at the very end
-                if (i === initialWords.length - 1) {
-                    isBoundary = true;
-                }
-            }
-
-            if (isBoundary && currentBucketWords.length > 0) {
-                buckets.push({
-                    startIndex: startIndex,
-                    endIndex: i,
-                    words: currentBucketWords
-                });
-                currentBucketWords = [];
-                startIndex = i + 1;
-            } else if (isBoundary) {
-                startIndex = i + 1;
-            }
-        }
-
-        // Shuffle each bucket
-        buckets.forEach(b => {
-            b.words = b.words.sort(() => Math.random() - 0.5);
-        });
-
-        // Reconstruct
-        const finalWords: GameWord[] = [];
-        let bucketIdx = 0;
-        let wordInBucketIdx = 0;
-
-        for (let i = 0; i < initialWords.length; i++) {
-            const w = initialWords[i];
-            if (!w.isPunctuation && !w.isParagraphBreak && w.text.trim().length > 0) {
-                // Find correct bucket
-                let currentBucket = buckets[bucketIdx];
-                while (currentBucket && i > currentBucket.endIndex) {
-                    bucketIdx++;
-                    currentBucket = buckets[bucketIdx];
-                    wordInBucketIdx = 0;
-                }
-
-                if (currentBucket && wordInBucketIdx < currentBucket.words.length) {
-                    finalWords.push(currentBucket.words[wordInBucketIdx++]);
-                } else {
-                    finalWords.push(w);
-                }
-            } else {
-                finalWords.push(w);
-            }
-        }
-
-        setGameWords(finalWords);
+    const shuffleWords = useCallback((currentLevel: ShuffleLevel) => {
+        setGameWords(buildShuffledWords(words, currentLevel));
         setIsComplete(false);
-    };
+    }, [words]);
 
-    // Initialize game
     useEffect(() => {
         shuffleWords(level);
-    }, [words, level]);
+    }, [shuffleWords, level]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -187,31 +241,33 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
         const { active, over } = event;
         setActiveId(null);
 
-        if (over && active.id !== over.id) {
-            setGameWords((items) => {
-                const oldIndex = items.findIndex(item => item.id === active.id);
-                const newIndex = items.findIndex(item => item.id === over.id);
+        if (!over || active.id === over.id) return;
 
-                // Prevent moving non-shuffleable items?
-                // Actually, it's better to allow full freedom but only shuffle words initially.
+        setGameWords((items) => {
+            const oldIndex = items.findIndex(item => item.id === active.id);
+            const newIndex = items.findIndex(item => item.id === over.id);
+            if (oldIndex < 0 || newIndex < 0) return items;
 
-                return arrayMove(items, oldIndex, newIndex);
-            });
-        }
+            const activeWord = items[oldIndex];
+            const overWord = items[newIndex];
+
+            // Only reorder content words within the same sentence / line range
+            if (
+                activeWord.bucketId === null ||
+                overWord.bucketId === null ||
+                activeWord.bucketId !== overWord.bucketId
+            ) {
+                return items;
+            }
+
+            return arrayMove(items, oldIndex, newIndex);
+        });
     };
 
-    // Check if current order matches original text sequence
     useEffect(() => {
         if (gameWords.length === 0) return;
 
-        // Check correctness: every word position should match the text of the original word at that position
-        // We ignore punctuation/breaks if they are intended to be fixed, but here we allow full reordering.
-        // The "Repeated words" rule: as long as the text matches, it's fine.
-
-        const isCorrect = gameWords.every((word, idx) => {
-            // Allow soft matching (trimming) if necessary, but usually exact match is expected
-            return word.text === words[idx].text;
-        });
+        const isCorrect = gameWords.every((word, idx) => word.text === words[idx].text);
 
         if (isCorrect && !isComplete) {
             setIsComplete(true);
@@ -228,6 +284,11 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
         shuffleWords(level);
     };
 
+    const levelHint =
+        level === 1
+            ? 'Each sentence (or line) is its own row — words shuffle only inside that row'
+            : 'Each line / paragraph is its own row — words shuffle only inside that row'
+
     return (
         <div className="min-h-full bg-gray-50 pt-20 pb-12">
             <div className="max-w-4xl mx-auto px-4">
@@ -238,34 +299,20 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
                             <button
                                 onClick={onBack}
                                 className="p-2 hover:bg-blue-700 rounded-full transition-colors"
+                                data-ui="BTN-BACK"
                             >
                                 <ArrowLeft size={24} />
                             </button>
                             <div>
                                 <h1 className="text-2xl font-bold">Shuffled Word Game</h1>
-                                <p className="text-blue-100 text-sm">
-                                    Drag and drop words into the correct order
-                                </p>
+                                <p className="text-blue-100 text-sm">{levelHint}</p>
                             </div>
                         </div>
                         <div className="flex items-center space-x-3">
                             {!isComplete && (
-                                <div className="flex items-center bg-blue-700/50 rounded-lg px-2 py-1 border border-blue-500/30">
-                                    <label className="text-sm font-medium text-blue-100 mr-2">Level:</label>
-                                    <select
-                                        value={level}
-                                        onChange={(e) => setLevel(Number(e.target.value))}
-                                        className="bg-transparent text-white text-sm font-bold focus:outline-none cursor-pointer"
-                                    >
-                                        <option value={1} className="text-gray-900">1 (Sentence)</option>
-                                        <option value={2} className="text-gray-900">2 (Paragraph)</option>
-                                        <option value={3} className="text-gray-900">3 (All)</option>
-                                    </select>
-                                </div>
-                            )}
-                            {!isComplete && (
                                 <button
                                     onClick={handleReset}
+                                    data-ui="BTN-REFRESH"
                                     className="flex items-center space-x-2 px-3 py-1.5 bg-blue-500/80 hover:bg-blue-400 rounded-lg transition-colors font-medium border border-blue-400 shadow-sm text-sm"
                                 >
                                     <RotateCcw size={16} />
@@ -312,32 +359,31 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
                                     items={gameWords.map(w => w.id)}
                                     strategy={horizontalListSortingStrategy}
                                 >
-                                    <div className="flex flex-wrap items-baseline leading-loose text-lg">
-                                        {gameWords.map((word, idx) => {
-                                            if (word.isParagraphBreak) {
-                                                return <div key={word.id} className="w-full h-8" aria-hidden="true" />;
-                                            }
-                                            // Newlines must force a flex row wrap; raw \n text inside a flex item is invisible
-                                            if (word.text === '\n' || word.text === '\r\n') {
-                                                return <div key={word.id} className="w-full h-0 basis-full" aria-hidden="true" />;
-                                            }
-                                            if (word.isPunctuation) {
-                                                return (
-                                                    <div key={word.id} className="px-1 py-2 text-gray-400 select-none">
-                                                        {word.text}
-                                                    </div>
-                                                );
-                                            }
-                                            return (
-                                                <SortableWord
-                                                    key={word.id}
-                                                    id={word.id}
-                                                    text={word.text}
-                                                    isDragging={activeId === word.id}
-                                                    isCorrect={word.text === words[idx].text}
-                                                />
-                                            );
-                                        })}
+                                    <div className="flex flex-col gap-4">
+                                        {groupIntoSentenceRows(gameWords).map((row, rowIdx) => (
+                                            <div
+                                                key={`row-${rowIdx}`}
+                                                className="flex flex-wrap items-center gap-y-1 rounded-xl bg-slate-50/80 px-2 py-2 border border-slate-100"
+                                            >
+                                                {row.map(({ word }) => {
+                                                    if (word.isPunctuation) {
+                                                        return (
+                                                            <div key={word.id} className="px-1 py-2 text-gray-400 select-none">
+                                                                {word.text}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <SortableWord
+                                                            key={word.id}
+                                                            id={word.id}
+                                                            text={word.text}
+                                                            isDragging={activeId === word.id}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        ))}
                                     </div>
                                 </SortableContext>
                             </DndContext>
@@ -349,12 +395,13 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
                         <div className="px-8 py-4 bg-gray-50 border-t flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 text-sm">
                             <div className="flex items-center space-x-2 text-gray-500">
                                 <PartyPopper size={18} className="text-blue-500" />
-                                <span>Hint: Green words are in the correct position!</span>
+                                <span>Hint: Drag words only within the same sentence or line.</span>
                             </div>
                             <div className="flex items-center space-x-4">
                                 {onSaveGame && (
                                     <button
                                         onClick={onSaveGame}
+                                        data-ui="BTN-SAVE-PRACTICE"
                                         className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg shadow-sm transition-colors"
                                     >
                                         Save Game

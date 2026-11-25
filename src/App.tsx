@@ -17,6 +17,7 @@ import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignmen
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { Login } from './components/Auth/Login';
 import { ComponentInspector } from './components/debug/ComponentInspector';
+import { DataUiOverlay } from './components/debug/DataUiOverlay';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { UnifiedMapEditor } from './components/admin/UnifiedMapEditor';
 import { FurnitureUploader } from './components/furniture/FurnitureUploader';
@@ -60,7 +61,6 @@ import { ImpersonationBanner } from './components/admin/ImpersonationBanner';
 import { X, Volume2, Layers, Gamepad2, Hammer } from 'lucide-react';
 import { GroupCompetitionPage } from './pages/GroupCompetitionPage';
 import { getRecommendedStation, getDeviceLabel, isMobileDevice } from './utils/deviceDetection';
-import type { SpellingWordAudio } from './utils/spellingWordAudio';
 
 type AppState =
   | { page: 'new'; step: 'input'; text?: string; title?: string; editingContentId?: string }
@@ -574,11 +574,15 @@ function AppContent() {
     }
   };
 
-  const handleSaveDictation = async (_words: Word[], selectedIndices: number[]) => {
-    if (!isAdmin) return;
+  const handleSaveModes = async (
+    _words: Word[],
+    selectedIndices: number[],
+    modes: Array<'memorization' | 'shuffledGame' | 'dictation'>
+  ) => {
+    if (!isAdmin || modes.length === 0) return;
 
     const defaultTitle = appState.page === 'new' && 'title' in appState ? (appState.title || '') : '';
-    const title = prompt('Enter a title for this Dictation Practice:', defaultTitle);
+    const title = prompt('Enter a title for this practice:', defaultTitle);
     if (!title) return;
 
     const originalText = appState.page === 'new' && 'text' in appState ? (appState as any).text : '';
@@ -590,61 +594,26 @@ function AppContent() {
             title,
             originalText,
             selectedWordIndices: selectedIndices,
-            practiceMode: 'dictation',
+            practiceModes: modes,
           })
         : await addSavedContent({
             title,
             originalText,
             selectedWordIndices: selectedIndices,
-            practiceMode: 'dictation',
-            isPublished: false
+            practiceMode: modes[0],
+            practiceModes: modes,
+            isPublished: false,
           });
 
       if (!success) {
-        throw new Error('Failed to save dictation');
+        throw new Error('Failed to save practice');
       }
-      alert(editingContentId ? 'Dictation updated successfully!' : 'Dictation saved successfully!');
+
+      alert('Practice saved successfully!');
       setAppState({ page: 'saved' });
     } catch (error) {
-      console.error('Failed to save dictation:', error);
-      alert('Failed to save dictation. Please try again.');
-    }
-  };
-
-  const handleSaveGame = async (_words: Word[], selectedIndices: number[]) => {
-    if (!isAdmin) return;
-
-    const defaultTitle = appState.page === 'new' && 'title' in appState ? (appState.title || '') : '';
-    const title = prompt('Enter a title for this Shuffled Word Game:', defaultTitle);
-    if (!title) return;
-
-    const originalText = appState.page === 'new' && 'text' in appState ? (appState as any).text : '';
-    const editingContentId = appState.page === 'new' ? appState.editingContentId : undefined;
-
-    try {
-      const success = editingContentId
-        ? await updateSavedContent(editingContentId, {
-            title,
-            originalText,
-            selectedWordIndices: selectedIndices,
-            practiceMode: 'shuffledGame',
-          })
-        : await addSavedContent({
-            title,
-            originalText,
-            selectedWordIndices: selectedIndices,
-            practiceMode: 'shuffledGame',
-            isPublished: false
-          });
-
-      if (!success) {
-        throw new Error('Failed to save game');
-      }
-      alert(editingContentId ? 'Game updated successfully!' : 'Game saved successfully!');
-      setAppState({ page: 'saved' });
-    } catch (error) {
-      console.error('Failed to save game:', error);
-      alert('Failed to save game. Please try again.');
+      console.error('Failed to save practice modes:', error);
+      alert('Failed to save practice. Please try again.');
     }
   };
 
@@ -811,12 +780,13 @@ function AppContent() {
     setAppState({ page: 'spelling', step: 'input' });
   };
 
-  const handleSpellingPreviewNext = () => {
+  const handleSpellingPreviewNext = (wordAudio?: SpellingWordAudio[]) => {
     if (appState.page === 'spelling' && appState.step === 'preview') {
       setAppState({
         ...appState,
         step: 'practice',
-        wordLimit: (appState as any).wordLimit
+        wordLimit: (appState as any).wordLimit,
+        ...(wordAudio ? { wordAudio } : {}),
       });
     }
   };
@@ -893,9 +863,8 @@ function AppContent() {
                       onBack={handleBackToInput}
                       onViewSaved={handleViewSavedMemorization}
                       onStartGame={handleStartGame}
-                      onSaveGame={handleSaveGame}
                       onStartDictation={handleStartDictation}
-                      onSaveDictation={handleSaveDictation}
+                      onSaveModes={handleSaveModes}
                       isAdmin={isAdmin}
                     />
                   );
@@ -917,7 +886,7 @@ function AppContent() {
                     <ShuffledGameView
                       words={(appState as any).words}
                       onBack={handleBackToSelection}
-                      onSaveGame={isAdmin ? () => handleSaveGame((appState as any).words, (appState as any).selectedIndices) : undefined}
+                      onSaveGame={isAdmin ? () => handleSaveModes((appState as any).words, (appState as any).selectedIndices, ['shuffledGame']) : undefined}
                     />
                   );
                 case 'dictation':
@@ -1462,7 +1431,7 @@ function AppContent() {
 
   return (
     <MobileTestEmulator isActive={isMobileEmulator} onExit={() => setIsMobileEmulator(false)}>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background" data-ui="LAYOUT-APP-SHELL">
         {!['scanner'].includes(appState.page) && (
           <UnifiedNavigation
             currentPage={getCurrentPage()}
@@ -1498,6 +1467,7 @@ function AppContent() {
           />
         )}
         <main
+          data-ui="LAYOUT-MAIN"
           className={`flex-1 w-full transition-all duration-300 pb-16 md:pb-0 ${isMobileEmulator ? "ml-0" : (['scanner'].includes(appState.page) ? "" : (isNavOpen ? "ml-0 md:ml-64" : "ml-0 md:ml-20"))}`}
           style={{
             '--nav-width': isMobileEmulator || ['scanner'].includes(appState.page)
@@ -1831,6 +1801,7 @@ function AppRoutes() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <DataUiOverlay />
       {isImpersonating && (
         <ImpersonationBanner
           name={user?.display_name || user?.username || 'Admin'}

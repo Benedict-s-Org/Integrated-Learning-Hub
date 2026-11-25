@@ -14,34 +14,39 @@ interface DictationViewProps {
     isPractice?: boolean;
 }
 
+const isBlankableWord = (w: Word) =>
+    !w.isPunctuation && !w.isParagraphBreak && w.text !== '\n' && w.text !== '\r\n' && w.text.trim().length > 0;
+
+/** Blanking rule: 3+ letters → first letter only; 1–2 letters → blank line only */
+const shouldShowFirstLetter = (text: string): boolean => text.length >= 3;
+const getExpectedAnswer = (text: string): string =>
+    text.length >= 3 ? text.slice(1).toLowerCase() : text.toLowerCase();
+
 const DictationView: React.FC<DictationViewProps> = ({
     words,
-    selectedIndices,
+    selectedIndices: _selectedIndices,
     originalText,
     onBack,
     assignmentId,
     isPractice = false,
 }) => {
     const { user } = useAuth();
-    const [level] = useState<1 | 2 | 3>(
-        (user?.memorization_level as 1 | 2 | 3) || 1
-    );
     const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [accuracy, setAccuracy] = useState(0);
     const [startTime] = useState(Date.now());
     const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-    // Filter relevant words (only those selected and not punctuation)
-    const selectedWords = words.filter(w => selectedIndices.includes(w.index) && !w.isPunctuation);
+    // Dictation blanks every content word (selection is only used upstream for save metadata)
+    const blankWords = words.filter(isBlankableWord);
+    const blankIndices = blankWords.map(w => w.index);
+    const firstBlankIndex = blankIndices[0];
 
     useEffect(() => {
-        // Auto-focus first input
-        const firstIndex = selectedIndices[0];
-        if (firstIndex !== undefined && inputRefs.current[firstIndex]) {
-            inputRefs.current[firstIndex]?.focus();
+        if (firstBlankIndex !== undefined && inputRefs.current[firstBlankIndex]) {
+            inputRefs.current[firstBlankIndex]?.focus();
         }
-    }, [selectedIndices]);
+    }, [firstBlankIndex]);
 
     const handleInputChange = (index: number, value: string) => {
         setUserAnswers(prev => ({ ...prev, [index]: value }));
@@ -49,9 +54,9 @@ const DictationView: React.FC<DictationViewProps> = ({
 
     const handleKeyDown = (e: React.KeyboardEvent, currentIndex: number) => {
         if (e.key === 'Enter') {
-            const currentIdxInSelected = selectedIndices.indexOf(currentIndex);
-            if (currentIdxInSelected < selectedIndices.length - 1) {
-                const nextIndex = selectedIndices[currentIdxInSelected + 1];
+            const currentIdxInBlank = blankIndices.indexOf(currentIndex);
+            if (currentIdxInBlank < blankIndices.length - 1) {
+                const nextIndex = blankIndices[currentIdxInBlank + 1];
                 inputRefs.current[nextIndex]?.focus();
             } else {
                 handleSubmit();
@@ -63,47 +68,17 @@ const DictationView: React.FC<DictationViewProps> = ({
         if (isSubmitted) return;
 
         let correctCount = 0;
-        const totalCount = selectedWords.length;
-        console.log('Total selected words:', totalCount);
 
-        selectedWords.forEach(word => {
+        blankWords.forEach(word => {
             const userAnswer = (userAnswers[word.index] || '').trim().toLowerCase();
-            let expectedPart = '';
-
-            if (level === 1) {
-                if (word.text.length >= 4) {
-                    expectedPart = word.text.slice(1).toLowerCase();
-                }
-            } else if (level === 2) {
-                if (word.text.length >= 3) {
-                    expectedPart = word.text.slice(1).toLowerCase();
-                }
-            } else { // Level 3
-                if (word.text.length <= 3) {
-                    expectedPart = word.text.toLowerCase();
-                } else {
-                    expectedPart = word.text.slice(1).toLowerCase();
-                }
-            }
-
-            if (expectedPart && userAnswer === expectedPart) {
+            const expectedPart = getExpectedAnswer(word.text);
+            if (userAnswer === expectedPart) {
                 correctCount++;
-            } else if (!expectedPart) {
-                // Not masked, so considered "correct" for calculation?
-                // Or just don't include in totalCount.
             }
         });
 
-        // Re-calculate counts based on what was actually masked
-        let maskedCount = 0;
-        selectedWords.forEach(word => {
-            if (level === 3 || (level === 2 && word.text.length >= 3) || (level === 1 && word.text.length >= 4)) {
-                maskedCount++;
-            }
-        });
-
+        const maskedCount = blankWords.length;
         const accuracyPercentage = maskedCount > 0 ? Math.round((correctCount / maskedCount) * 100) : 100;
-        setAccuracy(accuracyPercentage);
         setAccuracy(accuracyPercentage);
         setIsSubmitted(true);
 
@@ -151,9 +126,19 @@ const DictationView: React.FC<DictationViewProps> = ({
     };
 
     const renderWord = (word: Word, idx: number) => {
-        if (word.isParagraphBreak) return <div key={`para-break-${idx}`} className="block w-full h-8" aria-hidden="true" />;
-        if (word.text === '\n' || word.text === '\r\n') return <br key={`br-${idx}`} />;
+        // Preserve paragraph / line breaks from original text (same as MemorizationView / ShuffledGameView)
+        if (word.isParagraphBreak) {
+            return <div key={`para-break-${idx}`} className="block w-full basis-full h-6" aria-hidden="true" />;
+        }
+        if (word.text === '\n' || word.text === '\r\n') {
+            // In flex layouts <br> is ignored; force a full-width wrap instead
+            return <div key={`br-${idx}`} className="block w-full basis-full h-0" aria-hidden="true" />;
+        }
         if (word.isPunctuation) {
+            // Keep original spaces as text nodes so word spacing stays natural
+            if (/^\s+$/.test(word.text)) {
+                return <span key={`space-${idx}`}>{word.text}</span>;
+            }
             return (
                 <span key={`punct-${idx}`} className="text-gray-800">
                     {word.text}
@@ -161,14 +146,7 @@ const DictationView: React.FC<DictationViewProps> = ({
             );
         }
 
-        const isSelected = selectedIndices.includes(word.index);
-        const isMasked = isSelected && !word.isPunctuation && (
-            (level === 1 && word.text.length >= 4) ||
-            (level === 2 && word.text.length >= 3) ||
-            (level === 3)
-        );
-
-        if (!isMasked) {
+        if (!isBlankableWord(word)) {
             return (
                 <span key={idx} className="inline-block px-1 py-1 text-gray-800">
                     {word.text}
@@ -176,17 +154,20 @@ const DictationView: React.FC<DictationViewProps> = ({
             );
         }
 
-        const showFirstLetter = word.text.length >= 4 || (level === 2 && word.text.length === 3);
+        const showFirstLetter = shouldShowFirstLetter(word.text);
         const firstLetter = showFirstLetter ? word.text[0] : '';
         const remainingPart = showFirstLetter ? word.text.slice(1) : word.text;
+        const blankWidth = Math.max(remainingPart.length, showFirstLetter ? 2 : 1);
 
         const currentAnswer = userAnswers[word.index] || '';
         const isCorrect = isSubmitted && currentAnswer.trim().toLowerCase() === remainingPart.toLowerCase();
 
         return (
-            <span key={idx} className="inline-flex items-baseline mx-0.5">
-                {showFirstLetter && <span className="text-gray-800 mr-0.5">{firstLetter}</span>}
-                <div className="relative group">
+            <span key={idx} className="inline-flex items-baseline align-baseline mx-1.5 my-1">
+                {showFirstLetter && (
+                    <span className="text-gray-800 mr-1 shrink-0 font-medium">{firstLetter}</span>
+                )}
+                <span className="relative group inline-block">
                     <input
                         ref={el => inputRefs.current[word.index] = el}
                         type="text"
@@ -194,21 +175,24 @@ const DictationView: React.FC<DictationViewProps> = ({
                         onChange={(e) => handleInputChange(word.index, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, word.index)}
                         disabled={isSubmitted}
+                        placeholder={'_'.repeat(blankWidth)}
+                        aria-label={showFirstLetter ? `Complete word starting with ${firstLetter}` : 'Fill in the blank word'}
                         className={`
-                            h-8 border-b-2 outline-none transition-all text-center font-medium
+                            h-8 border-b-2 outline-none transition-all text-center font-medium bg-transparent
+                            placeholder:text-gray-400 placeholder:tracking-widest
                             ${isSubmitted
                                 ? (isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700')
-                                : 'border-gray-300 focus:border-blue-500 hover:border-blue-300'
+                                : 'border-gray-400 focus:border-blue-500 hover:border-blue-300'
                             }
                         `}
-                        style={{ width: `${Math.max(remainingPart.length + 1, 2)}ch` }}
+                        style={{ width: `${blankWidth + 1}ch` }}
                     />
                     {isSubmitted && !isCorrect && (
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                             Correct: {remainingPart}
-                        </div>
+                        </span>
                     )}
-                </div>
+                </span>
             </span>
         );
     };
@@ -228,34 +212,10 @@ const DictationView: React.FC<DictationViewProps> = ({
                             </button>
                             <div>
                                 <h1 className="text-2xl font-bold">Dictation Mode</h1>
-                                <p className="text-indigo-100 text-sm">Fill in the missing parts of the paragraph</p>
+                                <p className="text-indigo-100 text-sm">3+ letters: first letter given · 1–2 letters: blank line only</p>
                             </div>
                         </div>
                         <div className="flex items-center space-x-4">
-{/* Hiding difficulty selection as it is now managed at student level
-                            {!isSubmitted && (
-                                <div className="flex bg-indigo-700/50 rounded-lg p-1 border border-indigo-500/30">
-                                    <button
-                                        onClick={() => setLevel(1)}
-                                        className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${level === 1 ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-                                    >
-                                        Level 1 (Easy)
-                                    </button>
-                                    <button
-                                        onClick={() => setLevel(2)}
-                                        className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${level === 2 ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-                                    >
-                                        Level 2 (Normal)
-                                    </button>
-                                    <button
-                                        onClick={() => setLevel(3)}
-                                        className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${level === 3 ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-                                    >
-                                        Level 3 (Advance)
-                                    </button>
-                                </div>
-                            )}
-                            */}
                             {isSubmitted && (
                                 <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-4 py-2">
                                     <Award size={20} className="text-yellow-300" />
@@ -267,7 +227,7 @@ const DictationView: React.FC<DictationViewProps> = ({
 
                     {/* Content Area */}
                     <div className="p-8 md:p-12">
-                        <div className="flex flex-wrap items-baseline leading-loose text-lg text-gray-800">
+                        <div className="flex flex-wrap items-baseline gap-y-2 text-lg leading-[2.4] text-gray-800">
                             {words.map((word, idx) => renderWord(word, idx))}
                         </div>
 

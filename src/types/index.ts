@@ -1,5 +1,7 @@
 import type { SpellingWordAudio } from '../utils/spellingWordAudio';
 
+export type PracticeMode = 'memorization' | 'shuffledGame' | 'dictation';
+
 export interface SavedContent {
   id: string;
   title: string;
@@ -8,7 +10,10 @@ export interface SavedContent {
   createdAt: Date;
   isPublished: boolean;
   publicId?: string | null;
-  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
+  /** Primary / first mode (compat). Prefer `practiceModes`. */
+  practiceMode?: PracticeMode;
+  /** All modes enabled for this one practice item. */
+  practiceModes?: PracticeMode[];
 }
 
 export interface Word {
@@ -26,14 +31,15 @@ export interface MemorizationState {
   words: Word[];
   selectedWordIndices: number[];
   hiddenWords: Set<number>;
-  practiceMode?: 'memorization' | 'shuffledGame' | 'dictation';
+  practiceMode?: PracticeMode;
 }
 
 export type SavedContentUpdatePayload = {
   title: string;
   originalText: string;
   selectedWordIndices: number[];
-  practiceMode?: SavedContent['practiceMode'];
+  practiceMode?: PracticeMode | string;
+  practiceModes?: PracticeMode[];
 };
 
 export interface AppContextType {
@@ -123,6 +129,7 @@ export interface UserProfile {
   can_access_spaced_repetition?: boolean;
   proofreading_level?: number;
   reading_level?: number;
+  reading_rearranging_level?: number;
   spelling_level?: number;
   memorization_level?: number;
   voice_preference?: {
