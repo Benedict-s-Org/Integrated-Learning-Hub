@@ -1,0 +1,20 @@
+---
+description: Commit and push must also update the live web app via main + Cloud Build
+alwaysApply: true
+---
+
+# Commit + push = update web
+
+Live site: **https://learninghub.benedicttsang.uk** (Google Cloud Run via `cloudbuild.yaml`).
+
+When the user asks to **commit and push** (including diff-tab commit-and-push):
+
+1. Commit only the relevant files as usual.
+2. **Also update the live website** — do not wait for them to say “update the web / 網頁”.
+3. Land the same commit on **`main`** and `git push origin main`.
+4. **Pushing `main` alone is not enough** if Cloud Build did not auto-trigger. Also run a production deploy:
+   - Prefer: `gcloud builds submit --config cloudbuild.yaml` (from repo root, with gcloud authenticated), **or**
+   - Ask the user to open [Google Cloud Build](https://console.cloud.google.com/cloud-build/builds) → Run / Retry the `learning-hub` trigger for latest `main`.
+5. Confirm the site’s `last-modified` / UI changed after deploy (hard refresh).
+6. If Edge Function code changed, deploy those too when credentials allow.
+7. Never treat feature-branch-only push as “done”.
