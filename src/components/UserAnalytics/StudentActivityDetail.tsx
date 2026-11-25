@@ -24,6 +24,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { SpellingPracticeResult, ProofreadingPracticeResult, MemorizationSession, SpacedRepetitionAttempt } from '../../types';
 import { diagnoseQuestion, analyzeStudentProofreadingResults } from '../../utils/proofreadingAnalytics';
+import { ActivityHomeworkPanel } from './ActivityHomeworkPanel';
 
 interface StudentActivityDetailProps {
   userId: string;
@@ -33,7 +34,7 @@ interface StudentActivityDetailProps {
   onClose: () => void;
 }
 
-type TabType = 'overview' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition';
+type TabType = 'overview' | 'homework' | 'spelling' | 'proofreading' | 'memorization' | 'spaced_repetition';
 
 export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
   userId,
@@ -266,6 +267,7 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
         <div className="px-6 pt-4 flex space-x-1 border-b border-slate-100 bg-slate-50/50 overflow-x-auto scrollbar-hide">
           {[
             { id: 'overview', label: 'Overview', count: null, icon: Activity },
+            { id: 'homework', label: 'Homework', count: null, icon: BookOpen, dataUi: 'TAB-ACTIVITY-HOMEWORK' },
             { id: 'spelling', label: 'Spelling', count: spellingResults.length, icon: Target },
             { id: 'proofreading', label: 'Proofreading', count: proofreadingResults.length, icon: Trophy },
             { id: 'memorization', label: 'Memorization', count: memorizationSessions.length, icon: Clock },
@@ -273,6 +275,9 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
           ].map(tab => (
             <button
               key={tab.id}
+              {...((tab as { dataUi?: string }).dataUi
+                ? { 'data-ui': (tab as { dataUi: string }).dataUi }
+                : {})}
               onClick={() => { setActiveTab(tab.id as TabType); setExpandedId(null); }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
                 activeTab === tab.id 
@@ -295,7 +300,9 @@ export const StudentActivityDetail: React.FC<StudentActivityDetailProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
-          {loading ? (
+          {activeTab === 'homework' ? (
+            <ActivityHomeworkPanel userId={userId} className={className} />
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-48 space-y-4">
               <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
               <p className="text-sm text-slate-500">Loading activities...</p>
