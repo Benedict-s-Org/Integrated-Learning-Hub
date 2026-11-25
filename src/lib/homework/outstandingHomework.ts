@@ -1,4 +1,5 @@
-import { handedInKey, makeupKey } from '@/lib/homework/missingLedger';
+import { detailFor, type SubjectAssignmentMap } from '@/lib/homework/assignments';
+import { handedInKey, makeupKey, type MissingLogInput } from '@/lib/homework/missingLedger';
 
 /**
  * `handedInKeys` must use the same composite key as English homework checks:
@@ -77,6 +78,77 @@ export function filterOutstandingHomework(args: {
   }
 
   return items;
+}
+
+/** English-tracker debt (missingLogsFromEnglishMarks) for one student, same exclusions as duty rows. */
+export function outstandingFromEnglishLogs(args: {
+  todayIso: string;
+  studentId: string;
+  englishLogs: MissingLogInput[];
+  madeUpKeys: Set<string>;
+  handedInKeys: Set<string>;
+}): OutstandingHomeworkItem[] {
+  const { todayIso, studentId, englishLogs, madeUpKeys, handedInKeys } = args;
+  const items: OutstandingHomeworkItem[] = [];
+
+  for (const log of englishLogs) {
+    if (log.studentId !== studentId) continue;
+    if (log.logDate >= todayIso) continue;
+
+    const subjects = log.missingItems || {};
+    for (const [subject, rawItems] of Object.entries(subjects)) {
+      if (!Array.isArray(rawItems)) continue;
+      for (const rawItem of rawItems) {
+        const item = typeof rawItem === 'string' ? rawItem.trim() : '';
+        if (!item) continue;
+
+        if (madeUpKeys.has(makeupKey(log.id, subject, item))) continue;
+        if (handedInKeys.has(handedInKey(studentId, log.logDate, subject, item))) continue;
+
+        items.push({
+          logId: log.id,
+          logDate: log.logDate,
+          className: log.className,
+          studentId: log.studentId,
+          subject,
+          item,
+          detail: '',
+        });
+      }
+    }
+  }
+
+  return items;
+}
+
+export function mergeOutstandingItems(
+  primary: OutstandingHomeworkItem[],
+  extra: OutstandingHomeworkItem[],
+): OutstandingHomeworkItem[] {
+  const seen = new Set<string>();
+  const merged: OutstandingHomeworkItem[] = [];
+  for (const item of [...primary, ...extra]) {
+    const key = makeupKey(item.logId, item.subject, item.item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+  return merged;
+}
+
+export function enrichOutstandingDetails(
+  items: OutstandingHomeworkItem[],
+  detailsByClassDate: Map<string, SubjectAssignmentMap>,
+): OutstandingHomeworkItem[] {
+  return items.map((item) => {
+    if (item.detail) return item;
+    const detail = detailFor(
+      detailsByClassDate.get(`${item.logDate}|${item.className}`),
+      item.subject,
+      item.item,
+    );
+    return detail ? { ...item, detail } : item;
+  });
 }
 
 export function groupOutstandingByDate(

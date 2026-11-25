@@ -88,6 +88,7 @@ function flattenMissingItems(
 function collectOwedFromDutyLogs(dutyLogs: DutyLogRow[]): OwedItem[] {
   const owed: OwedItem[] = [];
   for (const log of dutyLogs) {
+    if ((log.status || '').trim().toLowerCase() !== 'missing') continue;
     for (const { subject, item } of flattenMissingItems(log.missing_items)) {
       owed.push({
         logId: log.id,
@@ -163,13 +164,21 @@ export function buildHomeworkDiary(args: {
       dateSet.add(hkCalendarDayFromIso(action.marked_at));
     }
   }
+  for (const handIn of handIns ?? []) {
+    if (handIn.handedIn && handIn.logDate) {
+      dateSet.add(handIn.logDate);
+    }
+  }
 
   const sortedDates = [...dateSet].sort((a, b) => b.localeCompare(a));
 
   return sortedDates.map((date) => {
     const duty = dutyByDate.get(date);
     const morningStatus = duty ? morningStatusFromDuty(duty.status) : 'none';
-    const missingThatDay = duty ? flattenMissingItems(duty.missing_items) : [];
+    const missingThatDay =
+      duty && (duty.status || '').trim().toLowerCase() === 'missing'
+        ? flattenMissingItems(duty.missing_items)
+        : [];
 
     const madeUpThatDay = makeupActions
       .filter((a) => a.is_made_up && hkCalendarDayFromIso(a.marked_at) === date)

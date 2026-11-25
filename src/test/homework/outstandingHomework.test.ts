@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { handedInKey } from '@/lib/homework/missingLedger';
-import { filterOutstandingHomework, groupOutstandingByDate } from '@/lib/homework/outstandingHomework';
+import { englishCheckLogId, handedInKey } from '@/lib/homework/missingLedger';
+import {
+  enrichOutstandingDetails,
+  filterOutstandingHomework,
+  groupOutstandingByDate,
+  mergeOutstandingItems,
+  outstandingFromEnglishLogs,
+} from '@/lib/homework/outstandingHomework';
+import type { SubjectAssignmentMap } from '@/lib/homework/assignments';
 
 describe('filterOutstandingHomework', () => {
   it('keeps prior missing items and drops today / made-up / handed-in', () => {
@@ -100,6 +107,101 @@ describe('filterOutstandingHomework', () => {
       handedInKeys: new Set(),
     });
     expect(items).toEqual([]);
+  });
+
+  it('includes english-tracker debt when classmates handed in', () => {
+    const logId = englishCheckLogId('ben', '2026-11-24');
+    const englishItems = outstandingFromEnglishLogs({
+      todayIso: '2026-11-26',
+      studentId: 'ben',
+      englishLogs: [
+        {
+          id: logId,
+          logDate: '2026-11-24',
+          className: '4A',
+          studentId: 'ben',
+          studentName: 'Ben',
+          classNumber: 2,
+          missingItems: { 英文: ['Writing File'] },
+        },
+      ],
+      madeUpKeys: new Set(),
+      handedInKeys: new Set(),
+    });
+    expect(englishItems.map((i) => i.item)).toEqual(['Writing File']);
+    expect(englishItems[0].logId).toBe(logId);
+  });
+
+  it('excludes english debt on or after todayIso', () => {
+    const items = outstandingFromEnglishLogs({
+      todayIso: '2026-11-26',
+      studentId: 'ben',
+      englishLogs: [
+        {
+          id: englishCheckLogId('ben', '2026-11-26'),
+          logDate: '2026-11-26',
+          className: '4A',
+          studentId: 'ben',
+          studentName: 'Ben',
+          classNumber: 2,
+          missingItems: { 英文: ['Today item'] },
+        },
+      ],
+      madeUpKeys: new Set(),
+      handedInKeys: new Set(),
+    });
+    expect(items).toEqual([]);
+  });
+
+  it('enriches detail from daily homework map', () => {
+    const map = new Map<string, SubjectAssignmentMap>([
+      [
+        '2026-11-24|4A',
+        { 英文: [{ name: 'Worksheet A', detail: 'p.3' }] },
+      ],
+    ]);
+    const enriched = enrichOutstandingDetails(
+      [
+        {
+          logId: 'log-old',
+          logDate: '2026-11-24',
+          className: '4A',
+          studentId: 's1',
+          subject: '英文',
+          item: 'Worksheet A',
+          detail: '',
+        },
+      ],
+      map,
+    );
+    expect(enriched[0].detail).toBe('p.3');
+  });
+
+  it('dedupes duty and english rows via mergeOutstandingItems', () => {
+    const duty = [
+      {
+        logId: 'log-a',
+        logDate: '2026-11-20',
+        className: '4A',
+        studentId: 's1',
+        subject: '數學',
+        item: 'Quiz',
+        detail: '',
+      },
+    ];
+    const english = [
+      {
+        logId: englishCheckLogId('s1', '2026-11-22'),
+        logDate: '2026-11-22',
+        className: '4A',
+        studentId: 's1',
+        subject: '英文',
+        item: 'WS',
+        detail: '',
+      },
+    ];
+    const merged = mergeOutstandingItems(duty, english);
+    expect(merged).toHaveLength(2);
   });
 
   it('excludes log_date equal to todayIso', () => {

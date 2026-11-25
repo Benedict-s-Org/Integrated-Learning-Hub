@@ -804,7 +804,25 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
           setHomeworkMakeupItems(loaded.items);
           setHomeworkMakeupOpen(true);
         } else if (loaded.status === 'query_failed') {
-          console.error('Admin users: could not load outstanding homework', loaded.message);
+          const retry = window.confirm(
+            `Could not load outstanding homework: ${loaded.message}\n\nClick OK to retry, or Cancel to skip makeup check-in.`,
+          );
+          if (retry) {
+            const retried = await loadOutstandingHomeworkForStudent({
+              studentId,
+              className,
+              todayIso: today,
+            });
+            if (retried.status === 'ok' && retried.items.length > 0) {
+              setHomeworkMakeupTarget({
+                id: studentId,
+                name: student?.display_name || 'Student',
+                className,
+              });
+              setHomeworkMakeupItems(retried.items);
+              setHomeworkMakeupOpen(true);
+            }
+          }
         }
       } else {
         let amount = 0;

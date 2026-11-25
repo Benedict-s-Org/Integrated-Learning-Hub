@@ -25,4 +25,39 @@ describe('buildHomeworkDiary', () => {
     expect(tue.madeUpThatDay.map((x) => x.item)).toContain('A');
     expect(tue.cumulativeOutstanding.map((x) => x.item)).not.toContain('A');
   });
+
+  it('shows empty missingThatDay when morning status is submitted', () => {
+    const days = buildHomeworkDiary({
+      dutyLogs: [
+        {
+          id: 's',
+          log_date: '2026-11-25',
+          status: 'submitted',
+          missing_items: { 英文: ['Stale item'] },
+        },
+      ],
+      makeupActions: [],
+    });
+    const day = days.find((d) => d.date === '2026-11-25')!;
+    expect(day.morningStatus).toBe('submitted');
+    expect(day.missingThatDay).toEqual([]);
+    expect(day.cumulativeOutstanding).toEqual([]);
+  });
+
+  it('includes hand-in dates from english check rows in the diary', () => {
+    const days = buildHomeworkDiary({
+      dutyLogs: [],
+      makeupActions: [],
+      handIns: [
+        {
+          logDate: '2026-11-22',
+          subject: '英文',
+          item: 'WS1',
+          handedIn: true,
+          isLate: false,
+        },
+      ],
+    });
+    expect(days.map((d) => d.date)).toContain('2026-11-22');
+  });
 });

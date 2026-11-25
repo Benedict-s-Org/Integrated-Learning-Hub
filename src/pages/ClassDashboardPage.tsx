@@ -990,7 +990,7 @@ export function ClassDashboardPage() {
                     userId: award.userId,
                     amount: award.amount,
                     reason: award.reason || REWARD_REASONS.DICTATION_BONUS,
-                    type: award.amount > 0 ? 'reward' : 'consequence',
+                    type: award.amount < 0 ? 'consequence' : award.amount > 0 ? 'reward' : 'consequence',
                     batchId: batchId
                 });
                 if (!result.success) console.error(`Failed to award bonus to ${award.userId}:`, result.error);
@@ -1143,7 +1143,8 @@ export function ClassDashboardPage() {
                     p_event_type: 'status_change'
                 });
                 if (error) throw error;
-                const studentClass = Object.values(groupedUsers).flat().find((user) => user.id === studentId)?.class || '';
+                const student = Object.values(groupedUsers).flat().find((user) => user.id === studentId);
+                const studentClass = student?.class || activeClass || '';
                 try {
                     if (mdStatus === 'submitted') {
                         await markListedHomeworkHandedIn({ className: studentClass, date: today, studentId });
@@ -1161,9 +1162,6 @@ export function ClassDashboardPage() {
                     const message = markErr instanceof Error ? markErr.message : 'Unknown error';
                     alert(`The homework status was saved, but the Missing Homework ticks could not be updated: ${message}`);
                 }
-
-                const student = Object.values(groupedUsers).flat().find((user) => user.id === studentId);
-                const studentClass = student?.class || activeClass || '';
                 const loaded = await loadOutstandingHomeworkForStudent({
                     studentId,
                     className: studentClass,
@@ -1178,8 +1176,31 @@ export function ClassDashboardPage() {
                     setHomeworkMakeupItems(loaded.items);
                     setHomeworkMakeupOpen(true);
                 } else if (loaded.status === 'query_failed') {
-                    const label = isGuest ? 'Guest class dashboard' : 'Class dashboard';
-                    console.warn(`${label}: could not load outstanding homework`, loaded.message);
+                    if (isGuest) {
+                        alert(
+                            'Homework makeup check-in is not available on the guest class dashboard. The morning status was saved.',
+                        );
+                    } else {
+                        const retry = window.confirm(
+                            `Could not load outstanding homework: ${loaded.message}\n\nClick OK to retry, or Cancel to skip makeup check-in.`,
+                        );
+                        if (retry) {
+                            const retried = await loadOutstandingHomeworkForStudent({
+                                studentId,
+                                className: studentClass,
+                                todayIso: today,
+                            });
+                            if (retried.status === 'ok' && retried.items.length > 0) {
+                                setHomeworkMakeupTarget({
+                                    id: studentId,
+                                    name: student?.display_name || 'Student',
+                                    className: studentClass,
+                                });
+                                setHomeworkMakeupItems(retried.items);
+                                setHomeworkMakeupOpen(true);
+                            }
+                        }
+                    }
                 }
             } else if (reason === REWARD_REASONS.HANDBOOK_ENTRY) {
                 // Standard coin award
@@ -1223,13 +1244,21 @@ export function ClassDashboardPage() {
         }
     };
 
-    const handleQuickAward = async (userId: string, amount: number = 10, reason: string = REWARD_REASONS.ANSWER_QUESTION) => {
+    const handleQuickAward = async (
+        userId: string,
+        amount: number = 10,
+        reason: string = REWARD_REASONS.ANSWER_QUESTION,
+        kind?: 'reward' | 'consequence'
+    ) => {
         try {
+            const resolvedKind =
+                kind ??
+                (amount < 0 ? 'consequence' : amount > 0 ? 'reward' : 'consequence');
             const result = await awardCoinsGuestAware({
                 userId,
                 amount,
                 reason,
-                type: amount >= 0 ? 'reward' : 'consequence',
+                type: resolvedKind,
                 batchId: crypto.randomUUID()
             });
             if (!result.success) throw result.error;

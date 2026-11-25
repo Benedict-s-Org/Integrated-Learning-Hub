@@ -239,9 +239,16 @@ export const MorningDutiesBoard: React.FC<MorningDutiesBoardProps> = ({
         });
         if (loaded.status === 'query_failed') {
             if (guestToken) {
-                console.warn('Guest morning duty: could not load outstanding homework', loaded.message);
+                alert(
+                    'Homework makeup check-in is not available on this screen. The morning status was saved.',
+                );
             } else {
-                console.error('Failed to load outstanding homework', loaded.message);
+                const retry = window.confirm(
+                    `Could not load outstanding homework: ${loaded.message}\n\nClick OK to retry, or Cancel to skip makeup check-in.`,
+                );
+                if (retry) {
+                    return maybeOpenMakeupModal(status, student);
+                }
             }
             return false;
         }
