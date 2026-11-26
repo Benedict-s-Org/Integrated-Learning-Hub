@@ -366,14 +366,6 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
                         ));
                       })()}
                     </div>
-
-                    <button
-                      onClick={handleAssign}
-                      disabled={saving || selectedStudents.size === 0}
-                      className="mt-4 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
-                    >
-                      {saving ? 'Assigning...' : `Assign to ${selectedStudents.size} Student${selectedStudents.size !== 1 ? 's' : ''}`}
-                    </button>
                   </>
                 )}
               </div>
@@ -418,13 +410,31 @@ const MemorizationAssignment: React.FC<MemorizationAssignmentProps> = ({
           )}
         </div>
 
-        <div className="flex justify-end p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
-          >
-            Close
-          </button>
+        <div className="flex items-center justify-between gap-3 p-4 md:p-6 border-t border-gray-200 shrink-0">
+          <p className="text-sm text-gray-600">
+            {selectedStudents.size > 0
+              ? `${selectedStudents.size} student${selectedStudents.size !== 1 ? 's' : ''} selected`
+              : 'Select students to assign'}
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleAssign}
+              disabled={saving || selectedStudents.size === 0 || loading}
+              className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
+            >
+              {saving
+                ? 'Assigning...'
+                : selectedStudents.size > 0
+                  ? `Assign (${selectedStudents.size})`
+                  : 'Assign'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
