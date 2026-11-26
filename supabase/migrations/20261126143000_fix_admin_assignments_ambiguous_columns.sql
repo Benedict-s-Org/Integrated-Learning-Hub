@@ -31,6 +31,13 @@ SET search_path = public, pg_temp
 AS $$
 #variable_conflict use_column
 BEGIN
+  -- SECURITY DEFINER bypasses RLS. Only admins (users.role) may list every class.
+  -- service_role keeps access for server-side jobs; anon and students do not.
+  IF coalesce(auth.jwt() ->> 'role', '') IS DISTINCT FROM 'service_role'
+     AND NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  END IF;
+
   RETURN QUERY
   WITH all_assignments AS (
     SELECT
@@ -43,9 +50,9 @@ BEGIN
       ma.assigned_at,
       au.username AS assigned_by_username,
       ma.due_date,
-      ma.completed,
+      COALESCE(ma.completed, false) AS completed,
       ma.completed_at,
-      (ma.completed = false AND ma.due_date < now()) AS is_overdue,
+      (COALESCE(ma.completed, false) = false AND ma.due_date < now()) AS is_overdue,
       NULL::integer AS assignment_level
     FROM memorization_assignments ma
     JOIN users u ON ma.user_id = u.id
@@ -85,9 +92,9 @@ BEGIN
       ppa.assigned_at,
       au.username AS assigned_by_username,
       ppa.due_date,
-      ppa.completed,
+      COALESCE(ppa.completed, false) AS completed,
       ppa.completed_at,
-      (ppa.completed = false AND ppa.due_date < now()) AS is_overdue,
+      (COALESCE(ppa.completed, false) = false AND ppa.due_date < now()) AS is_overdue,
       NULL::integer AS assignment_level
     FROM proofreading_practice_assignments ppa
     JOIN users u ON ppa.user_id = u.id
@@ -149,4 +156,5 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.get_all_assignments_admin_view(text, text, uuid, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_all_assignments_admin_view(text, text, uuid, text, text) TO authenticated, service_role;
