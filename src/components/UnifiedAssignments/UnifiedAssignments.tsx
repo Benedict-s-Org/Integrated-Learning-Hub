@@ -16,7 +16,9 @@ import {
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { PracticeModeButtons } from '../PracticeModeButtons';
 import { processText } from '../../utils/textProcessor';
+import { parsePracticeModes, PracticeMode } from '../../utils/practiceModes';
 
 
 interface UnifiedAssignment {
@@ -189,12 +191,14 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleAssignmentClick = (assignment: UnifiedAssignment) => {
+  const handleAssignmentClick = (assignment: UnifiedAssignment, practiceMode?: PracticeMode) => {
     if (assignment.assignment_type === 'memorization') {
       const originalText = assignment.content_data?.original_text || '';
       const selectedIndices: number[] = Array.isArray(assignment.content_data?.selected_word_indices)
         ? assignment.content_data.selected_word_indices
         : JSON.parse(assignment.content_data?.selected_word_indices || '[]');
+      const modes = parsePracticeModes(assignment.content_data?.practice_mode);
+      const selectedMode = practiceMode && modes.includes(practiceMode) ? practiceMode : modes[0];
 
       const processedWords = processText(originalText);
       const wordsWithSelection = processedWords.map((w) => ({
@@ -209,7 +213,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         words: wordsWithSelection,
         title: assignment.title,
         assignmentId: assignment.assignment_id,
-        practiceMode: String(assignment.content_data?.practice_mode || 'memorization').split(',')[0].trim() || 'memorization',
+        practiceMode: selectedMode,
       };
       onLoadMemorization(memorizationState);
     } else if (assignment.assignment_type === 'spelling') {
@@ -379,9 +383,12 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                 return (
                   <div
                     key={assignment.assignment_id}
-                    onClick={() => handleAssignmentClick(assignment)}
+                    onClick={() => {
+                      if (assignment.assignment_type === 'memorization') return;
+                      handleAssignmentClick(assignment);
+                    }}
                     data-ui="CARD-ASSIGNMENT"
-                    className="p-6 hover:bg-slate-50 transition cursor-pointer"
+                    className={`p-6 hover:bg-slate-50 transition ${assignment.assignment_type === 'memorization' ? '' : 'cursor-pointer'}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -448,6 +455,13 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                                 <CheckCircle2 size={14} />
                                 <span>Completed: {formatDate(assignment.completed_at)}</span>
                               </div>
+                            )}
+
+                            {assignment.assignment_type === 'memorization' && (
+                              <PracticeModeButtons
+                                modes={parsePracticeModes(assignment.content_data?.practice_mode)}
+                                onSelect={(mode) => handleAssignmentClick(assignment, mode)}
+                              />
                             )}
                           </div>
                         </div>
