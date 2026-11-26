@@ -76,6 +76,9 @@ interface Student {
   display_name: string;
 }
 
+const assignmentTypeLabel = (type: string) =>
+  type === 'memorization' ? 'Paragraph Memorization' : type.replace(/_/g, ' ');
+
 export const AssignmentManagement: React.FC = () => {
   const { isAdmin } = useAuth();
   const [overview, setOverview] = useState<AssignmentOverview | null>(null);
@@ -393,7 +396,7 @@ export const AssignmentManagement: React.FC = () => {
                   className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                 >
                   <option value="all">All Types</option>
-                  <option value="memorization">Memorization</option>
+                  <option value="memorization">Paragraph Memorization</option>
                   <option value="spelling">Spelling</option>
                   <option value="proofreading">Proofreading</option>
                   <option value="spaced_repetition">Spaced Repetition</option>
@@ -499,7 +502,7 @@ export const AssignmentManagement: React.FC = () => {
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border ${getTypeColor(assignment.assignment_type)}`}>
                             {getTypeIcon(assignment.assignment_type)}
-                            <span className="capitalize">{assignment.assignment_type.replace('_', ' ')}</span>
+                            <span className="capitalize">{assignmentTypeLabel(assignment.assignment_type)}</span>
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600">
@@ -570,7 +573,7 @@ export const AssignmentManagement: React.FC = () => {
                       <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600 mb-3">
                         <div className="flex items-center space-x-2">
                           {getTypeIcon(assignment.assignment_type)}
-                          <span className="capitalize">{assignment.assignment_type}</span>
+                          <span className="capitalize">{assignmentTypeLabel(assignment.assignment_type)}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Calendar size={14} />
