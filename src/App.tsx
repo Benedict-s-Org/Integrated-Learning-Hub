@@ -1249,6 +1249,7 @@ function AppContent() {
                     words={appState.memorizationState.words}
                     onBack={handleBackFromAssignedPractice}
                     isPractice={true}
+                    assignmentId={appState.assignmentId}
                   />
                 );
               }
