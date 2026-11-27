@@ -3,9 +3,15 @@
 
 ## Global UI Registry (shared — do not duplicate)
 
-Sole bilingual `data-ui` registry for Learning Hub **and** PersonalOS:  
+Sole bilingual `data-ui` registry **and** living system manual (Part 1 human quick-start + Part 2 AI file map) for Learning Hub **and** PersonalOS:  
 `C:\AI\PersonalOS\docs\SYSTEM_GUIDE.md` (repo-relative from PersonalOS: `docs/SYSTEM_GUIDE.md`).  
 Waves 1–4 done (shell + Login/practice/Class Dashboard/admin modals + Essay Marking + remaining admin). Codes stay English in source; Chinese names live only in that guide. See INS-078…082 in PersonalOS ProjectMemory. Do not duplicate the name table here.
+
+**Living Manual rules (must follow):**
+1. Living manual：`docs/SYSTEM_GUIDE.md` Part 1／Part 2／Registry reflect *current state only*; overwrite matching rows in place — never append changelogs there.
+2. Before work：read the Part 2 row for the domain; open those 2–3 core files first; do not scan the whole repo without need.
+3. Update trigger：after any task that adds/removes a feature, changes user workflow, or changes a URL/port, update the matching Part 1／Part 2／Common Workflow rows as the final step. For `data-ui`, update the Registry only when adding a **new shared / registry-level** code — not for minor per-element tag tweaks.
+4. Do **not** touch `SYSTEM_GUIDE.md` for pure CSS tweaks or internal bug fixes that leave user workflow, ports, and shared `data-ui` codes unchanged.
 
 **Debug Overlay (default OFF):** `src/components/debug/DataUiOverlay.tsx` mounted from `App.tsx`. Toggle `Ctrl+Shift+U` or open any URL with `?debug=ui` (sessionStorage persists in-tab).
 
