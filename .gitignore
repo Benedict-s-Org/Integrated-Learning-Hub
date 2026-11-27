@@ -65,4 +65,7 @@ bridges/**/.debug/
 # EGM design artifacts (briefs, drafts, review reports)
 .dev/docs/
 
+# Superpowers SDD local drafts / review packages
+.superpowers/
+
 supabase/.temp/
