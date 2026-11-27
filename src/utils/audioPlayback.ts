@@ -3,8 +3,8 @@
  *
  * After an `await` (e.g. Cloud TTS fetch), `audio.play()` often throws
  * NotAllowedError because the user-gesture token has expired.
- * `unlockAudioSync()` must play the shared element inside the gesture.
- * `playAudioUrl()` reuses that same element and calls `play()` before any await.
+ * Call `unlockAudioSync()` synchronously at the start of the click handler,
+ * then use `playAudioUrl()` after the fetch.
  */
 
 /** Minimal silent WAV — enough to establish a media-engagement gesture. */
@@ -12,9 +12,7 @@ const SILENT_WAV =
   'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 
 let sharedContext: AudioContext | null = null;
-let sharedAudio: HTMLAudioElement | null = null;
 let unlocked = false;
-const playTokens = new WeakMap<HTMLAudioElement, number>();
 
 function getAudioContext(): AudioContext | null {
   const AC =
@@ -25,33 +23,9 @@ function getAudioContext(): AudioContext | null {
   return sharedContext;
 }
 
-function getSharedAudio(): HTMLAudioElement {
-  if (!sharedAudio) {
-    sharedAudio = new Audio();
-    sharedAudio.preload = 'auto';
-    sharedAudio.playsInline = true;
-    sharedAudio.setAttribute('playsinline', 'true');
-  }
-  return sharedAudio;
-}
-
-function nextPlayToken(audio: HTMLAudioElement): number {
-  const next = (playTokens.get(audio) ?? 0) + 1;
-  playTokens.set(audio, next);
-  return next;
-}
-
-function isCurrentPlay(audio: HTMLAudioElement, token: number): boolean {
-  return playTokens.get(audio) === token;
-}
-
-function aborted(): DOMException {
-  return new DOMException('Playback interrupted', 'AbortError');
-}
-
 /**
  * Must be called synchronously inside a click/tap handler (before any await).
- * Plays silence on the shared element so a later play() on that element is allowed.
+ * Primes AudioContext + HTMLAudioElement so later async play() is allowed.
  */
 export function unlockAudioSync(): void {
   try {
@@ -60,26 +34,17 @@ export function unlockAudioSync(): void {
       void ctx.resume();
     }
 
-    const audio = getSharedAudio();
-    audio.src = SILENT_WAV;
-    audio.volume = 0.001;
-    const playedSrc = audio.src;
-    void audio
+    const silent = new Audio(SILENT_WAV);
+    silent.volume = 0.001;
+    void silent
       .play()
       .then(() => {
+        silent.pause();
+        silent.currentTime = 0;
         unlocked = true;
-        // Only stop the silence. A real clip may already have replaced src.
-        if (audio.src === playedSrc) {
-          audio.pause();
-          try {
-            audio.currentTime = 0;
-          } catch {
-            /* ignore */
-          }
-        }
       })
       .catch(() => {
-        // Ignore — the shared element may still accept a later play().
+        // Ignore — sticky activation may still land via AudioContext.resume()
       });
   } catch (err) {
     console.warn('[audioPlayback] unlockAudioSync failed:', err);
@@ -87,59 +52,35 @@ export function unlockAudioSync(): void {
 }
 
 /**
- * Play a data URI or URL. Call this synchronously from a gesture when the URL
- * is already known. Otherwise call unlockAudioSync() in the gesture first;
- * this reuses that same element. Returns the Audio element so callers can pause it.
+ * Play a data URI or URL. Prefer calling unlockAudioSync() on the same click first.
+ * Returns the Audio element so callers can pause/stop it.
  */
 export async function playAudioUrl(
   url: string,
   existing?: HTMLAudioElement | null
 ): Promise<HTMLAudioElement> {
-  const audio = existing ?? getSharedAudio();
-  const token = nextPlayToken(audio);
-
-  try {
-    audio.pause();
-  } catch {
-    /* ignore */
-  }
-  audio.src = url;
-  audio.volume = 1;
-  audio.playsInline = true;
-  audio.setAttribute('playsinline', 'true');
-
   const ctx = getAudioContext();
   if (ctx?.state === 'suspended') {
-    void ctx.resume().catch(() => {
+    try {
+      await ctx.resume();
+    } catch {
       /* ignore */
-    });
+    }
   }
 
-  await new Promise<void>((resolve, reject) => {
-    let settled = false;
-    let started = false;
+  const audio = existing ?? new Audio();
+  audio.pause();
+  audio.src = url;
+  audio.volume = 1;
 
-    const finish = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      fn();
-    };
+  await new Promise<void>((resolve, reject) => {
     const onEnded = () => {
-      if (!isCurrentPlay(audio, token)) {
-        finish(() => reject(aborted()));
-        return;
-      }
-      finish(() => resolve());
+      cleanup();
+      resolve();
     };
     const onError = () => {
-      if (!isCurrentPlay(audio, token)) {
-        finish(() => reject(aborted()));
-        return;
-      }
-      // Ignore the error fired by swapping src before play() starts.
-      if (!started) return;
-      finish(() => reject(new Error('Audio element failed to load/play')));
+      cleanup();
+      reject(new Error('Audio element failed to load/play'));
     };
     const cleanup = () => {
       audio.removeEventListener('ended', onEnded);
@@ -149,20 +90,12 @@ export async function playAudioUrl(
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
 
-    // play() runs inside this executor, before playAudioUrl awaits.
     void audio.play().then(() => {
-      if (!isCurrentPlay(audio, token)) {
-        finish(() => reject(aborted()));
-        return;
-      }
-      started = true;
       unlocked = true;
+      // Wait for ended/error — play() only means start succeeded
     }).catch((err) => {
-      if (!isCurrentPlay(audio, token)) {
-        finish(() => reject(aborted()));
-        return;
-      }
-      finish(() => reject(err));
+      cleanup();
+      reject(err);
     });
   });
 

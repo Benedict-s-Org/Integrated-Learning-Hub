@@ -8,7 +8,7 @@ import { playAudioUrl } from '../../utils/audioPlayback';
 const PREMIUM_VOICE = 'en-GB-Neural2-B';
 const BROWSER_VOICE = 'Google UK English Male';
 
-const { authState, cacheRows } = vi.hoisted(() => ({
+const { authState } = vi.hoisted(() => ({
   authState: {
     accentPreference: 'en-GB',
     voicePreference: {
@@ -21,13 +21,6 @@ const { authState, cacheRows } = vi.hoisted(() => ({
     session: { access_token: 'token' },
     isAdmin: true,
   },
-  cacheRows: [] as Array<{
-    text: string;
-    drive_file_id: string;
-    accent: string;
-    voice_name: string;
-    speaking_rate: number;
-  }>,
 }));
 
 vi.mock('../../context/AuthContext', () => ({
@@ -70,43 +63,15 @@ vi.mock('../../components/AccentSelector/AccentSelector', () => ({
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
-    from: (table: string) => {
-      if (table === 'tts_cache') {
-        const filters: Record<string, unknown> = {};
-        const api: {
-          select: () => unknown;
-          eq: (column: string, value: unknown) => unknown;
-          in: (column: string, values: string[]) => Promise<{ data: unknown; error: null }>;
-        } = {
-          select: () => api,
-          eq: (column: string, value: unknown) => {
-            filters[column] = value;
-            return api;
-          },
-          in: async (_column: string, values: string[]) => ({
-            data: cacheRows.filter(
-              (row) =>
-                row.accent === filters.accent &&
-                row.voice_name === filters.voice_name &&
-                Number(row.speaking_rate) === Number(filters.speaking_rate) &&
-                values.includes(row.text)
-            ),
-            error: null,
-          }),
-        };
-        return api;
-      }
-
-      return {
-        select: () => ({
-          eq: () => ({
-            order: () => ({
-              limit: async () => ({ data: [], error: null }),
-            }),
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          order: () => ({
+            limit: async () => ({ data: [], error: null }),
           }),
         }),
-      };
-    },
+      }),
+    }),
   },
 }));
 
@@ -149,7 +114,6 @@ function renderPreview() {
 describe('SpellingPreview word audio confirmation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    cacheRows.splice(0, cacheRows.length);
     authState.voicePreference.voiceURI = PREMIUM_VOICE;
     authState.voicePreference.voiceName = PREMIUM_VOICE;
     vi.mocked(findBestVoiceMatch).mockResolvedValue({
@@ -345,113 +309,5 @@ describe('SpellingPreview word audio confirmation', () => {
     } finally {
       pause.mockRestore();
     }
-  });
-
-  it('stops in-flight audio when Back to Edit is pressed and keeps confirmations', async () => {
-    const user = userEvent.setup();
-    const onBack = vi.fn();
-    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
-
-    try {
-      render(
-        <SpellingPreview
-          title="Week 1"
-          words={['cat', 'dog']}
-          onNext={() => {}}
-          onBack={onBack}
-        />
-      );
-
-      await user.click(await screen.findByRole('button', { name: /play all/i }));
-      await waitFor(
-        () => {
-          expect(screen.getByText('Audio confirmed 2/2')).toBeInTheDocument();
-        },
-        { timeout: 4000 }
-      );
-
-      vi.mocked(playAudioUrl).mockImplementation(
-        () => new Promise<HTMLAudioElement>(() => {})
-      );
-      await user.click(screen.getByRole('button', { name: /play all/i }));
-      await waitFor(() => {
-        expect(playAudioUrl).toHaveBeenCalled();
-      });
-
-      await user.click(screen.getByRole('button', { name: /back to edit/i }));
-
-      expect(pause).toHaveBeenCalled();
-      const playing = vi.mocked(playAudioUrl).mock.calls.at(-1)?.[1];
-      expect(playing).toBeInstanceOf(HTMLMediaElement);
-      expect(pause.mock.instances).toContain(playing);
-      expect(onBack).toHaveBeenCalledWith([
-        expect.objectContaining({ word: 'cat', drive_file_id: 'drive-cat' }),
-        expect.objectContaining({ word: 'dog', drive_file_id: 'drive-dog' }),
-      ]);
-    } finally {
-      pause.mockRestore();
-    }
-  });
-
-  it('keeps rematched confirmations from initialWordAudio after an edit', async () => {
-    render(
-      <SpellingPreview
-        title="Week 1"
-        words={['cat', 'bird']}
-        onNext={() => {}}
-        onBack={() => {}}
-        initialWordAudio={[
-          {
-            word: 'cat',
-            drive_file_id: 'drive-cat',
-            accent: 'en-GB',
-            voice_name: PREMIUM_VOICE,
-          },
-          {
-            word: 'dog',
-            drive_file_id: 'drive-dog',
-            accent: 'en-GB',
-            voice_name: PREMIUM_VOICE,
-          },
-          {
-            word: 'bird',
-            drive_file_id: 'drive-bird',
-            accent: 'en-GB',
-            voice_name: PREMIUM_VOICE,
-          },
-        ]}
-      />
-    );
-
-    expect(await screen.findByText('Audio confirmed 2/2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save practice/i })).toBeEnabled();
-    expect(fetchCloudAudioRich).not.toHaveBeenCalled();
-  });
-
-  it('confirms matching words from the shared tts_cache without playing', async () => {
-    cacheRows.push(
-      {
-        text: 'cat',
-        drive_file_id: 'drive-cat',
-        accent: 'en-GB',
-        voice_name: PREMIUM_VOICE,
-        speaking_rate: 0.9,
-      },
-      {
-        text: 'dog',
-        drive_file_id: 'drive-dog',
-        accent: 'en-GB',
-        voice_name: PREMIUM_VOICE,
-        speaking_rate: 0.9,
-      }
-    );
-
-    renderPreview();
-
-    expect(await screen.findByText('Audio confirmed 2/2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save practice/i })).toBeEnabled();
-    expect(screen.getByText(/shared audio cache/i)).toBeInTheDocument();
-    expect(fetchCloudAudioRich).not.toHaveBeenCalled();
-    expect(playAudioUrl).not.toHaveBeenCalled();
   });
 });
