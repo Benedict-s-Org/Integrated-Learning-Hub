@@ -395,6 +395,14 @@ async function handleAction(
       if (!(await assertStudentInClass(sb, userId, targetClass))) {
         return json({ error: "access_denied", message: "Student not in class" }, 403);
       }
+      const kind =
+        payload.type === "consequence" || payload.type === "reward"
+          ? payload.type
+          : amount < 0
+            ? "consequence"
+            : amount > 0
+              ? "reward"
+              : "consequence";
       const { error } = await sb.rpc("increment_room_coins", {
         target_user_id: userId,
         amount,
@@ -402,6 +410,7 @@ async function handleAction(
         log_admin_id: null,
         p_batch_id: payload.batchId || null,
         p_skip_daily_count: !!payload.skipDailyCount,
+        p_kind: kind,
       });
       if (error) return json({ error: "action_rejected", message: error.message }, 500);
       return json({ success: true });

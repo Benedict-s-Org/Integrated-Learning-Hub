@@ -34,7 +34,7 @@ export const WorkbenchHeader: React.FC<WorkbenchHeaderProps> = ({
   isBatchRunning = false,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-3 border-b border-slate-200">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-3 border-b border-slate-200" data-ui="LAYOUT-TOPBAR">
       <div>
         <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
           Teacher Workspace / {title || 'Untitled Assignment'}
@@ -56,6 +56,7 @@ export const WorkbenchHeader: React.FC<WorkbenchHeaderProps> = ({
               type="button"
               onClick={onOpenBatchModal}
               disabled={isBatchRunning}
+              data-ui="BTN-ESSAY-BATCH"
               className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 min-h-[32px] transition-colors shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
               title="一次啟動目前作業內合資格學生的批次 AI 批改"
             >

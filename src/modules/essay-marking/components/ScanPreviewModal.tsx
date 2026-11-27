@@ -35,7 +35,7 @@ export const ScanPreviewModal: React.FC<ScanPreviewModalProps> = ({
   if (!page) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4" data-ui="MODAL-ESSAY-SCAN-PREVIEW">
       <div className="bg-white rounded-lg border border-slate-200 shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col p-4 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
           <div>

@@ -105,7 +105,7 @@ export const ScanIntakePanel: React.FC<ScanIntakePanelProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="PANEL-ESSAY-INTAKE">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Dropzone and Import Controls */}
         <div className="space-y-6">

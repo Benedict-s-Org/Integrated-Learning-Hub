@@ -203,7 +203,7 @@ export const CustomOcrRegionEditorModal: React.FC<CustomOcrRegionEditorModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-2xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-2xs" data-ui="MODAL-ESSAY-OCR-REGION">
       <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[94vh] overflow-hidden border border-slate-200">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50">

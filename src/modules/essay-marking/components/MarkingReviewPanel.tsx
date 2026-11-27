@@ -1066,7 +1066,7 @@ export const MarkingReviewPanel: React.FC<MarkingReviewPanelProps> = ({
     ) || null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-ui="PANEL-ESSAY-MARK">
       {/* Requirement & Verification Warnings */}
       {!isRequirementsConfirmed && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 flex items-start gap-2">
