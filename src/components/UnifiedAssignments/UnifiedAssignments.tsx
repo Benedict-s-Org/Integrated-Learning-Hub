@@ -49,9 +49,6 @@ type FilterType =
   | 'learning_system';
 type FilterStatus = 'all' | 'completed' | 'in_progress' | 'overdue';
 
-const assignmentTypeLabel = (type: string) =>
-  type === 'memorization' ? 'Paragraph Memorization' : type.replace(/_/g, ' ');
-
 interface UnifiedAssignmentsProps {
   onLoadMemorization: (state: any) => void;
   onLoadSpelling: (practice: any) => void;
@@ -338,7 +335,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                   className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                 >
                   <option value="all">All Types</option>
-                  <option value="memorization">Paragraph Memorization</option>
+                  <option value="memorization">Memorization</option>
                   <option value="spelling">Spelling</option>
                   <option value="proofreading">Proofreading</option>
                   <option value="spaced_repetition">Spaced Repetition</option>
@@ -403,7 +400,7 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-sm text-slate-500 capitalize">{assignmentTypeLabel(assignment.assignment_type)}</p>
+                            <p className="text-sm text-slate-500 capitalize">{assignment.assignment_type}</p>
                           </div>
                         </div>
 

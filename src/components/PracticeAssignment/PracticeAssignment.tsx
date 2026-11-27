@@ -211,7 +211,6 @@ export const PracticeAssignment: React.FC<PracticeAssignmentProps> = ({ practice
         isPhraseMode={practice.is_phrase_mode}
         onNext={() => setView('practice')}
         onBack={() => isAdmin ? setView('assign') : onBack()}
-        initialWordAudio={practice.word_audio}
       />
     );
   }

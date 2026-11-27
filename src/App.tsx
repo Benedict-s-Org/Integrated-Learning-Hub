@@ -27,7 +27,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeDesigner } from './components/admin/ThemeDesigner';
 import { GlobalUserStatus } from './components/Auth/GlobalUserStatus';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
-import type { SpellingWordAudio } from './utils/spellingWordAudio';
 import {
   Word,
   MemorizationState,
@@ -82,7 +81,7 @@ type AppState =
   | { page: 'proofreading'; step: 'saved' }
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
-  | { page: 'spelling'; step: 'input'; title?: string; words?: string[]; isPhraseMode?: boolean; wordLimit?: number; wordAudio?: SpellingWordAudio[] }
+  | { page: 'spelling'; step: 'input' }
   | { page: 'spelling'; step: 'preview'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; wordLimit?: number; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'practice'; title: string; words: string[]; isPhraseMode?: boolean; practiceId?: string; assignmentId?: string; level?: number; wordLimit?: number; isSRSReview?: boolean; wordAudio?: SpellingWordAudio[] }
   | { page: 'spelling'; step: 'saved' }
@@ -231,6 +230,23 @@ function AppContent() {
 
   // Close login modal when user signs in
 
+  // Reset app state when user signs out
+  useEffect(() => {
+    if (!user && !loading) {
+      const isRestrictedState =
+        appState.page === 'saved' ||
+        appState.page === 'admin' ||
+        appState.page === 'database' ||
+        (appState.page === 'spelling' && appState.step === 'saved') ||
+        appState.page === 'practice';
+
+      if (isRestrictedState) {
+        setAppState({ page: 'new', step: 'input' });
+        window.location.hash = '';
+      }
+    }
+  }, [user, loading]);
+
   // Handle hash-based routing for public links - MUST be before any conditional returns
   useEffect(() => {
     // Check if we're on the quick-reward route from URL (for initial load)
@@ -350,9 +366,23 @@ function AppContent() {
   }
   // -------------------------------------
 
-  // Unauthenticated users must leave the current page and go to /login
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  // Check if user is trying to access restricted pages
+  const isRestrictedPage =
+    appState.page === 'saved' ||
+    appState.page === 'admin' ||
+    appState.page === 'database' ||
+    appState.page === 'learningHub' ||
+    appState.page === 'progress' ||
+    appState.page === 'assignments' ||
+    appState.page === 'assignmentManagement' ||
+    appState.page === 'spacedRepetition' ||
+    appState.page === 'wordSnake' ||
+    appState.page === 'flowithTest' ||
+    appState.page === 'adminAnalytics' ||
+    (appState.page === 'classDashboard' && !isStaff);
+
+  if (!user && isRestrictedPage) {
+    return <Login />;
   }
 
 
@@ -739,21 +769,7 @@ function AppContent() {
   };
 
   const handleSpellingWordsSubmit = (title: string, words: string[], isPhraseMode?: boolean, wordLimit?: number) => {
-    const previousAudio =
-      appState.page === 'spelling' &&
-      (appState.step === 'input' || appState.step === 'preview' || appState.step === 'practice') &&
-      Array.isArray(appState.wordAudio)
-        ? appState.wordAudio
-        : undefined;
-    setAppState({
-      page: 'spelling',
-      step: 'preview',
-      title,
-      words,
-      isPhraseMode,
-      wordLimit,
-      ...(previousAudio ? { wordAudio: previousAudio } : {}),
-    });
+    setAppState({ page: 'spelling', step: 'preview', title, words, isPhraseMode, wordLimit });
   };
 
   const handleViewSavedSpelling = () => {
@@ -775,19 +791,7 @@ function AppContent() {
     }
   };
 
-  const handleBackToSpellingInput = (wordAudio?: SpellingWordAudio[]) => {
-    if (appState.page === 'spelling' && appState.step === 'preview') {
-      setAppState({
-        page: 'spelling',
-        step: 'input',
-        title: appState.title,
-        words: appState.words,
-        isPhraseMode: appState.isPhraseMode,
-        wordLimit: appState.wordLimit,
-        wordAudio: wordAudio ?? appState.wordAudio,
-      });
-      return;
-    }
+  const handleBackToSpellingInput = () => {
     setAppState({ page: 'spelling', step: 'input' });
   };
 
@@ -825,16 +829,7 @@ function AppContent() {
     if (appState.page === 'spelling' && appState.step === 'practice') {
       // Students go back to saved practices list, admins go to preview
       if (isAdmin) {
-        setAppState({
-          page: 'spelling',
-          step: 'preview',
-          title: appState.title,
-          words: appState.words,
-          isPhraseMode: appState.isPhraseMode,
-          wordLimit: appState.wordLimit,
-          wordAudio: appState.wordAudio,
-          practiceId: appState.practiceId,
-        });
+        setAppState({ page: 'spelling', step: 'preview', title: appState.title, words: appState.words, wordLimit: (appState as any).wordLimit });
       } else {
         setAppState({ page: 'spelling', step: 'saved' });
       }
@@ -1086,10 +1081,6 @@ function AppContent() {
                     <SpellingInput
                       onNext={handleSpellingWordsSubmit}
                       onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
-                      initialTitle={appState.title}
-                      initialWords={appState.words}
-                      initialIsPhraseMode={appState.isPhraseMode}
-                      initialWordLimit={appState.wordLimit}
                     />
                   );
                 case 'preview':
@@ -1103,7 +1094,6 @@ function AppContent() {
                       onSave={isAdmin ? handleViewSavedSpelling : undefined}
                       onViewSaved={isAdmin ? handleViewSavedSpelling : undefined}
                       wordLimit={(appState as any).wordLimit}
-                      initialWordAudio={appState.wordAudio}
                     />
                   );
                 case 'practice':
@@ -1820,7 +1810,6 @@ function AppRoutes() {
       )}
       <div className="flex-1 relative">
         <Routes>
-          <Route path="/login" element={<Login />} />
           <Route
             path="/cognitive-anagram"
             element={

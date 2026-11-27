@@ -1313,7 +1313,6 @@ export function ClassDashboardPage() {
                         p_message: 'Toilet/Break (Recess/After School)',
                         p_type: 'neutral',
                         p_class_id: activeClass === 'all' ? (student.class || 'Unknown') : activeClass,
-                        p_record_type: 'log',
                         p_reason: 'Free time Break'
                     });
                     if (error) throw error;

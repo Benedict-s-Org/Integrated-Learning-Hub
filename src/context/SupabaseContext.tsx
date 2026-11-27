@@ -90,20 +90,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const signOut = async () => {
-    sessionStorage.setItem('force_login_view', '1');
-    let error: any = null;
-    try {
-      const result = await Promise.race([
-        supabase.auth.signOut({ scope: 'local' }),
-        new Promise<{ error: null }>((resolve) =>
-          setTimeout(() => resolve({ error: null }), 500)
-        ),
-      ]);
-      error = result.error;
-    } catch (err) {
-      error = err;
-    }
-    window.location.replace(`${window.location.origin}/login`);
+    const { error } = await supabase.auth.signOut();
     return { error };
   };
 

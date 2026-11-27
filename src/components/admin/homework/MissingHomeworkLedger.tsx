@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { homeworkDb } from '@/lib/homework/client';
-import { detailFor, listHomeworkTargets, parseSubjectAssignments, toNameMap, type SubjectAssignmentMap } from '@/lib/homework/assignments';
+import { detailFor, listHomeworkTargets, parseSubjectAssignments, type SubjectAssignmentMap } from '@/lib/homework/assignments';
 import { PREFERRED_DEFAULT_CLASS } from '@/constants/classDefaults';
 import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
 import { handbookName, homeworkBadge, type HomeworkBadge } from '@/lib/homework/homeworkBadges';
@@ -14,10 +14,7 @@ import {
   buildMissingTallyFromLedger,
   clearMissingItemsForSubmittedDuties,
   collectClearedDutyKeys,
-  combineDutyAndEnglishMissingLogs,
-  dutyStudentDateKey,
   enrichLedgerWithDutyMarks,
-  expandGeneralMissingDutyLogs,
   mergeDutyMissingItems,
   formatLedgerStudentLabel,
   handedInKey,
@@ -98,7 +95,6 @@ export function MissingHomeworkLedger() {
   const [viewMode, setViewMode] = useState<'item' | 'student'>('item');
   const [appearances, setAppearances] = useState<HomeworkAppearance[]>([]);
   const [detailsByClassDate, setDetailsByClassDate] = useState<Map<string, SubjectAssignmentMap>>(new Map());
-  const [dutyLogByStudentDate, setDutyLogByStudentDate] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -140,7 +136,6 @@ export function MissingHomeworkLedger() {
             setRoster([]);
             setAppearances([]);
             setDetailsByClassDate(new Map());
-            setDutyLogByStudentDate(new Map());
           }
           return;
         }
@@ -170,31 +165,9 @@ export function MissingHomeworkLedger() {
         if (logError) throw logError;
 
         const rawLogs = (data || []) as RawLog[];
-        const englishState = await fetchEnglishHomeworkState(effectiveFilter === 'all' ? undefined : effectiveFilter);
-
-        const detailIndex = new Map<string, SubjectAssignmentMap>();
-        let homeworkQuery = homeworkDb
-          .from('daily_homework')
-          .select('date, class_name, assignments');
-        if (effectiveFilter !== 'all') homeworkQuery = homeworkQuery.eq('class_name', effectiveFilter);
-        const { data: homeworkRows, error: homeworkError } = await homeworkQuery;
-        if (homeworkError) throw homeworkError;
-        const assignmentRows = (Array.isArray(homeworkRows) ? homeworkRows : []) as {
-          date: string;
-          class_name: string;
-          assignments: unknown;
-        }[];
-        const listedByClassDate = new Map<string, Record<string, string[]>>();
-        for (const row of assignmentRows) {
-          const parsed = parseSubjectAssignments(row.assignments);
-          detailIndex.set(`${row.date}|${row.class_name}`, parsed);
-          listedByClassDate.set(`${row.class_name}|${row.date}`, toNameMap(parsed));
-        }
-
-        // Progress Log / Class Dashboard 輸入紀錄: only explicit per-item 欠.
-        // General 欠 (empty items) stays Not clicked until a specific item is recorded.
-        const parsedLogs = expandGeneralMissingDutyLogs(
-          rawLogs.map((log) => ({
+        const parsedLogs: MissingLogInput[] = rawLogs
+          .filter((log) => log.missing_items && Object.keys(log.missing_items).length > 0)
+          .map((log) => ({
             id: log.id,
             logDate: log.log_date,
             className: log.class || log.student?.class || '',
@@ -202,21 +175,15 @@ export function MissingHomeworkLedger() {
             studentName: log.student?.display_name || 'Unknown',
             classNumber: Number(log.student?.class_number) || 0,
             missingItems: log.missing_items || {},
-            status: log.status,
-          })),
-          listedByClassDate,
-        );
+          }));
 
-        const expandedMissingByStudentDate = new Map(
-          parsedLogs.map((log) => [dutyStudentDateKey(log.studentId, log.logDate), log.missingItems] as const),
-        );
+        const englishState = await fetchEnglishHomeworkState(effectiveFilter === 'all' ? undefined : effectiveFilter);
         const dutySnapshots = mergeDutyMissingItems(
           rawLogs.map((log) => ({
             studentId: log.student_id,
             date: log.log_date,
             status: log.status,
-            missingItems: expandedMissingByStudentDate.get(dutyStudentDateKey(log.student_id, log.log_date))
-              ?? log.missing_items,
+            missingItems: log.missing_items,
             logId: log.id,
           })),
           englishState.logs.map((log) => ({
@@ -235,21 +202,25 @@ export function MissingHomeworkLedger() {
           status: dutyStatusByStudentDate.get(`${duty.studentId}\0${duty.date}`) ?? duty.status,
         }));
         const clearedDutyKeys = collectClearedDutyKeys(dutiesWithStatus);
-        const nextDutyLogByStudentDate = new Map(
-          rawLogs.map((log) => [dutyStudentDateKey(log.student_id, log.log_date), log.id] as const),
-        );
         const combinedLogs = clearMissingItemsForSubmittedDuties(
-          combineDutyAndEnglishMissingLogs(
-            parsedLogs,
-            englishState.logs,
-            rawLogs.map((log) => ({
-              studentId: log.student_id,
-              date: log.log_date,
-              status: log.status,
-            })),
-          ),
+          [...parsedLogs, ...englishState.logs],
           clearedDutyKeys,
         );
+        const detailIndex = new Map<string, SubjectAssignmentMap>();
+        let homeworkQuery = homeworkDb
+          .from('daily_homework')
+          .select('date, class_name, assignments');
+        if (effectiveFilter !== 'all') homeworkQuery = homeworkQuery.eq('class_name', effectiveFilter);
+        const { data: homeworkRows, error: homeworkError } = await homeworkQuery;
+        if (homeworkError) throw homeworkError;
+        const assignmentRows = (Array.isArray(homeworkRows) ? homeworkRows : []) as {
+          date: string;
+          class_name: string;
+          assignments: unknown;
+        }[];
+        for (const row of assignmentRows) {
+          detailIndex.set(`${row.date}|${row.class_name}`, parseSubjectAssignments(row.assignments));
+        }
 
         const listed = assignmentRows.flatMap((row) => (
           listHomeworkTargets(row.assignments).map((target) => ({
@@ -320,7 +291,6 @@ export function MissingHomeworkLedger() {
           setHandbookKeys(nextHandbook);
           setRoster(roster);
           setAppearances(appearances);
-          setDutyLogByStudentDate(nextDutyLogByStudentDate);
         }
       } catch (err) {
         console.error('Failed to load missing homework ledger', err);
@@ -457,60 +427,15 @@ export function MissingHomeworkLedger() {
       });
       if (rpcError) throw rpcError;
 
-      // Prefer the real morning-duty row so makeup clears 欠 and survives refresh.
-      // English-inferred chips often have no duty row yet — create one from listed homework.
-      let dutyLogId = dutyLogByStudentDate.get(dutyStudentDateKey(student.studentId, date))
-        || (parseEnglishCheckLogId(student.logId) ? undefined : student.logId);
-
-      if (!dutyLogId) {
-        // English-inferred chips often have no Class Dashboard duty row.
-        // Seed a zero-coin placeholder (todo/late both skip coin awards); makeup
-        // expands listed homework into the real missing/late/submitted state.
-        const { error: dutyError } = await homeworkDb.rpc('upsert_morning_duty_log', {
-          p_log_date: date,
-          p_student_id: student.studentId,
-          p_status: markingLate ? 'late' : 'todo',
-          p_set_by: 'teacher',
-          p_missing_items: null,
-          p_event_type: 'status_change',
-        });
-        if (dutyError) throw dutyError;
-
-        const { data: dutyRow, error: dutyLookupError } = await homeworkDb
-          .from('morning_duty_logs')
-          .select('id')
-          .eq('student_id', student.studentId)
-          .eq('log_date', date)
-          .maybeSingle();
-        if (dutyLookupError) throw dutyLookupError;
-        dutyLogId = (dutyRow as { id?: string } | null)?.id;
-        if (!dutyLogId) {
-          throw new Error('Could not create a morning-duty record for this student/date.');
-        }
-        setDutyLogByStudentDate((current) => {
-          const next = new Map(current);
-          next.set(dutyStudentDateKey(student.studentId, date), dutyLogId!);
-          return next;
-        });
-      }
+      if (parseEnglishCheckLogId(student.logId)) return;
 
       const { error: makeupError } = await homeworkDb.rpc('set_homework_makeup', {
-        p_log_id: dutyLogId,
+        p_log_id: student.logId,
         p_subject: subject,
         p_item: item,
         p_is_made_up: handedIn,
       });
       if (makeupError) throw makeupError;
-
-      // Keep local duty map keys in sync for optimistic badges before reload.
-      if (handedIn) {
-        setMadeUp((current) => {
-          const next = new Set(current);
-          next.add(makeupKey(dutyLogId!, subject, item));
-          next.add(key);
-          return next;
-        });
-      }
     } catch (err) {
       console.error('Failed to update homework submission', err);
       setHandedInKeys((current) => {
@@ -535,7 +460,7 @@ export function MissingHomeworkLedger() {
         if (row.studentId !== student.studentId || row.date !== date || row.subject !== subject || row.item !== item) {
           return row;
         }
-        return { ...row, mark: student.mark || 'unclicked', submitted: student.submitted };
+        return { ...row, mark: student.mark || 'missing', submitted: student.submitted };
       }));
       setError('Could not update that student. Try again.');
     } finally {
@@ -1092,7 +1017,7 @@ function WorkRowChip({
   onMenu: (menu: { x: number; y: number; student: LedgerStudent; date: string } | null) => void;
 }) {
   const { student, subject, item, detail, date } = row;
-  const mark = student.mark || 'unclicked';
+  const mark = student.mark || 'missing';
   const tone = badgeFor(student, subject, item, date);
   const key = makeupKey(student.logId, subject, item);
   const marked = handbookKeys.has(`${student.studentId}|${date}`);
@@ -1179,7 +1104,7 @@ function StudentColumn({
   return (
     <ul className="flex flex-col gap-1">
       {students.map((student) => {
-        const mark = student.mark || 'unclicked';
+        const mark = student.mark || 'missing';
         const tone = badgeFor(student, subject, itemName, groupDate);
         const key = makeupKey(student.logId, subject, itemName);
         const marked = handbookKeys.has(`${student.studentId}|${groupDate}`);

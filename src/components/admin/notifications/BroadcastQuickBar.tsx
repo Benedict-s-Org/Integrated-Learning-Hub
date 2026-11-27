@@ -8,14 +8,7 @@ import { getHKTodayString } from '@/utils/dateUtils';
 import { MISSING_HOMEWORK_TITLES } from '@/constants/rewardConfig';
 import { isArchivedClassName } from '@/utils/archiveClassExporter';
 import { fetchEnglishHomeworkState } from '@/lib/homework/englishMissing';
-import {
-  buildMissingLedger,
-  combineDutyAndEnglishMissingLogs,
-  makeupKey,
-  openMissingAnnouncement,
-  submittedKeysWithHandedIn,
-  type MissingLogInput,
-} from '@/lib/homework/missingLedger';
+import { buildMissingLedger, makeupKey, openMissingAnnouncement, submittedKeysWithHandedIn, type MissingLogInput } from '@/lib/homework/missingLedger';
 
 interface BroadcastQuickBarProps {
     selectedCount: number;
@@ -340,22 +333,21 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
 
             const homeworkQuery = supabase
                 .from('morning_duty_logs')
-                .select('id, log_date, class, student_id, status, missing_items, student:users(display_name, class, class_number)')
+                .select('id, log_date, class, student_id, missing_items, student:users(display_name, class, class_number)')
+                .not('missing_items', 'is', null)
                 .order('log_date', { ascending: false });
             
             const { data: homeworkData, error: hwError } = await homeworkQuery;
             
             console.log('[DEBUG-MissingHW] Result - Error:', hwError, 'Data Length:', homeworkData?.length);
 
-            const classScopedHomework = (homeworkData || []).filter((log: any) => {
+            const filteredHomework = (homeworkData || []).filter((log: any) => {
                 const logClass = log.class || log.student?.class || '';
                 if (!logClass || isArchivedClassName(logClass)) return false;
+                if (!log.missing_items || Object.keys(log.missing_items).length === 0) return false;
                 if (isAllClasses) return true;
                 return String(logClass).trim().toUpperCase() === currentClassUpper;
             });
-            const filteredHomework = classScopedHomework.filter((log: any) => (
-                log.missing_items && Object.keys(log.missing_items).length > 0
-            ));
             const englishState = await fetchEnglishHomeworkState(isAllClasses ? undefined : className);
             const englishLogs = englishState.logs.filter((log) => {
                 if (!log.className || isArchivedClassName(log.className)) return false;
@@ -376,24 +368,18 @@ export const BroadcastQuickBar: React.FC<BroadcastQuickBarProps> = ({
                     });
                 }
 
-                const dutyLogs: MissingLogInput[] = filteredHomework.map((log: any) => ({
-                    id: log.id,
-                    logDate: log.log_date,
-                    className: log.class || log.student?.class || '',
-                    studentId: log.student_id,
-                    studentName: log.student?.display_name || 'Unknown',
-                    classNumber: Number(log.student?.class_number) || 0,
-                    missingItems: log.missing_items || {},
-                }));
-                const missingLogs = combineDutyAndEnglishMissingLogs(
-                    dutyLogs,
-                    englishLogs,
-                    classScopedHomework.map((log: any) => ({
+                const missingLogs: MissingLogInput[] = [
+                    ...filteredHomework.map((log: any) => ({
+                        id: log.id,
+                        logDate: log.log_date,
+                        className: log.class || log.student?.class || '',
                         studentId: log.student_id,
-                        date: log.log_date,
-                        status: log.status,
+                        studentName: log.student?.display_name || 'Unknown',
+                        classNumber: Number(log.student?.class_number) || 0,
+                        missingItems: log.missing_items || {},
                     })),
-                );
+                    ...englishLogs,
+                ];
                 const announcement = openMissingAnnouncement(buildMissingLedger(
                     missingLogs,
                     submittedKeysWithHandedIn(missingLogs, madeUp, englishState.handedInKeys),

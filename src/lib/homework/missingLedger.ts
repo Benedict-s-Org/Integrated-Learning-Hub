@@ -321,37 +321,57 @@ export function submittedKeysWithHandedIn(
 }
 
 /**
- * Missing comes only from an explicit handed_in=false tick for that student+item
- * (partial 欠 sync). Classmates without a tick stay Not clicked — never inferred
- * Missing just because someone else handed the item in.
+ * After a teacher ticks Handed in for an item, every classmate without that tick
+ * is missing that item. Items with no ticks at all stay off the list.
  */
 export function missingLogsFromEnglishMarks(
   students: ClassStudent[],
   marks: EnglishMark[],
 ): MissingLogInput[] {
-  const byId = new Map(students.map((student) => [student.id, student] as const));
-  const byStudentDate = new Map<string, MissingLogInput>();
+  type Group = {
+    className: string;
+    date: string;
+    subject: string;
+    item: string;
+    handedIn: Set<string>;
+  };
+  const groups = new Map<string, Group>();
   for (const mark of marks) {
-    if (mark.handedIn) continue;
     const className = mark.className.trim();
     const item = mark.item.trim();
     if (!className || !mark.date || !mark.subject || !item || !mark.studentId) continue;
-    const student = byId.get(mark.studentId);
-    if (!student || student.className !== className) continue;
-    const key = `${student.id}|${mark.date}`;
-    const log = byStudentDate.get(key) ?? {
-      id: englishCheckLogId(student.id, mark.date),
-      logDate: mark.date,
-      className: student.className,
-      studentId: student.id,
-      studentName: student.name || 'Unknown',
-      classNumber: Number.isFinite(student.classNumber) ? student.classNumber : 0,
-      missingItems: {},
+    const key = `${className}\0${mark.date}\0${mark.subject}\0${item}`;
+    const group = groups.get(key) ?? {
+      className,
+      date: mark.date,
+      subject: mark.subject,
+      item,
+      handedIn: new Set<string>(),
     };
-    const items = log.missingItems[mark.subject] ?? [];
-    if (!items.includes(item)) items.push(item);
-    log.missingItems[mark.subject] = items;
-    byStudentDate.set(key, log);
+    if (mark.handedIn) group.handedIn.add(mark.studentId);
+    groups.set(key, group);
+  }
+
+  const byStudentDate = new Map<string, MissingLogInput>();
+  for (const group of groups.values()) {
+    for (const student of students) {
+      if (student.className !== group.className) continue;
+      if (group.handedIn.has(student.id)) continue;
+      const key = `${student.id}|${group.date}`;
+      const log = byStudentDate.get(key) ?? {
+        id: englishCheckLogId(student.id, group.date),
+        logDate: group.date,
+        className: student.className,
+        studentId: student.id,
+        studentName: student.name || 'Unknown',
+        classNumber: Number.isFinite(student.classNumber) ? student.classNumber : 0,
+        missingItems: {},
+      };
+      const items = log.missingItems[group.subject] ?? [];
+      if (!items.includes(group.item)) items.push(group.item);
+      log.missingItems[group.subject] = items;
+      byStudentDate.set(key, log);
+    }
   }
   return [...byStudentDate.values()];
 }
@@ -370,10 +390,8 @@ export function classifyHomeworkMark(input: {
   if (status === 'exempted' || status === 'exempt') return 'exempt';
   // Makeup / 交齊 ticks must win: teacher can clear a row in Missing even while duty still says 欠.
   if (input.handedIn || status === 'submitted' || status === 'late') return 'hidden';
-  // Missing only when this specific item is on the explicit 欠 list.
   if (input.inMissingItems) return 'missing';
-  // Default for listed homework (including general 欠 with empty missing_items): Not clicked.
-  if (!status || status === 'todo' || status === 'missing') return 'unclicked';
+  if (!status || status === 'todo') return 'unclicked';
   return 'hidden';
 }
 
@@ -417,88 +435,6 @@ export type DutySnapshot = {
   logId: string;
 };
 
-function hasListedMissingItems(missingItems: Record<string, string[]> | null | undefined): boolean {
-  return Object.values(missingItems || {}).some(
-    (items) => Array.isArray(items) && items.some((item) => String(item || '').trim()),
-  );
-}
-
-/**
- * Build the duty missing_items blob after a Missing-ledger 補交 / undo click.
- * Used when the chip came from English inference and no morning_duty_logs row exists yet.
- */
-export function missingItemsAfterHandedInToggle(
-  listed: Record<string, string[]>,
-  subject: string,
-  item: string,
-  handedIn: boolean,
-): Record<string, string[]> | null {
-  const next: Record<string, string[]> = {};
-  for (const [subj, items] of Object.entries(listed || {})) {
-    const names = (items || []).map((name) => String(name || '').trim()).filter(Boolean);
-    if (names.length > 0) next[subj] = names;
-  }
-  const bucket = new Set(next[subject] || []);
-  if (handedIn) bucket.delete(item);
-  else bucket.add(item);
-  if (bucket.size > 0) next[subject] = [...bucket];
-  else delete next[subject];
-  return hasListedMissingItems(next) ? next : null;
-}
-
-/**
- * Keep only explicit per-item 欠 lists. General 欠 (empty missing_items) must NOT
- * expand into every listed item — those icons stay Not clicked until a teacher
- * records that specific item as 欠 (and other listed items can be Handed in).
- */
-export function expandGeneralMissingDutyLogs(
-  dutyLogs: Array<MissingLogInput & { status?: string | null }>,
-  _listedByClassDate: ReadonlyMap<string, Record<string, string[]>> = new Map(),
-): MissingLogInput[] {
-  const out: MissingLogInput[] = [];
-  for (const log of dutyLogs) {
-    const status = (log.status || '').trim().toLowerCase();
-    if (status !== 'missing') continue;
-    if (!hasListedMissingItems(log.missingItems)) continue;
-    out.push({
-      id: log.id,
-      logDate: log.logDate,
-      className: log.className,
-      studentId: log.studentId,
-      studentName: log.studentName,
-      classNumber: log.classNumber,
-      missingItems: log.missingItems,
-    });
-  }
-  return out;
-}
-
-/**
- * Ledger columns must prefer an explicit morning-duty 欠 list over English
- * classmate inference. Without this, a student missing one item appears under
- * every item classmates already handed in.
- */
-export function combineDutyAndEnglishMissingLogs(
-  dutyLogs: MissingLogInput[],
-  englishLogs: MissingLogInput[],
-  dutyDays: Array<{ studentId: string; date: string; status?: string | null }> = [],
-): MissingLogInput[] {
-  const preferDuty = new Set<string>();
-  for (const duty of dutyDays) {
-    const status = (duty.status || '').trim().toLowerCase();
-    if (status === 'missing') {
-      preferDuty.add(dutyStudentDateKey(duty.studentId, duty.date));
-    }
-  }
-  for (const log of dutyLogs) {
-    preferDuty.add(dutyStudentDateKey(log.studentId, log.logDate));
-  }
-  const filteredEnglish = englishLogs.filter(
-    (log) => !preferDuty.has(dutyStudentDateKey(log.studentId, log.logDate)),
-  );
-  return [...dutyLogs, ...filteredEnglish];
-}
-
 /** Merge English (or other) missing-item logs into morning-duty snapshots so appearances match the columns. */
 export function mergeDutyMissingItems(
   duties: DutySnapshot[],
@@ -521,12 +457,10 @@ export function mergeDutyMissingItems(
     const existing = map.get(key);
     const incoming = row.missingItems || {};
     if (!existing) {
-      // Explicit english handed_in=false ticks only — do not invent a full-day 欠
-      // status that would hide Not clicked for other listed items.
       map.set(key, {
         studentId: row.studentId,
         date: row.date,
-        status: hasListedMissingItems(incoming) ? 'missing' : 'todo',
+        status: 'missing',
         missingItems: { ...incoming },
         logId: row.logId,
       });
@@ -535,11 +469,13 @@ export function mergeDutyMissingItems(
     const status = (existing.status || '').trim().toLowerCase();
     // 交齊 / late: never attach inferred English missing onto a cleared day.
     if (status === 'submitted' || status === 'late') continue;
-    // An explicit 欠 day (even after makeup emptied missing_items) must not be
-    // reinflated with classmate-inferred English items.
-    if (status === 'missing') continue;
-
+    // Teacher already picked specific 欠 items — do not inflate to every classmate-inferred item.
     const explicit = existing.missingItems || {};
+    const hasExplicitItems = Object.values(explicit).some(
+      (items) => Array.isArray(items) && items.some((item) => String(item || '').trim()),
+    );
+    if (status === 'missing' && hasExplicitItems) continue;
+
     const merged = { ...explicit };
     for (const [subject, items] of Object.entries(incoming)) {
       if (!Array.isArray(items)) continue;
@@ -709,7 +645,7 @@ export function buildMissingTallyFromLedger(
       for (const student of item.students) {
         const row = rows.get(student.studentId);
         if (!row) continue;
-        const mark = student.mark || 'unclicked';
+        const mark = student.mark || 'missing';
         if (mark === 'absent') {
           if (!student.submitted) row.absent += 1;
           continue;
@@ -777,7 +713,7 @@ export type ByStudentColumn = {
 
 /** Open block: Missing / Not clicked / Absent / Exempt that are not yet handed in. */
 export function isByStudentOpenRow(student: LedgerStudent): boolean {
-  const mark = student.mark || 'unclicked';
+  const mark = student.mark || 'missing';
   if (mark === 'unclicked') return true;
   if (mark === 'absent' || mark === 'exempt' || mark === 'missing') return !student.submitted;
   return false;
@@ -900,7 +836,7 @@ export function enrichLedgerWithDutyMarks(
         subject: item.subject,
         item: item.item,
         detail: item.detail,
-        students: item.students.map((student) => ({ ...student, mark: student.mark || 'unclicked' })),
+        students: item.students.map((student) => ({ ...student, mark: student.mark || 'missing' })),
       });
     }
     byDate.set(group.date, items);
