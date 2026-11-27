@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { Button } from '../ui/Button';
+import { CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { PracticeModeButtons } from '../PracticeModeButtons';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
-import { AssignedMemorizationContent, MemorizationState } from '../../types';
+import { AssignedMemorizationContent, PracticeMode } from '../../types';
 import { processText } from '../../utils/textProcessor';
+import { parsePracticeModes } from '../../utils/practiceModes';
 
 interface AssignedMemorizationsProps {
   onLoadContent: (content: any) => void;
@@ -63,7 +64,9 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
     }
   };
 
-  const handlePractice = (assignment: any) => {
+  const handlePractice = (assignment: AssignedMemorizationContent, practiceMode: PracticeMode) => {
+    const modes = parsePracticeModes(assignment.practice_mode);
+    const selectedMode = modes.includes(practiceMode) ? practiceMode : modes[0];
     const words = processText(assignment.original_text);
     const wordsWithSelection = words.map((word) => ({
       ...word,
@@ -78,7 +81,7 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
       hiddenWords: new Set(assignment.selected_word_indices),
       title: assignment.title,
       assignmentId: assignment.id,
-      practiceMode: (assignment.practice_mode || 'memorization').split(',')[0].trim() || 'memorization',
+      practiceMode: selectedMode,
     };
 
     onLoadContent(memorizationState);
@@ -189,13 +192,13 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
                                 <span>By {assignment.assigned_by_username}</span>
                                 <span>{assignment.selected_word_indices.length} words</span>
                               </div>
+                              <div className="mt-4">
+                                <PracticeModeButtons
+                                  modes={parsePracticeModes(assignment.practice_mode)}
+                                  onSelect={(mode) => handlePractice(assignment, mode)}
+                                />
+                              </div>
                             </div>
-                            <Button
-                              onClick={() => handlePractice(assignment)}
-                              icon={Play}
-                            >
-                              Start
-                            </Button>
                           </div>
                         </div>
                       );
@@ -227,14 +230,13 @@ const AssignedMemorizations: React.FC<AssignedMemorizationsProps> = ({ onLoadCon
                               <span>By {assignment.assigned_by_username}</span>
                               <span>{assignment.selected_word_indices.length} words</span>
                             </div>
+                            <div className="mt-4">
+                              <PracticeModeButtons
+                                modes={parsePracticeModes(assignment.practice_mode)}
+                                onSelect={(mode) => handlePractice(assignment, mode)}
+                              />
+                            </div>
                           </div>
-                          <Button
-                            onClick={() => handlePractice(assignment)}
-                            variant="secondary"
-                            icon={Play}
-                          >
-                            Practice Again
-                          </Button>
                         </div>
                       </div>
                     ))}

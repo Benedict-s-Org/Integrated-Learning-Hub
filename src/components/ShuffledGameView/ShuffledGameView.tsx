@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -20,6 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { ArrowLeft, RotateCcw, PartyPopper, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Word } from '../../types';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
 interface ShuffledGameViewProps {
@@ -27,6 +28,7 @@ interface ShuffledGameViewProps {
     onBack: () => void;
     isPractice?: boolean;
     onSaveGame?: () => void;
+    assignmentId?: string;
 }
 
 /** 1 = sentence / line ranges (. ? ! or line break); 2 = line / paragraph ranges only */
@@ -205,13 +207,14 @@ const buildShuffledWords = (words: Word[], currentLevel: ShuffleLevel): GameWord
     return finalWords;
 };
 
-const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPractice = false, onSaveGame }) => {
+const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPractice = false, onSaveGame, assignmentId }) => {
     const { user } = useAuth();
     const profileLevel = (user?.reading_rearranging_level as ShuffleLevel | undefined) || 1;
     const [level] = useState<ShuffleLevel>(profileLevel === 2 ? 2 : 1);
     const [gameWords, setGameWords] = useState<GameWord[]>([]);
     const [isComplete, setIsComplete] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
+    const completionMarkedRef = useRef(false);
 
     const shuffleWords = useCallback((currentLevel: ShuffleLevel) => {
         setGameWords(buildShuffledWords(words, currentLevel));
@@ -279,6 +282,17 @@ const ShuffledGameView: React.FC<ShuffledGameViewProps> = ({ words, onBack, isPr
             });
         }
     }, [gameWords, words, isComplete]);
+
+    useEffect(() => {
+        if (!isComplete || !assignmentId || !user || completionMarkedRef.current) return;
+        completionMarkedRef.current = true;
+        void supabase.rpc('mark_assignment_complete' as any, {
+            p_assignment_id: assignmentId,
+            p_assignment_type: 'memorization',
+        }).then(({ error }) => {
+            if (error) console.error('Error marking memorization assignment complete:', error);
+        });
+    }, [isComplete, assignmentId, user]);
 
     const handleReset = () => {
         shuffleWords(level);

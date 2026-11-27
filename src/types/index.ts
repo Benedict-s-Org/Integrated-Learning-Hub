@@ -318,6 +318,7 @@ export interface AssignedMemorizationContent {
   completed: boolean;
   completed_at?: string;
   assigned_by_username: string;
+  practice_mode?: string;
 }
 
 export interface ProofreadingPractice {

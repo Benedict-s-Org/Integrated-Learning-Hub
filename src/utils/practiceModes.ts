@@ -5,10 +5,15 @@ export const PRACTICE_MODE_ORDER: PracticeMode[] = ['memorization', 'shuffledGam
 export const isPracticeMode = (value: string): value is PracticeMode =>
   PRACTICE_MODE_ORDER.includes(value as PracticeMode);
 
-/** Parse DB `practice_mode` (single value or comma-separated list). */
-export const parsePracticeModes = (value?: string | null): PracticeMode[] => {
-  if (!value || !value.trim()) return ['memorization'];
-  const parsed = value
+/** Parse DB `practice_mode` (single value, comma-separated list, or a JSON array). */
+export const parsePracticeModes = (value?: unknown): PracticeMode[] => {
+  const raw = typeof value === 'string'
+    ? value
+    : Array.isArray(value)
+      ? value.filter((part): part is string => typeof part === 'string').join(',')
+      : '';
+  if (!raw.trim()) return ['memorization'];
+  const parsed = raw
     .split(',')
     .map(part => part.trim())
     .filter(isPracticeMode);
