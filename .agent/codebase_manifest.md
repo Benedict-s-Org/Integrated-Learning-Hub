@@ -135,7 +135,8 @@ To ensure development remains fast and avoids "infinite loops" or stalled progre
 ### Homework Management
 - **Path**: `src/pages/admin/AdminHomeworkManagementPage.tsx` at `/admin/homework-record`
 - **Sidebar**: One left-bar item, Homework Management. `/admin/english-homework` and `/admin/homework-summary` redirect into its tabs.
-- **Tabs** (top bar): Missing Homework (`MissingHomeworkLedger`), English Homework Tracker (`EnglishHomeworkBoard`), Homework Record (embedded `AdminHomeworkRecordPage`).
+- **Tabs** (top bar): Missing Homework (`MissingHomeworkLedger`), English Homework Tracker (`EnglishHomeworkBoard`), Homework Record (embedded `AdminHomeworkRecordPage`), Edit Homework Item (`HomeworkItemsEditor`).
+- **Edit Homework Item**: Catalog CRUD on `class_rewards.sub_options` (title `完成班務（欠功課）`) plus class daily/tomorrow settings on `daily_homework`. Shared by Class Dashboard setup and Homework Record subject pills.
 - **Handed in**: 交齊功課, clicking a name on the missing list, and the English Handed in tick all write `english_homework_checks`. 交齊功課 marks every item on that day's list for that student and keeps an existing Correction or Complete tick. A Handed in tick also crosses that name on a morning-duty missing row.
 - **Daily list**: `daily_homework.assignments` stores `{ name, detail }` and still accepts a plain name list. Today’s and tomorrow’s setup each show a pages, chapter, or range box under every item. Spec: `docs/superpowers/specs/2026-10-30-homework-management-nav-design.md`.
 

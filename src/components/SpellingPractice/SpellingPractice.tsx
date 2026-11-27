@@ -39,14 +39,6 @@ function isAutoplayBlocked(err: unknown): boolean {
   );
 }
 
-function isPlaybackAbort(err: unknown): boolean {
-  const name =
-    err && typeof err === 'object' && 'name' in err
-      ? String((err as { name?: unknown }).name ?? '')
-      : '';
-  return name === 'AbortError';
-}
-
 interface SpellingPracticeProps {
   title: string;
   words: string[];
@@ -111,9 +103,6 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   const [practiceAudio, setPracticeAudio] = useState<SpellingWordAudio[]>([]);
   const [audioMode, setAudioMode] = useState<PracticeAudioMode>('pending');
   const [audioError, setAudioError] = useState<string | null>(null);
-  const playbackGenRef = useRef(0);
-  const audioSessionRef = useRef(0);
-  const readyUrlRef = useRef<Map<number, string>>(new Map());
 
   // Helper to shuffle array
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -132,9 +121,6 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       wordLimit && items.length > wordLimit ? items.slice(0, wordLimit) : items;
 
     const initializePractice = async () => {
-      audioSessionRef.current += 1;
-      readyUrlRef.current.clear();
-      playbackGenRef.current += 1;
       setIsWordsLoading(true);
       setAudioError(null);
       setCurrentWordIndex(0);
@@ -167,12 +153,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
           if (error) {
             console.error('[SpellingPractice] Failed to load word_audio:', error);
             loadFailed = true;
-          } else if (!data) {
-            // RLS or missing row: do not treat as legacy empty bindings
-            console.error('[SpellingPractice] Practice row not visible for word_audio load');
-            loadFailed = true;
           } else {
-            rawBindings = data.word_audio ?? [];
+            rawBindings = data?.word_audio ?? [];
           }
         } catch (error) {
           if (cancelled) return;
@@ -254,17 +236,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
   useEffect(() => {
     if (isWordsLoading || audioMode !== 'bound') return;
     if (practiceWords.length === 0 || currentWordIndex >= practiceWords.length) return;
-    const session = audioSessionRef.current;
-    const wordIndex = currentWordIndex;
-    speakWord(practiceWords[wordIndex], wordIndex);
-    practiceAudio.forEach((binding, index) => {
-      if (index === wordIndex || !binding?.drive_file_id) return;
-      void resolveAudioUrl(driveFileToProxyUrl(binding.drive_file_id)).then((playable) => {
-        if (audioSessionRef.current !== session || !playable) return;
-        readyUrlRef.current.set(index, playable);
-      });
-    });
-  }, [practiceWords, practiceAudio, audioMode, isWordsLoading]);
+    speakWord(practiceWords[currentWordIndex], currentWordIndex);
+  }, [practiceWords, audioMode, isWordsLoading]);
 
   useEffect(() => {
     if (isWordsLoading || audioMode !== 'legacy') return;
@@ -291,48 +264,31 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
 
   const utteranceRef = React.useRef<SpeechSynthesisUtterance | null>(null);
 
-  const reportPlaybackError = (gen: number, err: unknown) => {
-    if (isPlaybackAbort(err) || gen !== playbackGenRef.current) return;
-    if (isAutoplayBlocked(err)) {
-      setAudioError('Press Play Word to hear the audio.');
-    } else {
-      setAudioError('Audio unavailable for this word');
-    }
-  };
-
-  const playResolvedUrl = (url: string) => {
-    const gen = ++playbackGenRef.current;
-    setAudioError(null);
-    // play() runs before this promise yields, so it stays inside the gesture.
-    void playAudioUrl(url).catch((err) => reportPlaybackError(gen, err));
-  };
-
   const speakWord = async (word: string, index: number = currentWordIndex) => {
     if (audioMode === 'incomplete' || audioMode === 'load_error' || audioMode === 'pending') return;
-
-    const gen = ++playbackGenRef.current;
-    const session = audioSessionRef.current;
 
     if (audioMode === 'bound') {
       const binding = practiceAudio[index];
       if (!binding?.drive_file_id) {
-        if (gen === playbackGenRef.current) setAudioError('Audio unavailable for this word');
+        setAudioError('Audio unavailable for this word');
         return;
       }
       try {
         unlockAudioSync();
         const proxyUrl = driveFileToProxyUrl(binding.drive_file_id);
         const playable = await resolveAudioUrl(proxyUrl);
-        if (session !== audioSessionRef.current || gen !== playbackGenRef.current) return;
         if (!playable) {
           setAudioError('Audio unavailable for this word');
           return;
         }
-        readyUrlRef.current.set(index, playable);
-        setAudioError(null);
         await playAudioUrl(playable);
+        setAudioError(null);
       } catch (err) {
-        reportPlaybackError(gen, err);
+        if (isAutoplayBlocked(err)) {
+          setAudioError('Press Play Word to hear the audio.');
+        } else {
+          setAudioError('Audio unavailable for this word');
+        }
       }
       return;
     }
@@ -391,22 +347,13 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
     }
   };
 
-  const playWordFromGesture = (index: number, word: string) => {
-    if (audioMode === 'incomplete' || audioMode === 'load_error' || audioMode === 'pending') return;
-    const ready = audioMode === 'bound' ? readyUrlRef.current.get(index) : undefined;
-    if (ready) {
-      playResolvedUrl(ready);
-      return;
-    }
-    // Bless the shared element before any fetch. Replay uses that same element.
-    unlockAudioSync();
-    if (word) void speakWord(word, index);
-  };
-
   const handlePlayAudio = () => {
-    const word = practiceWords[currentWordIndex];
-    if (!word) return;
-    playWordFromGesture(currentWordIndex, word);
+    if (audioMode === 'incomplete' || audioMode === 'load_error') return;
+    // Unlock during click before async audio fetch
+    unlockAudioSync();
+    if (practiceWords[currentWordIndex]) {
+      speakWord(practiceWords[currentWordIndex], currentWordIndex);
+    }
   };
 
   const handleCheck = () => {
@@ -445,7 +392,7 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({
       setClickedLetters([]);
       setShowFeedback(false);
       wordStartTimeRef.current = Date.now();
-      playWordFromGesture(nextIndex, practiceWords[nextIndex]);
+      speakWord(practiceWords[nextIndex], nextIndex);
       initializeShuffledLetters(practiceWords[nextIndex]);
     } else {
       await saveResults();

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { homeworkDb } from '@/lib/homework/client';
-import { fetchAllPagedRows } from '@/lib/homework/fetchAllRows';
 import {
   EMPTY_ENGLISH_CHECK,
   englishCheckKey,
@@ -119,29 +118,23 @@ export function EnglishHomeworkBoard() {
           assignments: row.assignments,
         })));
 
-        const studentRows = await fetchAllPagedRows<Student>((from, to) => {
-          let query = homeworkDb
-            .from('users')
-            .select('id, display_name, class, class_number')
-            .eq('role', 'user')
-            .order('id')
-            .range(from, to);
-          if (effectiveFilter !== 'all') query = query.eq('class', effectiveFilter);
-          return query;
-        });
+        let studentQuery = homeworkDb
+          .from('users')
+          .select('id, display_name, class, class_number')
+          .eq('role', 'user');
+        if (effectiveFilter !== 'all') studentQuery = studentQuery.eq('class', effectiveFilter);
+        const { data: studentRows, error: studentError } = await studentQuery;
+        if (studentError) throw studentError;
 
-        const checkRows = await fetchAllPagedRows<CheckRow>((from, to) => {
-          let query = homeworkDb
-            .from('english_homework_checks')
-            .select('class_name, record_date, subject, item_name, detail, student_id, handed_in, needs_correction, is_complete')
-            .order('id')
-            .range(from, to);
-          if (effectiveFilter !== 'all') query = query.eq('class_name', effectiveFilter);
-          return query;
-        });
+        let checkQuery = homeworkDb
+          .from('english_homework_checks')
+          .select('class_name, record_date, subject, item_name, detail, student_id, handed_in, needs_correction, is_complete');
+        if (effectiveFilter !== 'all') checkQuery = checkQuery.eq('class_name', effectiveFilter);
+        const { data: checkRows, error: checkError } = await checkQuery;
+        if (checkError) throw checkError;
 
         const nextChecks: Record<string, EnglishCheck> = {};
-        for (const row of checkRows) {
+        for (const row of (checkRows || []) as unknown as CheckRow[]) {
           nextChecks[englishCheckKey({
             className: row.class_name,
             date: row.record_date,
@@ -157,7 +150,7 @@ export function EnglishHomeworkBoard() {
 
         if (!cancelled) {
           setWorks(cells);
-          setStudents(studentRows);
+          setStudents((studentRows || []) as Student[]);
           setChecks(nextChecks);
         }
       } catch (err) {

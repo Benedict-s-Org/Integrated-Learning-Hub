@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import SpellingPractice from '../../components/SpellingPractice/SpellingPractice';
@@ -200,35 +200,6 @@ describe('SpellingPractice bound playback', () => {
     expect(speak).not.toHaveBeenCalled();
   });
 
-  it('plays the already resolved word in the Play Word click after autoplay is blocked', async () => {
-    vi.mocked(playAudioUrl).mockRejectedValueOnce(
-      Object.assign(new Error('play() failed because the user did not interact with the document first.'), {
-        name: 'NotAllowedError',
-      })
-    );
-
-    renderPractice({
-      wordAudio: [binding('cat'), binding('dog')],
-    });
-
-    expect(await screen.findByText('Press Play Word to hear the audio.')).toBeInTheDocument();
-    const resolvesBeforeClick = vi.mocked(resolveAudioUrl).mock.calls.length;
-
-    vi.mocked(playAudioUrl).mockResolvedValue({} as HTMLAudioElement);
-    fireEvent.click(screen.getByRole('button', { name: 'Play Word' }));
-
-    expect(playAudioUrl).toHaveBeenCalledTimes(2);
-    expect(playAudioUrl).toHaveBeenLastCalledWith(proxyFor('cat'));
-    expect(vi.mocked(resolveAudioUrl).mock.calls.length).toBe(resolvesBeforeClick);
-    expect(fetchCloudAudio).not.toHaveBeenCalled();
-    expect(speak).not.toHaveBeenCalled();
-
-    await waitFor(() => {
-      expect(screen.queryByText('Press Play Word to hear the audio.')).not.toBeInTheDocument();
-    });
-    expect(screen.queryByText('Audio unavailable for this word')).not.toBeInTheDocument();
-  });
-
   it('shows unavailable when bound audio fails to load', async () => {
     vi.mocked(playAudioUrl).mockRejectedValueOnce(new Error('Audio element failed to load/play'));
 
@@ -292,25 +263,6 @@ describe('SpellingPractice bound playback', () => {
 
     expect(await screen.findByText('Could not load practice audio.')).toBeInTheDocument();
     expect(screen.queryByText('Practice audio is incomplete.')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Play Word' })).toBeDisabled();
-    expect(fetchCloudAudio).not.toHaveBeenCalled();
-    expect(speak).not.toHaveBeenCalled();
-  });
-
-  it('does not fall back to preference TTS when the practice row is hidden (RLS)', async () => {
-    supabaseFrom.mockImplementation(() => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data: null,
-            error: null,
-          }),
-        }),
-      }),
-    }));
-    renderPractice({ practiceId: PRACTICE_ID });
-
-    expect(await screen.findByText('Could not load practice audio.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play Word' })).toBeDisabled();
     expect(fetchCloudAudio).not.toHaveBeenCalled();
     expect(speak).not.toHaveBeenCalled();

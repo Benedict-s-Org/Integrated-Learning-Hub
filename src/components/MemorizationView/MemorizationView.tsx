@@ -23,8 +23,7 @@ interface MemorizationViewProps {
   editingContentId?: string;
 }
 
-/** Progressive reveal: all boxed → first/last hint → fully visible. */
-type WordRevealStage = 'covered' | 'hint' | 'revealed';
+type DifficultyLevel = 1 | 2 | 3;
 
 const BOXES_FONT_FAMILY = '"Boxes Longlegs Short f1", sans-serif';
 
@@ -46,48 +45,34 @@ const containsChineseChars = (text: string): boolean => {
   return Array.from(text).some(char => isChineseChar(char));
 };
 
-/** English word including internal hyphens (e.g. Mid-Autumn, mother-in-law). */
 const isEnglishWord = (text: string): boolean => {
-  return /^[A-Za-z]+(?:-[A-Za-z]+)*$/.test(text);
+  return /^[A-Za-z]+$/.test(text);
 };
 
-/** Box-font cover for English letters. Hyphens stay visible. */
-const isEnglishLetterCovered = (word: string, index: number, stage: 'covered' | 'hint'): boolean => {
+/** English letters that the difficulty level covers. The box font draws these letters as boxes. */
+const isEnglishLetterCovered = (word: string, index: number, level: DifficultyLevel): boolean => {
   if (!isEnglishWord(word)) return false;
-  if (!/[A-Za-z]/.test(word[index])) return false;
-  if (stage === 'covered') return true;
-  // hint: keep first and last characters visible
+  if (word.length <= 2 || level === 3) return true;
+  if (level === 2) return index > 0;
   return index > 0 && index < word.length - 1;
 };
 
-const coveredWordAriaLabel = (word: string, stage: 'covered' | 'hint'): string | undefined => {
+const coveredWordAriaLabel = (word: string, level: DifficultyLevel): string | undefined => {
   if (isEnglishWord(word)) {
-    if (stage === 'covered') return 'Hidden word';
+    const covered = Array.from(word).map((_, index) => isEnglishLetterCovered(word, index, level));
+    if (!covered.some(Boolean)) return undefined;
+    if (covered.every(Boolean)) return 'Hidden word';
+    if (level === 2) return `Hidden word starting with ${word[0]}`;
     return `Hidden word starting with ${word[0]} and ending with ${word[word.length - 1]}`;
   }
-  if (containsChineseChars(word)) {
-    if (stage === 'covered') return 'Hidden word';
-    if (word.length <= 2) return undefined;
-    return `Hidden word starting with ${word[0]} and ending with ${word[word.length - 1]}`;
-  }
+  if (containsChineseChars(word)) return 'Hidden word';
   return undefined;
 };
 
-const HiddenWordText: React.FC<{ word: string; stage: 'covered' | 'hint' }> = ({ word, stage }) => {
+const HiddenWordText: React.FC<{ word: string; level: DifficultyLevel }> = ({ word, level }) => {
   if (!isEnglishWord(word)) {
     if (containsChineseChars(word)) {
-      if (stage === 'covered') {
-        return <>{'*'.repeat(word.length)}</>;
-      }
-      // hint: show first and last characters
-      if (word.length <= 2) return <>{word}</>;
-      return (
-        <>
-          {word[0]}
-          {'*'.repeat(word.length - 2)}
-          {word[word.length - 1]}
-        </>
-      );
+      return <>{'*'.repeat(word.length)}</>;
     }
     return <>{word}</>;
   }
@@ -95,7 +80,7 @@ const HiddenWordText: React.FC<{ word: string; stage: 'covered' | 'hint' }> = ({
   return (
     <>
       {Array.from(word).map((char, index) => {
-        if (!isEnglishLetterCovered(word, index, stage)) {
+        if (!isEnglishLetterCovered(word, index, level)) {
           return <span key={index}>{char}</span>;
         }
         return (
@@ -108,22 +93,19 @@ const HiddenWordText: React.FC<{ word: string; stage: 'covered' | 'hint' }> = ({
   );
 };
 
-const nextRevealStage = (stage: WordRevealStage): WordRevealStage => {
-  if (stage === 'covered') return 'hint';
-  if (stage === 'hint') return 'revealed';
-  return 'covered';
-};
-
 const MemorizationView: React.FC<MemorizationViewProps> = ({
   words, selectedIndices, originalText, title, onBack, onSave, onViewSaved, isPublicView = false, assignmentId, editingContentId
 }) => {
   const { addSavedContent, updateSavedContent, saveLimit, currentSaveCount } = useAppContext();
   const { user, isAdmin, accentPreference, voicePreference, updateVoicePreference } = useAuth();
 
-  const [wordRevealStages, setWordRevealStages] = useState<Map<number, WordRevealStage>>(new Map());
+  const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [difficultyLevel] = useState<DifficultyLevel>(
+    (user?.memorization_level as DifficultyLevel) || 3
+  );
   
   const startTimeRef = useRef<number>(Date.now());
   const sessionSavedRef = useRef<boolean>(false);
@@ -207,28 +189,26 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     }
   };
 
-  // Fully reveal all selected words
+  // 顯示所有選中詞
   const revealAllWords = () => {
-    setWordRevealStages(new Map());
+    setHiddenWords(new Set());
   };
 
-  // Fully cover all selected words (every letter boxed)
+  // 遮蔽所有選中詞
   const coverAllWords = () => {
-    setWordRevealStages(new Map(selectedIndices.map((index) => [index, 'covered'])));
+    setHiddenWords(new Set(selectedIndices));
   };
 
-  // covered → hint (first/last) → revealed → covered
-  const advanceWordReveal = (index: number) => {
-    setWordRevealStages((prev) => {
-      const next = new Map(prev);
-      const current = next.get(index) ?? 'revealed';
-      const advanced = nextRevealStage(current);
-      if (advanced === 'revealed') {
-        next.delete(index);
+  // 切換指定詞的顯示/隱藏狀態
+  const toggleWordVisibility = (index: number) => {
+    setHiddenWords(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
       } else {
-        next.set(index, advanced);
+        newSet.add(index);
       }
-      return next;
+      return newSet;
     });
   };
 
@@ -581,7 +561,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               >
                 {words.map((word, idx) => {
                   const isMemorized = selectedIndices.includes(word.index);
-                  const revealStage: WordRevealStage = wordRevealStages.get(word.index) ?? 'revealed';
+                  const isHidden = hiddenWords.has(word.index);
                   const isHighlighted = word.highlightGroup !== undefined;
                   // Preserve paragraph / line breaks from original text (same as WordSelection)
                   if (word.isParagraphBreak) {
@@ -621,19 +601,19 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   if (isMemorized) {
                     const bgColor = isHighlighted ? 'bg-purple-100' : 'bg-green-100';
                     const hoverBgColor = isHighlighted ? 'hover:bg-purple-200' : 'hover:bg-green-200';
-                    const isMasked = revealStage === 'covered' || revealStage === 'hint';
-                    const ariaLabel = isMasked ? coveredWordAriaLabel(word.text, revealStage) : undefined;
+
+                    const ariaLabel = isHidden ? coveredWordAriaLabel(word.text, difficultyLevel) : undefined;
 
                     return (
                       <button
                         key={`word-${idx}`}
-                        onClick={() => advanceWordReveal(word.index)}
+                        onClick={() => toggleWordVisibility(word.index)}
                         className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${ariaLabel ? 'select-none' : ''}`}
                         aria-label={ariaLabel}
                         data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
                       >
-                        {isMasked ? (
-                          <HiddenWordText word={word.text} stage={revealStage} />
+                        {isHidden ? (
+                          <HiddenWordText word={word.text} level={difficultyLevel} />
                         ) : (
                           word.text
                         )}
@@ -698,10 +678,10 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               data-source-tsx="MemorizationView Instructions Container|src/components/MemorizationView/MemorizationView.tsx"
             >
               <p data-source-tsx="MemorizationView Instructions Text|src/components/MemorizationView/MemorizationView.tsx">
-                Click a covered word to show its first and last letters • Click again to fully reveal • Click a revealed word to cover it again • Use audio controls to hear the text read aloud
+                Click masked words to reveal them • Click revealed words to hide them again • Use audio controls to hear the text read aloud
               </p>
               <p className="text-xs text-gray-500">
-                Cover all Words hides every letter with boxes • First click shows first and last letters • Second click reveals the full word
+                Level 1: First and last letters stay visible; middle letters show as boxes • Level 2: Only the first letter stays visible • Level 3: Every letter shows as a box • One- and two-letter words are fully covered
               </p>
               {speechSupported && (
                 <p className="text-xs text-gray-500">

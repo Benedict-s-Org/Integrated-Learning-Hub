@@ -624,7 +624,7 @@ export const ReportPanel: React.FC<ReportPanelProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="PANEL-ESSAY-REPORT">
       {/* Top Class-Level Summary Banner */}
       <div className="p-3 bg-white border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs print:hidden">
         <div className="flex items-center gap-2">

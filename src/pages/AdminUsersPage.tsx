@@ -758,15 +758,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
 
       // 交齊 / 欠 must go through upsert_morning_duty_log so Missing Homework sees status + coins stay consistent.
       if (mdStatus) {
-        const missingItems = mdStatus === 'missing' && items && Object.keys(items).length > 0
-          ? items
-          : null;
         const { error } = await supabase.rpc('upsert_morning_duty_log', {
           p_log_date: today,
           p_student_id: studentId,
           p_status: mdStatus,
           p_set_by: 'teacher',
-          p_missing_items: missingItems,
+          p_missing_items: mdStatus === 'missing' ? (items || null) : null,
           p_event_type: 'status_change',
         });
         if (error) throw error;
@@ -778,12 +775,12 @@ export function AdminUsersPage({ isEmbedded = false, forcedAdminId }: AdminUsers
               date: today,
               studentId,
             });
-          } else if (missingItems) {
+          } else if (mdStatus === 'missing' && items && Object.keys(items).length > 0) {
             await syncPartialMissingHomeworkTicks({
               className: student?.class_name || '',
               date: today,
               studentId,
-              items: missingItems,
+              items,
             });
           }
         } catch (markErr: unknown) {

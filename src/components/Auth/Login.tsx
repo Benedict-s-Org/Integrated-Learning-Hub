@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
@@ -10,47 +8,13 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const { signIn, loading, user } = useAuth();
-  const navigate = useNavigate();
+  const { signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [blockingBounce, setBlockingBounce] = useState(
-    () => sessionStorage.getItem('force_login_view') === '1'
-  );
-  const isLoginRoute = window.location.pathname === '/login';
-
-  // After an intentional sign-out, stay on the login form and finish clearing any residual session.
-  useEffect(() => {
-    if (!isLoginRoute || !blockingBounce) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch {
-        // ignore
-      } finally {
-        sessionStorage.removeItem('force_login_view');
-        if (!cancelled) setBlockingBounce(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoginRoute, blockingBounce]);
-
-  // If already signed in on the dedicated login route, go to the hub home
-  // (unless we just arrived here from Sign Out).
-  useEffect(() => {
-    if (!loading && user && isLoginRoute && !blockingBounce) {
-      navigate('/', { replace: true });
-    }
-  }, [loading, user, isLoginRoute, blockingBounce, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +26,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (!result.error) {
         onLoginSuccess?.();
-        if (isLoginRoute) {
-          navigate('/', { replace: true });
-        }
       } else {
         setError(result.error.message);
       }
@@ -77,14 +38,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-slate-600">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">

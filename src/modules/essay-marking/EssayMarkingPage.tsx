@@ -2285,7 +2285,7 @@ export const EssayMarkingPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-[calc(100vh-64px)] bg-slate-50 flex flex-col">
+    <div className="w-full min-h-[calc(100vh-64px)] bg-slate-50 flex flex-col" data-ui="PAGE-ESSAY-MARKING">
       {/* Top Workflow Stepper */}
       <WorkflowStepper
         currentStep={currentStep}

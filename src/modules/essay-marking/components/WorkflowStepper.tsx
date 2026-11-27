@@ -24,6 +24,7 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
     <nav
       className="flex items-center gap-1 border-b border-slate-200 bg-slate-50/70 px-4 py-2 overflow-x-auto sticky top-0 z-20 backdrop-blur-sm"
       aria-label="Essay marking workflow"
+      data-ui="PANEL-ESSAY-STEPPER"
     >
       {STEPS.map((step) => {
         const isCurrent = currentStep === step.key || (step.key === 'grade' && currentStep === 'ocr');
@@ -36,6 +37,7 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
             disabled={!isAllowed}
             aria-current={isCurrent ? 'step' : undefined}
             onClick={() => onStepChange(step.key)}
+            data-ui="TAB-ESSAY-STAGE"
             className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors min-h-[34px] ${
               isCurrent
                 ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-xs'

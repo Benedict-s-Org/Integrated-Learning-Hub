@@ -368,7 +368,7 @@ export const StudentMatchingPanel: React.FC<StudentMatchingPanelProps> = ({
       : matchingPreview.extra === 0 && matchingPreview.missing === 0 && isDirty);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-ui="PANEL-ESSAY-MATCH">
       {/* Top Controls: Mode Switcher & Top Status Banner */}
       <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-2xs space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-100">

@@ -187,6 +187,7 @@ export const TranscriptionSettingsModal: React.FC<TranscriptionSettingsModalProp
       role="dialog"
       aria-modal="true"
       aria-labelledby="transcription-settings-title"
+      data-ui="MODAL-ESSAY-TRANSCRIPT-SETTINGS"
     >
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}

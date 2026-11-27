@@ -1308,10 +1308,6 @@ export type Database = {
           p_message: string
           p_type: string
           p_class_id: string
-          p_record_type?: string
-          p_source?: string
-          p_target_classes?: string[]
-          p_broadcast_group_id?: string
           p_reason?: string
         }
         Returns: string
